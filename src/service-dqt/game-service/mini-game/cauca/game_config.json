@@ -1,0 +1,886 @@
+{
+  "shopItems": [
+    { "id": "rod_bamboo_rent", "type": "rod", "name": "Cần câu tre", "price": 100, "description": "Thuê 3 ngày", "effects": { "uses": 150, "breakChance": 0.004 }, "durationDays": 3, "levelRequired": 0 },
+    { "id": "rod_iron_rent", "type": "rod", "name": "Cần câu sắt", "price": 500, "description": "Thuê 7 ngày", "effects": { "uses": 200, "breakChance": 0.003 }, "durationDays": 7, "levelRequired": 0 },
+    { "id": "rod_vip_rent", "type": "rod", "name": "Cần câu VIP", "price": 2000, "description": "Thuê 15 ngày", "effects": { "uses": 300, "expBonus": 0.1, "coinBonus": 0.1, "breakChance": 0.002 }, "durationDays": 15, "levelRequired": 0 },
+
+    { "id": "rod_luong_ngu", "type": "rod", "name": "Cần câu Lưỡng Ngư", "price": 0, "description": "Chỉ có trong vòng quay may mắn", "effects": { "expBonus": 0.25, "rareChanceBonus": 0.3, "coinBonus": 0.2, "uses": 400, "breakChance": 0.0005 }, "isPurchasable": false },
+    { "id": "rod_luc_si", "type": "rod", "name": "Cần câu Lực Sĩ", "price": 0, "description": "Chỉ có trong vòng quay may mắn", "effects": { "expBonus": 0.2, "coinBonus": 0.35, "uses": 380, "breakChance": 0.0007 }, "isPurchasable": false },
+
+    { "id": "pass_village_pond", "type": "pass", "name": "Vé Hồ Làng Quê", "price": 200, "description": "Hạn: 5 ngày", "durationDays": 5, "levelRequired": 0 },
+    { "id": "pass_home_river", "type": "pass", "name": "Vé Sông Quê Hương", "price": 1000, "description": "Hạn: 5 ngày", "durationDays": 5, "levelRequired": 10 },
+    { "id": "pass_blue_bay", "type": "pass", "name": "Vé Vịnh Xanh Thẳm", "price": 3000, "description": "Hạn: 7 ngày", "durationDays": 7, "levelRequired": 15 },
+    { "id": "pass_mystery_ocean", "type": "pass", "name": "Vé Đại Dương Bí Ẩn", "price": 15000, "description": "Hạn: 7 ngày", "durationDays": 7, "levelRequired": 20 },
+    { "id": "pass_deep_abyss", "type": "pass", "name": "Vé Vực Sâu Thăm Thẳm", "price": 60000, "description": "Hạn: 10 ngày", "durationDays": 10, "levelRequired": 25 },
+    { "id": "pass_paradise_rare", "type": "pass", "name": "Vé Thiên Đường Cá Quý", "price": 240000, "description": "Hạn: 10 ngày", "durationDays": 10, "levelRequired": 30 },
+    { "id": "pass_cuu_thien_long_mon", "type": "pass", "name": "Vé Cửu Thiên Long Môn", "price": 800000, "description": "Hạn: 12 ngày", "durationDays": 12, "levelRequired": 35 },
+
+    { "id": "bait_rice", "type": "bait", "name": "Mồi cơm", "price": 10, "effects": { "uses": 5 } },
+    { "id": "bait_worm", "type": "bait", "name": "Mồi Trùng", "price": 50, "effects": { "uses": 5 } },
+    { "id": "bait_ant_eggs", "type": "bait", "name": "Mồi Trứng Kiến", "price": 300, "effects": { "uses": 5 } },
+
+    { "id": "bait_mystic_stingray", "type": "bait", "name": "Mồi Cá Đuối Huyền Bí", "price": 0, "description": "Chỉ có trong vòng quay may mắn", "effects": { "rareChanceBonus": 0.3, "uses": 3 }, "isPurchasable": false }
+  ],
+ "shopItem": [
+    {
+      "id": "tool_net",
+      "type": "tool",
+      "name": "🕸️ Lưới Câu",
+      "price": 50000,
+      "description": "💰 Giá: 2,000,000 VND\n✨ Hiệu ứng: Có cơ hội nhận thêm +1 cá mỗi lần câu",
+      "effects": { "extraCatchChance": 0.2 },
+      "durationDays": 3,
+      "levelRequired": 30,
+      "isPurchasable": true
+    },
+    {
+      "id": "tool_detector",
+      "type": "tool",
+      "name": "📡 Máy Dò Cá",
+      "price": 40000,
+      "description": "💰 Giá: 1,500,000 VND\n✨ Hiệu ứng: Tăng 5% tỉ lệ cá hiếm và huyền thoại",
+      "effects": { "rareChanceBonus": 0.05, "legendaryChanceBonus": 0.05 },
+      "durationDays": 3,
+      "levelRequired": 25,
+      "isPurchasable": true
+    },
+    {
+      "id": "tool_oxygen",
+      "type": "tool",
+      "name": "🫧 Bình Oxy",
+      "price": 30000,
+      "description": "💰 Giá: 1,000,000 VND\n✨ Hiệu ứng: Giảm 20% thời gian chờ câu",
+      "effects": { "cooldownReductionPercent": 0.20 },
+      "durationDays": 3,
+      "levelRequired": 20,
+      "isPurchasable": true
+    },
+    {
+      "id": "tool_booster",
+      "type": "tool",
+      "name": "🚀 Booster EXP",
+      "price": 60000,
+      "description": "💰 Giá: 2,500,000 VND\n✨ Hiệu ứng: Tăng 10% EXP từ mỗi lần câu",
+      "effects": { "expBonus": 0.10 },
+      "durationDays": 3,
+      "levelRequired": 35,
+      "isPurchasable": true
+    },
+    {
+      "id": "tool_shield",
+      "type": "tool",
+      "name": "🛡️ Khiên Bảo Vệ",
+      "price": 100000,
+      "description": "💰 Giá: 5,000,000 VND\n✨ Hiệu ứng: Giảm tỉ lệ hỏng cần câu 5%",
+      "effects": { "breakReductionPercent": 0.05 },
+      "durationDays": 3,
+      "levelRequired": 40,
+      "isPurchasable": true
+    },
+    {
+      "id": "tool_trident_charm",
+      "type": "tool",
+      "name": "🔱 Bùa Đinh Ba",
+      "price": 200000,
+      "description": "💰 Giá: 8,000,000 VND\n✨ Hiệu ứng: +15% cá thần thoại, +35% cơ hội bắt thêm cá",
+      "effects": { "mythicalChanceBonus": 0.15, "extraCatchChance": 0.35 },
+      "durationDays": 3,
+      "levelRequired": 50,
+      "isPurchasable": true
+    },
+    {
+      "id": "tool_magicbait",
+      "type": "tool",
+      "name": "🪄 Mồi Ma Thuật",
+      "price": 70000,
+      "description": "💰 Giá: 3,000,000 VND\n✨ Hiệu ứng: +10% cá hiếm, +5% cá huyền thoại",
+      "effects": { "rareChanceBonus": 0.10, "legendaryChanceBonus": 0.05 },
+      "durationDays": 3,
+      "levelRequired": 25,
+      "isPurchasable": true
+    },
+    {
+      "id": "tool_treasure_compass",
+      "type": "tool",
+      "name": "🧭 La Bàn Kho Báu",
+      "price": 150000,
+      "description": "💰 Giá: 6,000,000 VND\n✨ Hiệu ứng: +20% tỉ lệ nhận vé quay, +10% vàng",
+      "effects": { "ticketBonusChance": 0.20, "coinBonus": 0.10 },
+      "durationDays": 3,
+      "levelRequired": 45,
+      "isPurchasable": true
+    },
+    {
+      "id": "tool_poseidon_blessing",
+      "type": "tool",
+      "name": "🌊 Phù Hộ Poseidon",
+      "price": 300000,
+      "description": "💰 Giá: 12,000,000 VND\n✨ Hiệu ứng: +10% cá huyền thoại, +10% cá thần thoại, giảm 15% cooldown",
+      "effects": { "legendaryChanceBonus": 0.10, "mythicalChanceBonus": 0.10, "cooldownReductionPercent": 0.15 },
+      "durationDays": 3,
+      "levelRequired": 55,
+      "isPurchasable": true
+    },
+    {
+      "id": "tool_experience_boost",
+      "type": "tool",
+      "name": "⚡ Thần Lực EXP",
+      "price": 500000,
+      "description": "💰 Giá: 28,000,000 VND\n✨ Hiệu ứng: +20% EXP nhận được từ mọi hoạt động, +15% cá huyền thoại, +15% cá thần thoại.",
+      "effects": {
+        "expBonusPercent": 0.20, "cooldownReductionPercent": 0.10, "legendaryChanceBonus": 0.15, "mythicalChanceBonus": 0.15},
+      "durationDays": 3,
+      "levelRequired": 65,
+      "isPurchasable": true
+    }
+  ], 
+  "pets": [
+    {
+      "id": "pet_turtle",
+      "type": "pet",
+      "name": "🐢 Rùa Thú Cưng",
+      "price": 200000,
+      "description": "💰 Giá: 9.500,000 VND\n✨ Hiệu ứng: +5% EXP, +5% VND, Level lên: Tăng bonus.",
+      "effects": { "expBonus": 0.05, "coinBonus": 0.05 },
+      "maxLevel": 10,
+      "expToLevel": 100000,
+      "levelRequired": 30
+    },
+    {
+      "id": "pet_dolphin",
+      "type": "pet",
+      "name": "🐬 Cá Heo Thông Minh",
+      "price": 500000,
+      "description": "💰 Giá: 29,000,000 VND\n✨ Hiệu ứng: +10% EXP, +10% tỉ lệ cá hiếm. Level lên: tăng hiệu ứng thêm 5% mỗi cấp.",
+      "effects": { "expBonus": 0.10, "rareChanceBonus": 0.10 },
+      "maxLevel": 20,
+      "expToLevel": 120000,
+      "levelRequired": 50,
+      "isPurchasable": true
+    },
+    {
+      "id": "pet_dragon",
+      "type": "pet",
+      "name": "🐉 Rồng Biển Thú Cưng",
+      "price": 800000,
+      "description": "💰 Giá: 40,000,000 VND\n✨ Hiệu ứng: +15% EXP, +10% VND, +5% thần thoại, Level lên: Tăng bonus mạnh.",
+      "effects": { "expBonus": 0.15, "coinBonus": 0.10, "mythicalChanceBonus": 0.05 },
+      "maxLevel": 25,
+      "expToLevel": 130000,
+      "levelRequired": 55,
+      "isPurchasable": true
+    },
+    {
+      "id": "pet_octopus",
+      "type": "pet",
+      "name": "🐙 Bạch Tuộc Trí Tuệ",
+      "price": 1200000,
+      "description": "💰 Giá: 55,000,000 VND\n✨ Hiệu ứng: +8% tất cả chỉ số, có cơ hội 1% câu được vật phẩm hiếm. Level càng cao, buff càng mạnh.",
+      "effects": { "expBonus": 0.08, "coinBonus": 0.08, "rareChanceBonus": 0.08, "legendaryChanceBonus": 0.08, "mythicalChanceBonus": 0.08 },
+      "maxLevel": 30,
+      "expToLevel": 140000,
+      "levelRequired": 65,
+      "isPurchasable": true
+    },
+    {
+      "id": "pet_phoenix",
+      "type": "pet",
+      "name": "🦅 Phượng Hoàng Biển",
+      "price": 2000000,
+      "description": "💰 Giá: 75,000,000 VND\n✨ Hiệu ứng: +20% cá huyền thoại, +10% thần thoại, +15% tất cả chỉ số.",
+      "effects": { "legendaryChanceBonus": 0.20, "mythicalChanceBonus": 0.10, "expBonus": 0.15, "coinBonus": 0.15, "rareChanceBonus": 0.15 },
+      "maxLevel": 35,
+      "expToLevel": 150000,
+      "levelRequired": 75,
+      "isPurchasable": true
+    },
+    {
+      "id": "pet_kraken",
+      "type": "pet",
+      "name": "🦑 Kraken Huyền Thoại",
+      "price": 3000000,
+      "description": "💰 Giá: 95,000,000 VND\n✨ Hiệu ứng: +20% tất cả chỉ số, +10% cơ hội bắt thêm cá.",
+      "effects": {
+        "expBonus": 0.20,
+        "coinBonus": 0.20,
+        "rareChanceBonus": 0.20,
+        "legendaryChanceBonus": 0.20,
+        "mythicalChanceBonus": 0.20,
+        "extraCatchChance": 0.10
+      },
+      "maxLevel": 45,
+      "expToLevel": 170000,
+      "levelRequired": 95,
+      "isPurchasable": true
+    },
+    {
+      "id": "pet_galaxy_dragon",
+      "type": "pet",
+      "name": "🌌 Long Thần Ngân Hà",
+      "price": 135000000,
+      "description": "💰 Giá: 135,000,000 VND\n✨ Hiệu ứng: +30% EXP, +25% cá hiếm, +15% huyền thoại và thần thoại, +15% vàng, +10% vé quay.",
+      "effects": {
+        "expBonus": 0.30,
+        "coinBonus": 0.15,
+        "rareChanceBonus": 0.25,
+        "legendaryChanceBonus": 0.15,
+        "mythicalChanceBonus": 0.15,
+        "ticketBonusChance": 0.10
+      },
+      "maxLevel": 55,
+      "expToLevel": 190000,
+      "levelRequired": 110,
+      "isPurchasable": false
+    },
+    {
+      "id": "pet_god_cosmic",
+      "type": "pet",
+      "name": "👑 Thần Cá Vũ Trụ",
+      "price": 155000000,
+      "description": "💰 Giá: 155,000,000 VND\n💫 Pet tối thượng — biểu tượng sức mạnh vũ trụ. +25% tất cả chỉ số, +20% huyền thoại và thần thoại, +10% bắt thêm cá.",
+      "effects": {
+        "expBonus": 0.25,
+        "coinBonus": 0.25,
+        "rareChanceBonus": 0.25,
+        "legendaryChanceBonus": 0.20,
+        "mythicalChanceBonus": 0.20,
+        "extraCatchChance": 0.10
+      },
+      "maxLevel": 115,
+      "expToLevel": 200000,
+      "levelRequired": 100,
+      "isPurchasable": false
+    }
+  ],
+  "skillCards": [
+    {
+      "id": "skill_exp_boost",
+      "name": "📘 Thẻ Tri Thức",
+      "description": "Tăng 25% EXP khi câu cá trong 30 phút.",
+      "rarity": "rare",
+      "durationMinutes": 30,
+      "effects": { "expBonus": 0.25 },
+      "price": 5000000000000
+    },
+    {
+      "id": "skill_coin_boost",
+      "name": "💰 Thẻ May Mắn",
+      "description": "Tăng 25% tiền nhận được khi câu cá trong 20 phút.",
+      "rarity": "epic",
+      "durationMinutes": 20,
+      "effects": { "coinBonus": 0.25 },
+      "price": 1000000000000000
+    },
+    {
+      "id": "skill_rare_fish",
+      "name": "🐠 Thẻ Dấu Ấn Biển Xanh",
+      "description": "Tăng 25% tỉ lệ cá hiếm trong 25 phút.",
+      "rarity": "epic",
+      "durationMinutes": 25,
+      "effects": { "rareChanceBonus": 0.25 },
+      "price": 120000000000000
+    },
+    {
+      "id": "skill_exp_vip",
+      "name": "📗 Thẻ Trí Tuệ Vàng",
+      "description": "Tăng 50% EXP khi câu cá trong 30 phút.",
+      "rarity": "legendary",
+      "durationMinutes": 30,
+      "effects": { "expBonus": 0.50 },
+      "price": 50000000000000
+    },
+    {
+      "id": "skill_coin_vip",
+      "name": "💵 Thẻ Tài Lộc Vàng",
+      "description": "Tăng 50% tiền nhận được khi câu cá trong 30 phút.",
+      "rarity": "legendary",
+      "durationMinutes": 30,
+      "effects": { "coinBonus": 0.50 },
+      "price": 80000000000000
+    },
+    {
+      "id": "skill_rare_vip",
+      "name": "🐟 Thẻ Dấu Ấn Biển Kim Cương",
+      "description": "Tăng 50% tỉ lệ cá hiếm trong 45 phút.",
+      "rarity": "legendary",
+      "durationMinutes": 45,
+      "effects": { "rareChanceBonus": 0.50 },
+      "price": 100000000000000
+    }
+  ],
+  "events": [
+    {
+      "id": "sea_festival",
+      "name": "🎆 Lễ Hội Biển",
+      "description": "Câu cá trong thời gian 18h–23h để có cơ hội nhận Pet hiếm và vật phẩm đặc biệt.",
+      "activeHours": [18, 23],
+      "rewards": {
+        "pet": ["pet_phoenix"],
+        "chance": 0.005
+      }
+    },
+    {
+      "id": "deep_boss",
+      "name": "🐉 Boss Biển Sâu",
+      "description": "Xuất hiện ngẫu nhiên khi câu cá! Hạ gục boss sẽ có cơ hội nhận Pet Rùa Thú Cưng.",
+      "chance": 0.0005,
+      "rewards": {
+        "pet": ["pet_turtle"],
+        "bonus": { "exp": 10000, "money": 50000 }
+      }
+    }
+  ],
+  "achievements": [
+    {
+      "id": "first_catch",
+      "name": "🎣 Lần Đầu Câu Cá",
+      "type": "stats.totalFishCaught",
+      "goal": 1,
+      "description": "Câu được con cá đầu tiên",
+      "rewards": { "VND": 500, "exp": 200 }
+    },
+    {
+      "id": "rookie_angler",
+      "name": "🐟 Thợ Câu Mới",
+      "type": "stats.totalFishCaught",
+      "goal": 100,
+      "description": "Câu được 100 con cá",
+      "rewards": { "VND": 6000, "exp": 5000 }
+    },
+    {
+      "id": "veteran_angler",
+      "name": "🎯 Thợ Câu Lão Luyện",
+      "type": "stats.totalFishCaught",
+      "goal": 1000,
+      "description": "Câu được 1000 con cá",
+      "rewards": { "VND": 15000, "exp": 10000 }
+    },
+    {
+      "id": "master_angler",
+      "name": "🏆 Bậc Thầy Câu Cá",
+      "type": "stats.totalFishCaught",
+      "goal": 10000,
+      "description": "Câu được 10000 con cá",
+      "rewards": { "VND": 70000, "exp": 30000 }
+    },
+    {
+      "id": "first_rare",
+      "name": "🍣 Cá Hiếm Đầu Tiên",
+      "type": "stats.rareCaught",
+      "goal": 1,
+      "description": "Câu được con cá hiếm đầu tiên",
+      "rewards": { "VND": 500, "exp": 300 }
+    },
+    {
+      "id": "rare_hunter",
+      "name": "🎪 Thợ Săn Cá Hiếm",
+      "type": "stats.rareCaught",
+      "goal": 50,
+      "description": "Câu được 50 cá hiếm",
+      "rewards": { "VND": 3000, "exp": 1500 }
+    },
+    {
+      "id": "first_legendary",
+      "name": "🐉 Huyền Thoại Đầu Tiên",
+      "type": "stats.legendaryCaught",
+      "goal": 1,
+      "description": "Câu được cá huyền thoại đầu tiên",
+      "rewards": { "VND": 2000, "exp": 1500 }
+    },
+    {
+      "id": "legendary_lord",
+      "name": "👑 Chúa Tể Huyền Thoại",
+      "type": "stats.legendaryCaught",
+      "goal": 10,
+      "description": "Câu được 10 cá huyền thoại",
+      "rewards": { "VND": 10000, "exp": 7000 }
+    },
+    {
+      "id": "mythical_hunter",
+      "name": "🌌 Thợ Săn Thần Thoại",
+      "type": "stats.mythicalCaught",
+      "goal": 1,
+      "description": "Câu được con cá thần thoại đầu tiên",
+      "rewards": { "VND": 4000, "exp": 3000 }
+    },
+    {
+      "id": "rod_breaker",
+      "name": "🔨 Phá Cần Câu",
+      "type": "stats.rodsBroken",
+      "goal": 5,
+      "description": "Làm hỏng 5 cần câu",
+      "rewards": { "VND": 7000, "exp": 2000 }
+    },
+    {
+      "id": "shop_spender",
+      "name": "🛒 Đại Gia Shop",
+      "type": "stats.totalSpent",
+      "goal": 10000,
+      "description": "Chi tiêu 10,000 VND trong shop",
+      "rewards": { "VND": 2000, "exp": 1000 }
+    },
+    {
+      "id": "first_boss_attack",
+      "name": "🗡️ Đánh Boss Đầu Tiên",
+      "type": "stats.bossAttacks",
+      "goal": 1,
+      "description": "Gây sát thương lên boss lần đầu tiên",
+      "rewards": { "VND": 5000, "exp": 1000 }
+    },
+    {
+      "id": "boss_hunter",
+      "name": "🏹 Thợ Săn Boss",
+      "type": "stats.bossAttacks",
+      "goal": 100,
+      "description": "Tham gia đánh boss 50 lần",
+      "rewards": { "VND": 50000, "exp": 20000 }
+    },
+    {
+      "id": "boss_slayer",
+      "name": "⚔️ Kẻ Hủy Diệt Boss",
+      "type": "stats.bossKills",
+      "goal": 10,
+      "description": "Gây sát thương quyết định hạ gục boss 10 lần",
+      "rewards": { "VND": 20000, "exp": 10000 }
+    }
+  ], 
+  "areas": [
+    {
+      "id": 1,
+      "name": "🏞️ Sông Lười",
+      "levelRequired": 1,
+      "fish": [
+        { "type": "junk", "name": "Rác", "chance": 20, "exp": [0, 0], "value": 10 },
+        { "type": "common", "name": "Cá Thường", "chance": 65, "exp": [10, 11], "value": 100 },
+        { "type": "rare", "name": "Cá Hiếm", "chance": 15, "exp": [20, 22], "value": 200 }
+      ],
+      "fishNames": {
+        "common": ["Cá Rô", "Cá Chép", "Cá Trê", "Cá Lóc", "Cá Trắm", "Cá Mè", "Cá Chuối", "Cá Lăng", "Cá Bống", "Cá Ngạnh"],
+        "rare": ["Cá Mú", "Cá Chim", "Cá Thu"],
+        "legendary": [],
+        "mythical": []
+      }
+    },
+    {
+      "id": 2,
+      "name": "🪷 Hồ Nước Ngọt",
+      "levelRequired": 5,
+      "fish": [
+        { "type": "junk", "name": "Rác", "chance": 20, "exp": [13, 26], "value": 10 },
+        { "type": "common", "name": "Cá Thường", "chance": 65, "exp": [214, 299], "value": 260 },
+        { "type": "rare", "name": "Cá Hiếm", "chance": 15, "exp": [383, 468], "value": 490 }
+      ],
+      "fishNames": {
+        "common": ["Cá Tra", "Cá Basa", "Cá Diêu Hồng", "Cá Ngừ Tươi", "Cá Rô Đồng", "Cá Lóc Đồng", "Cá Trê Đồng", "Cá Chép Hồ", "Cá Mè Hồ", "Cá Trắm Hồ"],
+        "rare": ["Cá Hồi", "Cá Tầm", "Cá Koi"],
+        "legendary": [],
+        "mythical": []
+      }
+    },
+    {
+      "id": 3,
+      "name": "🌊 Biển Cạn",
+      "levelRequired": 15,
+      "fish": [
+        { "type": "junk", "name": "Rác Biển", "chance": 20, "exp": [26, 65], "value": 10 },
+        { "type": "common", "name": "Cá Thường", "chance": 65, "exp": [455, 650], "value": 270 },
+        { "type": "rare", "name": "Cá Hiếm", "chance": 15, "exp": [721, 1092], "value": 610 }
+      ],
+      "fishNames": {
+        "common": ["Cá Ngừ", "Cá Bơn", "Cá Mòi", "Cá Bạc Má", "Cá Sòng", "Cá Đối Biển", "Cá Nục", "Cá Trích", "Cá Cơm", "Cá Sơn"],
+        "rare": ["Cá Ngừ Đại Dương", "Cá Mập Con", "Cá Đuối"],
+        "legendary": [],
+        "mythical": []
+      }
+    },
+    {
+      "id": 4,
+      "name": "🚢 Đại Dương Mở",
+      "levelRequired": 25,
+      "fish": [
+        { "type": "junk", "name": "Rác Đại Dương", "chance": 20, "exp": [90, 180], "value": 0 },
+        { "type": "common", "name": "Cá Thường", "chance": 65, "exp": [936, 1512], "value": 340 },
+        { "type": "rare", "name": "Cá Hiếm", "chance": 15, "exp": [2628, 2916], "value": 820 }
+      ],
+      "fishNames": {
+        "common": ["Cá Thu Đại", "Cá Bơn Lớn", "Cá Mòi Biển", "Cá Bạc Má Đại", "Cá Sòng Đại", "Cá Đối Đại", "Cá Nục Lớn", "Cá Trích Đại", "Cá Cơm Đại", "Cá Sơn Lớn"],
+        "rare": ["Cá Ngừ Vây Vàng", "Cá Mập Xanh", "Cá Đuối Gai"],
+        "legendary": [],
+        "mythical": []
+      }
+    },
+    {
+      "id": 5,
+      "name": "❄️ Vùng Nước Lạnh",
+      "levelRequired": 35,
+      "fish": [
+        { "type": "junk", "name": "Rác Lạnh", "chance": 10, "exp": [108, 198], "value": 0 },
+        { "type": "common", "name": "Cá Thường", "chance": 50, "exp": [1008, 1476], "value": 420 },
+        { "type": "rare", "name": "Cá Hiếm", "chance": 25, "exp": [1404, 1692], "value": 1060 },
+        { "type": "legendary", "name": "Cá Huyền Thoại", "chance": 10, "exp": [3528, 3960], "value": 4200 },
+        { "type": "mythical", "name": "Cá Thần Thoại", "chance": 5, "exp": [5256, 5832], "value": 6600 }
+      ],
+      "fishNames": {
+        "common": ["Cá Hồi Lạnh", "Cá Tuyết", "Cá Bơn Bắc Cực", "Cá Mòi Lạnh", "Cá Trích Lạnh", "Cá Sòng Lạnh", "Cá Nục Lạnh", "Cá Đối Lạnh", "Cá Cơm Lạnh", "Cá Sơn Lạnh"],
+        "rare": ["Cá Tầm Lạnh", "Cá Mập Bắc Cực", "Cá Đuối Lạnh"],
+        "legendary": ["Cá Voi Bắc Cực", "Cá Hải Tượng", "Cá Băng Vương"],
+        "mythical": ["Cá Băng Huyền Thoại", "Cá Tiên Lạnh"]
+      }
+    },
+    {
+      "id": 6,
+      "name": "🕳️ Hang Động Biển",
+      "levelRequired": 45,
+      "fish": [
+        { "type": "junk", "name": "Rác Hang", "chance": 10, "exp": [126, 216], "value": 0 },
+        { "type": "common", "name": "Cá Thường", "chance": 50, "exp": [1260, 1836], "value": 500 },
+        { "type": "rare", "name": "Cá Hiếm", "chance": 25, "exp": [1620, 2250], "value": 1300 },
+        { "type": "legendary", "name": "Cá Huyền Thoại", "chance": 10, "exp": [3960, 4608], "value": 5000 },
+        { "type": "mythical", "name": "Cá Thần Thoại", "chance": 5, "exp": [5500, 6570], "value": 7400 }
+      ],
+      "fishNames": {
+        "common": ["Cá Hang Thường1", "Cá Hang Thường2", "Cá Hang Thường3", "Cá Hang Thường4", "Cá Hang Thường5", "Cá Hang Thường6", "Cá Hang Thường7", "Cá Hang Thường8", "Cá Hang Thường9", "Cá Hang Thường10"],
+        "rare": ["Cá Hang Hiếm1", "Cá Hang Hiếm2", "Cá Hang Hiếm3"],
+        "legendary": ["Cá Hang Huyền Thoại1", "Cá Hang Huyền Thoại2", "Cá Hang Huyền Thoại3"],
+        "mythical": ["Cá Hang Thần Thoại1", "Cá Hang Thần Thoại2"]
+      }
+    },
+    {
+      "id": 7,
+      "name": "🌑 Vực Thẳm Đại Dương",
+      "levelRequired": 55,
+      "fish": [
+        { "type": "junk", "name": "Rác Vực", "chance": 10, "exp": [200, 325], "value": 0 },
+        { "type": "common", "name": "Cá Thường", "chance": 50, "exp": [2000, 3000], "value": 700 },
+        { "type": "rare", "name": "Cá Hiếm", "chance": 25, "exp": [3050, 4250], "value": 1900 },
+        { "type": "legendary", "name": "Cá Huyền Thoại", "chance": 10, "exp": [4890, 6265], "value": 7000 },
+        { "type": "mythical", "name": "Cá Thần Thoại", "chance": 5, "exp": [7700, 10497], "value": 9500 }
+      ],
+      "fishNames": {
+        "common": ["Cá Vực Thường1", "Cá Vực Thường2", "Cá Vực Thường3", "Cá Vực Thường4", "Cá Vực Thường5", "Cá Vực Thường6", "Cá Vực Thường7", "Cá Vực Thường8", "Cá Vực Thường9", "Cá Vực Thường10"],
+        "rare": ["Cá Vực Hiếm1", "Cá Vực Hiếm2", "Cá Vực Hiếm3"],
+        "legendary": ["Cá Vực Huyền Thoại1", "Cá Vực Huyền Thoại2", "Cá Vực Huyền Thoại3"],
+        "mythical": ["Cá Vực Thần Thoại1", "Cá Vực Thần Thoại2"]
+      }
+    },
+    {
+      "id": 8,
+      "name": "⭐ Biển Sao",
+      "levelRequired": 65,
+      "fish": [
+        { "type": "junk", "name": "Rác Sao", "chance": 10, "exp": [225, 350], "value": 0 },
+        { "type": "common", "name": "Cá Thường", "chance": 50, "exp": [3200, 3700], "value": 800 },
+        { "type": "rare", "name": "Cá Hiếm", "chance": 25, "exp": [4600, 5500], "value": 2100 },
+        { "type": "legendary", "name": "Cá Huyền Thoại", "chance": 10, "exp": [6700, 7500], "value": 8000 },
+        { "type": "mythical", "name": "Cá Thần Thoại", "chance": 5, "exp": [10900, 14200], "value": 10500 }
+      ],
+      "fishNames": {
+        "common": ["Cá Sao Thường1", "Cá Sao Thường2", "Cá Sao Thường3", "Cá Sao Thường4", "Cá Sao Thường5", "Cá Sao Thường6", "Cá Sao Thường7", "Cá Sao Thường8", "Cá Sao Thường9", "Cá Sao Thường10"],
+        "rare": ["Cá Sao Hiếm1", "Cá Sao Hiếm2", "Cá Sao Hiếm3"],
+        "legendary": ["Cá Sao Huyền Thoại1", "Cá Sao Huyền Thoại2", "Cá Sao Huyền Thoại3"],
+        "mythical": ["Cá Sao Thần Thoại1", "Cá Sao Thần Thoại2"]
+      }
+    },
+    {
+      "id": 9,
+      "name": "🌌 Thiên Hà Sâu",
+      "levelRequired": 75,
+      "fish": [
+        { "type": "junk", "name": "Rác Thiên Hà", "chance": 10, "exp": [250, 375], "value": 0 },
+        { "type": "common", "name": "Cá Thường", "chance": 50, "exp": [4700, 6400], "value": 900 },
+        { "type": "rare", "name": "Cá Hiếm", "chance": 25, "exp": [7100, 8400], "value": 2500 },
+        { "type": "legendary", "name": "Cá Huyền Thoại", "chance": 10, "exp": [11700, 13300], "value": 8900 },
+        { "type": "mythical", "name": "Cá Thần Thoại", "chance": 5, "exp": [15900, 17500], "value": 11500 }
+      ],
+      "fishNames": {
+        "common": ["Cá Thiên Hà Thường1", "Cá Thiên Hà Thường2", "Cá Thiên Hà Thường3", "Cá Thiên Hà Thường4", "Cá Thiên Hà Thường5", "Cá Thiên Hà Thường6", "Cá Thiên Hà Thường7", "Cá Thiên Hà Thường8", "Cá Thiên Hà Thường9", "Cá Thiên Hà Thường10"],
+        "rare": ["Cá Thiên Hà Hiếm1", "Cá Thiên Hà Hiếm2", "Cá Thiên Hà Hiếm3"],
+        "legendary": ["Cá Thiên Hà Huyền Thoại1", "Cá Thiên Hà Huyền Thoại2", "Cá Thiên Hà Huyền Thoại3"],
+        "mythical": ["Cá Thiên Hà Thần Thoại1", "Cá Thiên Hà Thần Thoại2"]
+      }
+    },
+    {
+      "id": 10,
+      "name": "🌊 Vực Sâu",
+      "levelRequired": 80,
+      "fish": [
+        { "type": "junk", "name": "Rác Vũ Trụ", "chance": 10, "exp": [275, 400], "value": 1000 },
+        { "type": "common", "name": "Cá Thường", "chance": 50, "exp": [5800, 7100], "value": 1000 },
+        { "type": "rare", "name": "Cá Hiếm", "chance": 25, "exp": [7400, 8800], "value": 2800 },
+        { "type": "legendary", "name": "Cá Huyền Thoại", "chance": 10, "exp": [12300, 16400], "value": 9500 },
+        { "type": "mythical", "name": "Cá Thần Thoại", "chance": 5, "exp": [19600, 20600], "value": 13500 }
+      ],
+      "fishNames": {
+        "common": ["Cá Vực Thường1", "Cá Vực Thường2", "Cá Vực Thường3", "Cá Vực Thường4", "Cá Sâu Thẳm", "Cá Biển Đen", "Cá Vực Thường7", "Cá Vực Thường8", "Cá Vực Thường9", "Cá Vực Thường10"],
+        "rare": ["Cá Vực Hiếm1", "Cá Vực Hiếm2", "Cá Vực Hiếm3"],
+        "legendary": ["Cá Vực Huyền Thoại1", "Cá Vực Huyền Thoại2", "Cá Vực Huyền Thoại3"],
+        "mythical": ["Cá Vực Thần Thoại1", "Cá Vực Thần Thoại2"]
+      }
+    },
+    {
+      "id": 11,
+      "name": "⭐ Thiên Hà Cá",
+      "levelRequired": 90,
+      "fish": [
+        { "type": "junk", "name": "Rác Vũ Trụ", "chance": 10, "exp": [300, 425], "value": 1000 },
+        { "type": "common", "name": "Cá Thường", "chance": 50, "exp": [8500, 11800], "value": 1500 },
+        { "type": "rare", "name": "Cá Hiếm", "chance": 25, "exp": [13000, 16700], "value": 4000 },
+        { "type": "legendary", "name": "Cá Huyền Thoại", "chance": 10, "exp": [18500, 22200], "value": 10800 },
+        { "type": "mythical", "name": "Cá Thần Thoại", "chance": 5, "exp": [24500, 26075], "value": 15000 }
+      ],
+      "fishNames": {
+        "common": ["Cá Ánh Sao", "Cá Tinh Vân", "Cá Sao Biển", "Cá Mây Vũ Trụ", "Cá Thiên Thể", "Cá Hố Đen", "Cá Ánh Sao 2", "Cá Tinh Vân 2", "Cá Sao Biển 2", "Cá Mây Vũ Trụ 2"],
+        "rare": ["Cá Mập Thiên Thạch", "Cá Kỳ Lân Biển", "Cá Rồng Vảy Ánh Sao"],
+        "legendary": ["Cá Thần Long Vũ Trụ", "Cá Phượng Hoàng Không Gian", "Cá Huyền Thoại Vũ Trụ"],
+        "mythical": ["Thần Cá Thiên Hà", "Quái Vật Hư Không"]
+      }
+    },
+    {
+      "id": 12,
+      "name": "🦈 Hang Thủy Quái",
+      "levelRequired": 1,
+      "fish": [
+        { "type": "junk", "name": "Rác", "chance": 10, "exp": [0, 0], "value": 0 },
+        { "type": "common", "name": "Cá Thường", "chance": 50, "exp": [0, 0], "value": 0 },
+        { "type": "rare", "name": "Cá Hiếm", "chance": 25, "exp": [0, 0], "value": 0 },
+        { "type": "legendary", "name": "Cá Huyền Thoại", "chance": 10, "exp": [0, 0], "value": 0 },
+        { "type": "mythical", "name": "Cá Thần Thoại", "chance": 5, "exp": [0, 0], "value": 0 }
+      ],
+      "fishNames": {
+        "common": ["Cá Boss Thường1", "Cá Boss Thường2", "Cá Boss Thường3", "Cá Boss Thường4", "Cá Quái Nhỏ", "Cá Hắc Long", "Cá Boss Thường7", "Cá Boss Thường8", "Cá Boss Thường9", "Cá Boss Thường10"],
+        "rare": ["Cá Boss Hiếm1", "Cá Boss Hiếm2", "Cá Boss Hiếm3"],
+        "legendary": ["Cá Boss Huyền Thoại1", "Cá Boss Huyền Thoại2", "Cá Boss Huyền Thoại3"],
+        "mythical": ["Cá Boss Thần Thoại1", "Cá Boss Thần Thoại2"]
+      }
+    },
+    {
+      "id": 13,
+      "name": "🌌 Vùng Không Gian Vô Tận",
+      "levelRequired": 100,
+      "fish": [
+        { "type": "junk", "name": "Rác Vũ Trụ", "chance": 10, "exp": [375, 500], "value": 1500 },
+        { "type": "common", "name": "Cá Thường", "chance": 50, "exp": [13700, 17400], "value": 6750 },
+        { "type": "rare", "name": "Cá Hiếm", "chance": 25, "exp": [18600, 22500], "value": 8500 },
+        { "type": "legendary", "name": "Cá Huyền Thoại", "chance": 10, "exp": [32200, 33200], "value": 17000 },
+        { "type": "mythical", "name": "Cá Thần Thoại", "chance": 5, "exp": [39400, 41000], "value": 28000 }
+      ],
+      "fishNames": {
+        "common": ["Cá Không Gian", "Cá Tinh Tế", "Cá Hành Tinh", "Cá Thiên Thạch", "Cá Vũ Trụ", "Cá Sao Chổi", "Cá Không Gian 2", "Cá Tinh Tế 2", "Cá Hành Tinh 2", "Cá Thiên Thạch 2"],
+        "rare": ["Cá Hố Đen", "Cá Tinh Vân Lớn", "Cá Quasar"],
+        "legendary": ["Cá Thiên Long", "Cá Phượng Hoàng Vũ Trụ", "Cá Huyền Thoại Vô Tận"],
+        "mythical": ["Thần Cá Vô Tận", "Quái Vật Không Gian"]
+      }
+    },
+    {
+      "id": 14,
+      "name": "🔥 Vùng Dung Nham Rực Cháy",
+      "levelRequired": 120,
+      "fish": [
+        { "type": "common", "name": "Cá Nhiệt Đới", "chance": 60, "exp": [20800, 23800], "value": 11700 },
+        { "type": "rare", "name": "Cá Dung Nham", "chance": 25, "exp": [29000, 31600], "value": 17100 },
+        { "type": "legendary", "name": "Cá Rồng Lửa", "chance": 10, "exp": [33000, 46000], "value": 21000 },
+        { "type": "mythical", "name": "Cá Thần Núi Lửa", "chance": 5, "exp": [47600, 58000], "value": 27000 }
+      ],
+      "fishNames": {
+        "common": ["Cá Nhiệt Đới1", "Cá Nhiệt Đới2", "Cá Nhiệt Đới3", "Cá Nhiệt Đới4", "Cá Nhiệt Đới5", "Cá Nhiệt Đới6", "Cá Nhiệt Đới7", "Cá Nhiệt Đới8", "Cá Nhiệt Đới9", "Cá Nhiệt Đới10"],
+        "rare": ["Cá Dung Nham1", "Cá Dung Nham2", "Cá Dung Nham3"],
+        "legendary": ["Cá Rồng Lửa1", "Cá Rồng Lửa2", "Cá Rồng Lửa3"],
+        "mythical": ["Cá Thần Núi Lửa1", "Cá Thần Núi Lửa2"]
+      }
+    }
+  ],
+  "cooldowns": {
+    "cast": 5000
+  },
+  "settings": {
+    "startingMoney": 200
+  },
+  "bosses": [
+    {
+      "id": "boss_kraken",
+      "name": "🦑 Thủy Quái Kraken",
+      "hp": 1000,
+      "areaId": 12,
+      "rewards": {
+        "VND": 200000,
+        "exp": 200000,
+        "item": "bait_legendary"
+      },
+      "topRewards": {
+        "VND": 200000,
+        "exp": 200000
+      }
+    },
+    {
+      "id": "boss_leviathan",
+      "name": "🐉 Rồng Biển Leviathan",
+      "hp": 1000,
+      "areaId": 12,
+      "rewards": {
+        "VND": 200000,
+        "exp": 200000,
+        "item": "bait_gold"
+      },
+      "topRewards": {
+        "VND": 200000,
+        "exp": 200000
+      }
+    },
+    {
+      "id": "boss_siren",
+      "name": "🧜 Nàng Tiên Cá Siren",
+      "hp": 1000,
+      "areaId": 12,
+      "rewards": {
+        "VND": 200000,
+        "exp": 200000,
+        "item": "bait_earthworm"
+      },
+      "topRewards": {
+        "VND": 200000,
+        "exp": 200000
+      }
+    },
+    {
+      "id": "boss_poseidon",
+      "name": "🔱 Thần Biển Poseidon",
+      "hp": 1000,
+      "areaId": 12,
+      "rewards": {
+        "VND": 200000,
+        "exp": 200000,
+        "item": "bait_legendary"
+      },
+      "topRewards": {
+        "VND": 200000,
+        "exp": 200000
+      }
+    },
+    {
+      "id": "boss_cthulhu",
+      "name": "🦈 Cthulhu Huyền Thoại",
+      "hp": 1000,
+      "areaId": 12,
+      "rewards": {
+        "VND": 200000,
+        "exp": 200000,
+        "item": "bait_super"
+      },
+      "topRewards": {
+        "VND": 200000,
+        "exp": 200000
+      }
+    }
+  ],
+  "bossSchedule": [
+    { "hour": 7, "minute": 30, "bossId": "boss_kraken" },
+    { "hour": 8, "minute": 30, "bossId": "boss_leviathan" },
+    { "hour": 9, "minute": 30, "bossId": "boss_siren" },
+    { "hour": 10, "minute": 30, "bossId": "boss_poseidon" },
+    { "hour": 11, "minute": 30, "bossId": "boss_cthulhu" },
+    { "hour": 12, "minute": 30, "bossId": "boss_kraken" },
+    { "hour": 13, "minute": 30, "bossId": "boss_kraken" },
+    { "hour": 14, "minute": 30, "bossId": "boss_leviathan" },
+    { "hour": 15, "minute": 30, "bossId": "boss_siren" },
+    { "hour": 16, "minute": 30, "bossId": "boss_poseidon" },
+    { "hour": 17, "minute": 30, "bossId": "boss_cthulhu" },
+    { "hour": 18, "minute": 30, "bossId": "boss_kraken" },
+    { "hour": 19, "minute": 30, "bossId": "boss_leviathan" },
+    { "hour": 20, "minute": 30, "bossId": "boss_leviathan" },
+    { "hour": 21, "minute": 30, "bossId": "boss_poseidon" }
+  ],
+  "bossSettings": {
+    "durationMinutes": 10,
+    "areaId": 12,
+    "damage": {
+      "junk": 10,
+      "common": 40,
+      "rare": 60,
+      "legendary": 100,
+      "mythical": 200
+    },
+    "rareDropRate": 0.22,
+    "rareItems": ["rod_mythical", "rod_infinity", "bait_cosmic", "tool_lucky_charm", "rod_platinum", "rod_diamond", "rod_legendary"]
+  },
+  "LUCKY": {
+    "rewards": [
+      {
+        "type": "money",
+        "value": 5000,
+        "chance": 40,
+        "name": "💰 5,000 VND"
+      },
+      {
+        "type": "money",
+        "value": 7000,
+        "chance": 25,
+        "name": "💰 7,000 VND"
+      },
+      {
+        "type": "money",
+        "value": 15000,
+        "chance": 15,
+        "name": "💰 15,000 VND"
+      },
+      {
+        "type": "exp",
+        "value": 500,
+        "chance": 10,
+        "name": "📊 500 EXP"
+      },
+      {
+        "type": "ticket",
+        "value": 1,
+        "chance": 5,
+        "name": "🎟️ 1 Vé"
+      },
+      {
+        "type": "item",
+        "value": "bait_rice",
+        "chance": 6,
+        "name": "🪱 Mồi cơm"
+      },
+      {
+        "type": "item",
+        "value": "bait_worm",
+        "chance": 4,
+        "name": "🪱 Mồi Trùng"
+      },
+      {
+        "type": "item",
+        "value": "rod_luong_ngu",
+        "chance": 0.6,
+        "name": "🎣 Cần câu Lưỡng Ngư"
+      },
+      {
+        "type": "item",
+        "value": "rod_luc_si",
+        "chance": 0.4,
+        "name": "🎣 Cần câu Lực Sĩ"
+      },
+      {
+        "type": "money",
+        "value": 20000,
+        "chance": 2,
+        "name": "💰 20,000 VND"
+      }
+    ]
+  },
+  "giftCodes": {
+    "VE20": {
+      "name": "Code 20 Vé Quay",
+      "tickets": 20,
+      "description": "Nhận 20 vé quay may mắn"
+    },
+    "VANG20K": {
+      "name": "Code 20K Vàng",
+      "money": 20000,
+      "description": "Nhận 20,000 VND"
+    },
+    "VIP3D": {
+      "name": "Code Cần Câu VIP 3 Ngày",
+      "items": ["rod_vip_rent"],
+      "description": "Nhận 1 cần câu VIP (hạn sử dụng 3 ngày)"
+    }
+  }
+}

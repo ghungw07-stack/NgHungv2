@@ -1,0 +1,923 @@
+{
+  "monsters": [
+    {
+      "id": "slime1",
+      "name": "Slime Xanh",
+      "description": "Sinh vật nhầy nhụa, yếu ớt nhưng nhiều số lượng",
+      "level": 1,
+      "stats": {
+        "hp": 50,
+        "attack": 10,
+        "defense": 5,
+        "speed": 8
+      },
+      "exp": 5,
+      "gold": 3,
+      "drops": [
+        {
+          "itemId": "bm1",
+          "chance": 0.3,
+          "amount": 1
+        }
+      ],
+      "area": "forest_1"
+    },
+    {
+      "id": "slime2",
+      "name": "Slime Đỏ",
+      "description": "Phiên bản mạnh hơn của slime xanh, nóng như dung nham",
+      "level": 3,
+      "stats": {
+        "hp": 100,
+        "attack": 20,
+        "defense": 10,
+        "speed": 12
+      },
+      "exp": 15,
+      "gold": 9,
+      "drops": [
+        {
+          "itemId": "bm1",
+          "chance": 0.4,
+          "amount": 2
+        },
+        {
+          "itemId": "hp1",
+          "chance": 0.25,
+          "amount": 1
+        }
+      ],
+      "area": "forest_2"
+    },
+    {
+      "id": "wolf1",
+      "name": "Sói Rừng",
+      "description": "Sói hoang dã sống trong rừng",
+      "level": 3,
+      "stats": {
+        "hp": 144,
+        "attack": 32,
+        "defense": 10,
+        "speed": 30
+      },
+      "exp": 18,
+      "gold": 12,
+      "drops": [
+        {
+          "itemId": "bm1",
+          "chance": 0.4,
+          "amount": 2
+        },
+        {
+          "itemId": "hp1",
+          "chance": 0.25,
+          "amount": 1
+        },
+        {
+          "itemId": "wolf_pelt",
+          "chance": 0.5,
+          "amount": 1
+        }
+      ],
+      "area": "forest_1"
+    },
+    {
+      "id": "wolf2",
+      "name": "Sói Đầu Đàn",
+      "description": "Thủ lĩnh của bầy sói, có sức mạnh đáng nể",
+      "level": 6,
+      "stats": {
+        "hp": 250,
+        "attack": 45,
+        "defense": 20,
+        "speed": 40
+      },
+      "exp": 35,
+      "gold": 25,
+      "drops": [
+        {
+          "itemId": "hp1",
+          "chance": 0.5,
+          "amount": 2
+        },
+        {
+          "itemId": "mp1",
+          "chance": 0.3,
+          "amount": 1
+        },
+        {
+          "itemId": "atk1",
+          "chance": 0.15,
+          "amount": 1
+        },
+        {
+          "itemId": "wolf_pelt",
+          "chance": 0.8,
+          "amount": 1
+        }
+      ],
+      "area": "forest_2"
+    },
+    {
+      "id": "goblin1",
+      "name": "Goblin",
+      "description": "Sinh vật nhỏ bé nhưng nhanh nhẹn và ranh ma",
+      "level": 5,
+      "stats": {
+        "hp": 180,
+        "attack": 35,
+        "defense": 15,
+        "speed": 25
+      },
+      "exp": 28,
+      "gold": 18,
+      "drops": [
+        {
+          "itemId": "hp1",
+          "chance": 0.35,
+          "amount": 1
+        },
+        {
+          "itemId": "mp1",
+          "chance": 0.35,
+          "amount": 1
+        }
+      ],
+      "area": "cave_1"
+    },
+    {
+      "id": "goblin2",
+      "name": "Goblin Lính",
+      "description": "Goblin được trang bị giáp và vũ khí cơ bản",
+      "level": 7,
+      "stats": {
+        "hp": 280,
+        "attack": 50,
+        "defense": 25,
+        "speed": 28
+      },
+      "exp": 40,
+      "gold": 30,
+      "drops": [
+        {
+          "itemId": "hp1",
+          "chance": 0.45,
+          "amount": 2
+        },
+        {
+          "itemId": "mp1",
+          "chance": 0.35,
+          "amount": 1
+        },
+        {
+          "itemId": "wd1",
+          "chance": 0.08,
+          "amount": 1
+        }
+      ],
+      "area": "cave_1"
+    },
+    {
+      "id": "goblin3",
+      "name": "Goblin Trưởng Tộc",
+      "description": "Lãnh đạo của bộ tộc Goblin, mập mạp và hiểm ác",
+      "level": 10,
+      "stats": {
+        "hp": 450,
+        "attack": 75,
+        "defense": 35,
+        "speed": 22
+      },
+      "exp": 65,
+      "gold": 55,
+      "drops": [
+        {
+          "itemId": "hp2",
+          "chance": 0.45,
+          "amount": 1
+        },
+        {
+          "itemId": "mp2",
+          "chance": 0.35,
+          "amount": 1
+        },
+        {
+          "itemId": "wd2",
+          "chance": 0.12,
+          "amount": 1
+        }
+      ],
+      "area": "cave_2"
+    },
+    {
+      "id": "bat1",
+      "name": "Dơi Ma Cà Rồng",
+      "description": "Sinh vật hút máu bay lượn trong hang động tối",
+      "level": 6,
+      "stats": {
+        "hp": 200,
+        "attack": 60,
+        "defense": 15,
+        "speed": 50
+      },
+      "exp": 35,
+      "gold": 20,
+      "drops": [
+        {
+          "itemId": "mp1",
+          "chance": 0.45,
+          "amount": 1
+        },
+        {
+          "itemId": "spd1",
+          "chance": 0.12,
+          "amount": 1
+        }
+      ],
+      "area": "cave_1"
+    },
+    {
+      "id": "skeleton1",
+      "name": "Bộ Xương",
+      "description": "Hài cốt được hồi sinh bởi ma thuật đen tối",
+      "level": 8,
+      "stats": {
+        "hp": 420,
+        "attack": 72,
+        "defense": 30,
+        "speed": 24
+      },
+      "exp": 48,
+      "gold": 38,
+      "drops": [
+        {
+          "itemId": "hp2",
+          "chance": 0.35,
+          "amount": 1
+        },
+        {
+          "itemId": "mp1",
+          "chance": 0.35,
+          "amount": 2
+        },
+        {
+          "itemId": "def1",
+          "chance": 0.12,
+          "amount": 1
+        }
+      ],
+      "area": "cave_2"
+    },
+    {
+      "id": "snake1",
+      "name": "Rắn Độc Rừng",
+      "description": "Rắn với nọc độc nguy hiểm, ẩn nấp trong những bụi cây",
+      "level": 4,
+      "stats": {
+        "hp": 140,
+        "attack": 30,
+        "defense": 13,
+        "speed": 35
+      },
+      "exp": 22,
+      "gold": 15,
+      "drops": [
+        {
+          "itemId": "hp1",
+          "chance": 0.35,
+          "amount": 1
+        },
+        {
+          "itemId": "int1",
+          "chance": 0.12,
+          "amount": 1
+        }
+      ],
+      "area": "forest_2"
+    },
+    {
+      "id": "bear1",
+      "name": "Gấu Rừng",
+      "description": "Gấu hoang dã to lớn với móng vuốt sắc nhọn",
+      "level": 9,
+      "stats": {
+        "hp": 380,
+        "attack": 120,
+        "defense": 52,
+        "speed": 36
+      },
+      "exp": 55,
+      "gold": 45,
+      "drops": [
+        {
+          "itemId": "hp2",
+          "chance": 0.45,
+          "amount": 1
+        },
+        {
+          "itemId": "atk1",
+          "chance": 0.25,
+          "amount": 1
+        }
+      ],
+      "area": "forest_2"
+    },
+    {
+      "id": "ghost1",
+      "name": "Linh Hồn Lạc Lối",
+      "description": "Linh hồn bất an, đi lang thang trong khu mộ cổ",
+      "level": 12,
+      "stats": {
+        "hp": 520,
+        "attack": 88,
+        "defense": 40,
+        "speed": 32
+      },
+      "exp": 80,
+      "gold": 65,
+      "drops": [
+        {
+          "itemId": "mp2",
+          "chance": 0.45,
+          "amount": 1
+        },
+        {
+          "itemId": "potion1",
+          "chance": 0.25,
+          "amount": 1
+        }
+      ],
+      "area": "graveyard"
+    },
+    {
+      "id": "zombie1",
+      "name": "Xác Sống",
+      "description": "Thi thể hồi sinh, di chuyển chậm nhưng mạnh mẽ",
+      "level": 10,
+      "stats": {
+        "hp": 480,
+        "attack": 75,
+        "defense": 35,
+        "speed": 18
+      },
+      "exp": 65,
+      "gold": 50,
+      "drops": [
+        {
+          "itemId": "hp2",
+          "chance": 0.5,
+          "amount": 1
+        },
+        {
+          "itemId": "def1",
+          "chance": 0.25,
+          "amount": 1
+        }
+      ],
+      "area": "graveyard"
+    },
+    {
+      "id": "lich1",
+      "name": "Pháp Sư Linh",
+      "description": "Pháp sư bóng đêm quyền năng đã chết từ lâu",
+      "level": 15,
+      "stats": {
+        "hp": 700,
+        "attack": 110,
+        "defense": 45,
+        "speed": 35
+      },
+      "exp": 120,
+      "gold": 100,
+      "drops": [
+        {
+          "itemId": "mp3",
+          "chance": 0.45,
+          "amount": 1
+        },
+        {
+          "itemId": "hp3",
+          "chance": 0.35,
+          "amount": 1
+        },
+        {
+          "itemId": "cape2",
+          "chance": 0.15,
+          "amount": 1
+        },
+        {
+          "itemId": "skill_book2",
+          "chance": 0.08,
+          "amount": 1
+        }
+      ],
+      "area": "graveyard"
+    },
+    {
+      "id": "monster_scorpion",
+      "name": "Bò cạp khổng lồ",
+      "description": "Loài bò cạp đột biến với kích thước to lớn và nọc độc nguy hiểm",
+      "level": 22,
+      "stats": {
+        "hp": 1200,
+        "attack": 155,
+        "defense": 65,
+        "speed": 42
+      },
+      "exp": 180,
+      "gold": 130,
+      "drops": [
+        {
+          "itemId": "item_scorpion_sting",
+          "chance": 0.45,
+          "amount": 1
+        },
+        {
+          "itemId": "hp2",
+          "chance": 0.35,
+          "amount": 1
+        }
+      ],
+      "area": "wasteland"
+    },
+    {
+      "id": "desert_snake",
+      "name": "Rắn sa mạc",
+      "description": "Loài rắn độc với khả năng ngụy trang hoàn hảo trong cát",
+      "level": 23,
+      "stats": {
+        "hp": 1250,
+        "attack": 160,
+        "defense": 68,
+        "speed": 45
+      },
+      "exp": 190,
+      "gold": 140,
+      "drops": [
+        {
+          "itemId": "snake_skin",
+          "chance": 0.45,
+          "amount": 1
+        },
+        {
+          "itemId": "mp2",
+          "chance": 0.35,
+          "amount": 1
+        }
+      ],
+      "area": "wasteland"
+    },
+    {
+      "id": "monster_scorpion_guard",
+      "name": "Bò cạp bảo vệ",
+      "description": "Bò cạp to lớn với giáp cứng cáp, bảo vệ tổ và nữ hoàng",
+      "level": 24,
+      "stats": {
+        "hp": 1350,
+        "attack": 165,
+        "defense": 75,
+        "speed": 40
+      },
+      "exp": 200,
+      "gold": 150,
+      "drops": [
+        {
+          "itemId": "scorpion_shell",
+          "chance": 0.45,
+          "amount": 1
+        },
+        {
+          "itemId": "hp2",
+          "chance": 0.35,
+          "amount": 2
+        }
+      ],
+      "area": "scorpion_nest"
+    },
+    {
+      "id": "monster_scorpion_queen",
+      "name": "Nữ hoàng bò cạp",
+      "description": "Nữ hoàng của tổ bò cạp, to lớn gấp đôi các con khác với nọc độc cực mạnh",
+      "level": 26,
+      "stats": {
+        "hp": 1800,
+        "attack": 185,
+        "defense": 85,
+        "speed": 35
+      },
+      "exp": 320,
+      "gold": 220,
+      "drops": [
+        {
+          "itemId": "item_scorpion_poison",
+          "chance": 0.8,
+          "amount": 1
+        },
+        {
+          "itemId": "queen_pincer",
+          "chance": 0.5,
+          "amount": 1
+        },
+        {
+          "itemId": "hp3",
+          "chance": 0.35,
+          "amount": 1
+        }
+      ],
+      "area": "scorpion_nest"
+    },
+    {
+      "id": "fire_lizard",
+      "name": "Thằn lằn lửa",
+      "description": "Loài bò sát sống trong môi trường núi lửa với khả năng phun lửa",
+      "level": 28,
+      "stats": {
+        "hp": 1950,
+        "attack": 200,
+        "defense": 90,
+        "speed": 48
+      },
+      "exp": 350,
+      "gold": 240,
+      "drops": [
+        {
+          "itemId": "fire_scale",
+          "chance": 0.45,
+          "amount": 1
+        },
+        {
+          "itemId": "mp2",
+          "chance": 0.35,
+          "amount": 1
+        }
+      ],
+      "area": "volcano_path"
+    },
+    {
+      "id": "lava_slug",
+      "name": "Sên dung nham",
+      "description": "Sinh vật sống trong dung nham, tiết ra chất nhầy cực nóng",
+      "level": 29,
+      "stats": {
+        "hp": 2100,
+        "attack": 210,
+        "defense": 95,
+        "speed": 25
+      },
+      "exp": 370,
+      "gold": 250,
+      "drops": [
+        {
+          "itemId": "lava_mucus",
+          "chance": 0.45,
+          "amount": 1
+        },
+        {
+          "itemId": "item_lava_crystal",
+          "chance": 0.25,
+          "amount": 1
+        }
+      ],
+      "area": "volcano_path"
+    },
+    {
+      "id": "monster_fire_elemental",
+      "name": "Tinh linh lửa",
+      "description": "Thực thể ma thuật được hình thành từ lửa, không có thể xác vật lý",
+      "level": 30,
+      "stats": {
+        "hp": 2200,
+        "attack": 225,
+        "defense": 85,
+        "speed": 52
+      },
+      "exp": 400,
+      "gold": 280,
+      "drops": [
+        {
+          "itemId": "fire_essence",
+          "chance": 0.45,
+          "amount": 1
+        },
+        {
+          "itemId": "mp3",
+          "chance": 0.35,
+          "amount": 1
+        }
+      ],
+      "area": "volcano_crater"
+    },
+    {
+      "id": "monster_lava_golem",
+      "name": "Người đá dung nham",
+      "description": "Sinh vật khổng lồ được tạo từ đá và dung nham, mạnh mẽ và khó bị tổn thương",
+      "level": 32,
+      "stats": {
+        "hp": 2600,
+        "attack": 240,
+        "defense": 120,
+        "speed": 30
+      },
+      "exp": 450,
+      "gold": 350,
+      "drops": [
+        {
+          "itemId": "golem_core",
+          "chance": 0.55,
+          "amount": 1
+        },
+        {
+          "itemId": "item_fire_crystal",
+          "chance": 0.35,
+          "amount": 1
+        },
+        {
+          "itemId": "hp3",
+          "chance": 0.45,
+          "amount": 2
+        }
+      ],
+      "area": "volcano_crater"
+    },
+    {
+      "id": "monster_shadow_cultist",
+      "name": "Tín đồ bóng tối",
+      "description": "Con người đã hiến dâng linh hồn cho bóng tối, sử dụng phép thuật đen",
+      "level": 35,
+      "stats": {
+        "hp": 2900,
+        "attack": 260,
+        "defense": 110,
+        "speed": 55
+      },
+      "exp": 500,
+      "gold": 380,
+      "drops": [
+        {
+          "itemId": "dark_robe",
+          "chance": 0.35,
+          "amount": 1
+        },
+        {
+          "itemId": "item_shadow_rune",
+          "chance": 0.45,
+          "amount": 1
+        }
+      ],
+      "area": "dark_cavern"
+    },
+    {
+      "id": "shadow_beast",
+      "name": "Quái thú bóng tối",
+      "description": "Sinh vật được tạo ra từ ma thuật đen, hình dáng biến đổi liên tục",
+      "level": 36,
+      "stats": {
+        "hp": 3100,
+        "attack": 275,
+        "defense": 115,
+        "speed": 60
+      },
+      "exp": 520,
+      "gold": 400,
+      "drops": [
+        {
+          "itemId": "shadow_essence",
+          "chance": 0.45,
+          "amount": 1
+        },
+        {
+          "itemId": "mp3",
+          "chance": 0.35,
+          "amount": 1
+        }
+      ],
+      "area": "dark_cavern"
+    },
+    {
+      "id": "monster_shadow_high_priest",
+      "name": "Giáo chủ bóng tối",
+      "description": "Lãnh đạo của giáo phái bóng tối, có khả năng triệu hồi những thực thể từ cõi khác",
+      "level": 38,
+      "stats": {
+        "hp": 3500,
+        "attack": 300,
+        "defense": 130,
+        "speed": 55
+      },
+      "exp": 600,
+      "gold": 450,
+      "drops": [
+        {
+          "itemId": "dark_staff",
+          "chance": 0.35,
+          "amount": 1
+        },
+        {
+          "itemId": "item_ritual_artifact",
+          "chance": 0.55,
+          "amount": 1
+        },
+        {
+          "itemId": "hp_elixir",
+          "chance": 0.25,
+          "amount": 1
+        }
+      ],
+      "area": "ritual_chamber"
+    },
+    {
+      "id": "young_dragon",
+      "name": "Rồng non",
+      "description": "Rồng trẻ tuổi chưa phát triển đầy đủ nhưng vẫn rất nguy hiểm",
+      "level": 42,
+      "stats": {
+        "hp": 4200,
+        "attack": 350,
+        "defense": 150,
+        "speed": 65
+      },
+      "exp": 700,
+      "gold": 550,
+      "drops": [
+        {
+          "itemId": "item_dragon_scale",
+          "chance": 0.55,
+          "amount": 1
+        },
+        {
+          "itemId": "dragon_tooth",
+          "chance": 0.35,
+          "amount": 1
+        }
+      ],
+      "area": "dragon_lair"
+    },
+    {
+      "id": "dragon_guardian",
+      "name": "Vệ binh rồng",
+      "description": "Sinh vật mạnh mẽ được tạo ra để bảo vệ hang rồng",
+      "level": 45,
+      "stats": {
+        "hp": 4800,
+        "attack": 380,
+        "defense": 180,
+        "speed": 60
+      },
+      "exp": 800,
+      "gold": 600,
+      "drops": [
+        {
+          "itemId": "guardian_essence",
+          "chance": 0.45,
+          "amount": 1
+        },
+        {
+          "itemId": "mp_elixir",
+          "chance": 0.25,
+          "amount": 1
+        }
+      ],
+      "area": "dragon_lair"
+    },
+    {
+      "id": "monster_corrupted_dragon",
+      "name": "Rồng bị tha hóa",
+      "description": "Rồng cổ đại bị ảnh hưởng bởi ma thuật bóng tối, mất đi lý trí",
+      "level": 50,
+      "stats": {
+        "hp": 6000,
+        "attack": 450,
+        "defense": 220,
+        "speed": 70
+      },
+      "exp": 1200,
+      "gold": 900,
+      "drops": [
+        {
+          "itemId": "dragon_heart",
+          "chance": 0.8,
+          "amount": 1
+        },
+        {
+          "itemId": "corrupted_scale",
+          "chance": 0.6,
+          "amount": 3
+        },
+        {
+          "itemId": "hp_elixir",
+          "chance": 0.5,
+          "amount": 2
+        },
+        {
+          "itemId": "mp_elixir",
+          "chance": 0.5,
+          "amount": 2
+        }
+      ],
+      "area": "dragon_heart_chamber"
+    },
+    {
+      "id": "monster_bandit",
+      "name": "Kẻ cướp",
+      "description": "Bọn cướp chuyên tấn công thương nhân.",
+      "level": 7,
+      "stats": {
+        "hp": 280,
+        "attack": 50,
+        "defense": 25,
+        "speed": 30
+      },
+      "exp": 40,
+      "gold": 32,
+      "drops": [
+        {
+          "itemId": "item_stolen_goods",
+          "chance": 0.5,
+          "amount": 1
+        }
+      ],
+      "area": "forest_1"
+    },
+    {
+      "id": "monster_temple_guardian",
+      "name": "Người bảo vệ đền",
+      "description": "Vệ binh cổ xưa bảo vệ đền thờ.",
+      "level": 20,
+      "stats": {
+        "hp": 1050,
+        "attack": 140,
+        "defense": 60,
+        "speed": 35
+      },
+      "exp": 160,
+      "gold": 120,
+      "drops": [
+        {
+          "itemId": "ancient_amulet",
+          "chance": 0.25,
+          "amount": 1
+        }
+      ],
+      "area": "ancient_temple"
+    },
+    {
+      "id": "harpy1",
+      "name": "Quỷ nữ Harpy",
+      "description": "Sinh vật nửa người nửa chim, rất nguy hiểm.",
+      "level": 27,
+      "stats": {
+        "hp": 1750,
+        "attack": 190,
+        "defense": 80,
+        "speed": 65
+      },
+      "exp": 330,
+      "gold": 230,
+      "drops": [
+        {
+          "itemId": "feather",
+          "chance": 0.35,
+          "amount": 1
+        }
+      ],
+      "area": "mountain_peak"
+    },
+    {
+      "id": "mountain_troll1",
+      "name": "Quỷ núi",
+      "description": "Quái vật to lớn sống trên đỉnh núi.",
+      "level": 28,
+      "stats": {
+        "hp": 2000,
+        "attack": 210,
+        "defense": 100,
+        "speed": 25
+      },
+      "exp": 340,
+      "gold": 240,
+      "drops": [
+        {
+          "itemId": "troll_club",
+          "chance": 0.25,
+          "amount": 1
+        }
+      ],
+      "area": "mountain_peak"
+    },
+    {
+      "id": "boss_slime1_1751246410056",
+      "name": "Slime Xanh Boss",
+      "level": 1,
+      "hp": 100,
+      "maxHp": 100,
+      "mp": 0,
+      "maxMp": 0,
+      "attack": 15,
+      "defense": 8,
+      "speed": 10,
+      "intelligence": 5,
+      "isDead": false,
+      "statusEffects": []
+    }
+  ]
+}

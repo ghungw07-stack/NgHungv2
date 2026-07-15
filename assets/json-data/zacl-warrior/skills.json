@@ -1,0 +1,490 @@
+{
+  "skills": [
+    {
+      "id": "skill_slash",
+      "name": "Đoạn Kiếm",
+      "description": "Chém một nhát cắt gọn, gây sát thương vật lý cao",
+      "type": "active",
+      "damageMultiplier": 1.5,
+      "mpCost": 10,
+      "tier": 1,
+      "cooldownTurns": 2,
+      "cost": {
+        "gold": 100
+      },
+      "requirements": {
+        "level": 2,
+        "hp": 50,
+        "attack": 10,
+        "defense": 5
+      }
+    },
+    {
+      "id": "skill_block",
+      "name": "Thép Giáp",
+      "description": "Tăng cường phòng thủ trong 2 lượt tiếp theo",
+      "type": "active",
+      "mpCost": 5,
+      "tier": 1,
+      "cooldownTurns": 3,
+      "effects": {
+        "buff": {
+          "defense": { "amount": 15, "turns": 2 }
+        }
+      },
+      "cost": {
+        "gold": 120
+      },
+      "requirements": {
+        "level": 3,
+        "hp": 60,
+        "defense": 12,
+        "attack": 5
+      }
+    },
+    {
+      "id": "skill_power_strike",
+      "name": "Sát Sơn",
+      "description": "Đòn đánh hủy diệt như san bằng núi, gây sát thương lớn",
+      "type": "active",
+      "damageMultiplier": 1.8,
+      "mpCost": 12,
+      "tier": 1,
+      "cooldownTurns": 3,
+      "cost": {
+        "gold": 150
+      },
+      "requirements": {
+        "level": 5,
+        "stats": { "attack": 20 },
+        "hp": 70,
+        "defense": 8
+      }
+    },
+    {
+      "id": "skill_fireball",
+      "name": "Thiêu Đốt",
+      "description": "Tạo ra ngọn lửa hình cầu, gây sát thương phép và tạo hiệu ứng cháy",
+      "type": "active",
+      "damageMultiplier": 1.8,
+      "mpCost": 15,
+      "tier": 2,
+      "cooldownTurns": 2,
+      "effects": {
+        "dot": { "damage": 5, "turns": 2, "element": "fire" }
+      },
+      "cost": {
+        "gold": 250
+      },
+      "requirements": {
+        "level": 5,
+        "stats": { "intelligence": 15 },
+        "hp": 80,
+        "attack": 12,
+        "defense": 10
+      }
+    },
+    {
+      "id": "skill_heal",
+      "name": "Sinh Khí",
+      "description": "Khôi phục sinh lực nhanh chóng nhờ năng lượng tự nhiên",
+      "type": "active",
+      "mpCost": 20,
+      "tier": 2,
+      "cooldownTurns": 3,
+      "effects": {
+        "heal": { "amount": 30 }
+      },
+      "cost": {
+        "gold": 280
+      },
+      "requirements": {
+        "level": 8,
+        "stats": { "intelligence": 20 },
+        "hp": 120,
+        "attack": 15,
+        "defense": 12
+      }
+    },
+    {
+      "id": "skill_ice_shard",
+      "name": "Băng Tiễn",
+      "description": "Bắn ra những mũi tên băng cực lạnh, đóng băng và làm chậm đối thủ",
+      "type": "active",
+      "damageMultiplier": 1.5,
+      "mpCost": 18,
+      "tier": 2,
+      "cooldownTurns": 3,
+      "effects": {
+        "slow": { "amount": 30, "turns": 2, "chance": 0.6 }
+      },
+      "requirements": { "level": 7, "stats": { "intelligence": 18 } }
+    },
+    {
+      "id": "skill_lightning_bolt",
+      "name": "Lôi Đình",
+      "description": "Triệu hồi sấm sét từ thiên đường trừng phạt kẻ địch",
+      "type": "active",
+      "damageMultiplier": 1.7,
+      "mpCost": 22,
+      "tier": 2,
+      "cooldownTurns": 4,
+      "effects": {
+        "stun": { "chance": 0.2, "turns": 1 }
+      },
+      "requirements": { "level": 10, "stats": { "intelligence": 22 } }
+    },
+    {
+      "id": "skill_magic_shield",
+      "name": "Khiên Ma Thuật",
+      "description": "Tạo một lớp khiên ma thuật bảo vệ",
+      "type": "active",
+      "mpCost": 25,
+      "tier": 2,
+      "effects": {
+        "buff": {
+          "defense": { "amount": 15, "turns": 3 },
+          "magic_resist": { "amount": 20, "turns": 3 }
+        }
+      },
+      "cost": {
+        "gold": 350
+      },
+      "requirements": {
+        "level": 12,
+        "stats": { "intelligence": 25 },
+        "hp": 150,
+        "attack": 25,
+        "defense": 30
+      }
+    },
+    {
+      "id": "skill_attack",
+      "name": "Tấn Công Nội Tại",
+      "description": "Tăng tấn công bị động",
+      "type": "passive",
+      "tier": 2,
+      "stats": { "attack": 10 },
+      "requirements": { "level": 10, "stats": { "attack": 40 } }
+    },
+    {
+      "id": "skill_counter_attack",
+      "name": "Phản Đòn",
+      "description": "Tự động phản công khi bị tấn công, gây sát thương cho kẻ địch",
+      "type": "active",
+      "damageMultiplier": 1.0,
+      "mpCost": 20,
+      "tier": 3,
+      "effects": {
+        "counter": { "chance": 0.3, "turns": 3 }
+      },
+      "cost": {
+        "diamond": 5
+      },
+      "requirements": {
+        "level": 12,
+        "stats": {
+          "attack": 50,
+          "speed": 20
+        },
+        "prerequisites": ["skill_block"],
+        "hp": 200,
+        "defense": 35
+      }
+    },
+    {
+      "id": "skill_whirlwind",
+      "name": "Lốc Xoáy",
+      "description": "Tấn công xoay tròn, gây sát thương cho tất cả kẻ địch xung quanh",
+      "type": "active",
+      "damageMultiplier": 1.3,
+      "mpCost": 25,
+      "tier": 3,
+      "cooldownTurns": 2,
+      "effects": { "aoe": true },
+      "cost": {
+        "diamond": 8
+      },
+      "requirements": {
+        "level": 15,
+        "stats": { "attack": 60, "speed": 25 },
+        "prerequisites": ["skill_slash", "skill_power_strike"],
+        "hp": 250,
+        "defense": 40
+      }
+    },
+    {
+      "id": "skill_double_attack",
+      "name": "Đòn Kép",
+      "description": "Tấn công hai lần liên tiếp",
+      "type": "active",
+      "damageMultiplier": 0.8,
+      "mpCost": 25,
+      "tier": 3,
+      "effects": { "hits": 2 },
+      "cost": {
+        "diamond": 8
+      },
+      "requirements": {
+        "level": 15,
+        "stats": { "speed": 30, "attack": 55 },
+        "prerequisites": ["skill_power_strike"],
+        "hp": 240,
+        "defense": 35
+      }
+    },
+    {
+      "id": "skill_thunder_strike",
+      "name": "Sấm Sét",
+      "description": "Triệu hồi sét đánh kẻ địch, có cơ hội làm choáng",
+      "type": "active",
+      "damageMultiplier": 2.0,
+      "mpCost": 35,
+      "tier": 4,
+      "cooldownTurns": 3,
+      "effects": {
+        "stun": { "chance": 0.4, "turns": 1 }
+      },
+      "cost": {
+        "diamond": 15
+      },
+      "requirements": {
+        "level": 20,
+        "stats": { "intelligence": 40 },
+        "prerequisites": ["skill_lightning_bolt"],
+        "hp": 350,
+        "attack": 60,
+        "defense": 50
+      }
+    },
+    {
+      "id": "skill_berserker_rage",
+      "name": "Cuồng Nộ",
+      "description": "Tăng sức mạnh tấn công đáng kể, nhưng giảm phòng thủ",
+      "type": "active",
+      "mpCost": 30,
+      "tier": 4,
+      "cooldownTurns": 6,
+      "effects": {
+        "buff": {
+          "attack": { "amount": 30, "turns": 4 },
+          "defense": { "amount": -15, "turns": 4 }
+        }
+      },
+      "cost": {
+        "diamond": 12
+      },
+      "requirements": {
+        "level": 22,
+        "stats": { "attack": 90, "vitality": 25 },
+        "prerequisites": ["skill_attack"],
+        "hp": 380,
+        "defense": 60
+      }
+    },
+    {
+      "id": "skill_stealth",
+      "name": "Ẩn Nấp",
+      "description": "Tạm thời ẩn mình, tránh được tấn công của kẻ địch",
+      "type": "active",
+      "mpCost": 30,
+      "tier": 4,
+      "cooldownTurns": 5,
+      "effects": {
+        "buff": {
+          "evasion": { "amount": 80, "turns": 3 }
+        }
+      },
+      "requirements": {
+        "level": 25,
+        "stats": { "speed": 45, "intelligence": 25 }
+      }
+    },
+    {
+      "id": "skill_poison_blade",
+      "name": "Lưỡi Độc",
+      "description": "Tẩm độc lên vũ khí, gây sát thương liên tục theo thời gian",
+      "type": "active",
+      "damageMultiplier": 1.2,
+      "mpCost": 25,
+      "tier": 4,
+      "cooldownTurns": 4,
+      "effects": {
+        "dot": { "damage": 8, "turns": 3 }
+      },
+      "requirements": {
+        "level": 25,
+        "stats": { "attack": 35, "intelligence": 25 },
+        "questRequired": "quest_016"
+      }
+    },
+    {
+      "id": "skill_shield_wall",
+      "name": "Khiên Bảo Vệ",
+      "description": "Tạo một lớp khiên bảo vệ, tăng đáng kể phòng thủ",
+      "type": "active",
+      "mpCost": 35,
+      "tier": 5,
+      "cooldownTurns": 6,
+      "effects": {
+        "buff": {
+          "defense": { "amount": 40, "turns": 4 }
+        }
+      },
+      "cost": {
+        "meteorite": 1
+      },
+      "requirements": {
+        "level": 28,
+        "stats": { "vitality": 50, "defense": 40 },
+        "prerequisites": ["skill_block"],
+        "hp": 500,
+        "attack": 80,
+        "defense": 75
+      }
+    },
+    {
+      "id": "skill_life_drain",
+      "name": "Hút Máu",
+      "description": "Hút một phần máu từ kẻ địch để hồi máu cho bản thân",
+      "type": "active",
+      "damageMultiplier": 1.3,
+      "mpCost": 40,
+      "tier": 5,
+      "cooldownTurns": 5,
+      "effects": {
+        "lifesteal": { "percent": 60 }
+      },
+      "cost": {
+        "meteorite": 2
+      },
+      "requirements": {
+        "level": 32,
+        "stats": { "intelligence": 45, "vitality": 35 },
+        "questRequired": "quest_021",
+        "hp": 550,
+        "attack": 90,
+        "defense": 80
+      }
+    },
+    {
+      "id": "skill_meditation",
+      "name": "Thiền Định",
+      "description": "Khôi phục MP nhanh chóng",
+      "type": "active",
+      "tier": 3,
+      "mpCost": 5,
+      "effects": {
+        "buff": {
+          "mp_regen": { "amount": 10, "turns": 4 }
+        }
+      },
+      "requirements": {
+        "level": 15,
+        "stats": { "intelligence": 25 }
+      }
+    },
+    {
+      "id": "skill_titan_strength",
+      "name": "Sức Mạnh Của Titan",
+      "description": "Khai phá tiềm năng cơ thể, tăng đáng kể sức mạnh và sức chịu đựng",
+      "type": "active",
+      "mpCost": 50,
+      "tier": 5,
+      "cooldownTurns": 8,
+      "effects": {
+        "buff": {
+          "attack": { "amount": 30, "turns": 5 },
+          "vitality": { "amount": 20, "turns": 5 },
+          "hp_regen": { "amount": 5, "turns": 5 }
+        }
+      },
+      "cost": {
+        "meteorite": 3
+      },
+      "requirements": {
+        "level": 35,
+        "stats": { "attack": 60, "vitality": 50 },
+        "prerequisites": ["skill_berserker_rage", "skill_attack"],
+        "questRequired": "quest_020",
+        "hp": 650,
+        "attack": 120,
+        "defense": 100
+      }
+    },
+    {
+      "id": "skill_arcane_explosion",
+      "name": "Nổ Ma Thuật",
+      "description": "Phát nổ năng lượng ma thuật xung quanh, gây sát thương lớn cho tất cả kẻ địch",
+      "type": "active",
+      "damageMultiplier": 2.5,
+      "mpCost": 60,
+      "tier": 5,
+      "cooldownTurns": 7,
+      "effects": {
+        "aoe": true,
+        "stun": { "chance": 0.4, "turns": 2 }
+      },
+      "requirements": {
+        "level": 38,
+        "stats": { "intelligence": 70, "mp": 200 },
+        "prerequisites": ["skill_thunder_strike", "skill_fireball"],
+        "questRequired": "quest_021"
+      }
+    },
+    {
+      "id": "skill_dragon_strike",
+      "name": "Đòn Long Thần",
+      "description": "Tập trung sức mạnh của rồng vào một đòn đánh duy nhất, gây sát thương cực lớn",
+      "type": "active",
+      "damageMultiplier": 3.0,
+      "mpCost": 75,
+      "tier": 6,
+      "cooldownTurns": 10,
+      "effects": {
+        "crit": { "chance": 0.5, "multiplier": 2.0 }
+      },
+      "cost": {
+        "meteorite": 5
+      },
+      "requirements": {
+        "level": 45,
+        "stats": { "attack": 80, "intelligence": 50 },
+        "prerequisites": ["skill_titan_strength"],
+        "questRequired": "quest_dragon_heart",
+        "hp": 800,
+        "attack": 150,
+        "defense": 120
+      }
+    },
+    {
+      "id": "skill_shadow_form",
+      "name": "Hóa Bóng Đêm",
+      "description": "Biến hình thành bóng tối, tăng tốc độ và né tránh, đồng thời có khả năng gây sát thương bóng tối",
+      "type": "active",
+      "damageMultiplier": 1.5,
+      "mpCost": 65,
+      "tier": 6,
+      "cooldownTurns": 8,
+      "effects": {
+        "buff": {
+          "speed": { "amount": 40, "turns": 5 },
+          "evasion": { "amount": 40, "turns": 5 }
+        },
+        "shadow_damage": { "amount": 20, "turns": 5 }
+      },
+      "cost": {
+        "meteorite": 4
+      },
+      "requirements": {
+        "level": 40,
+        "stats": { "speed": 70, "intelligence": 60 },
+        "prerequisites": ["skill_stealth"],
+        "questRequired": "quest_shadow_ritual",
+        "hp": 750,
+        "attack": 130,
+        "defense": 110
+      }
+    }
+  ]
+}

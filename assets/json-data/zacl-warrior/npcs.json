@@ -1,0 +1,401 @@
+{
+  "npcs": [
+    {
+      "id": "npc_mayor",
+      "name": "Thị Trưởng Eldor",
+      "description": "Thị trưởng của Town, một người đàn ông có kinh nghiệm và biết nhiều về vùng đất này.",
+      "type": "quest_giver",
+      "dialogs": [
+        "Chào mừng đến với thị trấn của chúng tôi! Tôi là Thị trưởng Eldor, người phụ trách nơi đây.",
+        "Dạo này có nhiều vấn đề xảy ra quanh thị trấn. Chúng tôi cần một người như bạn để giúp đỡ.",
+        "Bạn có vẻ là một chiến binh mạnh mẽ. Hãy ghé qua khu huấn luyện để kiểm tra kỹ năng của mình!",
+        "Nếu muốn trở nên mạnh hơn, hãy hoàn thành các nhiệm vụ và khám phá những vùng đất bí ẩn."
+      ],
+      "quests": ["quest_001", "quest_003", "quest_010"]
+    },
+    {
+      "id": "npc_blacksmith",
+      "name": "Thợ Rèn Kinler",
+      "description": "Thợ rèn tài ba nhất thị trấn, có thể chế tạo và nâng cấp vũ khí, giáp.",
+      "type": "blacksmith",
+      "dialogs": [
+        "Chào! Cần nâng cấp trang bị không?",
+        "Tôi vừa có một số nguyên liệu mới, quay lại sau nhé!",
+        "Vũ khí cũ rồi? Để tôi xem liệu có thể nâng cấp không.",
+        "Muốn trang bị mạnh hơn thì cần nhiều nguyên liệu hiếm đấy!"
+      ],
+      "services": ["upgrade", "repair", "craft"]
+    },
+    {
+      "id": "npc_trainer",
+      "name": "Huấn Luyện Viên Marcus",
+      "description": "Cựu chiến binh với kinh nghiệm chiến đấu phong phú, dạy các kỹ năng chiến đấu cơ bản.",
+      "type": "trainer",
+      "dialogs": [
+        "Muốn học kỹ năng mới? Tôi có thể giúp bạn!",
+        "Sức mạnh thật sự nằm ở kỹ năng, không phải trang bị.",
+        "Bạn có vẻ đã mạnh hơn rồi đấy. Sẵn sàng học kỹ năng cao cấp chưa?",
+        "Bạn cần rèn luyện thêm để học các kỹ năng tiếp theo."
+      ],
+      "skills": ["skill_slash", "skill_block", "skill_power_strike"],
+      "location": "training_ground"
+    },
+    {
+      "id": "npc_advanced_trainer",
+      "name": "Bậc Thầy Eldrin",
+      "description": "Bậc thầy võ thuật huyền thoại, chỉ dạy cho những người có đủ trình độ.",
+      "type": "trainer",
+      "dialogs": [
+        "Không phải ai cũng xứng đáng được học từ ta.",
+        "Ta thấy tiềm năng trong con, nhưng con cần phải chứng minh.",
+        "Kỹ năng ta dạy không chỉ để gây sát thương, mà còn để hiểu bản chất của chiến đấu.",
+        "Con đã tiến bộ rất nhiều. Ta sẽ dạy con những kỹ thuật cao cấp hơn."
+      ],
+      "skills": ["skill_whirlwind", "skill_counter_attack", "skill_berserker_rage"],
+      "requirements": {
+        "level": 15
+      },
+      "location": "martial_temple"
+    },
+    {
+      "id": "npc_merchant",
+      "name": "Thương Nhân Lydia",
+      "description": "Thương nhân buôn bán hàng hóa phổ thông, từ thực phẩm đến vật dụng hàng ngày.",
+      "type": "merchant",
+      "dialogs": [
+        "Chào mừng! Hôm nay tôi có vài món hàng đặc biệt đấy.",
+        "Mua nhiều giảm giá nha!",
+        "Có hàng hiếm vừa về kho, bạn có muốn xem không?",
+        "Tôi nhớ bạn đấy! Khách hàng ruột của tôi được giảm giá đó."
+      ],
+      "shopId": "general_shop"
+    },
+    {
+      "id": "npc_weapon_merchant",
+      "name": "Vũ Khí Sư Garen",
+      "description": "Người bán các loại vũ khí, từ kiếm, cung đến vũ khí ma thuật.",
+      "type": "merchant",
+      "dialogs": [
+        "Vũ khí của ta được rèn từ thép tốt nhất vùng!",
+        "Muốn trở nên mạnh mẽ? Hãy bắt đầu với một vũ khí tốt!",
+        "Ta có nhiều loại vũ khí khác nhau. Hãy chọn loại phù hợp với phong cách của ngươi.",
+        "Đây là thanh kiếm được chế tác bởi chính tay ta. Nó sẽ không làm ngươi thất vọng đâu."
+      ],
+      "shopId": "weapon_shop"
+    },
+    {
+      "id": "npc_healer",
+      "name": "Nữ Tu Ana",
+      "description": "Người chữa lành bằng phép thuật thần thánh, có thể giúp bạn hồi phục hoàn toàn.",
+      "type": "healer",
+      "dialogs": [
+        "Cơ thể là đền thờ của linh hồn, hãy giữ gìn nó.",
+        "Để ta giúp con chữa lành vết thương.",
+        "Phép thuật chữa lành của ta đến từ Nữ thần Ánh sáng.",
+        "Hãy cẩn thận trong hành trình của mình, đừng để bản thân bị tổn thương quá nặng."
+      ],
+      "services": ["heal", "cure_status", "buff"]
+    },
+    {
+      "id": "npc_pet_caretaker",
+      "name": "Bà Pheorlina",
+      "description": "Người chuyên chăm sóc và nâng cấp thú cưỡi. Hãy đến đây để nâng cấp thú của bạn!",
+      "type": "pet_caretaker",
+      "dialogs": [
+        "Thú cưng của bạn khỏe không?",
+        "Tôi có thể huấn luyện thú cưng để tăng sức mạnh cho chúng!",
+        "Một người đồng hành tốt sẽ giúp bạn trong các cuộc phiêu lưu.",
+        "Pet đói bụng sẽ không thể phát huy hết sức mạnh đâu nhé!"
+      ],
+      "services": ["train_pet", "heal_pet", "evolve_pet"]
+    },
+    {
+      "id": "npc_pet_seller",
+      "name": "Ông Modilaner",
+      "description": "Người bán các loại pet và thú cưỡi. Hãy chọn một người bạn đồng hành mới!",
+      "type": "merchant",
+      "dialogs": [
+        "Hôm nay tôi có vài con thú mới đấy, muốn xem không?",
+        "Mỗi loài thú đều có đặc điểm riêng, hãy chọn loài phù hợp với phong cách của bạn.",
+        "Thú cưỡi không chỉ để di chuyển nhanh hơn, chúng còn có thể giúp bạn trong chiến đấu!",
+        "Pet của tôi được chăm sóc cẩn thận từ khi còn nhỏ, chất lượng đảm bảo!"
+      ],
+      "shopId": "pet_shop"
+    },
+    {
+      "id": "npc_elder",
+      "name": "Trưởng Lão Mysticus",
+      "description": "Người già nhất làng, biết nhiều về lịch sử và bí mật của vùng đất này.",
+      "type": "quest_giver",
+      "dialogs": [
+        "Ta đã sống qua nhiều thời kỳ của vùng đất này...",
+        "Những bí mật cổ xưa vẫn còn ẩn giấu trong những hang động và rừng rậm xa xôi.",
+        "Nghe này, trẻ tuổi. Có một truyền thuyết về một món bảo vật cổ xưa...",
+        "Trước khi ta chết, ta muốn thấy bảo vật đó một lần nữa."
+      ],
+      "quests": ["quest_020", "quest_021"]
+    },
+    {
+      "id": "npc_mage_trainer",
+      "name": "Pháp Sư Elyndra",
+      "description": "Pháp sư tài năng, chuyên dạy các ma pháp từ cơ bản đến nâng cao.",
+      "type": "trainer",
+      "dialogs": [
+        "Ma thuật là nguồn sức mạnh vô tận, nhưng cũng đầy nguy hiểm.",
+        "Để kiểm soát ma thuật, trước tiên phải kiểm soát bản thân.",
+        "Ta cảm nhận được tiềm năng ma thuật trong con. Hãy để ta giúp con phát triển nó.",
+        "Có nhiều trường phái ma thuật khác nhau. Con muốn theo đuổi loại nào?"
+      ],
+      "skills": ["skill_fireball", "skill_ice_shard", "skill_lightning_bolt", "skill_magic_shield"],
+      "requirements": {
+        "level": 7,
+        "stats": {
+          "intelligence": 15
+        }
+      },
+      "location": "training_ground"
+    },
+    {
+      "id": "npc_hunter",
+      "name": "Thợ Săn Sylvan",
+      "description": "Thợ săn chuyên nghiệp, sống một mình trong rừng và biết rõ về động vật hoang dã.",
+      "type": "quest_giver",
+      "dialogs": [
+        "Rừng này có nhiều thứ nguy hiểm hơn bạn tưởng.",
+        "Tôi đã theo dõi con thú đó mấy ngày nay. Nó không phải sinh vật bình thường.",
+        "Kỹ năng sinh tồn quan trọng hơn sức mạnh trong rừng sâu.",
+        "Cảm ơn vì đã giúp tôi. Ít người đi sâu vào rừng như thế này."
+      ],
+      "quests": ["quest_015", "quest_016"],
+      "location": "deep_forest"
+    },
+    {
+      "id": "npc_fisherman",
+      "name": "Ngư Dân Olan",
+      "description": "Ngư dân già sống bên bờ hồ, chuyên câu các loại cá hiếm.",
+      "type": "quest_giver",
+      "dialogs": [
+        "Biển cả có nhiều bí mật mà chúng ta chưa khám phá hết.",
+        "Con cá đó to lắm! Nó đã thoát khỏi lưới của tôi nhiều lần rồi.",
+        "Câu cá không chỉ là kỹ thuật, mà còn là nghệ thuật của sự kiên nhẫn.",
+        "Nghe đồn ở đáy hồ có một loại ngọc quý, nhưng chưa ai lặn xuống đó mà trở về..."
+      ],
+      "quests": ["quest_017"],
+      "location": "lakeside"
+    },
+    {
+      "id": "npc_shadow_master",
+      "name": "Bậc Thầy Bóng Đêm",
+      "description": "Một người đàn ông bí ẩn, mang mặt nạ đen và không ai biết danh tính thật. Chuyên gia về các kỹ năng ẩn thân và tấn công bí mật.",
+      "type": "trainer",
+      "dialogs": [
+        "Bóng tối là người bạn tốt nhất của chiến binh thông minh.",
+        "Kẻ địch không thể đánh bại những gì họ không thể nhìn thấy.",
+        "Sức mạnh không phải lúc nào cũng chiến thắng. Đôi khi, sự tinh tế mới là chìa khóa.",
+        "Ta có thể dạy ngươi cách trở thành một với bóng đêm, nhưng cái giá phải trả không nhỏ."
+      ],
+      "skills": ["skill_stealth", "skill_poison_blade"],
+      "requirements": {
+        "level": 25,
+        "stats": {
+          "speed": 40,
+          "intelligence": 25
+        },
+        "questCompleted": "quest_016"
+      },
+      "location": "dark_cavern"
+    },
+    {
+      "id": "npc_archmage_supreme",
+      "name": "Đại Pháp Sư Tối Cao",
+      "description": "Vị pháp sư già nhưng quyền năng nhất thế giới, người nắm giữ những bí thuật ma pháp cổ đại có thể hủy diệt cả vương quốc.",
+      "type": "trainer",
+      "dialogs": [
+        "Sức mạnh ma thuật thật sự không nằm ở phép thuật, mà nằm ở trí tuệ sử dụng nó.",
+        "Phép thuật mà ta dạy có thể gây họa hoặc mang phúc, tùy vào người sử dụng.",
+        "Đừng để sức mạnh làm mờ mắt con. Phép thuật cao cấp đòi hỏi trách nhiệm cao cấp.",
+        "Con đã sẵn sàng nắm giữ sức mạnh có thể thay đổi cả thế giới chưa?"
+      ],
+      "skills": ["skill_thunder_strike", "skill_arcane_explosion"],
+      "requirements": {
+        "level": 35,
+        "stats": {
+          "intelligence": 65,
+          "mp": 180
+        },
+        "questCompleted": "quest_021"
+      },
+      "location": "ancient_library"
+    },
+    {
+      "id": "npc_ancient_warrior",
+      "name": "Chiến Binh Cổ Đại",
+      "description": "Một chiến binh già đã sống qua hàng trăm năm nhờ vào một lời nguyền. Giờ đây ông sống ẩn dật và chỉ truyền dạy võ công cho những ai thực sự xứng đáng.",
+      "type": "trainer",
+      "dialogs": [
+        "Ta đã chứng kiến sự hưng vong của nhiều vương quốc. Sức mạnh thực sự là sống sót.",
+        "Kỹ thuật này đã được truyền lại qua hàng nghìn năm, và chỉ có ba người từng học được nó.",
+        "Con nghĩ mình đủ mạnh? Hãy cho ta thấy.",
+        "Sức mạnh mà không có kỷ luật chỉ là sự tàn phá vô nghĩa."
+      ],
+      "skills": ["skill_shield_wall", "skill_titan_strength"],
+      "requirements": {
+        "level": 32,
+        "stats": {
+          "attack": 55,
+          "vitality": 45,
+          "defense": 35
+        },
+        "questCompleted": "quest_020"
+      },
+      "location": "ancient_temple"
+    },
+    {
+      "id": "npc_life_master",
+      "name": "Bậc Thầy Sinh Mệnh",
+      "description": "Một phụ nữ xinh đẹp với mái tóc đỏ rực, nắm giữ bí mật về sự sống và cái chết. Có thể chữa lành hoặc hút cạn sinh lực.",
+      "type": "trainer",
+      "dialogs": [
+        "Sinh và tử là hai mặt của cùng một đồng xu. Ta nắm giữ cả hai.",
+        "Năng lượng sống không thể tạo ra hoặc phá hủy, nó chỉ có thể được chuyển giao.",
+        "Kỹ thuật này nguy hiểm, nhưng cũng đầy quyền năng. Hãy sử dụng nó một cách khôn ngoan.",
+        "Sức mạnh sự sống là món quà quý giá nhất, đừng lãng phí nó."
+      ],
+      "skills": ["skill_life_drain", "skill_meditation"],
+      "requirements": {
+        "level": 30,
+        "stats": {
+          "intelligence": 40,
+          "vitality": 30
+        },
+        "questCompleted": "quest_021"
+      },
+      "location": "ritual_chamber"
+    },
+    {
+      "id": "npc_dragon_knight",
+      "name": "Hiệp Sĩ Rồng",
+      "description": "Một hiệp sĩ huyền thoại đã từng cưỡi rồng và là người duy nhất biết cách khai thác sức mạnh của rồng.",
+      "type": "trainer",
+      "dialogs": [
+        "Rồng không phải là quái vật, chúng là sinh vật quyền năng cổ xưa đáng ngưỡng mộ.",
+        "Chỉ khi con hiểu được trái tim của rồng, con mới có thể sử dụng sức mạnh của chúng.",
+        "Đây là kỹ thuật nguy hiểm nhất ta biết. Nó có thể tiêu diệt kẻ thù... hoặc chính con.",
+        "Sức mạnh rồng không dành cho những kẻ yếu đuối. Hãy chứng minh con xứng đáng."
+      ],
+      "skills": ["skill_dragon_strike"],
+      "requirements": {
+        "level": 45,
+        "stats": {
+          "attack": 75,
+          "intelligence": 45,
+          "vitality": 60
+        },
+        "questCompleted": "quest_dragon_heart"
+      },
+      "location": "dragon_heart_chamber"
+    },
+    {
+      "id": "npc_shadow_priest",
+      "name": "Linh Mục Bóng Đêm",
+      "description": "Một tu sĩ bí ẩn thờ phụng các thế lực bóng tối, có khả năng biến đổi thân thể thành bóng tối thuần khiết.",
+      "type": "trainer",
+      "dialogs": [
+        "Bóng tối không phải là điều xấu, nó chỉ là một dạng năng lượng khác.",
+        "Để kiểm soát bóng tối, con phải chấp nhận nó vào trong tâm hồn.",
+        "Kỹ thuật này có thể biến con thành một với bóng đêm. Không phải ai cũng có thể chịu đựng được nó.",
+        "Những kẻ thờ phụng ánh sáng sẽ không bao giờ hiểu được sức mạnh thực sự của bóng tối."
+      ],
+      "skills": ["skill_shadow_form"],
+      "requirements": {
+        "level": 40,
+        "stats": {
+          "intelligence": 60,
+          "speed": 65
+        },
+        "questCompleted": "quest_shadow_ritual"
+      },
+      "location": "ritual_chamber"
+    },
+    {
+      "id": "npc_merchant_leader",
+      "name": "Thủ lĩnh thương nhân",
+      "description": "Người đứng đầu đoàn thương nhân, cần được cứu giúp.",
+      "type": "quest_giver",
+      "dialogs": ["Cảm ơn bạn đã cứu giúp đoàn thương nhân!"],
+      "location": "town"
+    },
+    {
+      "id": "npc_elder_sage",
+      "name": "Hiền giả",
+      "description": "Hiền giả thông thái, biết nhiều bí mật cổ xưa.",
+      "type": "quest_giver",
+      "dialogs": ["Có một truyền thuyết về cổ vật trong đền cổ..."],
+      "location": "ancient_temple"
+    },
+    {
+      "id": "npc_archivist",
+      "name": "Người quản lý thư viện",
+      "description": "Người gìn giữ tri thức cổ xưa.",
+      "type": "quest_giver",
+      "dialogs": ["Bạn muốn tìm hiểu về bí ẩn núi lửa?"],
+      "location": "ancient_library"
+    },
+    {
+      "id": "npc_dragon_sage",
+      "name": "Hiền giả long tộc",
+      "description": "Người hiểu biết về rồng cổ đại.",
+      "type": "quest_giver",
+      "dialogs": ["Chỉ những ai xứng đáng mới có thể gặp rồng."],
+      "location": "dragon_lair"
+    },
+    {
+      "id": "npc_forge_master",
+      "name": "Bậc thầy rèn",
+      "description": "Thợ rèn huyền thoại, chế tạo vật phẩm đặc biệt.",
+      "type": "blacksmith",
+      "dialogs": ["Ta có thể chế tạo vật phẩm từ nguyên liệu quý."],
+      "location": "magic_forge"
+    },
+    {
+      "id": "npc_alchemist",
+      "name": "Nhà giả kim",
+      "description": "Chuyên gia chế thuốc và nghiên cứu độc tố.",
+      "type": "alchemist",
+      "dialogs": ["Mang nọc độc đến đây, ta sẽ nghiên cứu nó."],
+      "location": "desert_outpost"
+    },
+    {
+      "id": "npc_volcano_sage",
+      "name": "Hiền triết núi lửa",
+      "description": "Người nghiên cứu núi lửa lâu năm.",
+      "type": "quest_giver",
+      "dialogs": ["Núi lửa này ẩn chứa nhiều bí ẩn."],
+      "location": "volcano_path"
+    },
+    {
+      "id": "npc_outpost_captain",
+      "name": "Đội trưởng tiền đồn",
+      "description": "Chỉ huy già dặn của tiền đồn sa mạc.",
+      "type": "quest_giver",
+      "dialogs": ["Chúng tôi cần người giúp đỡ bảo vệ tiền đồn."],
+      "location": "desert_outpost"
+    },
+    {
+      "id": "grand_master",
+      "name": "Đại Sư Korath",
+      "description": "Người canh giữ bí kíp võ công bí truyền.",
+      "type": "trainer",
+      "dialogs": ["Chỉ truyền dạy cho người xứng đáng."],
+      "location": "ancient_temple"
+    },
+    {
+      "id": "innkeeper",
+      "name": "Bà chủ Melia",
+      "description": "Chủ quán trọ vui vẻ, biết nhiều tin đồn thú vị.",
+      "type": "quest_giver",
+      "dialogs": ["Bạn cần nghỉ ngơi không?"],
+      "location": "inn"
+    }
+  ]
+}

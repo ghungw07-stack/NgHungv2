@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Xem Log Bot</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --panel-2: #1e222b;
+    --border: #2a2f3a;
+    --text: #e7e9ee;
+    --muted: #8b93a3;
+    --info: #4da3ff;
+    --warn: #ffb545;
+    --error: #ff5c5c;
+    --debug: #9d7bff;
+    --accent: #4da3ff;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 15px;
+  }
+  header {
+    position: sticky; top: 0; z-index: 10;
+    background: var(--panel); border-bottom: 1px solid var(--border);
+    padding: 12px 14px;
+  }
+  header h1 { margin: 0 0 10px 0; font-size: 18px; font-weight: 700; }
+  .filters {
+    display: flex; flex-wrap: wrap; gap: 8px;
+  }
+  .filters input, .filters select {
+    flex: 1 1 120px;
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 9px 10px; font-size: 14px; min-width: 0;
+  }
+  .row2 { display: flex; gap: 8px; margin-top: 8px; }
+  .row2 button {
+    flex: 1;
+    background: var(--accent); color: #0b0d11; border: none;
+    border-radius: 8px; padding: 10px; font-weight: 700; font-size: 14px;
+  }
+  .row2 button.secondary {
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+  }
+  .row2 button.active { outline: 2px solid var(--accent); }
+
+  #status { padding: 8px 14px; color: var(--muted); font-size: 12px; }
+
+  #list { padding: 8px 10px 60px; }
+  .log-item {
+    background: var(--panel); border: 1px solid var(--border);
+    border-left: 4px solid var(--info);
+    border-radius: 8px; padding: 8px 10px; margin-bottom: 8px;
+    font-size: 13px; line-height: 1.45;
+  }
+  .log-item.level-warn { border-left-color: var(--warn); }
+  .log-item.level-error { border-left-color: var(--error); }
+  .log-item.level-debug { border-left-color: var(--debug); }
+  .log-meta {
+    display: flex; gap: 8px; align-items: center; margin-bottom: 4px;
+    color: var(--muted); font-size: 11px;
+  }
+  .badge {
+    display: inline-block; padding: 1px 7px; border-radius: 10px;
+    font-weight: 700; font-size: 10px; letter-spacing: 0.03em;
+    background: rgba(77,163,255,0.15); color: var(--info);
+  }
+  .log-item.level-warn .badge { background: rgba(255,181,69,0.15); color: var(--warn); }
+  .log-item.level-error .badge { background: rgba(255,92,92,0.15); color: var(--error); }
+  .log-item.level-debug .badge { background: rgba(157,123,255,0.15); color: var(--debug); }
+  .log-msg { white-space: pre-wrap; word-break: break-word; color: var(--text); }
+  .bot-tag { color: var(--muted); }
+
+  #loadMoreWrap { text-align: center; padding: 10px; }
+  #loadMoreWrap button {
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+    padding: 10px 16px; border-radius: 20px; font-size: 13px;
+  }
+  #empty { text-align: center; color: var(--muted); padding: 40px 10px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📜 Log Bot (SQL)</h1>
+  <div class="filters">
+    <select id="level">
+      <option value="">Tất cả level</option>
+      <option value="error">Error</option>
+      <option value="warn">Warn</option>
+      <option value="info">Info</option>
+      <option value="debug">Debug</option>
+    </select>
+    <select id="botId"><option value="">Tất cả bot</option></select>
+  </div>
+  <div class="filters" style="margin-top:8px;">
+    <input id="q" type="text" placeholder="Tìm trong nội dung log..." />
+    <select id="minutes">
+      <option value="0">Toàn bộ thời gian</option>
+      <option value="15">15 phút gần đây</option>
+      <option value="60" selected>1 giờ gần đây</option>
+      <option value="360">6 giờ gần đây</option>
+      <option value="1440">24 giờ gần đây</option>
+      <option value="10080">7 ngày gần đây</option>
+    </select>
+  </div>
+  <div class="row2">
+    <button id="btnRefresh">🔄 Tải lại</button>
+    <button id="btnAuto" class="secondary">▶ Tự động (5s)</button>
+  </div>
+</header>
+
+<div id="status">Đang tải...</div>
+<div id="list"></div>
+<div id="empty" style="display:none;">Không có log nào khớp bộ lọc.</div>
+<div id="loadMoreWrap" style="display:none;">
+  <button id="btnMore">Tải thêm log cũ hơn</button>
+</div>
+
+<script>
+  const el = (id) => document.getElementById(id);
+  const listEl = el("list");
+  const statusEl = el("status");
+  const emptyEl = el("empty");
+  const loadMoreWrap = el("loadMoreWrap");
+
+  let oldestId = null;
+  let autoTimer = null;
+
+  function escapeHtml(str) {
+    return str.replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+  }
+
+  function fmtTime(iso) {
+    const d = new Date(iso);
+    return d.toLocaleString("vi-VN", { hour12: false });
+  }
+
+  function currentFilters() {
+    return {
+      level: el("level").value,
+      botId: el("botId").value,
+      q: el("q").value.trim(),
+      minutes: el("minutes").value,
+    };
+  }
+
+  function buildQuery(extra) {
+    const f = currentFilters();
+    const params = new URLSearchParams();
+    params.set("limit", "100");
+    if (f.level) params.set("level", f.level);
+    if (f.botId) params.set("botId", f.botId);
+    if (f.q) params.set("q", f.q);
+    if (f.minutes && f.minutes !== "0") params.set("minutes", f.minutes);
+    if (extra) Object.entries(extra).forEach(([k, v]) => params.set(k, v));
+    return params.toString();
+  }
+
+  function renderRow(row) {
+    const div = document.createElement("div");
+    div.className = `log-item level-${row.level}`;
+    div.innerHTML = `
+      <div class="log-meta">
+        <span class="badge">${row.level.toUpperCase()}</span>
+        <span>${fmtTime(row.createdAt)}</span>
+        ${row.botId ? `<span class="bot-tag">· bot ${escapeHtml(row.botId)}</span>` : ""}
+      </div>
+      <div class="log-msg">${escapeHtml(row.message)}</div>
+    `;
+    return div;
+  }
+
+  async function loadLatest() {
+    statusEl.textContent = "Đang tải...";
+    try {
+      const res = await fetch("/api/logs?" + buildQuery());
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message || "Lỗi không rõ");
+
+      listEl.innerHTML = "";
+      if (data.rows.length === 0) {
+        emptyEl.style.display = "block";
+        loadMoreWrap.style.display = "none";
+        oldestId = null;
+      } else {
+        emptyEl.style.display = "none";
+        data.rows.forEach((row) => listEl.appendChild(renderRow(row)));
+        oldestId = data.rows[data.rows.length - 1].id;
+        loadMoreWrap.style.display = "block";
+      }
+      statusEl.textContent = `Cập nhật lúc ${new Date().toLocaleTimeString("vi-VN")} · ${data.rows.length} dòng`;
+    } catch (err) {
+      statusEl.textContent = "Lỗi tải log: " + err.message;
+    }
+  }
+
+  async function loadMore() {
+    if (!oldestId) return;
+    try {
+      const res = await fetch("/api/logs?" + buildQuery({ beforeId: oldestId }));
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message || "Lỗi không rõ");
+      if (data.rows.length === 0) {
+        loadMoreWrap.style.display = "none";
+        return;
+      }
+      data.rows.forEach((row) => listEl.appendChild(renderRow(row)));
+      oldestId = data.rows[data.rows.length - 1].id;
+    } catch (err) {
+      statusEl.textContent = "Lỗi tải thêm: " + err.message;
+    }
+  }
+
+  async function loadBotIds() {
+    try {
+      const res = await fetch("/api/logs/bot-ids");
+      const data = await res.json();
+      if (!data.success) return;
+      const sel = el("botId");
+      data.botIds.forEach((id) => {
+        const opt = document.createElement("option");
+        opt.value = id;
+        opt.textContent = id;
+        sel.appendChild(opt);
+      });
+    } catch {}
+  }
+
+  function toggleAuto() {
+    const btn = el("btnAuto");
+    if (autoTimer) {
+      clearInterval(autoTimer);
+      autoTimer = null;
+      btn.textContent = "▶ Tự động (5s)";
+      btn.classList.remove("active");
+    } else {
+      autoTimer = setInterval(loadLatest, 5000);
+      btn.textContent = "⏸ Đang tự động";
+      btn.classList.add("active");
+    }
+  }
+
+  el("btnRefresh").addEventListener("click", loadLatest);
+  el("btnAuto").addEventListener("click", toggleAuto);
+  el("btnMore").addEventListener("click", loadMore);
+  el("level").addEventListener("change", loadLatest);
+  el("botId").addEventListener("change", loadLatest);
+  el("minutes").addEventListener("change", loadLatest);
+  el("q").addEventListener("keydown", (e) => { if (e.key === "Enter") loadLatest(); });
+
+  loadBotIds();
+  loadLatest();
+</script>
+</body>
+</html>

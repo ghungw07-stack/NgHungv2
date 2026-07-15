@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="referrer" content="no-referrer">
+    <title>HHH - Zalo Bot - Bảng điều khiển Bot</title>
+    <link rel="stylesheet" href="/styles/base/main.css" />
+    <link rel="stylesheet" href="/styles/base/theme.css" />
+    <link rel="stylesheet" href="/styles/base/body.css" />
+    <link rel="stylesheet" href="/styles/base/header.css" />
+    <link rel="stylesheet" href="/styles/base/footer.css" />
+    <link rel="stylesheet" href="/styles/pages/bot-dashboard.css" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400&display=swap"
+      rel="stylesheet"
+    />
+    <script src="/socket.io/socket.io.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" />
+    <script src="/scripts/core/config.js"></script>
+  </head>
+  <body>
+    <div class="menu-toggle" id="menuToggle">
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+    </div>
+
+    <div class="color-change" id="colorChange">
+      <i class="fas fa-palette"></i>
+    </div>
+
+    <nav class="side-menu" id="sideMenu"></nav>
+
+    <div class="parallax-container">
+      <header>
+        <div class="inner">
+          <div class="main">
+            <h2 id="botTitle" class="title">HHH - Zalo Bot - Bảng điều khiển Bot</h2>
+          </div>
+        </div>
+      </header>
+
+      <main>
+        <div class="grid-container">
+          <div class="grid-item lists">
+            <div class="list-header">
+              <h2 class="list-title">Danh sách nhóm</h2>
+              <div class="list-toggle">
+                <button id="groupsBtn" class="active">Nhóm</button>
+                <button id="friendsBtn">Bạn bè</button>
+                <button id="refreshBtn"><i class="fas fa-sync-alt"></i> Làm mới</button>
+              </div>
+            </div>
+            <div class="list-content">
+              <div class="group-list"></div>
+              <div class="friend-list" style="display: none"></div>
+            </div>
+            <div class="list-footer">
+              <span class="selected-count">Đã Chọn: 0</span>
+              <div class="select-buttons">
+                <button id="selectAllBtn">Chọn tất cả</button>
+                <button id="unselectAllBtn">Bỏ chọn tất cả</button>
+              </div>
+            </div>
+          </div>
+          <div class="grid-item logs">
+            <h2>Tin Nhắn Và Sự Kiện</h2>
+            <div class="log-content"></div>
+            <div class="composer">
+              <div class="action-content">
+                <div class="input-row">
+                  <div class="text-area-wrap">
+                    <textarea id="messageContent" rows="3" placeholder="Nhập nội dung tin nhắn ở đây"></textarea>
+                  </div>
+                  <div class="schedule-inline">
+                    <label for="timeValue">Tin nhắn tự xóa sau:</label>
+                    <div class="schedule-fields">
+                      <input type="number" id="timeValue" min="1" placeholder="" />
+                      <select id="timeUnit">
+                        <option value="seconds">Giây</option>
+                        <option value="minutes">Phút</option>
+                        <option value="hours">Giờ</option>
+                        <option value="days">Ngày</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="file-row">
+                  <div class="file-upload">
+                    <input type="file" id="fileInput" multiple />
+                    <label for="fileInput">Chọn file đính kèm</label>
+                  </div>
+                  <div id="fileList" class="attachments"></div>
+                </div>
+
+                <div class="send-buttons">
+                  <button id="sendToFriends">Gửi cho tất cả bạn bè</button>
+                  <button id="sendToGroups">Gửi cho tất cả nhóm</button>
+                  <button id="sendForSelected">Gửi theo đối tượng đã chọn</button>
+                  <button id="sendBulkMessage">Gửi liên tục cho các đối tượng đã chọn</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <footer>
+        <div class="ticker">
+          <div class="inner-footer">
+            <span class="ticker-content"></span>
+          </div>
+        </div>
+      </footer>
+    </div>
+
+    <!-- Media Viewer Popup -->
+    <div id="mediaViewer" class="popup" style="display: none">
+      <div class="popup-content media-content">
+        <button id="closeMediaViewer" class="close-media" aria-label="Đóng">×</button>
+        <div id="mediaViewerBody" class="media-viewer-body"></div>
+      </div>
+    </div>
+
+    <!-- Thông báo popup -->
+    <div id="popupNotification" class="popup" style="display: none">
+      <div class="popup-content">
+        <h2 id="popupTitle"></h2>
+        <p id="popupMessage"></p>
+        <button id="closePopupNotification">Đóng</button>
+      </div>
+    </div>
+
+    <!-- Hộp thoại xác nhận -->
+    <div id="confirmDialog" class="popup" style="display: none">
+      <div class="popup-content">
+        <h2 id="confirmTitle">Xác nhận</h2>
+        <p id="confirmMessage"></p>
+        <div class="confirm-buttons">
+          <button id="confirmYes">Đồng ý</button>
+          <button id="confirmNo">Hủy</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cửa sổ cài đặt modal -->
+    <div class="settings-modal" id="settingsModal">
+      <div class="modal-content">
+        <span class="close-modal">&times;</span>
+        <h3 class="modal-title">Cài đặt nhóm</h3>
+        <div class="settings-grid" id="settingsGrid"></div>
+      </div>
+    </div>
+
+    <!-- Cửa sổ danh sách thành viên modal -->
+    <div class="members-modal" id="membersModal">
+      <div class="modal-content">
+        <span class="close-modal">&times;</span>
+        <h3 class="modal-title" id="membersModalTitle">Danh sách thành viên</h3>
+        <div class="members-header">
+          <div class="header-left">
+            <span id="membersCount">0 thành viên</span>
+            <button class="btn-select-all" id="selectAllMembersBtn" title="Chọn tất cả thành viên">
+              <i class="fas fa-check-double"></i> Tích tất cả
+            </button>
+            <button class="btn-deselect-all" id="deselectAllMembersBtn" title="Bỏ chọn tất cả thành viên">
+              <i class="fas fa-times"></i> Bỏ tất cả
+            </button>
+          </div>
+          <button class="btn-send-all" id="sendAllMessagesBtn" title="Gửi tin nhắn cho tất cả người đã chọn">
+            <i class="fas fa-paper-plane"></i> Gửi tất cả
+          </button>
+        </div>
+        <div class="members-search">
+          <input type="text" id="membersSearchInput" class="search-input" placeholder="Tìm kiếm theo tên hoặc ID..." />
+          <i class="fas fa-search search-icon"></i>
+        </div>
+        <div class="members-list" id="membersList">
+          <div class="loading-members">Đang tải...</div>
+        </div>
+        <div class="members-pagination" id="membersPagination">
+          <button class="pagination-btn" id="prevPageBtn" disabled>
+            <i class="fas fa-chevron-left"></i> Trang trước
+          </button>
+          <span class="pagination-info" id="paginationInfo">Trang 1 / 1</span>
+          <button class="pagination-btn" id="nextPageBtn" disabled>
+            Trang sau <i class="fas fa-chevron-right"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal gửi tin nhắn -->
+    <div class="send-message-modal" id="sendMessageModal">
+      <div class="modal-content">
+        <span class="close-modal">&times;</span>
+        <h3 class="modal-title" id="sendMessageModalTitle">Gửi tin nhắn</h3>
+        <div class="send-message-content">
+          <div class="message-recipient">
+            <strong>Gửi đến:</strong> <span id="messageRecipientName"></span>
+          </div>
+          <textarea id="sendMessageContent" class="message-textarea" placeholder="Nhập nội dung tin nhắn..." rows="6"></textarea>
+          <div class="message-actions">
+            <button class="btn-secondary" id="cancelSendMessage">Hủy</button>
+            <button class="btn-primary" id="confirmSendMessage">Gửi</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="/scripts/core/colorChanger.js"></script>
+    <script src="/scripts/core/menuHandler.js"></script>
+    <script src="/scripts/core/common.js"></script>
+    <script src="/scripts/core/theme.js"></script>
+    <script src="/scripts/pages/bot-dashboard.js"></script>
+    <script src="/scripts/components/sideMenu.js"></script>
+  </body>
+</html>

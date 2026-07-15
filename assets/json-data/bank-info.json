@@ -1,0 +1,63 @@
+{
+  "704116272630681902_704116272630681902": [
+    {
+      "bankBin": "970415",
+      "bankName": "VIETINBANK",
+      "accountNumber": "100874977448",
+      "accountName": "HA HUY HOANG - BOT",
+      "updatedAt": "2025-10-30T20:05:42.399Z"
+    },
+    {
+      "bankBin": "970407",
+      "bankName": "TECHCOMBANK",
+      "accountNumber": "8083061220",
+      "accountName": "HA HUY HOANG - BOT",
+      "updatedAt": "2025-10-30T20:07:04.176Z"
+    }
+  ],
+  "5442535467335160576_696236234464001838": [
+    {
+      "bankBin": "970415",
+      "bankName": "VIETINBANK",
+      "accountNumber": "100874977448",
+      "accountName": "CON CAC",
+      "updatedAt": "2025-10-19T12:13:13.206Z"
+    }
+  ],
+  "695590258396951214_695590258396951214": [
+    {
+      "bankBin": "970415",
+      "bankName": "VIETINBANK",
+      "accountNumber": "100874977448",
+      "accountName": "HA HUY HOANG CUTO",
+      "updatedAt": "2025-10-21T10:25:26.459Z"
+    }
+  ],
+  "2223429402528645177_2223429402528645177": [
+    {
+      "bankBin": "970422",
+      "bankName": "MB BANK",
+      "accountNumber": "626201997",
+      "accountName": "DONATE CHO KHAY",
+      "updatedAt": "2025-11-01T14:58:49.592Z"
+    }
+  ],
+  "1642614781237603740_718792900985749678": [
+    {
+      "bankBin": "970418",
+      "bankName": "BIDV",
+      "accountNumber": "8853441280",
+      "accountName": "NGUYEN VAN TIEN",
+      "updatedAt": "2025-11-17T11:45:33.724Z"
+    }
+  ],
+  "626785955735131567_626785955735131567": [
+    {
+      "bankBin": "970415",
+      "bankName": "VIETINBANK",
+      "accountNumber": "16025678",
+      "accountName": "NGUYEN GIA HUNG HUNG DEP TRAI",
+      "updatedAt": "2026-07-11T14:24:32.367Z"
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+header { width: 100%; height: 64px; background: #0f2a4f; display: flex; justify-content: center; position: sticky; top: 0; z-index: 999; }
+.inner { padding: 0 20px; height: 100%; width: 100%; display: flex; justify-content: center; align-items: center; }
+.main { display: flex; flex: 1 1; align-items: center; justify-content: center; }
+.link-home { display: flex; align-items: center; cursor: default; }
+.title { font-size: 22px; font-weight: 700; margin: 0 12px; color: #ffffff; letter-spacing: 0.5px; }

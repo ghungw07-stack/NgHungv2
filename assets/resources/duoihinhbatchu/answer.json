@@ -1,0 +1,5176 @@
+{
+  "questions": [
+    {
+      "id": 1,
+      "answer": "ái mộ"
+    },
+    {
+      "id": 2,
+      "answer": "anh hào"
+    },
+    {
+      "id": 3,
+      "answer": "áo mưa"
+    },
+    {
+      "id": 4,
+      "answer": "âu yếm"
+    },
+    {
+      "id": 5,
+      "answer": "ba chân bốn cẳng"
+    },
+    {
+      "id": 6,
+      "answer": "ba chìm bảy nổi"
+    },
+    {
+      "id": 7,
+      "answer": "bạc tình"
+    },
+    {
+      "id": 8,
+      "answer": "ba đầu sáu tay"
+    },
+    {
+      "id": 9,
+      "answer": "ba động"
+    },
+    {
+      "id": 10,
+      "answer": "ba lô"
+    },
+    {
+      "id": 11,
+      "answer": "bà mối"
+    },
+    {
+      "id": 12,
+      "answer": "bán đảo"
+    },
+    {
+      "id": 13,
+      "answer": "bao la"
+    },
+    {
+      "id": 14,
+      "answer": "báo mộng"
+    },
+    {
+      "id": 15,
+      "answer": "bào ngư"
+    },
+    {
+      "id": 16,
+      "answer": "bao phủ"
+    },
+    {
+      "id": 17,
+      "answer": "bao quát"
+    },
+    {
+      "id": 18,
+      "answer": "bao tay"
+    },
+    {
+      "id": 19,
+      "answer": "báo thức"
+    },
+    {
+      "id": 20,
+      "answer": "bao tử"
+    },
+    {
+      "id": 21,
+      "answer": "ba phải"
+    },
+    {
+      "id": 22,
+      "answer": "bắt cá hai tay"
+    },
+    {
+      "id": 23,
+      "answer": "ba trợn"
+    },
+    {
+      "id": 24,
+      "answer": "bà xã"
+    },
+    {
+      "id": 25,
+      "answer": "biển hiệu"
+    },
+    {
+      "id": 26,
+      "answer": "bi hài"
+    },
+    {
+      "id": 27,
+      "answer": "bi kịch"
+    },
+    {
+      "id": 28,
+      "answer": "bình chân như vại"
+    },
+    {
+      "id": 29,
+      "answer": "bình hoa di động"
+    },
+    {
+      "id": 30,
+      "answer": "bình yên"
+    },
+    {
+      "id": 31,
+      "answer": "bỉ ổi"
+    },
+    {
+      "id": 32,
+      "answer": "bóng đá"
+    },
+    {
+      "id": 33,
+      "answer": "cân đẩu vân"
+    },
+    {
+      "id": 34,
+      "answer": "cao kiến"
+    },
+    {
+      "id": 35,
+      "answer": "cầu mây"
+    },
+    {
+      "id": 36,
+      "answer": "chân tướng"
+    },
+    {
+      "id": 37,
+      "answer": "chỉ điểm"
+    },
+    {
+      "id": 38,
+      "answer": "cơ bắp"
+    },
+    {
+      "id": 39,
+      "answer": "cơ hội"
+    },
+    {
+      "id": 40,
+      "answer": "cổ loa"
+    },
+    {
+      "id": 41,
+      "answer": "công bố"
+    },
+    {
+      "id": 42,
+      "answer": "công trái"
+    },
+    {
+      "id": 43,
+      "answer": "cửu tử nhất sinh"
+    },
+    {
+      "id": 44,
+      "answer": "dài lưng tốn vải"
+    },
+    {
+      "id": 45,
+      "answer": "đại tướng"
+    },
+    {
+      "id": 46,
+      "answer": "đầu thú"
+    },
+    {
+      "id": 47,
+      "answer": "đê tiện"
+    },
+    {
+      "id": 48,
+      "answer": "đồng cảm"
+    },
+    {
+      "id": 49,
+      "answer": "đồng cam cộng khổ"
+    },
+    {
+      "id": 50,
+      "answer": "gấu ngựa"
+    },
+    {
+      "id": 51,
+      "answer": "hài lòng"
+    },
+    {
+      "id": 52,
+      "answer": "hành hạ"
+    },
+    {
+      "id": 53,
+      "answer": "hình bình hành"
+    },
+    {
+      "id": 54,
+      "answer": "hòm công đức"
+    },
+    {
+      "id": 55,
+      "answer": "hồng tâm"
+    },
+    {
+      "id": 56,
+      "answer": "hứng thú"
+    },
+    {
+      "id": 57,
+      "answer": "kéo cưa lừa xẻ"
+    },
+    {
+      "id": 58,
+      "answer": "khoan hồng"
+    },
+    {
+      "id": 59,
+      "answer": "khổ tâm"
+    },
+    {
+      "id": 60,
+      "answer": "kích động"
+    },
+    {
+      "id": 61,
+      "answer": "kiếm chuyện"
+    },
+    {
+      "id": 62,
+      "answer": "kinh độ"
+    },
+    {
+      "id": 63,
+      "answer": "kinh hoàng"
+    },
+    {
+      "id": 64,
+      "answer": "lang thang"
+    },
+    {
+      "id": 65,
+      "answer": "lục lạc"
+    },
+    {
+      "id": 66,
+      "answer": "ma cà rồng"
+    },
+    {
+      "id": 67,
+      "answer": "mã hóa"
+    },
+    {
+      "id": 68,
+      "answer": "mạng di động"
+    },
+    {
+      "id": 69,
+      "answer": "ma nơ canh"
+    },
+    {
+      "id": 70,
+      "answer": "mật khẩu"
+    },
+    {
+      "id": 71,
+      "answer": "ma túy"
+    },
+    {
+      "id": 72,
+      "answer": "môi trường"
+    },
+    {
+      "id": 73,
+      "answer": "mũi nhọn"
+    },
+    {
+      "id": 74,
+      "answer": "nặng lòng"
+    },
+    {
+      "id": 75,
+      "answer": "ném đá giấu tay"
+    },
+    {
+      "id": 76,
+      "answer": "ngã ngũ"
+    },
+    {
+      "id": 77,
+      "answer": "ngựa ô"
+    },
+    {
+      "id": 78,
+      "answer": "nhạc cụ"
+    },
+    {
+      "id": 79,
+      "answer": "nhà giáo"
+    },
+    {
+      "id": 80,
+      "answer": "nhà hát"
+    },
+    {
+      "id": 81,
+      "answer": "nhân đức"
+    },
+    {
+      "id": 82,
+      "answer": "nhãn hiệu"
+    },
+    {
+      "id": 83,
+      "answer": "nhân từ"
+    },
+    {
+      "id": 84,
+      "answer": "nội gián"
+    },
+    {
+      "id": 85,
+      "answer": "nội thất"
+    },
+    {
+      "id": 86,
+      "answer": "quy củ"
+    },
+    {
+      "id": 87,
+      "answer": "rửa tiền"
+    },
+    {
+      "id": 88,
+      "answer": "tai họa"
+    },
+    {
+      "id": 89,
+      "answer": "tăng ca"
+    },
+    {
+      "id": 90,
+      "answer": "táo mèo"
+    },
+    {
+      "id": 91,
+      "answer": "thảm hoạ"
+    },
+    {
+      "id": 92,
+      "answer": "than khóc"
+    },
+    {
+      "id": 93,
+      "answer": "thích thú"
+    },
+    {
+      "id": 94,
+      "answer": "thông tấn"
+    },
+    {
+      "id": 95,
+      "answer": "thờ ơ"
+    },
+    {
+      "id": 96,
+      "answer": "thượng đỉnh"
+    },
+    {
+      "id": 97,
+      "answer": "tích phân"
+    },
+    {
+      "id": 98,
+      "answer": "tiền đạo"
+    },
+    {
+      "id": 99,
+      "answer": "tình trường"
+    },
+    {
+      "id": 100,
+      "answer": "tranh thủ"
+    },
+    {
+      "id": 101,
+      "answer": "trâu mộng"
+    },
+    {
+      "id": 102,
+      "answer": "tung tăng"
+    },
+    {
+      "id": 103,
+      "answer": "vườn bách thú"
+    },
+    {
+      "id": 104,
+      "answer": "xà lan"
+    },
+    {
+      "id": 105,
+      "answer": "xấu hổ"
+    },
+    {
+      "id": 106,
+      "answer": "xe hoa"
+    },
+    {
+      "id": 107,
+      "answer": "xem tướng"
+    },
+    {
+      "id": 108,
+      "answer": "xích lô"
+    },
+    {
+      "id": 109,
+      "answer": "xương rồng"
+    },
+    {
+      "id": 110,
+      "answer": "lính đảo"
+    },
+    {
+      "id": 111,
+      "answer": "ăn mày"
+    },
+    {
+      "id": 112,
+      "answer": "áp giá"
+    },
+    {
+      "id": 113,
+      "answer": "bạch cầu"
+    },
+    {
+      "id": 114,
+      "answer": "bài bạc"
+    },
+    {
+      "id": 115,
+      "answer": "bài xích"
+    },
+    {
+      "id": 116,
+      "answer": "bánh quy"
+    },
+    {
+      "id": 117,
+      "answer": "bánh trái"
+    },
+    {
+      "id": 118,
+      "answer": "bán kính"
+    },
+    {
+      "id": 119,
+      "answer": "bao bì"
+    },
+    {
+      "id": 120,
+      "answer": "báo động"
+    },
+    {
+      "id": 121,
+      "answer": "bão giá"
+    },
+    {
+      "id": 122,
+      "answer": "bao hàm"
+    },
+    {
+      "id": 123,
+      "answer": "bảo hành"
+    },
+    {
+      "id": 124,
+      "answer": "bạo hành"
+    },
+    {
+      "id": 125,
+      "answer": "bắt bí"
+    },
+    {
+      "id": 126,
+      "answer": "bắt cóc"
+    },
+    {
+      "id": 127,
+      "answer": "bất lợi"
+    },
+    {
+      "id": 128,
+      "answer": "bí bách"
+    },
+    {
+      "id": 129,
+      "answer": "binh đoàn"
+    },
+    {
+      "id": 130,
+      "answer": "binh mã"
+    },
+    {
+      "id": 131,
+      "answer": "bi quan"
+    },
+    {
+      "id": 132,
+      "answer": "bí truyền"
+    },
+    {
+      "id": 133,
+      "answer": "bó chân bó tay"
+    },
+    {
+      "id": 134,
+      "answer": "bóng chim tăm cá"
+    },
+    {
+      "id": 135,
+      "answer": "bổ sung"
+    },
+    {
+      "id": 136,
+      "answer": "ca cao"
+    },
+    {
+      "id": 137,
+      "answer": "cầm cân nảy mực"
+    },
+    {
+      "id": 138,
+      "answer": "cầm chân"
+    },
+    {
+      "id": 139,
+      "answer": "cam kết"
+    },
+    {
+      "id": 140,
+      "answer": "cảm tử"
+    },
+    {
+      "id": 141,
+      "answer": "cánh đồng"
+    },
+    {
+      "id": 142,
+      "answer": "cạnh tranh"
+    },
+    {
+      "id": 143,
+      "answer": "cân não"
+    },
+    {
+      "id": 144,
+      "answer": "cân nhắc"
+    },
+    {
+      "id": 145,
+      "answer": "can thiệp"
+    },
+    {
+      "id": 146,
+      "answer": "cáo biệt"
+    },
+    {
+      "id": 147,
+      "answer": "cáo buộc"
+    },
+    {
+      "id": 148,
+      "answer": "cao học"
+    },
+    {
+      "id": 149,
+      "answer": "casio"
+    },
+    {
+      "id": 150,
+      "answer": "câu cú"
+    },
+    {
+      "id": 151,
+      "answer": "chiến công"
+    },
+    {
+      "id": 152,
+      "answer": "chiến sĩ"
+    },
+    {
+      "id": 153,
+      "answer": "chiếu trúc"
+    },
+    {
+      "id": 154,
+      "answer": "chỉ huy"
+    },
+    {
+      "id": 155,
+      "answer": "chín chắn"
+    },
+    {
+      "id": 156,
+      "answer": "chỉ số"
+    },
+    {
+      "id": 157,
+      "answer": "chỉ thị"
+    },
+    {
+      "id": 158,
+      "answer": "chó treo mèo đậy"
+    },
+    {
+      "id": 159,
+      "answer": "cô ca cô la"
+    },
+    {
+      "id": 160,
+      "answer": "cò con"
+    },
+    {
+      "id": 161,
+      "answer": "cò cưa"
+    },
+    {
+      "id": 162,
+      "answer": "công công"
+    },
+    {
+      "id": 163,
+      "answer": "công ty"
+    },
+    {
+      "id": 164,
+      "answer": "cú pháp"
+    },
+    {
+      "id": 165,
+      "answer": "cửu vạn"
+    },
+    {
+      "id": 166,
+      "answer": "đá cuội"
+    },
+    {
+      "id": 167,
+      "answer": "đa giác"
+    },
+    {
+      "id": 168,
+      "answer": "đại nhân"
+    },
+    {
+      "id": 169,
+      "answer": "đá lửa"
+    },
+    {
+      "id": 170,
+      "answer": "đám ma"
+    },
+    {
+      "id": 171,
+      "answer": "đánh giáp lá cà"
+    },
+    {
+      "id": 172,
+      "answer": "đánh lừa"
+    },
+    {
+      "id": 173,
+      "answer": "đảo lộn"
+    },
+    {
+      "id": 174,
+      "answer": "đào ngũ"
+    },
+    {
+      "id": 175,
+      "answer": "đao to búa lớn"
+    },
+    {
+      "id": 176,
+      "answer": "đập hộp"
+    },
+    {
+      "id": 177,
+      "answer": "đa tạ"
+    },
+    {
+      "id": 178,
+      "answer": "đầu gấu"
+    },
+    {
+      "id": 179,
+      "answer": "dầu gió"
+    },
+    {
+      "id": 180,
+      "answer": "đầu mối"
+    },
+    {
+      "id": 181,
+      "answer": "đấu tranh"
+    },
+    {
+      "id": 182,
+      "answer": "đá xoáy"
+    },
+    {
+      "id": 183,
+      "answer": "đỉnh cao"
+    },
+    {
+      "id": 184,
+      "answer": "đình chỉ"
+    },
+    {
+      "id": 185,
+      "answer": "đình công"
+    },
+    {
+      "id": 186,
+      "answer": "độc nhất vô nhị"
+    },
+    {
+      "id": 187,
+      "answer": "đội sổ"
+    },
+    {
+      "id": 188,
+      "answer": "đô la"
+    },
+    {
+      "id": 189,
+      "answer": "đờn ca tài tử"
+    },
+    {
+      "id": 190,
+      "answer": "đơn độc"
+    },
+    {
+      "id": 191,
+      "answer": "đồng bào"
+    },
+    {
+      "id": 192,
+      "answer": "đông đảo"
+    },
+    {
+      "id": 193,
+      "answer": "đục nước béo cò"
+    },
+    {
+      "id": 194,
+      "answer": "đường cái"
+    },
+    {
+      "id": 195,
+      "answer": "đường xích đạo"
+    },
+    {
+      "id": 196,
+      "answer": "ebay"
+    },
+    {
+      "id": 197,
+      "answer": "ép cung"
+    },
+    {
+      "id": 198,
+      "answer": "gạch hoa"
+    },
+    {
+      "id": 199,
+      "answer": "gấu quần"
+    },
+    {
+      "id": 200,
+      "answer": "giả cầy"
+    },
+    {
+      "id": 201,
+      "answer": "giải mã"
+    },
+    {
+      "id": 202,
+      "answer": "giải thích"
+    },
+    {
+      "id": 203,
+      "answer": "gián điệp"
+    },
+    {
+      "id": 204,
+      "answer": "gián tiếp"
+    },
+    {
+      "id": 205,
+      "answer": "giao thông"
+    },
+    {
+      "id": 206,
+      "answer": "giao tranh"
+    },
+    {
+      "id": 207,
+      "answer": "giá trên trời"
+    },
+    {
+      "id": 208,
+      "answer": "giấy thông hành"
+    },
+    {
+      "id": 209,
+      "answer": "gõ kiến"
+    },
+    {
+      "id": 210,
+      "answer": "gương cầu"
+    },
+    {
+      "id": 211,
+      "answer": "gương chiếu hậu"
+    },
+    {
+      "id": 212,
+      "answer": "hắc lào"
+    },
+    {
+      "id": 213,
+      "answer": "hàm hồ"
+    },
+    {
+      "id": 214,
+      "answer": "hàng ngũ"
+    },
+    {
+      "id": 215,
+      "answer": "hành hung"
+    },
+    {
+      "id": 216,
+      "answer": "hành khúc"
+    },
+    {
+      "id": 217,
+      "answer": "hào hứng"
+    },
+    {
+      "id": 218,
+      "answer": "hạ sĩ"
+    },
+    {
+      "id": 219,
+      "answer": "hạt nhân"
+    },
+    {
+      "id": 220,
+      "answer": "heo hút"
+    },
+    {
+      "id": 221,
+      "answer": "hoa lệ"
+    },
+    {
+      "id": 222,
+      "answer": "hỏa lực"
+    },
+    {
+      "id": 223,
+      "answer": "hoa mắt"
+    },
+    {
+      "id": 224,
+      "answer": "họa mi"
+    },
+    {
+      "id": 225,
+      "answer": "hoàng thất"
+    },
+    {
+      "id": 226,
+      "answer": "học lệch"
+    },
+    {
+      "id": 227,
+      "answer": "học liên thông"
+    },
+    {
+      "id": 228,
+      "answer": "ho gà"
+    },
+    {
+      "id": 229,
+      "answer": "hội đồng"
+    },
+    {
+      "id": 230,
+      "answer": "hồ ly tinh"
+    },
+    {
+      "id": 231,
+      "answer": "hung thủ"
+    },
+    {
+      "id": 232,
+      "answer": "hút chân không"
+    },
+    {
+      "id": 233,
+      "answer": "không kích"
+    },
+    {
+      "id": 234,
+      "answer": "kiếm tiền"
+    },
+    {
+      "id": 235,
+      "answer": "kỳ quái"
+    },
+    {
+      "id": 236,
+      "answer": "kỳ vĩ"
+    },
+    {
+      "id": 237,
+      "answer": "la bàn"
+    },
+    {
+      "id": 238,
+      "answer": "la cà"
+    },
+    {
+      "id": 239,
+      "answer": "lan can"
+    },
+    {
+      "id": 240,
+      "answer": "lang ben"
+    },
+    {
+      "id": 241,
+      "answer": "lên mạng"
+    },
+    {
+      "id": 242,
+      "answer": "lịch thiệp"
+    },
+    {
+      "id": 243,
+      "answer": "liên thủ"
+    },
+    {
+      "id": 244,
+      "answer": "lính liên lạc"
+    },
+    {
+      "id": 245,
+      "answer": "lộ liễu"
+    },
+    {
+      "id": 246,
+      "answer": "lông bông"
+    },
+    {
+      "id": 247,
+      "answer": "lòng lang dạ thú"
+    },
+    {
+      "id": 248,
+      "answer": "lưỡi lê"
+    },
+    {
+      "id": 249,
+      "answer": "lựu đạn"
+    },
+    {
+      "id": 250,
+      "answer": "mắc lừa"
+    },
+    {
+      "id": 251,
+      "answer": "mai mối"
+    },
+    {
+      "id": 252,
+      "answer": "ma mãnh"
+    },
+    {
+      "id": 253,
+      "answer": "ma sát"
+    },
+    {
+      "id": 254,
+      "answer": "mật thiết"
+    },
+    {
+      "id": 255,
+      "answer": "một mất một còn"
+    },
+    {
+      "id": 256,
+      "answer": "một mất mười ngờ"
+    },
+    {
+      "id": 257,
+      "answer": "mưa bóng mây"
+    },
+    {
+      "id": 258,
+      "answer": "mỹ nhân ngư"
+    },
+    {
+      "id": 259,
+      "answer": "nam bán cầu"
+    },
+    {
+      "id": 260,
+      "answer": "nam châm"
+    },
+    {
+      "id": 261,
+      "answer": "nghệ sĩ nhân dân"
+    },
+    {
+      "id": 262,
+      "answer": "ngũ cốc"
+    },
+    {
+      "id": 263,
+      "answer": "nhà chọc trời"
+    },
+    {
+      "id": 264,
+      "answer": "nhãn cầu"
+    },
+    {
+      "id": 265,
+      "answer": "nhãn tiền"
+    },
+    {
+      "id": 266,
+      "answer": "nhà ống"
+    },
+    {
+      "id": 267,
+      "answer": "nhà phân lô"
+    },
+    {
+      "id": 268,
+      "answer": "nhật ký"
+    },
+    {
+      "id": 269,
+      "answer": "nhị ca"
+    },
+    {
+      "id": 270,
+      "answer": "nhiệt huyết"
+    },
+    {
+      "id": 271,
+      "answer": "nho nhỏ"
+    },
+    {
+      "id": 272,
+      "answer": "nho sĩ"
+    },
+    {
+      "id": 273,
+      "answer": "nokia"
+    },
+    {
+      "id": 274,
+      "answer": "nút thắt cổ chai"
+    },
+    {
+      "id": 275,
+      "answer": "ô mai"
+    },
+    {
+      "id": 276,
+      "answer": "ô tô"
+    },
+    {
+      "id": 277,
+      "answer": "ô trọc"
+    },
+    {
+      "id": 278,
+      "answer": "ô trống"
+    },
+    {
+      "id": 279,
+      "answer": "pepsi"
+    },
+    {
+      "id": 280,
+      "answer": "phân bố"
+    },
+    {
+      "id": 281,
+      "answer": "phân tử"
+    },
+    {
+      "id": 282,
+      "answer": "pháo kích"
+    },
+    {
+      "id": 283,
+      "answer": "phi cơ"
+    },
+    {
+      "id": 284,
+      "answer": "phòng không"
+    },
+    {
+      "id": 285,
+      "answer": "phúc hậu"
+    },
+    {
+      "id": 286,
+      "answer": "quả báo"
+    },
+    {
+      "id": 287,
+      "answer": "quai bị"
+    },
+    {
+      "id": 288,
+      "answer": "quân cơ"
+    },
+    {
+      "id": 289,
+      "answer": "quân hàm"
+    },
+    {
+      "id": 290,
+      "answer": "quan tâm"
+    },
+    {
+      "id": 291,
+      "answer": "quy chuẩn"
+    },
+    {
+      "id": 292,
+      "answer": "quy chụp"
+    },
+    {
+      "id": 293,
+      "answer": "quy hàng"
+    },
+    {
+      "id": 294,
+      "answer": "sai sử"
+    },
+    {
+      "id": 295,
+      "answer": "samsung"
+    },
+    {
+      "id": 296,
+      "answer": "sáng sủa"
+    },
+    {
+      "id": 297,
+      "answer": "sao băng"
+    },
+    {
+      "id": 298,
+      "answer": "sâu nặng"
+    },
+    {
+      "id": 299,
+      "answer": "số đào hoa"
+    },
+    {
+      "id": 300,
+      "answer": "sổ hồng"
+    },
+    {
+      "id": 301,
+      "answer": "sổ mũi"
+    },
+    {
+      "id": 302,
+      "answer": "số trời"
+    },
+    {
+      "id": 303,
+      "answer": "tăm tối"
+    },
+    {
+      "id": 304,
+      "answer": "tấn công"
+    },
+    {
+      "id": 305,
+      "answer": "táo bạo"
+    },
+    {
+      "id": 306,
+      "answer": "táo bón"
+    },
+    {
+      "id": 307,
+      "answer": "táo tàu"
+    },
+    {
+      "id": 308,
+      "answer": "tất yếu"
+    },
+    {
+      "id": 309,
+      "answer": "trắng tay"
+    },
+    {
+      "id": 310,
+      "answer": "tay trong"
+    },
+    {
+      "id": 311,
+      "answer": "tế bào"
+    },
+    {
+      "id": 312,
+      "answer": "thạch cao"
+    },
+    {
+      "id": 313,
+      "answer": "thẳng thừng"
+    },
+    {
+      "id": 314,
+      "answer": "thất kính"
+    },
+    {
+      "id": 315,
+      "answer": "thất truyền"
+    },
+    {
+      "id": 316,
+      "answer": "ý thích"
+    },
+    {
+      "id": 317,
+      "answer": "thiên đường"
+    },
+    {
+      "id": 318,
+      "answer": "thiên nga"
+    },
+    {
+      "id": 319,
+      "answer": "thiên sứ"
+    },
+    {
+      "id": 320,
+      "answer": "thiên tai"
+    },
+    {
+      "id": 321,
+      "answer": "thiếu tá"
+    },
+    {
+      "id": 322,
+      "answer": "thiếu tướng"
+    },
+    {
+      "id": 323,
+      "answer": "thời hạn"
+    },
+    {
+      "id": 324,
+      "answer": "thông lệ"
+    },
+    {
+      "id": 325,
+      "answer": "thỏ thẻ"
+    },
+    {
+      "id": 326,
+      "answer": "thủ công mỹ nghệ"
+    },
+    {
+      "id": 327,
+      "answer": "thuốc lá"
+    },
+    {
+      "id": 328,
+      "answer": "thú thật"
+    },
+    {
+      "id": 329,
+      "answer": "thủ tướng"
+    },
+    {
+      "id": 330,
+      "answer": "thủy đậu"
+    },
+    {
+      "id": 331,
+      "answer": "tiêu chảy"
+    },
+    {
+      "id": 332,
+      "answer": "tiểu thư"
+    },
+    {
+      "id": 333,
+      "answer": "tiểu thương"
+    },
+    {
+      "id": 334,
+      "answer": "tình cờ"
+    },
+    {
+      "id": 335,
+      "answer": "tinh hoa"
+    },
+    {
+      "id": 336,
+      "answer": "tỉnh lược"
+    },
+    {
+      "id": 337,
+      "answer": "tính sổ"
+    },
+    {
+      "id": 338,
+      "answer": "tỉnh táo"
+    },
+    {
+      "id": 339,
+      "answer": "tỷ tê"
+    },
+    {
+      "id": 340,
+      "answer": "tổ quân báo"
+    },
+    {
+      "id": 341,
+      "answer": "to gan lớn mật"
+    },
+    {
+      "id": 342,
+      "answer": "tối đa"
+    },
+    {
+      "id": 343,
+      "answer": "tối kỵ"
+    },
+    {
+      "id": 344,
+      "answer": "tổng bí thư"
+    },
+    {
+      "id": 345,
+      "answer": "tông tích"
+    },
+    {
+      "id": 346,
+      "answer": "tổng tư lệnh"
+    },
+    {
+      "id": 347,
+      "answer": "tốt bụng"
+    },
+    {
+      "id": 348,
+      "answer": "tổ tiên"
+    },
+    {
+      "id": 349,
+      "answer": "trái cấm"
+    },
+    {
+      "id": 350,
+      "answer": "trái cây"
+    },
+    {
+      "id": 351,
+      "answer": "tranh cổ động"
+    },
+    {
+      "id": 352,
+      "answer": "tranh cướp"
+    },
+    {
+      "id": 353,
+      "answer": "tranh sơn dầu"
+    },
+    {
+      "id": 354,
+      "answer": "triệu kiến"
+    },
+    {
+      "id": 355,
+      "answer": "trĩ nội trĩ ngoại"
+    },
+    {
+      "id": 356,
+      "answer": "trung tướng"
+    },
+    {
+      "id": 357,
+      "answer": "tuần hành"
+    },
+    {
+      "id": 358,
+      "answer": "tuần trăng mật"
+    },
+    {
+      "id": 359,
+      "answer": "từ bi"
+    },
+    {
+      "id": 360,
+      "answer": "tương thích"
+    },
+    {
+      "id": 361,
+      "answer": "tưởng tượng"
+    },
+    {
+      "id": 362,
+      "answer": "tứ tung"
+    },
+    {
+      "id": 363,
+      "answer": "vật tư"
+    },
+    {
+      "id": 364,
+      "answer": "vĩ tuyến"
+    },
+    {
+      "id": 365,
+      "answer": "vô cơ"
+    },
+    {
+      "id": 366,
+      "answer": "vòi hoa sen"
+    },
+    {
+      "id": 367,
+      "answer": "vua phá lưới"
+    },
+    {
+      "id": 368,
+      "answer": "xà ngang"
+    },
+    {
+      "id": 369,
+      "answer": "xà phòng"
+    },
+    {
+      "id": 370,
+      "answer": "xe điếu"
+    },
+    {
+      "id": 371,
+      "answer": "xơ mướp"
+    },
+    {
+      "id": 372,
+      "answer": "xu hướng"
+    },
+    {
+      "id": 373,
+      "answer": "yamaha"
+    },
+    {
+      "id": 374,
+      "answer": "yêu kiều"
+    },
+    {
+      "id": 375,
+      "answer": "yếu ớt"
+    },
+    {
+      "id": 376,
+      "answer": "ý tứ"
+    },
+    {
+      "id": 377,
+      "answer": "ăn cơm trước kẻng"
+    },
+    {
+      "id": 378,
+      "answer": "ăn no ngủ kỹ"
+    },
+    {
+      "id": 379,
+      "answer": "ba ba"
+    },
+    {
+      "id": 380,
+      "answer": "ba hoa"
+    },
+    {
+      "id": 381,
+      "answer": "ba miệng một lời"
+    },
+    {
+      "id": 382,
+      "answer": "ba que xỏ lá"
+    },
+    {
+      "id": 383,
+      "answer": "bám càng"
+    },
+    {
+      "id": 384,
+      "answer": "bán đứng"
+    },
+    {
+      "id": 385,
+      "answer": "bánh trôi"
+    },
+    {
+      "id": 386,
+      "answer": "báo cáo"
+    },
+    {
+      "id": 387,
+      "answer": "bè lũ"
+    },
+    {
+      "id": 388,
+      "answer": "bình ngô đại cáo"
+    },
+    {
+      "id": 389,
+      "answer": "bình định"
+    },
+    {
+      "id": 390,
+      "answer": "bí đao"
+    },
+    {
+      "id": 391,
+      "answer": "bóng bẩy"
+    },
+    {
+      "id": 392,
+      "answer": "bút danh"
+    },
+    {
+      "id": 393,
+      "answer": "bạo lực"
+    },
+    {
+      "id": 394,
+      "answer": "bất ngờ"
+    },
+    {
+      "id": 395,
+      "answer": "bút ký"
+    },
+    {
+      "id": 396,
+      "answer": "bị cáo"
+    },
+    {
+      "id": 397,
+      "answer": "ca dao"
+    },
+    {
+      "id": 398,
+      "answer": "cá lớn nuốt cá bé"
+    },
+    {
+      "id": 399,
+      "answer": "cam tâm"
+    },
+    {
+      "id": 400,
+      "answer": "can gián"
+    },
+    {
+      "id": 401,
+      "answer": "cau có"
+    },
+    {
+      "id": 402,
+      "answer": "cây cọ"
+    },
+    {
+      "id": 403,
+      "answer": "cây mâm xôi"
+    },
+    {
+      "id": 404,
+      "answer": "cháy nhà ra mặt chuột"
+    },
+    {
+      "id": 405,
+      "answer": "chiến lược"
+    },
+    {
+      "id": 406,
+      "answer": "chim sa cá lặn"
+    },
+    {
+      "id": 407,
+      "answer": "chim sơn ca"
+    },
+    {
+      "id": 408,
+      "answer": "chiếc lá cuối cùng"
+    },
+    {
+      "id": 409,
+      "answer": "chọn mặt gửi vàng"
+    },
+    {
+      "id": 410,
+      "answer": "chữ thập"
+    },
+    {
+      "id": 411,
+      "answer": "chuột quang"
+    },
+    {
+      "id": 412,
+      "answer": "chân thành"
+    },
+    {
+      "id": 413,
+      "answer": "chân tâm"
+    },
+    {
+      "id": 414,
+      "answer": "chảnh chó"
+    },
+    {
+      "id": 415,
+      "answer": "co kéo"
+    },
+    {
+      "id": 416,
+      "answer": "con đàn cháu đống"
+    },
+    {
+      "id": 417,
+      "answer": "con dao hai lưỡi"
+    },
+    {
+      "id": 418,
+      "answer": "cộng đồng"
+    },
+    {
+      "id": 419,
+      "answer": "cổ tích"
+    },
+    {
+      "id": 420,
+      "answer": "cửa đại"
+    },
+    {
+      "id": 421,
+      "answer": "cung cầu"
+    },
+    {
+      "id": 422,
+      "answer": "cưỡi ngựa xem hoa"
+    },
+    {
+      "id": 423,
+      "answer": "cành vàng lá ngọc"
+    },
+    {
+      "id": 424,
+      "answer": "cá ngựa"
+    },
+    {
+      "id": 425,
+      "answer": "cân bằng"
+    },
+    {
+      "id": 426,
+      "answer": "cãi cọ"
+    },
+    {
+      "id": 427,
+      "answer": "công giáo"
+    },
+    {
+      "id": 428,
+      "answer": "cú đậu cành mai"
+    },
+    {
+      "id": 429,
+      "answer": "cấm kỵ"
+    },
+    {
+      "id": 430,
+      "answer": "cần cẩu"
+    },
+    {
+      "id": 431,
+      "answer": "cầu lông"
+    },
+    {
+      "id": 432,
+      "answer": "dầu cá"
+    },
+    {
+      "id": 433,
+      "answer": "gạch cua"
+    },
+    {
+      "id": 434,
+      "answer": "giờ cao su"
+    },
+    {
+      "id": 435,
+      "answer": "giờ cao điểm"
+    },
+    {
+      "id": 436,
+      "answer": "góp mặt"
+    },
+    {
+      "id": 437,
+      "answer": "gương mẫu"
+    },
+    {
+      "id": 438,
+      "answer": "hành tung"
+    },
+    {
+      "id": 439,
+      "answer": "hoa hậu"
+    },
+    {
+      "id": 440,
+      "answer": "hoa màu"
+    },
+    {
+      "id": 441,
+      "answer": "hoa mỹ"
+    },
+    {
+      "id": 442,
+      "answer": "hoa sữa"
+    },
+    {
+      "id": 443,
+      "answer": "hành hình"
+    },
+    {
+      "id": 444,
+      "answer": "hành lang"
+    },
+    {
+      "id": 445,
+      "answer": "hát bè"
+    },
+    {
+      "id": 446,
+      "answer": "hạ long"
+    },
+    {
+      "id": 447,
+      "answer": "hải sâm"
+    },
+    {
+      "id": 448,
+      "answer": "học thức"
+    },
+    {
+      "id": 449,
+      "answer": "học đường"
+    },
+    {
+      "id": 450,
+      "answer": "hỏi cung"
+    },
+    {
+      "id": 451,
+      "answer": "hồng lâu mộng"
+    },
+    {
+      "id": 452,
+      "answer": "khoan thai"
+    },
+    {
+      "id": 453,
+      "answer": "khẩu cung"
+    },
+    {
+      "id": 454,
+      "answer": "kim ngưu"
+    },
+    {
+      "id": 455,
+      "answer": "kiến thiết"
+    },
+    {
+      "id": 456,
+      "answer": "kiểm kê"
+    },
+    {
+      "id": 457,
+      "answer": "kiện tướng"
+    },
+    {
+      "id": 458,
+      "answer": "kéo chài"
+    },
+    {
+      "id": 459,
+      "answer": "kênh kiệu"
+    },
+    {
+      "id": 460,
+      "answer": "kích thích"
+    },
+    {
+      "id": 461,
+      "answer": "kính vạn hoa"
+    },
+    {
+      "id": 462,
+      "answer": "la liếm"
+    },
+    {
+      "id": 463,
+      "answer": "la mắng"
+    },
+    {
+      "id": 464,
+      "answer": "lọ lem"
+    },
+    {
+      "id": 465,
+      "answer": "long nhãn"
+    },
+    {
+      "id": 466,
+      "answer": "lừa đảo"
+    },
+    {
+      "id": 467,
+      "answer": "lục giác"
+    },
+    {
+      "id": 468,
+      "answer": "làm ăn"
+    },
+    {
+      "id": 469,
+      "answer": "lá rụng về cội"
+    },
+    {
+      "id": 470,
+      "answer": "lò cò"
+    },
+    {
+      "id": 471,
+      "answer": "lưỡi câu"
+    },
+    {
+      "id": 472,
+      "answer": "lạc lối"
+    },
+    {
+      "id": 473,
+      "answer": "lời ong tiếng ve"
+    },
+    {
+      "id": 474,
+      "answer": "ma nữ"
+    },
+    {
+      "id": 475,
+      "answer": "ma ra tông"
+    },
+    {
+      "id": 476,
+      "answer": "mâm pháo"
+    },
+    {
+      "id": 477,
+      "answer": "mọt sách"
+    },
+    {
+      "id": 478,
+      "answer": "mỹ nhân"
+    },
+    {
+      "id": 479,
+      "answer": "màn trời chiếu đất"
+    },
+    {
+      "id": 480,
+      "answer": "màn bạc"
+    },
+    {
+      "id": 481,
+      "answer": "má đào"
+    },
+    {
+      "id": 482,
+      "answer": "mèo mù vớ cá rán"
+    },
+    {
+      "id": 483,
+      "answer": "mèo mả gà đồng"
+    },
+    {
+      "id": 484,
+      "answer": "môi son"
+    },
+    {
+      "id": 485,
+      "answer": "mũ cánh chuồn"
+    },
+    {
+      "id": 486,
+      "answer": "mảnh tình vắt vai"
+    },
+    {
+      "id": 487,
+      "answer": "mặt mày"
+    },
+    {
+      "id": 488,
+      "answer": "mồm miệng đỡ chân tay"
+    },
+    {
+      "id": 489,
+      "answer": "mỹ lệ"
+    },
+    {
+      "id": 490,
+      "answer": "mỹ tâm"
+    },
+    {
+      "id": 491,
+      "answer": "năng như chì"
+    },
+    {
+      "id": 492,
+      "answer": "neo đơn"
+    },
+    {
+      "id": 493,
+      "answer": "ngựa non háu đá"
+    },
+    {
+      "id": 494,
+      "answer": "ngôi sao ca nhạc"
+    },
+    {
+      "id": 495,
+      "answer": "ngồi mát ăn bát vàng"
+    },
+    {
+      "id": 496,
+      "answer": "nhà ga"
+    },
+    {
+      "id": 497,
+      "answer": "nhà tranh"
+    },
+    {
+      "id": 498,
+      "answer": "nhạc nhẹ"
+    },
+    {
+      "id": 499,
+      "answer": "nhảy lò cò"
+    },
+    {
+      "id": 500,
+      "answer": "nhất vợ nhì trời"
+    },
+    {
+      "id": 501,
+      "answer": "nhật báo"
+    },
+    {
+      "id": 502,
+      "answer": "nhật ký trong tù"
+    },
+    {
+      "id": 503,
+      "answer": "nụ hôn thần chết"
+    },
+    {
+      "id": 504,
+      "answer": "nóng lòng"
+    },
+    {
+      "id": 505,
+      "answer": "nước mắt cá sấu"
+    },
+    {
+      "id": 506,
+      "answer": "nấu cháo điện thoại"
+    },
+    {
+      "id": 507,
+      "answer": "phao câu"
+    },
+    {
+      "id": 508,
+      "answer": "phát giác"
+    },
+    {
+      "id": 509,
+      "answer": "phản đối"
+    },
+    {
+      "id": 510,
+      "answer": "qua cầu rút ván"
+    },
+    {
+      "id": 511,
+      "answer": "quan ngũ phẩm"
+    },
+    {
+      "id": 512,
+      "answer": "quần quật"
+    },
+    {
+      "id": 513,
+      "answer": "quy tắc"
+    },
+    {
+      "id": 514,
+      "answer": "quấn quýt"
+    },
+    {
+      "id": 515,
+      "answer": "quần đảo"
+    },
+    {
+      "id": 516,
+      "answer": "sâm cao ly"
+    },
+    {
+      "id": 517,
+      "answer": "sâu dừa"
+    },
+    {
+      "id": 518,
+      "answer": "sâu rượu"
+    },
+    {
+      "id": 519,
+      "answer": "săn sóc"
+    },
+    {
+      "id": 520,
+      "answer": "sư tử"
+    },
+    {
+      "id": 521,
+      "answer": "tam giác vàng"
+    },
+    {
+      "id": 522,
+      "answer": "tam sao thất bản"
+    },
+    {
+      "id": 523,
+      "answer": "tan đàn xẻ nghé"
+    },
+    {
+      "id": 524,
+      "answer": "than thở"
+    },
+    {
+      "id": 525,
+      "answer": "thành quả"
+    },
+    {
+      "id": 526,
+      "answer": "thủ môn"
+    },
+    {
+      "id": 527,
+      "answer": "thuốc ngủ"
+    },
+    {
+      "id": 528,
+      "answer": "thái độ"
+    },
+    {
+      "id": 529,
+      "answer": "thánh chỉ"
+    },
+    {
+      "id": 530,
+      "answer": "thân thương"
+    },
+    {
+      "id": 531,
+      "answer": "thú vị"
+    },
+    {
+      "id": 532,
+      "answer": "thư giãn"
+    },
+    {
+      "id": 533,
+      "answer": "thư pháp"
+    },
+    {
+      "id": 534,
+      "answer": "thưa thớt"
+    },
+    {
+      "id": 535,
+      "answer": "thất thoát"
+    },
+    {
+      "id": 536,
+      "answer": "thần kỳ"
+    },
+    {
+      "id": 537,
+      "answer": "thủ đô"
+    },
+    {
+      "id": 538,
+      "answer": "thừa giấy vẽ voi"
+    },
+    {
+      "id": 539,
+      "answer": "thừa tướng"
+    },
+    {
+      "id": 540,
+      "answer": "tía tô"
+    },
+    {
+      "id": 541,
+      "answer": "tiếng sét ái tình"
+    },
+    {
+      "id": 542,
+      "answer": "tre già măng mọc"
+    },
+    {
+      "id": 543,
+      "answer": "trung bình tấn"
+    },
+    {
+      "id": 544,
+      "answer": "trái phiếu"
+    },
+    {
+      "id": 545,
+      "answer": "trái tim bên lề"
+    },
+    {
+      "id": 546,
+      "answer": "trường quay"
+    },
+    {
+      "id": 547,
+      "answer": "tàn nhẫn"
+    },
+    {
+      "id": 548,
+      "answer": "tên lửa"
+    },
+    {
+      "id": 549,
+      "answer": "tí tách"
+    },
+    {
+      "id": 550,
+      "answer": "tù đầy"
+    },
+    {
+      "id": 551,
+      "answer": "tượng hình"
+    },
+    {
+      "id": 552,
+      "answer": "tất bật"
+    },
+    {
+      "id": 553,
+      "answer": "tối hậu thư"
+    },
+    {
+      "id": 554,
+      "answer": "tối tăm"
+    },
+    {
+      "id": 555,
+      "answer": "uốn ván"
+    },
+    {
+      "id": 556,
+      "answer": "võ sư"
+    },
+    {
+      "id": 557,
+      "answer": "vô tư"
+    },
+    {
+      "id": 558,
+      "answer": "vặn hỏi"
+    },
+    {
+      "id": 559,
+      "answer": "vỡ mộng"
+    },
+    {
+      "id": 560,
+      "answer": "vợ chồng như đũa có đôi"
+    },
+    {
+      "id": 561,
+      "answer": "xanh vỏ đỏ lòng"
+    },
+    {
+      "id": 562,
+      "answer": "xe tăng"
+    },
+    {
+      "id": 563,
+      "answer": "xe lăn"
+    },
+    {
+      "id": 564,
+      "answer": "xu nịnh"
+    },
+    {
+      "id": 565,
+      "answer": "xương quai xanh"
+    },
+    {
+      "id": 566,
+      "answer": "xà bông"
+    },
+    {
+      "id": 567,
+      "answer": "xà kép"
+    },
+    {
+      "id": 568,
+      "answer": "xã hội"
+    },
+    {
+      "id": 569,
+      "answer": "xô viết"
+    },
+    {
+      "id": 570,
+      "answer": "yêu sách"
+    },
+    {
+      "id": 571,
+      "answer": "áp đảo"
+    },
+    {
+      "id": 572,
+      "answer": "ô ba ma"
+    },
+    {
+      "id": 573,
+      "answer": "ông bầu"
+    },
+    {
+      "id": 574,
+      "answer": "ông nói gà bà nói vịt"
+    },
+    {
+      "id": 575,
+      "answer": "điện hoa"
+    },
+    {
+      "id": 576,
+      "answer": "điện ảnh"
+    },
+    {
+      "id": 577,
+      "answer": "đàn gảy tai trâu"
+    },
+    {
+      "id": 578,
+      "answer": "đô thị"
+    },
+    {
+      "id": 579,
+      "answer": "được voi đòi tiên"
+    },
+    {
+      "id": 580,
+      "answer": "đại lục"
+    },
+    {
+      "id": 581,
+      "answer": "đầu tư"
+    },
+    {
+      "id": 582,
+      "answer": "đối mặt"
+    },
+    {
+      "id": 583,
+      "answer": "đồng đội"
+    },
+    {
+      "id": 584,
+      "answer": "ấm cúng"
+    },
+    {
+      "id": 585,
+      "answer": "nhạc nước"
+    },
+    {
+      "id": 586,
+      "answer": "nồi đồng cối đá"
+    },
+    {
+      "id": 587,
+      "answer": "báo lá cải"
+    },
+    {
+      "id": 588,
+      "answer": "tay hòm chìa khóa"
+    },
+    {
+      "id": 589,
+      "answer": "đường cách mạng"
+    },
+    {
+      "id": 590,
+      "answer": "trồng cây chuối"
+    },
+    {
+      "id": 591,
+      "answer": "ngoại ô"
+    },
+    {
+      "id": 592,
+      "answer": "bỏ phiếu"
+    },
+    {
+      "id": 593,
+      "answer": "tổ ấm"
+    },
+    {
+      "id": 594,
+      "answer": "dư âm"
+    },
+    {
+      "id": 595,
+      "answer": "cổ lỗ sĩ"
+    },
+    {
+      "id": 596,
+      "answer": "thương hiệu"
+    },
+    {
+      "id": 597,
+      "answer": "thấp kém"
+    },
+    {
+      "id": 598,
+      "answer": "hiệu thuốc"
+    },
+    {
+      "id": 599,
+      "answer": "bom tấn"
+    },
+    {
+      "id": 600,
+      "answer": "cổ tức"
+    },
+    {
+      "id": 601,
+      "answer": "sốt giá"
+    },
+    {
+      "id": 602,
+      "answer": "e lệ"
+    },
+    {
+      "id": 603,
+      "answer": "máy móc"
+    },
+    {
+      "id": 604,
+      "answer": "đinh ba"
+    },
+    {
+      "id": 605,
+      "answer": "khai căn"
+    },
+    {
+      "id": 606,
+      "answer": "đăng ký"
+    },
+    {
+      "id": 607,
+      "answer": "tư tưởng"
+    },
+    {
+      "id": 608,
+      "answer": "thượng sách"
+    },
+    {
+      "id": 609,
+      "answer": "nhảy chân sáo"
+    },
+    {
+      "id": 610,
+      "answer": "đường chéo"
+    },
+    {
+      "id": 611,
+      "answer": "ma mút"
+    },
+    {
+      "id": 612,
+      "answer": "nhạc thính phòng"
+    },
+    {
+      "id": 613,
+      "answer": "vĩ đại"
+    },
+    {
+      "id": 614,
+      "answer": "chân thật"
+    },
+    {
+      "id": 615,
+      "answer": "cá mập"
+    },
+    {
+      "id": 616,
+      "answer": "trong trắng"
+    },
+    {
+      "id": 617,
+      "answer": "lợn cắp nách"
+    },
+    {
+      "id": 618,
+      "answer": "cá nước ngọt"
+    },
+    {
+      "id": 619,
+      "answer": "chân ướt chân ráo"
+    },
+    {
+      "id": 620,
+      "answer": "cau mày"
+    },
+    {
+      "id": 621,
+      "answer": "bóng bàn"
+    },
+    {
+      "id": 622,
+      "answer": "hậu cần"
+    },
+    {
+      "id": 623,
+      "answer": "cao hứng"
+    },
+    {
+      "id": 624,
+      "answer": "lễ độ"
+    },
+    {
+      "id": 625,
+      "answer": "thủ thư"
+    },
+    {
+      "id": 626,
+      "answer": "định lý"
+    },
+    {
+      "id": 627,
+      "answer": "phân vân"
+    },
+    {
+      "id": 628,
+      "answer": "nặng tình"
+    },
+    {
+      "id": 629,
+      "answer": "thiếu niên"
+    },
+    {
+      "id": 630,
+      "answer": "nhà thương"
+    },
+    {
+      "id": 631,
+      "answer": "khẩu độ"
+    },
+    {
+      "id": 632,
+      "answer": "sai trái"
+    },
+    {
+      "id": 633,
+      "answer": "nhảy nhót"
+    },
+    {
+      "id": 634,
+      "answer": "sầu thảm"
+    },
+    {
+      "id": 635,
+      "answer": "tất giấy"
+    },
+    {
+      "id": 636,
+      "answer": "mối tình đầu"
+    },
+    {
+      "id": 637,
+      "answer": "mặt búng ra sữa"
+    },
+    {
+      "id": 638,
+      "answer": "y tá"
+    },
+    {
+      "id": 639,
+      "answer": "kim cương"
+    },
+    {
+      "id": 640,
+      "answer": "ẩn số"
+    },
+    {
+      "id": 641,
+      "answer": "xôi xéo"
+    },
+    {
+      "id": 642,
+      "answer": "bó gối"
+    },
+    {
+      "id": 643,
+      "answer": "bánh mì gối"
+    },
+    {
+      "id": 644,
+      "answer": "ấn tượng"
+    },
+    {
+      "id": 645,
+      "answer": "đăng quang"
+    },
+    {
+      "id": 646,
+      "answer": "cửa sổ tâm hồn"
+    },
+    {
+      "id": 647,
+      "answer": "bàn học"
+    },
+    {
+      "id": 648,
+      "answer": "đầm ấm"
+    },
+    {
+      "id": 649,
+      "answer": "xúc xích"
+    },
+    {
+      "id": 650,
+      "answer": "trứng chọi đá"
+    },
+    {
+      "id": 651,
+      "answer": "lý lịch"
+    },
+    {
+      "id": 652,
+      "answer": "cãi chầy cãi cối"
+    },
+    {
+      "id": 653,
+      "answer": "u buồn"
+    },
+    {
+      "id": 654,
+      "answer": "đào mỏ"
+    },
+    {
+      "id": 655,
+      "answer": "ga trải giường"
+    },
+    {
+      "id": 656,
+      "answer": "tỷ số"
+    },
+    {
+      "id": 657,
+      "answer": "sôi động"
+    },
+    {
+      "id": 658,
+      "answer": "tốc độ"
+    },
+    {
+      "id": 659,
+      "answer": "mặt cắt"
+    },
+    {
+      "id": 660,
+      "answer": "ba xạo"
+    },
+    {
+      "id": 661,
+      "answer": "trò trống"
+    },
+    {
+      "id": 662,
+      "answer": "e ấp"
+    },
+    {
+      "id": 663,
+      "answer": "tiết học"
+    },
+    {
+      "id": 664,
+      "answer": "đàn ông"
+    },
+    {
+      "id": 665,
+      "answer": "hát chèo"
+    },
+    {
+      "id": 666,
+      "answer": "tai to mặt lớn"
+    },
+    {
+      "id": 667,
+      "answer": "chân váy"
+    },
+    {
+      "id": 668,
+      "answer": "nấm mộ"
+    },
+    {
+      "id": 669,
+      "answer": "phấn đấu"
+    },
+    {
+      "id": 670,
+      "answer": "giao diện"
+    },
+    {
+      "id": 671,
+      "answer": "đường kính"
+    },
+    {
+      "id": 672,
+      "answer": "gánh hát"
+    },
+    {
+      "id": 673,
+      "answer": "đại dương"
+    },
+    {
+      "id": 674,
+      "answer": "tâm bệnh"
+    },
+    {
+      "id": 675,
+      "answer": "hậu quả"
+    },
+    {
+      "id": 676,
+      "answer": "chia năm xẻ bảy"
+    },
+    {
+      "id": 677,
+      "answer": "căn cơ"
+    },
+    {
+      "id": 678,
+      "answer": "bạc mặt"
+    },
+    {
+      "id": 679,
+      "answer": "hóa vàng"
+    },
+    {
+      "id": 680,
+      "answer": "ăn cháo đá bát"
+    },
+    {
+      "id": 681,
+      "answer": "đèn kéo quân"
+    },
+    {
+      "id": 682,
+      "answer": "hành tinh"
+    },
+    {
+      "id": 683,
+      "answer": "hoành hành"
+    },
+    {
+      "id": 684,
+      "answer": "phân trần"
+    },
+    {
+      "id": 685,
+      "answer": "âm u"
+    },
+    {
+      "id": 686,
+      "answer": "mũ nồi"
+    },
+    {
+      "id": 687,
+      "answer": "xì dầu"
+    },
+    {
+      "id": 688,
+      "answer": "phá rối"
+    },
+    {
+      "id": 689,
+      "answer": "bắt mắt"
+    },
+    {
+      "id": 690,
+      "answer": "ca tụng"
+    },
+    {
+      "id": 691,
+      "answer": "thông số"
+    },
+    {
+      "id": 692,
+      "answer": "bia ngắm"
+    },
+    {
+      "id": 693,
+      "answer": "thất bại"
+    },
+    {
+      "id": 694,
+      "answer": "gai ốc"
+    },
+    {
+      "id": 695,
+      "answer": "bán độ"
+    },
+    {
+      "id": 696,
+      "answer": "chuối lùn"
+    },
+    {
+      "id": 697,
+      "answer": "kiến giải"
+    },
+    {
+      "id": 698,
+      "answer": "hố tử thần"
+    },
+    {
+      "id": 699,
+      "answer": "môi hở răng lạnh"
+    },
+    {
+      "id": 700,
+      "answer": "đầu cơ"
+    },
+    {
+      "id": 701,
+      "answer": "sâu sắc"
+    },
+    {
+      "id": 702,
+      "answer": "túi ngủ"
+    },
+    {
+      "id": 703,
+      "answer": "ca cổ"
+    },
+    {
+      "id": 704,
+      "answer": "sữa tươi"
+    },
+    {
+      "id": 705,
+      "answer": "thủy cung"
+    },
+    {
+      "id": 706,
+      "answer": "đậu lướt ván"
+    },
+    {
+      "id": 707,
+      "answer": "diện tích"
+    },
+    {
+      "id": 708,
+      "answer": "cá tính"
+    },
+    {
+      "id": 709,
+      "answer": "đá móc"
+    },
+    {
+      "id": 710,
+      "answer": "soi bóng"
+    },
+    {
+      "id": 711,
+      "answer": "cá biệt"
+    },
+    {
+      "id": 712,
+      "answer": "thương lái"
+    },
+    {
+      "id": 713,
+      "answer": "bỏ bê"
+    },
+    {
+      "id": 714,
+      "answer": "kim chỉ nam"
+    },
+    {
+      "id": 715,
+      "answer": "cao niên"
+    },
+    {
+      "id": 716,
+      "answer": "tượng đài"
+    },
+    {
+      "id": 717,
+      "answer": "xô bồ"
+    },
+    {
+      "id": 718,
+      "answer": "giá áo túi cơm"
+    },
+    {
+      "id": 719,
+      "answer": "hàm số"
+    },
+    {
+      "id": 720,
+      "answer": "bánh trung thu"
+    },
+    {
+      "id": 721,
+      "answer": "đại hạ giá"
+    },
+    {
+      "id": 722,
+      "answer": "ăn hoa hồng"
+    },
+    {
+      "id": 723,
+      "answer": "no đủ"
+    },
+    {
+      "id": 724,
+      "answer": "xe mất lái"
+    },
+    {
+      "id": 725,
+      "answer": "xương sống"
+    },
+    {
+      "id": 726,
+      "answer": "cáo đội lốt cừu"
+    },
+    {
+      "id": 727,
+      "answer": "tẩu hỏa nhập ma"
+    },
+    {
+      "id": 728,
+      "answer": "viễn thông"
+    },
+    {
+      "id": 729,
+      "answer": "mũ cao áo dài"
+    },
+    {
+      "id": 730,
+      "answer": "tiền lệ"
+    },
+    {
+      "id": 731,
+      "answer": "mặt tiền"
+    },
+    {
+      "id": 732,
+      "answer": "khế ước"
+    },
+    {
+      "id": 733,
+      "answer": "thông thoáng"
+    },
+    {
+      "id": 734,
+      "answer": "da thức"
+    },
+    {
+      "id": 735,
+      "answer": "dây dưa"
+    },
+    {
+      "id": 736,
+      "answer": "tan ca"
+    },
+    {
+      "id": 737,
+      "answer": "sâu bệnh"
+    },
+    {
+      "id": 738,
+      "answer": "đội hình"
+    },
+    {
+      "id": 739,
+      "answer": "xe ga"
+    },
+    {
+      "id": 740,
+      "answer": "đối tượng"
+    },
+    {
+      "id": 741,
+      "answer": "hậu cung"
+    },
+    {
+      "id": 742,
+      "answer": "chiếu chỉ"
+    },
+    {
+      "id": 743,
+      "answer": "cáo già"
+    },
+    {
+      "id": 744,
+      "answer": "sữa rửa mặt"
+    },
+    {
+      "id": 745,
+      "answer": "đánh trống bỏ dùi"
+    },
+    {
+      "id": 746,
+      "answer": "đa phương tiện"
+    },
+    {
+      "id": 747,
+      "answer": "hay ho"
+    },
+    {
+      "id": 748,
+      "answer": "phản gián"
+    },
+    {
+      "id": 749,
+      "answer": "treo giầy"
+    },
+    {
+      "id": 750,
+      "answer": "câu lạc bộ"
+    },
+    {
+      "id": 751,
+      "answer": "cứu cánh"
+    },
+    {
+      "id": 752,
+      "answer": "khóa son"
+    },
+    {
+      "id": 753,
+      "answer": "họa tiết"
+    },
+    {
+      "id": 754,
+      "answer": "lấy thịt đè người"
+    },
+    {
+      "id": 755,
+      "answer": "tam giác cân"
+    },
+    {
+      "id": 756,
+      "answer": "trăng lưỡi liềm"
+    },
+    {
+      "id": 757,
+      "answer": "độc đoán"
+    },
+    {
+      "id": 758,
+      "answer": "góc tù"
+    },
+    {
+      "id": 759,
+      "answer": "yên tĩnh"
+    },
+    {
+      "id": 760,
+      "answer": "mã tấu"
+    },
+    {
+      "id": 761,
+      "answer": "cạnh huyền"
+    },
+    {
+      "id": 762,
+      "answer": "rút đơn"
+    },
+    {
+      "id": 763,
+      "answer": "trời cao có mắt"
+    },
+    {
+      "id": 764,
+      "answer": "bỏ bùa"
+    },
+    {
+      "id": 765,
+      "answer": "mèo già hóa cáo"
+    },
+    {
+      "id": 766,
+      "answer": "tượng bán thân"
+    },
+    {
+      "id": 767,
+      "answer": "bán sống bán chết"
+    },
+    {
+      "id": 768,
+      "answer": "diêm sinh"
+    },
+    {
+      "id": 769,
+      "answer": "thâm cung bí sử"
+    },
+    {
+      "id": 770,
+      "answer": "nghi can"
+    },
+    {
+      "id": 771,
+      "answer": "bê tha"
+    },
+    {
+      "id": 772,
+      "answer": "dương lịch"
+    },
+    {
+      "id": 773,
+      "answer": "liệt kê"
+    },
+    {
+      "id": 774,
+      "answer": "sinh lão bệnh tử"
+    },
+    {
+      "id": 775,
+      "answer": "túm năm tụm ba"
+    },
+    {
+      "id": 776,
+      "answer": "phát tài"
+    },
+    {
+      "id": 777,
+      "answer": "hình chiếu"
+    },
+    {
+      "id": 778,
+      "answer": "khỉ ho cò gáy"
+    },
+    {
+      "id": 779,
+      "answer": "cổ quái"
+    },
+    {
+      "id": 780,
+      "answer": "cá măng"
+    },
+    {
+      "id": 781,
+      "answer": "chó ăn đá gà ăn sỏi"
+    },
+    {
+      "id": 782,
+      "answer": "huyền thoại"
+    },
+    {
+      "id": 783,
+      "answer": "vai trò"
+    },
+    {
+      "id": 784,
+      "answer": "nguyên hàm"
+    },
+    {
+      "id": 785,
+      "answer": "thư ký"
+    },
+    {
+      "id": 786,
+      "answer": "lang băm"
+    },
+    {
+      "id": 787,
+      "answer": "nhà cao cửa rộng"
+    },
+    {
+      "id": 788,
+      "answer": "hành lễ"
+    },
+    {
+      "id": 789,
+      "answer": "bánh răng"
+    },
+    {
+      "id": 790,
+      "answer": "kích cầu"
+    },
+    {
+      "id": 791,
+      "answer": "bàn đạp"
+    },
+    {
+      "id": 792,
+      "answer": "tán dương"
+    },
+    {
+      "id": 793,
+      "answer": "mặt báo"
+    },
+    {
+      "id": 794,
+      "answer": "son bóng"
+    },
+    {
+      "id": 795,
+      "answer": "đau lòng"
+    },
+    {
+      "id": 796,
+      "answer": "kiến thức"
+    },
+    {
+      "id": 797,
+      "answer": "cảm ơn"
+    },
+    {
+      "id": 798,
+      "answer": "lông vũ"
+    },
+    {
+      "id": 799,
+      "answer": "đại số"
+    },
+    {
+      "id": 800,
+      "answer": "cười trừ"
+    },
+    {
+      "id": 801,
+      "answer": "phân số"
+    },
+    {
+      "id": 802,
+      "answer": "trường điểm"
+    },
+    {
+      "id": 803,
+      "answer": "đàn bầu"
+    },
+    {
+      "id": 804,
+      "answer": "ngũ quan"
+    },
+    {
+      "id": 805,
+      "answer": "đủ lông đủ cánh"
+    },
+    {
+      "id": 806,
+      "answer": "mẹ đỡ đầu"
+    },
+    {
+      "id": 807,
+      "answer": "kéo lưới"
+    },
+    {
+      "id": 808,
+      "answer": "đậu đũa"
+    },
+    {
+      "id": 809,
+      "answer": "quây quần"
+    },
+    {
+      "id": 810,
+      "answer": "cầm thú"
+    },
+    {
+      "id": 811,
+      "answer": "cửa miệng"
+    },
+    {
+      "id": 812,
+      "answer": "mơ hồ"
+    },
+    {
+      "id": 813,
+      "answer": "tỉnh bơ"
+    },
+    {
+      "id": 814,
+      "answer": "bút sa gà chết"
+    },
+    {
+      "id": 815,
+      "answer": "quan ngại"
+    },
+    {
+      "id": 816,
+      "answer": "trung tiện"
+    },
+    {
+      "id": 817,
+      "answer": "đàn em"
+    },
+    {
+      "id": 818,
+      "answer": "trả đũa"
+    },
+    {
+      "id": 819,
+      "answer": "tương tư"
+    },
+    {
+      "id": 820,
+      "answer": "vẽ rắn thêm chân"
+    },
+    {
+      "id": 821,
+      "answer": "phân công"
+    },
+    {
+      "id": 822,
+      "answer": "tổng đài"
+    },
+    {
+      "id": 823,
+      "answer": "thảm cảnh"
+    },
+    {
+      "id": 824,
+      "answer": "lục đục"
+    },
+    {
+      "id": 825,
+      "answer": "mẫu số"
+    },
+    {
+      "id": 826,
+      "answer": "dương tính"
+    },
+    {
+      "id": 827,
+      "answer": "triệu tập"
+    },
+    {
+      "id": 828,
+      "answer": "lên voi xuống chó"
+    },
+    {
+      "id": 829,
+      "answer": "xúc giác"
+    },
+    {
+      "id": 830,
+      "answer": "bổ đề"
+    },
+    {
+      "id": 831,
+      "answer": "ô ăn quan"
+    },
+    {
+      "id": 832,
+      "answer": "tiền nhân"
+    },
+    {
+      "id": 833,
+      "answer": "công cụ"
+    },
+    {
+      "id": 834,
+      "answer": "hỏi gà đáp vịt"
+    },
+    {
+      "id": 835,
+      "answer": "dính quả lừa"
+    },
+    {
+      "id": 836,
+      "answer": "học hàm"
+    },
+    {
+      "id": 837,
+      "answer": "tiền trảm hậu tấu"
+    },
+    {
+      "id": 838,
+      "answer": "rau ngót"
+    },
+    {
+      "id": 839,
+      "answer": "áo bà ba"
+    },
+    {
+      "id": 840,
+      "answer": "giày xéo"
+    },
+    {
+      "id": 841,
+      "answer": "chấm công"
+    },
+    {
+      "id": 842,
+      "answer": "đa tình"
+    },
+    {
+      "id": 843,
+      "answer": "máy nghe nhạc"
+    },
+    {
+      "id": 844,
+      "answer": "ông công ông táo"
+    },
+    {
+      "id": 845,
+      "answer": "sứ giả"
+    },
+    {
+      "id": 846,
+      "answer": "miệng ăn núi lở"
+    },
+    {
+      "id": 847,
+      "answer": "cáo lỗi"
+    },
+    {
+      "id": 848,
+      "answer": "cá nằm trên thớt"
+    },
+    {
+      "id": 849,
+      "answer": "hóc búa"
+    },
+    {
+      "id": 850,
+      "answer": "hột vịt lộn"
+    },
+    {
+      "id": 851,
+      "answer": "thừa hành"
+    },
+    {
+      "id": 852,
+      "answer": "quỷ tha ma bắt"
+    },
+    {
+      "id": 853,
+      "answer": "trời sầu đất thảm"
+    },
+    {
+      "id": 854,
+      "answer": "siêu nhân"
+    },
+    {
+      "id": 855,
+      "answer": "mở màn"
+    },
+    {
+      "id": 856,
+      "answer": "bạn nối khố"
+    },
+    {
+      "id": 857,
+      "answer": "hậu trường"
+    },
+    {
+      "id": 858,
+      "answer": "xuất ngũ"
+    },
+    {
+      "id": 859,
+      "answer": "thư rác"
+    },
+    {
+      "id": 860,
+      "answer": "hậu đậu"
+    },
+    {
+      "id": 861,
+      "answer": "canh me"
+    },
+    {
+      "id": 862,
+      "answer": "quả địa cầu"
+    },
+    {
+      "id": 863,
+      "answer": "mạng sườn"
+    },
+    {
+      "id": 864,
+      "answer": "màn hình"
+    },
+    {
+      "id": 865,
+      "answer": "cầu phao"
+    },
+    {
+      "id": 866,
+      "answer": "bèo bọt"
+    },
+    {
+      "id": 867,
+      "answer": "bia miệng"
+    },
+    {
+      "id": 868,
+      "answer": "quy tiên"
+    },
+    {
+      "id": 869,
+      "answer": "máy bay bà già"
+    },
+    {
+      "id": 870,
+      "answer": "nhạc sàn"
+    },
+    {
+      "id": 871,
+      "answer": "thạch anh"
+    },
+    {
+      "id": 872,
+      "answer": "cắm sừng"
+    },
+    {
+      "id": 873,
+      "answer": "đường chân trời"
+    },
+    {
+      "id": 874,
+      "answer": "thú vui"
+    },
+    {
+      "id": 875,
+      "answer": "hình nón"
+    },
+    {
+      "id": 876,
+      "answer": "quảng cáo"
+    },
+    {
+      "id": 877,
+      "answer": "đào tẩu"
+    },
+    {
+      "id": 878,
+      "answer": "đài truyền hình"
+    },
+    {
+      "id": 879,
+      "answer": "thủ tiêu"
+    },
+    {
+      "id": 880,
+      "answer": "mỹ viện"
+    },
+    {
+      "id": 881,
+      "answer": "mã não"
+    },
+    {
+      "id": 882,
+      "answer": "đèn lồng"
+    },
+    {
+      "id": 883,
+      "answer": "bịt mắt bắt dê"
+    },
+    {
+      "id": 884,
+      "answer": "bài học"
+    },
+    {
+      "id": 885,
+      "answer": "rau má"
+    },
+    {
+      "id": 886,
+      "answer": "tiểu học"
+    },
+    {
+      "id": 887,
+      "answer": "cá chép"
+    },
+    {
+      "id": 888,
+      "answer": "thư viện"
+    },
+    {
+      "id": 889,
+      "answer": "sơn tinh"
+    },
+    {
+      "id": 890,
+      "answer": "học hỏi"
+    },
+    {
+      "id": 891,
+      "answer": "tiên đề"
+    },
+    {
+      "id": 892,
+      "answer": "cầm kỳ thi họa"
+    },
+    {
+      "id": 893,
+      "answer": "hở hàm ếch"
+    },
+    {
+      "id": 894,
+      "answer": "cấu trúc"
+    },
+    {
+      "id": 895,
+      "answer": "thét ra lửa"
+    },
+    {
+      "id": 896,
+      "answer": "não ruột não gan"
+    },
+    {
+      "id": 897,
+      "answer": "bông băng"
+    },
+    {
+      "id": 898,
+      "answer": "tử số"
+    },
+    {
+      "id": 899,
+      "answer": "thừa số"
+    },
+    {
+      "id": 900,
+      "answer": "ngã ba đường"
+    },
+    {
+      "id": 901,
+      "answer": "sốt ruột"
+    },
+    {
+      "id": 902,
+      "answer": "còi cọc"
+    },
+    {
+      "id": 903,
+      "answer": "bố già"
+    },
+    {
+      "id": 904,
+      "answer": "coi rẻ"
+    },
+    {
+      "id": 905,
+      "answer": "mất mạng"
+    },
+    {
+      "id": 906,
+      "answer": "động cơ"
+    },
+    {
+      "id": 907,
+      "answer": "thành công"
+    },
+    {
+      "id": 908,
+      "answer": "mò kim đáy biển"
+    },
+    {
+      "id": 909,
+      "answer": "cải tiến"
+    },
+    {
+      "id": 910,
+      "answer": "thị thực"
+    },
+    {
+      "id": 911,
+      "answer": "yêu cầu"
+    },
+    {
+      "id": 912,
+      "answer": "hổ chết để da"
+    },
+    {
+      "id": 913,
+      "answer": "mù màu"
+    },
+    {
+      "id": 914,
+      "answer": "cải cách"
+    },
+    {
+      "id": 915,
+      "answer": "thăng hoa"
+    },
+    {
+      "id": 916,
+      "answer": "xa hoa"
+    },
+    {
+      "id": 917,
+      "answer": "lội ngược dòng"
+    },
+    {
+      "id": 918,
+      "answer": "tử tế"
+    },
+    {
+      "id": 919,
+      "answer": "đa sầu đa cảm"
+    },
+    {
+      "id": 920,
+      "answer": "số hữu tỉ"
+    },
+    {
+      "id": 921,
+      "answer": "băng giá"
+    },
+    {
+      "id": 922,
+      "answer": "bờ rào"
+    },
+    {
+      "id": 923,
+      "answer": "vịt trời"
+    },
+    {
+      "id": 924,
+      "answer": "bái kiến"
+    },
+    {
+      "id": 925,
+      "answer": "ngũ hành"
+    },
+    {
+      "id": 926,
+      "answer": "khóa sổ"
+    },
+    {
+      "id": 927,
+      "answer": "nhật thực"
+    },
+    {
+      "id": 928,
+      "answer": "thiếu nữ"
+    },
+    {
+      "id": 929,
+      "answer": "số vô tỉ"
+    },
+    {
+      "id": 930,
+      "answer": "nằm gai nếm mật"
+    },
+    {
+      "id": 931,
+      "answer": "cánh cam"
+    },
+    {
+      "id": 932,
+      "answer": "giai thừa"
+    },
+    {
+      "id": 933,
+      "answer": "tam cung lục viện"
+    },
+    {
+      "id": 934,
+      "answer": "bói cá"
+    },
+    {
+      "id": 935,
+      "answer": "bánh ướt"
+    },
+    {
+      "id": 936,
+      "answer": "tinh tường"
+    },
+    {
+      "id": 937,
+      "answer": "mua đường"
+    },
+    {
+      "id": 938,
+      "answer": "khoai nước"
+    },
+    {
+      "id": 939,
+      "answer": "đánh lộn"
+    },
+    {
+      "id": 940,
+      "answer": "quạt trần"
+    },
+    {
+      "id": 941,
+      "answer": "đạo hàm"
+    },
+    {
+      "id": 942,
+      "answer": "cầm đồ"
+    },
+    {
+      "id": 943,
+      "answer": "chanh leo"
+    },
+    {
+      "id": 944,
+      "answer": "ngủ đông"
+    },
+    {
+      "id": 945,
+      "answer": "thu nhỏ"
+    },
+    {
+      "id": 946,
+      "answer": "cháy bỏng"
+    },
+    {
+      "id": 947,
+      "answer": "kem chống nắng"
+    },
+    {
+      "id": 948,
+      "answer": "chắn bùn"
+    },
+    {
+      "id": 949,
+      "answer": "hóa thạch"
+    },
+    {
+      "id": 950,
+      "answer": "anh em cọc chèo"
+    },
+    {
+      "id": 951,
+      "answer": "hình chữ nhật"
+    },
+    {
+      "id": 952,
+      "answer": "khôi ngô"
+    },
+    {
+      "id": 953,
+      "answer": "trường bán công"
+    },
+    {
+      "id": 954,
+      "answer": "ao ước"
+    },
+    {
+      "id": 955,
+      "answer": "đầu trâu mặt ngựa"
+    },
+    {
+      "id": 956,
+      "answer": "biến tướng"
+    },
+    {
+      "id": 957,
+      "answer": "hình thang"
+    },
+    {
+      "id": 958,
+      "answer": "đồ thị"
+    },
+    {
+      "id": 959,
+      "answer": "bé bỏng"
+    },
+    {
+      "id": 960,
+      "answer": "mừng thọ"
+    },
+    {
+      "id": 961,
+      "answer": "trái khoáy"
+    },
+    {
+      "id": 962,
+      "answer": "sư tử biển"
+    },
+    {
+      "id": 963,
+      "answer": "phần mềm"
+    },
+    {
+      "id": 964,
+      "answer": "ướt át"
+    },
+    {
+      "id": 965,
+      "answer": "chia sẻ"
+    },
+    {
+      "id": 966,
+      "answer": "gai góc"
+    },
+    {
+      "id": 967,
+      "answer": "chủ động"
+    },
+    {
+      "id": 968,
+      "answer": "bước sóng"
+    },
+    {
+      "id": 969,
+      "answer": "tìm kiếm"
+    },
+    {
+      "id": 970,
+      "answer": "bần hàn"
+    },
+    {
+      "id": 971,
+      "answer": "xa mặt cách lòng"
+    },
+    {
+      "id": 972,
+      "answer": "đãi cát tìm vàng"
+    },
+    {
+      "id": 973,
+      "answer": "trái phép"
+    },
+    {
+      "id": 974,
+      "answer": "thân cận"
+    },
+    {
+      "id": 975,
+      "answer": "trái chín cây"
+    },
+    {
+      "id": 976,
+      "answer": "phép tính"
+    },
+    {
+      "id": 977,
+      "answer": "cầu tiêu"
+    },
+    {
+      "id": 978,
+      "answer": "bong bóng nhà đất"
+    },
+    {
+      "id": 979,
+      "answer": "lầu bầu"
+    },
+    {
+      "id": 980,
+      "answer": "thông tư"
+    },
+    {
+      "id": 981,
+      "answer": "tranh đông hồ"
+    },
+    {
+      "id": 982,
+      "answer": "treo giò"
+    },
+    {
+      "id": 983,
+      "answer": "rồng cuộn hổ ngồi"
+    },
+    {
+      "id": 984,
+      "answer": "hạn hán"
+    },
+    {
+      "id": 985,
+      "answer": "giao mùa"
+    },
+    {
+      "id": 986,
+      "answer": "hôn thú"
+    },
+    {
+      "id": 987,
+      "answer": "bản sao"
+    },
+    {
+      "id": 988,
+      "answer": "méo mặt"
+    },
+    {
+      "id": 989,
+      "answer": "tình báo"
+    },
+    {
+      "id": 990,
+      "answer": "khai thác"
+    },
+    {
+      "id": 991,
+      "answer": "quán tính"
+    },
+    {
+      "id": 992,
+      "answer": "hàn lâm"
+    },
+    {
+      "id": 993,
+      "answer": "đánh giá"
+    },
+    {
+      "id": 994,
+      "answer": "báo tường"
+    },
+    {
+      "id": 995,
+      "answer": "chân dài"
+    },
+    {
+      "id": 996,
+      "answer": "chất độc da cam"
+    },
+    {
+      "id": 997,
+      "answer": "giàn khoan"
+    },
+    {
+      "id": 998,
+      "answer": "mì tôm"
+    },
+    {
+      "id": 999,
+      "answer": "tiền phong"
+    },
+    {
+      "id": 1000,
+      "answer": "bu lông"
+    },
+    {
+      "id": 1001,
+      "answer": "tra hỏi"
+    },
+    {
+      "id": 1002,
+      "answer": "thần đồng"
+    },
+    {
+      "id": 1003,
+      "answer": "sốt đất"
+    },
+    {
+      "id": 1004,
+      "answer": "vùi hoa dập liễu"
+    },
+    {
+      "id": 1005,
+      "answer": "bao cao su"
+    },
+    {
+      "id": 1006,
+      "answer": "tê thấp"
+    },
+    {
+      "id": 1007,
+      "answer": "kiến trúc sư"
+    },
+    {
+      "id": 1008,
+      "answer": "ăn hỏi"
+    },
+    {
+      "id": 1009,
+      "answer": "động não"
+    },
+    {
+      "id": 1010,
+      "answer": "áo gió"
+    },
+    {
+      "id": 1011,
+      "answer": "đầu đọc"
+    },
+    {
+      "id": 1012,
+      "answer": "đè đầu cưỡi cổ"
+    },
+    {
+      "id": 1013,
+      "answer": "đấu giá"
+    },
+    {
+      "id": 1014,
+      "answer": "băng thông"
+    },
+    {
+      "id": 1015,
+      "answer": "bánh bò"
+    },
+    {
+      "id": 1016,
+      "answer": "cửa biển"
+    },
+    {
+      "id": 1017,
+      "answer": "của thiên trả địa"
+    },
+    {
+      "id": 1018,
+      "answer": "cười ra nước mắt"
+    },
+    {
+      "id": 1019,
+      "answer": "cáo trạng"
+    },
+    {
+      "id": 1020,
+      "answer": "cá tháng tư"
+    },
+    {
+      "id": 1021,
+      "answer": "cầu nguyện"
+    },
+    {
+      "id": 1022,
+      "answer": "địa cầu"
+    },
+    {
+      "id": 1023,
+      "answer": "cao tay"
+    },
+    {
+      "id": 1024,
+      "answer": "chim cánh cụt"
+    },
+    {
+      "id": 1025,
+      "answer": "chuột rút"
+    },
+    {
+      "id": 1026,
+      "answer": "diêm tiêu"
+    },
+    {
+      "id": 1027,
+      "answer": "hạ màn"
+    },
+    {
+      "id": 1028,
+      "answer": "kẹo kéo"
+    },
+    {
+      "id": 1029,
+      "answer": "lạc đề"
+    },
+    {
+      "id": 1030,
+      "answer": "măng cụt"
+    },
+    {
+      "id": 1031,
+      "answer": "nhiều chuyện"
+    },
+    {
+      "id": 1032,
+      "answer": "rồng đến nhà tôm"
+    },
+    {
+      "id": 1033,
+      "answer": "sáo sổ lồng"
+    },
+    {
+      "id": 1034,
+      "answer": "thất học"
+    },
+    {
+      "id": 1035,
+      "answer": "tiểu nhân"
+    },
+    {
+      "id": 1036,
+      "answer": "vẽ hươu vẽ vượn"
+    },
+    {
+      "id": 1037,
+      "answer": "vũ sư"
+    },
+    {
+      "id": 1038,
+      "answer": "xem mặt"
+    },
+    {
+      "id": 1039,
+      "answer": "yếu điểm"
+    },
+    {
+      "id": 1040,
+      "answer": "đu quay"
+    },
+    {
+      "id": 1041,
+      "answer": "tức tối"
+    },
+    {
+      "id": 1042,
+      "answer": "vác mặt"
+    },
+    {
+      "id": 1043,
+      "answer": "đa tài"
+    },
+    {
+      "id": 1044,
+      "answer": "nước sôi lửa bỏng"
+    },
+    {
+      "id": 1045,
+      "answer": "khoan khoái"
+    },
+    {
+      "id": 1046,
+      "answer": "mũi dọc dừa"
+    },
+    {
+      "id": 1047,
+      "answer": "vắt chanh bỏ vỏ"
+    },
+    {
+      "id": 1048,
+      "answer": "giấy ô li"
+    },
+    {
+      "id": 1049,
+      "answer": "tiến độ"
+    },
+    {
+      "id": 1050,
+      "answer": "bàng quan"
+    },
+    {
+      "id": 1051,
+      "answer": "bất công"
+    },
+    {
+      "id": 1052,
+      "answer": "tương kiến"
+    },
+    {
+      "id": 1053,
+      "answer": "kìm kẹp"
+    },
+    {
+      "id": 1054,
+      "answer": "tiền kỳ"
+    },
+    {
+      "id": 1055,
+      "answer": "máy bay tiêm kích"
+    },
+    {
+      "id": 1056,
+      "answer": "á khẩu"
+    },
+    {
+      "id": 1057,
+      "answer": "tiêu hóa"
+    },
+    {
+      "id": 1058,
+      "answer": "ngã giá"
+    },
+    {
+      "id": 1059,
+      "answer": "tiếng anh"
+    },
+    {
+      "id": 1060,
+      "answer": "sợi chỉ đỏ"
+    },
+    {
+      "id": 1061,
+      "answer": "giao thiệp"
+    },
+    {
+      "id": 1062,
+      "answer": "hội chữ thập đỏ"
+    },
+    {
+      "id": 1063,
+      "answer": "hoa tay"
+    },
+    {
+      "id": 1064,
+      "answer": "hoa đá"
+    },
+    {
+      "id": 1065,
+      "answer": "khóa chân chống"
+    },
+    {
+      "id": 1066,
+      "answer": "mồ hôi hột"
+    },
+    {
+      "id": 1067,
+      "answer": "múi giờ"
+    },
+    {
+      "id": 1068,
+      "answer": "nổi trống"
+    },
+    {
+      "id": 1069,
+      "answer": "tôm hùm"
+    },
+    {
+      "id": 1070,
+      "answer": "tẩy não"
+    },
+    {
+      "id": 1071,
+      "answer": "thiếu nhi"
+    },
+    {
+      "id": 1072,
+      "answer": "tiền lời"
+    },
+    {
+      "id": 1073,
+      "answer": "xuất hành"
+    },
+    {
+      "id": 1074,
+      "answer": "kiến bò miệng chén"
+    },
+    {
+      "id": 1075,
+      "answer": "thả hổ về rừng"
+    },
+    {
+      "id": 1076,
+      "answer": "điển tích"
+    },
+    {
+      "id": 1077,
+      "answer": "điều tiết"
+    },
+    {
+      "id": 1078,
+      "answer": "ăn năn"
+    },
+    {
+      "id": 1079,
+      "answer": "ăn to nói lớn"
+    },
+    {
+      "id": 1080,
+      "answer": "đường dây nóng"
+    },
+    {
+      "id": 1081,
+      "answer": "đồng hồ"
+    },
+    {
+      "id": 1082,
+      "answer": "động thủ"
+    },
+    {
+      "id": 1083,
+      "answer": "đánh võng"
+    },
+    {
+      "id": 1084,
+      "answer": "đắt đỏ"
+    },
+    {
+      "id": 1085,
+      "answer": "ăn diện"
+    },
+    {
+      "id": 1086,
+      "answer": "bàn mưu tính kế"
+    },
+    {
+      "id": 1087,
+      "answer": "bảng giá"
+    },
+    {
+      "id": 1088,
+      "answer": "bình quân"
+    },
+    {
+      "id": 1089,
+      "answer": "bát quái"
+    },
+    {
+      "id": 1090,
+      "answer": "bầu cử"
+    },
+    {
+      "id": 1091,
+      "answer": "cảm tạ"
+    },
+    {
+      "id": 1092,
+      "answer": "cẩu thả"
+    },
+    {
+      "id": 1093,
+      "answer": "chỉ giáo"
+    },
+    {
+      "id": 1094,
+      "answer": "chóng mặt"
+    },
+    {
+      "id": 1095,
+      "answer": "giác quan"
+    },
+    {
+      "id": 1096,
+      "answer": "gia sư"
+    },
+    {
+      "id": 1097,
+      "answer": "hỏa tốc"
+    },
+    {
+      "id": 1098,
+      "answer": "hạ hỏa"
+    },
+    {
+      "id": 1099,
+      "answer": "hình tam giác"
+    },
+    {
+      "id": 1100,
+      "answer": "hấp hối"
+    },
+    {
+      "id": 1101,
+      "answer": "kế sách"
+    },
+    {
+      "id": 1102,
+      "answer": "khác biệt"
+    },
+    {
+      "id": 1103,
+      "answer": "khúc mắc"
+    },
+    {
+      "id": 1104,
+      "answer": "không quân"
+    },
+    {
+      "id": 1105,
+      "answer": "kiến tập"
+    },
+    {
+      "id": 1106,
+      "answer": "lược bỏ"
+    },
+    {
+      "id": 1107,
+      "answer": "lịch trình"
+    },
+    {
+      "id": 1108,
+      "answer": "lân la"
+    },
+    {
+      "id": 1109,
+      "answer": "lu bu"
+    },
+    {
+      "id": 1110,
+      "answer": "nhẫn nhịn"
+    },
+    {
+      "id": 1111,
+      "answer": "nha sĩ"
+    },
+    {
+      "id": 1112,
+      "answer": "phật ý"
+    },
+    {
+      "id": 1113,
+      "answer": "phong cách"
+    },
+    {
+      "id": 1114,
+      "answer": "sĩ diện"
+    },
+    {
+      "id": 1115,
+      "answer": "sùng bái"
+    },
+    {
+      "id": 1116,
+      "answer": "sát thủ"
+    },
+    {
+      "id": 1117,
+      "answer": "tư cách"
+    },
+    {
+      "id": 1118,
+      "answer": "tải trọng"
+    },
+    {
+      "id": 1119,
+      "answer": "tâm tính"
+    },
+    {
+      "id": 1120,
+      "answer": "tên cúng cơm"
+    },
+    {
+      "id": 1121,
+      "answer": "tôn kính"
+    },
+    {
+      "id": 1122,
+      "answer": "tôn trọng"
+    },
+    {
+      "id": 1123,
+      "answer": "tương kế tựu kế"
+    },
+    {
+      "id": 1124,
+      "answer": "tăng trọng"
+    },
+    {
+      "id": 1125,
+      "answer": "thân mật"
+    },
+    {
+      "id": 1126,
+      "answer": "thiên la địa võng"
+    },
+    {
+      "id": 1127,
+      "answer": "thuyền rồng"
+    },
+    {
+      "id": 1128,
+      "answer": "vò đầu bứt tai"
+    },
+    {
+      "id": 1129,
+      "answer": "va đập"
+    },
+    {
+      "id": 1130,
+      "answer": "viễn cảnh"
+    },
+    {
+      "id": 1131,
+      "answer": "yên vui"
+    },
+    {
+      "id": 1132,
+      "answer": "yêu dấu"
+    },
+    {
+      "id": 1133,
+      "answer": "tượng thanh"
+    },
+    {
+      "id": 1134,
+      "answer": "đi tắt đón đầu"
+    },
+    {
+      "id": 1135,
+      "answer": "âm nhạc"
+    },
+    {
+      "id": 1136,
+      "answer": "thạch dừa"
+    },
+    {
+      "id": 1137,
+      "answer": "kẻ cắp gặp bà già"
+    },
+    {
+      "id": 1138,
+      "answer": "bọ gậy"
+    },
+    {
+      "id": 1139,
+      "answer": "bia đỡ đạn"
+    },
+    {
+      "id": 1140,
+      "answer": "đả thông"
+    },
+    {
+      "id": 1141,
+      "answer": "quỷ khóc thần sầu"
+    },
+    {
+      "id": 1142,
+      "answer": "điều kiện"
+    },
+    {
+      "id": 1143,
+      "answer": "mẹ tròn con vuông"
+    },
+    {
+      "id": 1144,
+      "answer": "nhà thông thái"
+    },
+    {
+      "id": 1145,
+      "answer": "xích đu"
+    },
+    {
+      "id": 1146,
+      "answer": "kỳ bí"
+    },
+    {
+      "id": 1147,
+      "answer": "lão hóa"
+    },
+    {
+      "id": 1148,
+      "answer": "lắm miệng"
+    },
+    {
+      "id": 1149,
+      "answer": "vạch lá tìm sâu"
+    },
+    {
+      "id": 1150,
+      "answer": "mặt hoa da phấn"
+    },
+    {
+      "id": 1151,
+      "answer": "huyền bí"
+    },
+    {
+      "id": 1152,
+      "answer": "thực tập"
+    },
+    {
+      "id": 1153,
+      "answer": "thu hút"
+    },
+    {
+      "id": 1154,
+      "answer": "tinh tướng"
+    },
+    {
+      "id": 1155,
+      "answer": "công kênh"
+    },
+    {
+      "id": 1156,
+      "answer": "đánh răng"
+    },
+    {
+      "id": 1157,
+      "answer": "thuê bao"
+    },
+    {
+      "id": 1158,
+      "answer": "đồng hành"
+    },
+    {
+      "id": 1159,
+      "answer": "đèn cù"
+    },
+    {
+      "id": 1160,
+      "answer": "tiêm phòng"
+    },
+    {
+      "id": 1161,
+      "answer": "thăng quan"
+    },
+    {
+      "id": 1162,
+      "answer": "chia tay"
+    },
+    {
+      "id": 1163,
+      "answer": "thị sát"
+    },
+    {
+      "id": 1164,
+      "answer": "đánh giày"
+    },
+    {
+      "id": 1165,
+      "answer": "đứng bóng"
+    },
+    {
+      "id": 1166,
+      "answer": "hào quang"
+    },
+    {
+      "id": 1167,
+      "answer": "bảo kê"
+    },
+    {
+      "id": 1168,
+      "answer": "chân giò"
+    },
+    {
+      "id": 1169,
+      "answer": "giác mạc"
+    },
+    {
+      "id": 1170,
+      "answer": "gà hoa mơ"
+    },
+    {
+      "id": 1171,
+      "answer": "nốt ruồi son"
+    },
+    {
+      "id": 1172,
+      "answer": "thuốc trừ sâu"
+    },
+    {
+      "id": 1173,
+      "answer": "pháo đài"
+    },
+    {
+      "id": 1174,
+      "answer": "ghen tỵ"
+    },
+    {
+      "id": 1175,
+      "answer": "giấy quỳ tím"
+    },
+    {
+      "id": 1176,
+      "answer": "ổ khóa"
+    },
+    {
+      "id": 1177,
+      "answer": "câu đối"
+    },
+    {
+      "id": 1178,
+      "answer": "ép duyên"
+    },
+    {
+      "id": 1179,
+      "answer": "ăn mảnh"
+    },
+    {
+      "id": 1180,
+      "answer": "đồng tình"
+    },
+    {
+      "id": 1181,
+      "answer": "thang máy"
+    },
+    {
+      "id": 1182,
+      "answer": "khai báo"
+    },
+    {
+      "id": 1183,
+      "answer": "bè cánh"
+    },
+    {
+      "id": 1184,
+      "answer": "siêu thị"
+    },
+    {
+      "id": 1185,
+      "answer": "ăn không nói có"
+    },
+    {
+      "id": 1186,
+      "answer": "băng dính"
+    },
+    {
+      "id": 1187,
+      "answer": "đồng sàng dị mộng"
+    },
+    {
+      "id": 1188,
+      "answer": "rượu cần"
+    },
+    {
+      "id": 1189,
+      "answer": "châu chấu đá xe"
+    },
+    {
+      "id": 1190,
+      "answer": "quân tử"
+    },
+    {
+      "id": 1191,
+      "answer": "thảm thương"
+    },
+    {
+      "id": 1192,
+      "answer": "mất tiêu"
+    },
+    {
+      "id": 1193,
+      "answer": "tế nhị"
+    },
+    {
+      "id": 1193,
+      "answer": "tế nhị"
+    },
+    {
+      "id": 1194,
+      "answer": "bóp mồm bóp miệng"
+    },
+    {
+      "id": 1195,
+      "answer": "ba cọc ba đồng"
+    },
+    {
+      "id": 1196,
+      "answer": "cỏ gấu"
+    },
+    {
+      "id": 1197,
+      "answer": "cuốc chim"
+    },
+    {
+      "id": 1198,
+      "answer": "o bế"
+    },
+    {
+      "id": 1199,
+      "answer": "số má"
+    },
+    {
+      "id": 1200,
+      "answer": "tóc trái đào"
+    },
+    {
+      "id": 1201,
+      "answer": "thổ công"
+    },
+    {
+      "id": 1202,
+      "answer": "thịt đông"
+    },
+    {
+      "id": 1203,
+      "answer": "kỳ thị"
+    },
+    {
+      "id": 1204,
+      "answer": "đài hoa"
+    },
+    {
+      "id": 1205,
+      "answer": "bánh gai"
+    },
+    {
+      "id": 1206,
+      "answer": "cửa sổ"
+    },
+    {
+      "id": 1207,
+      "answer": "cá heo"
+    },
+    {
+      "id": 1208,
+      "answer": "cáo bạch"
+    },
+    {
+      "id": 1209,
+      "answer": "cặp ba lá"
+    },
+    {
+      "id": 1210,
+      "answer": "cầu dao"
+    },
+    {
+      "id": 1211,
+      "answer": "cây bút trẻ"
+    },
+    {
+      "id": 1212,
+      "answer": "cá nóc"
+    },
+    {
+      "id": 1213,
+      "answer": "chào hỏi"
+    },
+    {
+      "id": 1214,
+      "answer": "dép lê"
+    },
+    {
+      "id": 1215,
+      "answer": "góc cua"
+    },
+    {
+      "id": 1216,
+      "answer": "giấy bóng"
+    },
+    {
+      "id": 1217,
+      "answer": "khỉ gió"
+    },
+    {
+      "id": 1218,
+      "answer": "kiến càng"
+    },
+    {
+      "id": 1219,
+      "answer": "lá cờ đầu"
+    },
+    {
+      "id": 1220,
+      "answer": "nặng ký"
+    },
+    {
+      "id": 1221,
+      "answer": "ngân sách"
+    },
+    {
+      "id": 1222,
+      "answer": "nhà in"
+    },
+    {
+      "id": 1223,
+      "answer": "số đỏ"
+    },
+    {
+      "id": 1224,
+      "answer": "tay nải"
+    },
+    {
+      "id": 1225,
+      "answer": "tin vịt"
+    },
+    {
+      "id": 1226,
+      "answer": "xấu số"
+    },
+    {
+      "id": 1227,
+      "answer": "cười ruồi"
+    },
+    {
+      "id": 1228,
+      "answer": "dầu dừa"
+    },
+    {
+      "id": 1229,
+      "answer": "điệp báo"
+    },
+    {
+      "id": 1230,
+      "answer": "nhãn lồng"
+    },
+    {
+      "id": 1231,
+      "answer": "trúng tủ"
+    },
+    {
+      "id": 1232,
+      "answer": "đường băng"
+    },
+    {
+      "id": 1233,
+      "answer": "bánh in"
+    },
+    {
+      "id": 1234,
+      "answer": "bánh tét"
+    },
+    {
+      "id": 1235,
+      "answer": "bàn chân vàng"
+    },
+    {
+      "id": 1236,
+      "answer": "cầm ca"
+    },
+    {
+      "id": 1237,
+      "answer": "nhân ái"
+    },
+    {
+      "id": 1238,
+      "answer": "râu ngô"
+    },
+    {
+      "id": 1239,
+      "answer": "đo đỏ"
+    },
+    {
+      "id": 1240,
+      "answer": "ảnh cưới"
+    },
+    {
+      "id": 1241,
+      "answer": "ví cầm tay"
+    },
+    {
+      "id": 1242,
+      "answer": "lồng kính"
+    },
+    {
+      "id": 1243,
+      "answer": "pháo đất"
+    },
+    {
+      "id": 1244,
+      "answer": "lá xương sông"
+    },
+    {
+      "id": 1245,
+      "answer": "áo dài"
+    },
+    {
+      "id": 1246,
+      "answer": "đánh gió"
+    },
+    {
+      "id": 1247,
+      "answer": "cáo thị"
+    },
+    {
+      "id": 1248,
+      "answer": "ông ba mươi"
+    },
+    {
+      "id": 1249,
+      "answer": "bưởi diễn"
+    },
+    {
+      "id": 1250,
+      "answer": "cá hoàng đế"
+    },
+    {
+      "id": 1251,
+      "answer": "nhãn vở"
+    },
+    {
+      "id": 1252,
+      "answer": "cỏ lau"
+    },
+    {
+      "id": 1253,
+      "answer": "măng đá"
+    },
+    {
+      "id": 1254,
+      "answer": "điểm nóng"
+    },
+    {
+      "id": 1255,
+      "answer": "mắc cỡ"
+    },
+    {
+      "id": 1256,
+      "answer": "phá giá"
+    },
+    {
+      "id": 1257,
+      "answer": "máy tính bảng"
+    },
+    {
+      "id": 1258,
+      "answer": "nghệ sĩ"
+    },
+    {
+      "id": 1259,
+      "answer": "yếm cua"
+    },
+    {
+      "id": 1260,
+      "answer": "cam sành"
+    },
+    {
+      "id": 1261,
+      "answer": "cầu chì"
+    },
+    {
+      "id": 1262,
+      "answer": "xe lội nước"
+    },
+    {
+      "id": 1263,
+      "answer": "cà bát"
+    },
+    {
+      "id": 1264,
+      "answer": "cháo hoa"
+    },
+    {
+      "id": 1265,
+      "answer": "đài sen"
+    },
+    {
+      "id": 1266,
+      "answer": "cầu may"
+    },
+    {
+      "id": 1267,
+      "answer": "kem cân"
+    },
+    {
+      "id": 1268,
+      "answer": "bánh bông lan"
+    },
+    {
+      "id": 1269,
+      "answer": "áo chống nắng"
+    },
+    {
+      "id": 1270,
+      "answer": "cá kiếm"
+    },
+    {
+      "id": 1271,
+      "answer": "thuốc bắc"
+    },
+    {
+      "id": 1272,
+      "answer": "rắn lục"
+    },
+    {
+      "id": 1273,
+      "answer": "giáp ngọ"
+    },
+    {
+      "id": 1274,
+      "answer": "thú mỏ vịt"
+    },
+    {
+      "id": 1275,
+      "answer": "chơi chữ"
+    },
+    {
+      "id": 1276,
+      "answer": "sắn dây"
+    },
+    {
+      "id": 1277,
+      "answer": "tối nghĩa"
+    },
+    {
+      "id": 1278,
+      "answer": "bếp hồng ngoại"
+    },
+    {
+      "id": 1279,
+      "answer": "móc túi"
+    },
+    {
+      "id": 1280,
+      "answer": "câu chuyện"
+    },
+    {
+      "id": 1281,
+      "answer": "bắn pháo hoa"
+    },
+    {
+      "id": 1282,
+      "answer": "máy quét"
+    },
+    {
+      "id": 1283,
+      "answer": "sơn vàng"
+    },
+    {
+      "id": 1284,
+      "answer": "canh bạc"
+    },
+    {
+      "id": 1285,
+      "answer": "cân đĩa"
+    },
+    {
+      "id": 1286,
+      "answer": "giáo điều"
+    },
+    {
+      "id": 1287,
+      "answer": "lò bánh mỳ"
+    },
+    {
+      "id": 1288,
+      "answer": "nước nôi"
+    },
+    {
+      "id": 1289,
+      "answer": "núp bóng"
+    },
+    {
+      "id": 1290,
+      "answer": "tóc mây"
+    },
+    {
+      "id": 1291,
+      "answer": "trồng răng"
+    },
+    {
+      "id": 1292,
+      "answer": "cải cúc"
+    }
+  ]
+}

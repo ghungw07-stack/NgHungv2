@@ -1,0 +1,2814 @@
+{
+  "items": [
+    {
+      "id": "exp_scroll",
+      "name": "Cuộn Kinh Nghiệm",
+      "description": "Tăng ngay 500 điểm kinh nghiệm khi sử dụng",
+      "type": "consumable",
+      "effects": {
+        "special": "exp_boost"
+      },
+      "price": 1000,
+      "sellPrice": 500,
+      "stackable": true
+    },
+    {
+      "id": "bm1",
+      "name": "Bánh Mì",
+      "description": "Khôi phục 10 HP",
+      "type": "consumable",
+      "effects": {
+        "hp": 10
+      },
+      "price": 5,
+      "sellPrice": 2,
+      "stackable": true
+    },
+    {
+      "id": "hp1",
+      "name": "Thuốc Hồi HP Nhỏ",
+      "description": "Khôi phục 20 HP khi sử dụng",
+      "type": "consumable",
+      "effects": {
+        "hp": 20
+      },
+      "price": 50,
+      "sellPrice": 25,
+      "stackable": true,
+      "maxStack": 99
+    },
+    {
+      "id": "hp2",
+      "name": "Thuốc Hồi HP Vừa",
+      "description": "Khôi phục 100 HP",
+      "type": "consumable",
+      "effects": {
+        "hp": 100
+      },
+      "price": 75,
+      "sellPrice": 20,
+      "stackable": true
+    },
+    {
+      "id": "hp3",
+      "name": "Thuốc Hồi HP Lớn",
+      "description": "Khôi phục 250 HP",
+      "type": "consumable",
+      "effects": {
+        "hp": 250
+      },
+      "price": 200,
+      "sellPrice": 50,
+      "stackable": true
+    },
+    {
+      "id": "mp1",
+      "name": "Thuốc Hồi MP Nhỏ",
+      "description": "Khôi phục 15 MP khi sử dụng",
+      "type": "consumable",
+      "effects": {
+        "mp": 15
+      },
+      "price": 50,
+      "sellPrice": 25,
+      "stackable": true,
+      "maxStack": 99
+    },
+    {
+      "id": "mp2",
+      "name": "Thuốc Hồi MP Vừa",
+      "description": "Khôi phục 75 MP",
+      "type": "consumable",
+      "effects": {
+        "mp": 75
+      },
+      "price": 60,
+      "sellPrice": 15,
+      "stackable": true
+    },
+    {
+      "id": "mp3",
+      "name": "Thuốc Hồi MP Lớn",
+      "description": "Khôi phục 150 MP",
+      "type": "consumable",
+      "effects": {
+        "mp": 150
+      },
+      "price": 150,
+      "sellPrice": 40,
+      "stackable": true
+    },
+    {
+      "id": "potion1",
+      "name": "Thuốc Hồi Phục Đặc Biệt",
+      "description": "Khôi phục 100 HP và 50 MP",
+      "type": "consumable",
+      "effects": {
+        "hp": 100,
+        "mp": 50
+      },
+      "price": 150,
+      "sellPrice": 40,
+      "stackable": true
+    },
+    {
+      "id": "atk1",
+      "name": "Thuốc Tăng Tấn Công",
+      "description": "Tăng tấn công tạm thời trong 60 giây",
+      "type": "consumable",
+      "effects": {
+        "temporary": {
+          "attack": {
+            "value": 10,
+            "duration": 60
+          }
+        }
+      },
+      "price": 100,
+      "sellPrice": 25,
+      "stackable": true
+    },
+    {
+      "id": "spd1",
+      "name": "Thuốc Tăng Tốc",
+      "description": "Tăng tốc độ tạm thời trong 60 giây",
+      "type": "consumable",
+      "effects": {
+        "temporary": {
+          "speed": {
+            "value": 10,
+            "duration": 60
+          }
+        }
+      },
+      "price": 100,
+      "sellPrice": 25,
+      "stackable": true
+    },
+    {
+      "id": "def1",
+      "name": "Thuốc Tăng Phòng Thủ",
+      "description": "Tăng phòng thủ tạm thời trong 60 giây",
+      "type": "consumable",
+      "effects": {
+        "temporary": {
+          "defense": {
+            "value": 10,
+            "duration": 60
+          }
+        }
+      },
+      "price": 100,
+      "sellPrice": 25,
+      "stackable": true
+    },
+    {
+      "id": "int1",
+      "name": "Thuốc Tăng Trí Tuệ",
+      "description": "Tăng trí tuệ tạm thời trong 60 giây",
+      "type": "consumable",
+      "effects": {
+        "temporary": {
+          "intelligence": {
+            "value": 10,
+            "duration": 60
+          }
+        }
+      },
+      "price": 100,
+      "sellPrice": 25,
+      "stackable": true
+    },
+    {
+      "id": "skill_book1",
+      "name": "Sách Kỹ Năng: Đoạn Kiếm",
+      "description": "Dạy kỹ năng Đoạn Kiếm",
+      "type": "skill_book",
+      "skillId": "skill_slash",
+      "price": 500,
+      "sellPrice": 125,
+      "stackable": false
+    },
+    {
+      "id": "skill_book2",
+      "name": "Sách Kỹ Năng: Thiêu Đốt",
+      "description": "Dạy kỹ năng Thiêu Đốt",
+      "type": "skill_book",
+      "skillId": "skill_fireball",
+      "price": 3000,
+      "sellPrice": 200,
+      "stackable": false
+    },
+    {
+      "id": "skill_book3",
+      "name": "Sách Kỹ Năng: Lôi Đình",
+      "description": "Dạy kỹ năng Lôi Đình",
+      "type": "skill_book",
+      "skillId": "skill_lightning_bolt",
+      "price": 16000,
+      "sellPrice": 200,
+      "stackable": false
+    },
+    {
+      "id": "bag_upgrade",
+      "name": "Nâng Cấp Túi Đồ",
+      "description": "Mở rộng kích thước túi đồ thêm 5 ô",
+      "type": "upgrade",
+      "upgrades": {
+        "bag": 5
+      },
+      "price": 300,
+      "sellPrice": 0,
+      "stackable": true
+    },
+    {
+      "id": "potion_attack",
+      "name": "Thuốc Tăng Tấn Công",
+      "description": "Tăng tạm thời 5 tấn công trong 5 lượt",
+      "type": "consumable",
+      "effects": {
+        "tempStats": {
+          "attack": 5,
+          "duration": 5
+        }
+      },
+      "price": 100,
+      "sellPrice": 40,
+      "stackable": true
+    },
+    {
+      "id": "potion_defense",
+      "name": "Thuốc Tăng Phòng Thủ",
+      "description": "Tăng tạm thời 5 phòng thủ trong 5 lượt",
+      "type": "consumable",
+      "effects": {
+        "tempStats": {
+          "defense": 5,
+          "duration": 5
+        }
+      },
+      "price": 100,
+      "sellPrice": 40,
+      "stackable": true
+    },
+
+    {
+      "id": "w_tansu_1",
+      "name": "Kiếm Gỗ",
+      "description": "Kiếm gỗ tập luyện dành cho tân binh",
+      "type": "weapon",
+      "tier": "Tân Thủ",
+      "stats": {
+        "attack": 8
+      },
+      "statRange": {
+        "attack": [6, 10]
+      },
+      "price": 50,
+      "sellPrice": 15,
+      "stackable": false,
+      "requirements": {
+        "level": 1
+      }
+    },
+    {
+      "id": "w_da_1",
+      "name": "Dao Da",
+      "description": "Vũ khí làm từ da thú và đá sắc",
+      "type": "weapon",
+      "tier": "Da",
+      "stats": {
+        "attack": 20
+      },
+      "statRange": {
+        "attack": [16, 24]
+      },
+      "price": 120,
+      "sellPrice": 40,
+      "stackable": false,
+      "requirements": {
+        "level": 3
+      }
+    },
+    {
+      "id": "w_dong_1",
+      "name": "Kiếm Đồng",
+      "description": "Kiếm đúc từ đồng nguyên chất, bền và sắc",
+      "type": "weapon",
+      "tier": "Đồng",
+      "stats": {
+        "attack": 36
+      },
+      "statRange": {
+        "attack": [30, 45]
+      },
+      "price": 250,
+      "sellPrice": 80,
+      "stackable": false,
+      "requirements": {
+        "level": 5
+      }
+    },
+    {
+      "id": "w_bac_1",
+      "name": "Kiếm Bạc",
+      "description": "Kiếm được tạc từ bạc tinh khiết, sắc nhọn",
+      "type": "weapon",
+      "tier": "Bạc",
+      "stats": {
+        "attack": 52
+      },
+      "statRange": {
+        "attack": [45, 60]
+      },
+      "price": 500,
+      "sellPrice": 160,
+      "stackable": false,
+      "requirements": {
+        "level": 10
+      }
+    },
+    {
+      "id": "w_vang_1",
+      "name": "Kiếm Vàng",
+      "description": "Kiếm chế tác từ vàng pha hợp kim đặc biệt",
+      "type": "weapon",
+      "tier": "Vàng",
+      "stats": {
+        "attack": 80
+      },
+      "statRange": {
+        "attack": [60, 100]
+      },
+      "price": 1000,
+      "sellPrice": 300,
+      "stackable": false,
+      "requirements": {
+        "level": 15
+      }
+    },
+    {
+      "id": "w_bachkim_1",
+      "name": "Kiếm Bạch Kim",
+      "description": "Kiếm quý hiếm chế tác từ bạch kim và hợp kim đặc biệt",
+      "type": "weapon",
+      "tier": "Bạch Kim",
+      "stats": {
+        "attack": 120
+      },
+      "statRange": {
+        "attack": [100, 150]
+      },
+      "price": 2000,
+      "sellPrice": 600,
+      "stackable": false,
+      "requirements": {
+        "level": 20
+      }
+    },
+    {
+      "id": "w_kimcuong_1",
+      "name": "Kiếm Kim Cương",
+      "description": "Kiếm siêu hiếm được tạc từ kim cương nguyên khối",
+      "type": "weapon",
+      "tier": "Kim Cương",
+      "stats": {
+        "attack": 180
+      },
+      "statRange": {
+        "attack": [160, 200]
+      },
+      "price": 5000,
+      "sellPrice": 1500,
+      "stackable": false,
+      "requirements": {
+        "level": 30
+      }
+    },
+    {
+      "id": "w_hacdien_1",
+      "name": "Kiếm Hắc Diện",
+      "description": "Kiếm huyền thoại được rèn từ kim loại ngoài hành tinh",
+      "type": "weapon",
+      "tier": "Hắc Diện",
+      "stats": {
+        "attack": 500
+      },
+      "statRange": {
+        "attack": [300, 800]
+      },
+      "price": 10000,
+      "sellPrice": 3000,
+      "stackable": false,
+      "requirements": {
+        "level": 40
+      }
+    },
+    {
+      "id": "h_tansu_1",
+      "name": "Mũ Vải",
+      "description": "Mũ vải đơn giản bảo vệ đầu",
+      "type": "helmet",
+      "tier": "Tân Thủ",
+      "stats": {
+        "defense": 3
+      },
+      "statRange": {
+        "defense": [2, 4]
+      },
+      "price": 40,
+      "sellPrice": 10,
+      "stackable": false,
+      "requirements": {
+        "level": 1
+      }
+    },
+    {
+      "id": "h_da_1",
+      "name": "Mũ Da",
+      "description": "Mũ làm từ da thú cứng cáp",
+      "type": "helmet",
+      "tier": "Da",
+      "stats": {
+        "defense": 6
+      },
+      "statRange": {
+        "defense": [5, 7]
+      },
+      "price": 100,
+      "sellPrice": 30,
+      "stackable": false,
+      "requirements": {
+        "level": 3
+      }
+    },
+    {
+      "id": "h_dong_1",
+      "name": "Mũ Đồng",
+      "description": "Mũ làm từ đồng bền chắc",
+      "type": "helmet",
+      "tier": "Đồng",
+      "stats": {
+        "defense": 6
+      },
+      "statRange": {
+        "defense": [5, 7]
+      },
+      "price": 200,
+      "sellPrice": 60,
+      "stackable": false,
+      "requirements": {
+        "level": 5
+      }
+    },
+    {
+      "id": "h_bac_1",
+      "name": "Mũ Bạc",
+      "description": "Mũ làm từ bạc, sang trọng và bền",
+      "type": "helmet",
+      "tier": "Bạc",
+      "stats": {
+        "defense": 9
+      },
+      "statRange": {
+        "defense": [8, 10]
+      },
+      "price": 400,
+      "sellPrice": 120,
+      "stackable": false,
+      "requirements": {
+        "level": 10
+      }
+    },
+    {
+      "id": "h_vang_1",
+      "name": "Mũ Vàng",
+      "description": "Mũ làm từ vàng pha trộn kim loại chắc chắn",
+      "type": "helmet",
+      "tier": "Vàng",
+      "stats": {
+        "defense": 13
+      },
+      "statRange": {
+        "defense": [12, 15]
+      },
+      "price": 800,
+      "sellPrice": 240,
+      "stackable": false,
+      "requirements": {
+        "level": 15
+      }
+    },
+    {
+      "id": "h_bachkim_1",
+      "name": "Mũ Bạch Kim",
+      "description": "Mũ quý hiếm làm từ bạch kim",
+      "type": "helmet",
+      "tier": "Bạch Kim",
+      "stats": {
+        "defense": 18
+      },
+      "statRange": {
+        "defense": [16, 20]
+      },
+      "price": 1600,
+      "sellPrice": 480,
+      "stackable": false,
+      "requirements": {
+        "level": 20
+      }
+    },
+    {
+      "id": "h_kimcuong_1",
+      "name": "Mũ Kim Cương",
+      "description": "Mũ siêu hiếm được đính kim cương",
+      "type": "helmet",
+      "tier": "Kim Cương",
+      "stats": {
+        "defense": 25
+      },
+      "statRange": {
+        "defense": [22, 28]
+      },
+      "price": 3000,
+      "sellPrice": 900,
+      "stackable": false,
+      "requirements": {
+        "level": 30
+      }
+    },
+    {
+      "id": "h_hacdien_1",
+      "name": "Mũ Hắc Diện",
+      "description": "Mũ huyền thoại làm từ vật liệu ngoài hành tinh",
+      "type": "helmet",
+      "tier": "Hắc Diện",
+      "stats": {
+        "defense": 35
+      },
+      "statRange": {
+        "defense": [30, 40]
+      },
+      "price": 6000,
+      "sellPrice": 1800,
+      "stackable": false,
+      "requirements": {
+        "level": 40
+      }
+    },
+
+    {
+      "id": "a_tansu_1",
+      "name": "Áo Vải",
+      "description": "Áo vải đơn giản nhưng ấm áp",
+      "type": "armor",
+      "tier": "Tân Thủ",
+      "stats": {
+        "defense": 4,
+        "vitality": 3
+      },
+      "statRange": {
+        "defense": [3, 5],
+        "vitality": [2, 4]
+      },
+      "price": 60,
+      "sellPrice": 18,
+      "stackable": false,
+      "requirements": {
+        "level": 1
+      }
+    },
+    {
+      "id": "a_da_1",
+      "name": "Áo Giáp Da",
+      "description": "Áo giáp làm từ da thú dày",
+      "type": "armor",
+      "tier": "Da",
+      "stats": {
+        "defense": 8,
+        "vitality": 4
+      },
+      "statRange": {
+        "defense": [7, 9],
+        "vitality": [3, 5]
+      },
+      "price": 150,
+      "sellPrice": 45,
+      "stackable": false,
+      "requirements": {
+        "level": 3
+      }
+    },
+    {
+      "id": "a_dong_1",
+      "name": "Áo Giáp Đồng",
+      "description": "Áo giáp làm từ vảy đồng chắc chắn",
+      "type": "armor",
+      "tier": "Đồng",
+      "stats": {
+        "defense": 14,
+        "vitality": 7
+      },
+      "statRange": {
+        "defense": [12, 16],
+        "vitality": [6, 8]
+      },
+      "price": 300,
+      "sellPrice": 90,
+      "stackable": false,
+      "requirements": {
+        "level": 5
+      }
+    },
+    {
+      "id": "a_bac_1",
+      "name": "Áo Giáp Bạc",
+      "description": "Áo giáp bạc làm từ kim loại quý",
+      "type": "armor",
+      "tier": "Bạc",
+      "stats": {
+        "defense": 20,
+        "vitality": 10
+      },
+      "statRange": {
+        "defense": [18, 22],
+        "vitality": [8, 12]
+      },
+      "price": 600,
+      "sellPrice": 180,
+      "stackable": false,
+      "requirements": {
+        "level": 10
+      }
+    },
+    {
+      "id": "a_vang_1",
+      "name": "Áo Giáp Vàng",
+      "description": "Áo giáp vàng sang trọng và bền bỉ",
+      "type": "armor",
+      "tier": "Vàng",
+      "stats": {
+        "defense": 28,
+        "vitality": 15
+      },
+      "statRange": {
+        "defense": [25, 31],
+        "vitality": [13, 17]
+      },
+      "price": 1200,
+      "sellPrice": 360,
+      "stackable": false,
+      "requirements": {
+        "level": 15
+      }
+    },
+    {
+      "id": "a_bachkim_1",
+      "name": "Áo Giáp Bạch Kim",
+      "description": "Áo giáp quý hiếm làm từ bạch kim",
+      "type": "armor",
+      "tier": "Bạch Kim",
+      "stats": {
+        "defense": 38,
+        "vitality": 22
+      },
+      "statRange": {
+        "defense": [35, 41],
+        "vitality": [19, 25]
+      },
+      "price": 2400,
+      "sellPrice": 720,
+      "stackable": false,
+      "requirements": {
+        "level": 20
+      }
+    },
+    {
+      "id": "a_kimcuong_1",
+      "name": "Áo Giáp Kim Cương",
+      "description": "Áo giáp siêu hiếm được đính kim cương",
+      "type": "armor",
+      "tier": "Kim Cương",
+      "stats": {
+        "defense": 50,
+        "vitality": 30
+      },
+      "statRange": {
+        "defense": [45, 55],
+        "vitality": [27, 33]
+      },
+      "price": 5000,
+      "sellPrice": 1500,
+      "stackable": false,
+      "requirements": {
+        "level": 30
+      }
+    },
+    {
+      "id": "a_hacdien_1",
+      "name": "Áo Giáp Hắc Diện",
+      "description": "Áo giáp huyền thoại làm từ vật liệu ngoài hành tinh",
+      "type": "armor",
+      "tier": "Hắc Diện",
+      "stats": {
+        "defense": 70,
+        "vitality": 45
+      },
+      "statRange": {
+        "defense": [65, 75],
+        "vitality": [40, 50]
+      },
+      "price": 10000,
+      "sellPrice": 3000,
+      "stackable": false,
+      "requirements": {
+        "level": 40
+      }
+    },
+
+    {
+      "id": "b_tansu_1",
+      "name": "Giày Vải",
+      "description": "Giày vải đơn giản nhưng thoải mái",
+      "type": "boots",
+      "tier": "Tân Thủ",
+      "stats": {
+        "speed": 3
+      },
+      "statRange": {
+        "speed": [2, 4]
+      },
+      "price": 30,
+      "sellPrice": 9,
+      "stackable": false,
+      "requirements": {
+        "level": 1
+      }
+    },
+    {
+      "id": "b_da_1",
+      "name": "Giày Da",
+      "description": "Giày làm từ da thú chắc chắn",
+      "type": "boots",
+      "tier": "Da",
+      "stats": {
+        "speed": 5,
+        "defense": 2
+      },
+      "statRange": {
+        "speed": [4, 6],
+        "defense": [1, 3]
+      },
+      "price": 80,
+      "sellPrice": 24,
+      "stackable": false,
+      "requirements": {
+        "level": 3
+      }
+    },
+    {
+      "id": "b_dong_1",
+      "name": "Giày Đồng",
+      "description": "Giày có đế đồng chắc chắn",
+      "type": "boots",
+      "tier": "Đồng",
+      "stats": {
+        "speed": 7,
+        "defense": 3
+      },
+      "statRange": {
+        "speed": [6, 8],
+        "defense": [2, 4]
+      },
+      "price": 180,
+      "sellPrice": 54,
+      "stackable": false,
+      "requirements": {
+        "level": 5
+      }
+    },
+    {
+      "id": "b_bac_1",
+      "name": "Giày Bạc",
+      "description": "Giày bạc nhẹ và bền",
+      "type": "boots",
+      "tier": "Bạc",
+      "stats": {
+        "speed": 10,
+        "defense": 5
+      },
+      "statRange": {
+        "speed": [9, 12],
+        "defense": [4, 6]
+      },
+      "price": 350,
+      "sellPrice": 105,
+      "stackable": false,
+      "requirements": {
+        "level": 10
+      }
+    },
+    {
+      "id": "b_vang_1",
+      "name": "Giày Vàng",
+      "description": "Giày vàng sang trọng và nhanh nhẹn",
+      "type": "boots",
+      "tier": "Vàng",
+      "stats": {
+        "speed": 15,
+        "defense": 8
+      },
+      "statRange": {
+        "speed": [13, 17],
+        "defense": [7, 9]
+      },
+      "price": 700,
+      "sellPrice": 210,
+      "stackable": false,
+      "requirements": {
+        "level": 15
+      }
+    },
+    {
+      "id": "b_bachkim_1",
+      "name": "Giày Bạch Kim",
+      "description": "Giày quý hiếm làm từ bạch kim",
+      "type": "boots",
+      "tier": "Bạch Kim",
+      "stats": {
+        "speed": 20,
+        "defense": 12
+      },
+      "statRange": {
+        "speed": [18, 22],
+        "defense": [10, 14]
+      },
+      "price": 1500,
+      "sellPrice": 450,
+      "stackable": false,
+      "requirements": {
+        "level": 20
+      }
+    },
+    {
+      "id": "b_kimcuong_1",
+      "name": "Giày Kim Cương",
+      "description": "Giày siêu hiếm được đính kim cương",
+      "type": "boots",
+      "tier": "Kim Cương",
+      "stats": {
+        "speed": 28,
+        "defense": 16
+      },
+      "statRange": {
+        "speed": [25, 31],
+        "defense": [14, 18]
+      },
+      "price": 3000,
+      "sellPrice": 900,
+      "stackable": false,
+      "requirements": {
+        "level": 30
+      }
+    },
+    {
+      "id": "b_hacdien_1",
+      "name": "Giày Hắc Diện",
+      "description": "Giày huyền thoại làm từ vật liệu ngoài hành tinh",
+      "type": "boots",
+      "tier": "Hắc Diện",
+      "stats": {
+        "speed": 38,
+        "defense": 24
+      },
+      "statRange": {
+        "speed": [34, 42],
+        "defense": [20, 28]
+      },
+      "price": 6000,
+      "sellPrice": 1800,
+      "stackable": false,
+      "requirements": {
+        "level": 40
+      }
+    },
+
+    {
+      "id": "s_tansu_1",
+      "name": "Khiên Gỗ",
+      "description": "Khiên gỗ đơn giản bảo vệ cơ thể",
+      "type": "shield",
+      "tier": "Tân Thủ",
+      "stats": {
+        "defense": 4
+      },
+      "statRange": {
+        "defense": [3, 5]
+      },
+      "price": 40,
+      "sellPrice": 12,
+      "stackable": false,
+      "requirements": {
+        "level": 1
+      }
+    },
+    {
+      "id": "s_da_1",
+      "name": "Khiên Da",
+      "description": "Khiên làm từ da thú chắc chắn",
+      "type": "shield",
+      "tier": "Da",
+      "stats": {
+        "defense": 7
+      },
+      "statRange": {
+        "defense": [6, 8]
+      },
+      "price": 100,
+      "sellPrice": 30,
+      "stackable": false,
+      "requirements": {
+        "level": 3
+      }
+    },
+    {
+      "id": "s_dong_1",
+      "name": "Khiên Đồng",
+      "description": "Khiên đồng chắc chắn",
+      "type": "shield",
+      "tier": "Đồng",
+      "stats": {
+        "defense": 11
+      },
+      "statRange": {
+        "defense": [9, 13]
+      },
+      "price": 200,
+      "sellPrice": 60,
+      "stackable": false,
+      "requirements": {
+        "level": 5
+      }
+    },
+    {
+      "id": "s_bac_1",
+      "name": "Khiên Bạc",
+      "description": "Khiên bạc bền bỉ và sáng bóng",
+      "type": "shield",
+      "tier": "Bạc",
+      "stats": {
+        "defense": 16
+      },
+      "statRange": {
+        "defense": [14, 18]
+      },
+      "price": 400,
+      "sellPrice": 120,
+      "stackable": false,
+      "requirements": {
+        "level": 10
+      }
+    },
+    {
+      "id": "s_vang_1",
+      "name": "Khiên Vàng",
+      "description": "Khiên vàng sang trọng và chắc chắn",
+      "type": "shield",
+      "tier": "Vàng",
+      "stats": {
+        "defense": 22
+      },
+      "statRange": {
+        "defense": [19, 25]
+      },
+      "price": 800,
+      "sellPrice": 240,
+      "stackable": false,
+      "requirements": {
+        "level": 15
+      }
+    },
+    {
+      "id": "s_bachkim_1",
+      "name": "Khiên Bạch Kim",
+      "description": "Khiên quý hiếm làm từ bạch kim",
+      "type": "shield",
+      "tier": "Bạch Kim",
+      "stats": {
+        "defense": 30
+      },
+      "statRange": {
+        "defense": [27, 33]
+      },
+      "price": 1600,
+      "sellPrice": 480,
+      "stackable": false,
+      "requirements": {
+        "level": 20
+      }
+    },
+    {
+      "id": "s_kimcuong_1",
+      "name": "Khiên Kim Cương",
+      "description": "Khiên siêu hiếm được đính kim cương",
+      "type": "shield",
+      "tier": "Kim Cương",
+      "stats": {
+        "defense": 40
+      },
+      "statRange": {
+        "defense": [35, 45]
+      },
+      "price": 3000,
+      "sellPrice": 900,
+      "stackable": false,
+      "requirements": {
+        "level": 30
+      }
+    },
+    {
+      "id": "s_hacdien_1",
+      "name": "Khiên Hắc Diện",
+      "description": "Khiên huyền thoại làm từ vật liệu ngoài hành tinh",
+      "type": "shield",
+      "tier": "Hắc Diện",
+      "stats": {
+        "defense": 55
+      },
+      "statRange": {
+        "defense": [50, 60]
+      },
+      "price": 6000,
+      "sellPrice": 1800,
+      "stackable": false,
+      "requirements": {
+        "level": 40
+      }
+    },
+
+    {
+      "id": "c_tansu_1",
+      "name": "Áo Choàng Vải",
+      "description": "Áo choàng vải đơn giản",
+      "type": "cape",
+      "tier": "Tân Thủ",
+      "stats": {
+        "speed": 1,
+        "intelligence": 1
+      },
+      "statRange": {
+        "speed": [0, 2],
+        "intelligence": [0, 2]
+      },
+      "price": 30,
+      "sellPrice": 9,
+      "stackable": false,
+      "requirements": {
+        "level": 1
+      }
+    },
+    {
+      "id": "c_da_1",
+      "name": "Áo Choàng Da",
+      "description": "Áo choàng làm từ da thú mềm mại",
+      "type": "cape",
+      "tier": "Da",
+      "stats": {
+        "speed": 2,
+        "intelligence": 2
+      },
+      "statRange": {
+        "speed": [1, 3],
+        "intelligence": [1, 3]
+      },
+      "price": 80,
+      "sellPrice": 24,
+      "stackable": false,
+      "requirements": {
+        "level": 3
+      }
+    },
+    {
+      "id": "c_dong_1",
+      "name": "Áo Choàng Đồng",
+      "description": "Áo choàng có viền đồng trang trí",
+      "type": "cape",
+      "tier": "Đồng",
+      "stats": {
+        "speed": 3,
+        "intelligence": 4
+      },
+      "statRange": {
+        "speed": [2, 4],
+        "intelligence": [3, 5]
+      },
+      "price": 180,
+      "sellPrice": 54,
+      "stackable": false,
+      "requirements": {
+        "level": 5
+      }
+    },
+    {
+      "id": "c_bac_1",
+      "name": "Áo Choàng Bạc",
+      "description": "Áo choàng thêu chỉ bạc tinh xảo",
+      "type": "cape",
+      "tier": "Bạc",
+      "stats": {
+        "speed": 5,
+        "intelligence": 6
+      },
+      "statRange": {
+        "speed": [4, 6],
+        "intelligence": [5, 7]
+      },
+      "price": 350,
+      "sellPrice": 105,
+      "stackable": false,
+      "requirements": {
+        "level": 10
+      }
+    },
+    {
+      "id": "c_vang_1",
+      "name": "Áo Choàng Vàng",
+      "description": "Áo choàng thêu chỉ vàng sang trọng",
+      "type": "cape",
+      "tier": "Vàng",
+      "stats": {
+        "speed": 7,
+        "intelligence": 9
+      },
+      "statRange": {
+        "speed": [6, 8],
+        "intelligence": [8, 11]
+      },
+      "price": 700,
+      "sellPrice": 210,
+      "stackable": false,
+      "requirements": {
+        "level": 15
+      }
+    },
+    {
+      "id": "c_bachkim_1",
+      "name": "Áo Choàng Bạch Kim",
+      "description": "Áo choàng quý hiếm làm từ sợi bạch kim",
+      "type": "cape",
+      "tier": "Bạch Kim",
+      "stats": {
+        "speed": 10,
+        "intelligence": 13
+      },
+      "statRange": {
+        "speed": [8, 12],
+        "intelligence": [11, 15]
+      },
+      "price": 1500,
+      "sellPrice": 450,
+      "stackable": false,
+      "requirements": {
+        "level": 20
+      }
+    },
+    {
+      "id": "c_kimcuong_1",
+      "name": "Áo Choàng Kim Cương",
+      "description": "Áo choàng siêu hiếm được đính kim cương",
+      "type": "cape",
+      "tier": "Kim Cương",
+      "stats": {
+        "speed": 14,
+        "intelligence": 18
+      },
+      "statRange": {
+        "speed": [12, 16],
+        "intelligence": [16, 20]
+      },
+      "price": 3000,
+      "sellPrice": 900,
+      "stackable": false,
+      "requirements": {
+        "level": 30
+      }
+    },
+    {
+      "id": "c_hacdien_1",
+      "name": "Áo Choàng Hắc Diện",
+      "description": "Áo choàng huyền thoại làm từ vật liệu ngoài hành tinh",
+      "type": "cape",
+      "tier": "Hắc Diện",
+      "stats": {
+        "speed": 20,
+        "intelligence": 25
+      },
+      "statRange": {
+        "speed": [18, 22],
+        "intelligence": [22, 28]
+      },
+      "price": 6000,
+      "sellPrice": 1800,
+      "stackable": false,
+      "requirements": {
+        "level": 40
+      }
+    },
+    {
+      "id": "slime_core_rare",
+      "name": "Nhân Slime Hiếm",
+      "description": "Tinh hoa của slime cực kỳ hiếm từ World Boss Slime, có thể dùng để chế tạo trang bị đặc biệt",
+      "type": "material",
+      "tier": "Hiếm",
+      "price": 5000,
+      "sellPrice": 2000,
+      "stackable": true,
+      "effects": {
+        "crafting": "rare_equipment",
+        "description": "Dùng để chế tạo trang bị với khả năng kháng độc"
+      }
+    },
+    {
+      "id": "slime_king_crown",
+      "name": "Vương Miện Vua Slime",
+      "description": "Một vương miện phát sáng lấp lánh, mặc vào sẽ tăng khả năng phòng thủ và kháng độc",
+      "type": "helmet",
+      "tier": "Huyền Thoại",
+      "stats": {
+        "defense": 25,
+        "poisonResist": 50,
+        "hp": 50
+      },
+      "statRange": {
+        "defense": [20, 30],
+        "poisonResist": [40, 60],
+        "hp": [40, 60]
+      },
+      "price": 20000,
+      "sellPrice": 8000,
+      "stackable": false,
+      "requirements": {
+        "level": 30
+      },
+      "hiddenTrait": "poison"
+    },
+    {
+      "id": "alpha_wolf_heart",
+      "name": "Tim Sói Đầu Đàn",
+      "description": "Trái tim của sói đầu đàn, vẫn còn đập và chứa năng lượng mãnh liệt",
+      "type": "material",
+      "tier": "Hiếm",
+      "price": 4000,
+      "sellPrice": 1500,
+      "stackable": true,
+      "effects": {
+        "crafting": "wolf_equipment",
+        "description": "Dùng để chế tạo trang bị tăng tốc độ và sức mạnh"
+      }
+    },
+    {
+      "id": "legendary_wolf_fur",
+      "name": "Lông Sói Huyền Thoại",
+      "description": "Bộ lông đặc biệt từ sói đầu đàn, có thể chống chọi với mọi thời tiết khắc nghiệt",
+      "type": "armor",
+      "tier": "Huyền Thoại",
+      "stats": {
+        "defense": 30,
+        "speed": 15,
+        "coldResist": 40
+      },
+      "statRange": {
+        "defense": [25, 35],
+        "speed": [10, 20],
+        "coldResist": [30, 50]
+      },
+      "price": 18000,
+      "sellPrice": 7000,
+      "stackable": false,
+      "requirements": {
+        "level": 25
+      },
+      "hiddenTrait": "ice"
+    },
+    {
+      "id": "magma_essence",
+      "name": "Tinh Hoa Dung Nham",
+      "description": "Tinh chất nóng bỏng từ slime dung nham, sử dụng để tạo ra vũ khí và giáp với thuộc tính lửa",
+      "type": "material",
+      "tier": "Hiếm",
+      "price": 3500,
+      "sellPrice": 1200,
+      "stackable": true,
+      "effects": {
+        "crafting": "fire_equipment",
+        "description": "Dùng để chế tạo trang bị với thuộc tính lửa"
+      }
+    },
+    {
+      "id": "fire_resistant_armor",
+      "name": "Giáp Kháng Lửa",
+      "description": "Giáp được tạo từ vảy của các sinh vật sống trong dung nham, hoàn toàn miễn nhiễm với lửa",
+      "type": "armor",
+      "tier": "Huyền Thoại",
+      "stats": {
+        "defense": 40,
+        "fireResist": 80,
+        "hp": 60
+      },
+      "statRange": {
+        "defense": [35, 45],
+        "fireResist": [70, 90],
+        "hp": [50, 70]
+      },
+      "price": 25000,
+      "sellPrice": 10000,
+      "stackable": false,
+      "requirements": {
+        "level": 35
+      },
+      "hiddenTrait": "fire"
+    },
+    {
+      "id": "alpha_wolf_fang",
+      "name": "Nanh Sói Đầu Đàn",
+      "description": "Nanh sắc nhọn của sói đầu đàn, có thể xuyên thủng mọi loại giáp",
+      "type": "weapon",
+      "tier": "Hiếm",
+      "stats": {
+        "attack": 25,
+        "critRate": 15
+      },
+      "statRange": {
+        "attack": [20, 30],
+        "critRate": [10, 20]
+      },
+      "price": 7000,
+      "sellPrice": 2800,
+      "stackable": false,
+      "requirements": {
+        "level": 20
+      },
+      "hiddenTrait": "ice"
+    },
+    {
+      "id": "wolf_commander_pelt",
+      "name": "Da Sói Chỉ Huy",
+      "description": "Da của sói chỉ huy bầy đàn, mặc vào có cảm giác uy quyền và tăng khả năng lãnh đạo",
+      "type": "cape",
+      "tier": "Huyền Thoại",
+      "stats": {
+        "charisma": 20,
+        "speed": 15,
+        "defense": 15
+      },
+      "statRange": {
+        "charisma": [15, 25],
+        "speed": [10, 20],
+        "defense": [10, 20]
+      },
+      "price": 15000,
+      "sellPrice": 6000,
+      "stackable": false,
+      "requirements": {
+        "level": 30
+      },
+      "hiddenTrait": "ice"
+    },
+    {
+      "id": "goblin_king_crown",
+      "name": "Vương Miện Vua Goblin",
+      "description": "Vương miện của vua Goblin, đem lại sức mạnh kiểm soát và chỉ huy",
+      "type": "helmet",
+      "tier": "Huyền Thoại",
+      "stats": {
+        "charisma": 25,
+        "intelligence": 20,
+        "defense": 18
+      },
+      "statRange": {
+        "charisma": [20, 30],
+        "intelligence": [15, 25],
+        "defense": [15, 20]
+      },
+      "price": 18000,
+      "sellPrice": 7200,
+      "stackable": false,
+      "requirements": {
+        "level": 28
+      },
+      "hiddenTrait": "earth"
+    },
+    {
+      "id": "legendary_goblin_axe",
+      "name": "Rìu Huyền Thoại Goblin",
+      "description": "Rìu chiến khổng lồ được rèn bởi thợ rèn thiên tài của tộc Goblin",
+      "type": "weapon",
+      "tier": "Huyền Thoại",
+      "stats": {
+        "attack": 75,
+        "critDmg": 40
+      },
+      "statRange": {
+        "attack": [50, 75],
+        "critDmg": [30, 50]
+      },
+      "price": 22000,
+      "sellPrice": 8800,
+      "stackable": false,
+      "requirements": {
+        "level": 32
+      },
+      "hiddenTrait": "earth"
+    },
+    {
+      "id": "lich_phylactery",
+      "name": "Hộp Linh Hồn Lich",
+      "description": "Vật chứa linh hồn của Lich, tỏa ra năng lượng ma thuật mạnh mẽ",
+      "type": "material",
+      "tier": "Vô Song",
+      "price": 30000,
+      "sellPrice": 12000,
+      "stackable": true,
+      "effects": {
+        "crafting": "necromancer_equipment",
+        "description": "Dùng để chế tạo trang bị của Necromancer tăng sức mạnh phép thuật"
+      }
+    },
+    {
+      "id": "tome_of_necromancy",
+      "name": "Sách Phép Triệu Hồi",
+      "description": "Sách cổ chứa các bí thuật triệu hồi và điều khiển linh hồn kẻ chết",
+      "type": "weapon",
+      "tier": "Vô Song",
+      "stats": {
+        "intelligence": 40,
+        "mp": 100,
+        "spellPower": 35
+      },
+      "statRange": {
+        "intelligence": [35, 45],
+        "mp": [80, 120],
+        "spellPower": [30, 40]
+      },
+      "price": 35000,
+      "sellPrice": 14000,
+      "stackable": false,
+      "requirements": {
+        "level": 40,
+        "class": "mage"
+      },
+      "hiddenTrait": "dark"
+    },
+    {
+      "id": "soul_crystal",
+      "name": "Tinh Thể Linh Hồn",
+      "description": "Tinh thể chứa đựng nhiều linh hồn bị giam cầm, tỏa ra năng lượng ma thuật cực mạnh",
+      "type": "material",
+      "tier": "Vô Song",
+      "price": 25000,
+      "sellPrice": 10000,
+      "stackable": true,
+      "effects": {
+        "crafting": "soul_equipment",
+        "description": "Dùng để chế tạo trang bị với khả năng hút máu và năng lượng"
+      }
+    },
+    {
+      "id": "dragon_heart_fragment",
+      "name": "Mảnh Tim Rồng",
+      "description": "Một mảnh từ trái tim của rồng cổ đại, vẫn còn đập và chứa sức mạnh khủng khiếp",
+      "type": "material",
+      "tier": "Thần Thoại",
+      "price": 100000,
+      "sellPrice": 40000,
+      "stackable": true,
+      "effects": {
+        "crafting": "dragon_equipment",
+        "description": "Dùng để chế tạo trang bị rồng với sức mạnh vượt trội"
+      }
+    },
+    {
+      "id": "corrupted_dragon_scale",
+      "name": "Vảy Rồng Bị Tha Hóa",
+      "description": "Vảy từ rồng bị tha hóa bởi ma thuật đen, có khả năng chống đỡ mọi dạng tấn công",
+      "type": "material",
+      "tier": "Thần Thoại",
+      "price": 80000,
+      "sellPrice": 32000,
+      "stackable": true,
+      "effects": {
+        "crafting": "dragon_armor",
+        "description": "Dùng để chế tạo giáp rồng với khả năng phòng thủ tuyệt đối"
+      }
+    },
+    {
+      "id": "dragon_fire_essence",
+      "name": "Tinh Hoa Lửa Rồng",
+      "description": "Tinh chất lửa rồng, có thể đốt cháy mọi vật chất và làm tan chảy mọi kim loại",
+      "type": "consumable",
+      "tier": "Thần Thoại",
+      "price": 50000,
+      "sellPrice": 20000,
+      "stackable": true,
+      "effects": {
+        "temporary": {
+          "attack": {
+            "value": 100,
+            "duration": 180
+          },
+          "fireResist": {
+            "value": 100,
+            "duration": 180
+          }
+        },
+        "description": "Tăng sức tấn công 100 điểm và kháng lửa hoàn toàn trong 3 phút"
+      }
+    },
+    {
+      "id": "world_essence",
+      "name": "Tinh Hoa Thế Giới",
+      "description": "Tinh túy của năng lượng thế giới, có thể dùng để nâng cấp và tăng sức mạnh cho trang bị",
+      "type": "material",
+      "tier": "Hiếm",
+      "price": 10000,
+      "sellPrice": 4000,
+      "stackable": true,
+      "effects": {
+        "upgrade": "equipment_enhancement",
+        "description": "Dùng để nâng cấp trang bị với tỉ lệ thành công cao"
+      }
+    },
+    {
+      "id": "rare_material",
+      "name": "Nguyên Liệu Hiếm",
+      "description": "Vật liệu hiếm từ world boss có thể được sử dụng để chế tạo nhiều loại trang bị khác nhau",
+      "type": "material",
+      "tier": "Hiếm",
+      "price": 5000,
+      "sellPrice": 2000,
+      "stackable": true,
+      "effects": {
+        "crafting": "multiple_equipment",
+        "description": "Nguyên liệu đa dụng cho việc chế tạo trang bị cao cấp"
+      }
+    },
+    {
+      "id": "item_herb",
+      "name": "Thảo dược ma thuật",
+      "description": "Dùng để chế thuốc hoặc hoàn thành nhiệm vụ.",
+      "type": "quest",
+      "stackable": true
+    },
+    {
+      "id": "item_stolen_goods",
+      "name": "Hàng hóa bị cướp",
+      "description": "Hàng hóa của thương nhân bị cướp, cần thu thập lại.",
+      "type": "quest",
+      "stackable": true
+    },
+    {
+      "id": "item_ancient_scroll",
+      "name": "Cuộn giấy cổ",
+      "description": "Cuộn giấy chứa bí mật cổ xưa.",
+      "type": "quest",
+      "stackable": true
+    },
+    {
+      "id": "item_ancient_tome",
+      "name": "Bản thảo cổ",
+      "description": "Bản thảo cổ lưu giữ tri thức quý giá.",
+      "type": "quest",
+      "stackable": true
+    },
+    {
+      "id": "item_ritual_artifact",
+      "name": "Tạo vật nghi lễ",
+      "description": "Vật phẩm dùng trong nghi lễ bóng tối.",
+      "type": "quest",
+      "stackable": true
+    },
+    {
+      "id": "item_arcane_dust",
+      "name": "Bụi ma thuật",
+      "description": "Nguyên liệu chế tạo vật phẩm phép thuật.",
+      "type": "material",
+      "stackable": true
+    },
+    {
+      "id": "item_dragon_scale",
+      "name": "Vảy rồng",
+      "description": "Vảy rồng cổ đại, dùng chế tạo trang bị.",
+      "type": "material",
+      "stackable": true
+    },
+    {
+      "id": "item_dragon_heart",
+      "name": "Trái tim rồng",
+      "description": "Trái tim rồng cổ đại, vật phẩm cực hiếm.",
+      "type": "quest",
+      "stackable": false
+    },
+    {
+      "id": "item_shadow_rune",
+      "name": "Ma văn bóng tối",
+      "description": "Ma văn chứa sức mạnh bóng tối.",
+      "type": "quest",
+      "stackable": true
+    },
+    {
+      "id": "fire_essence",
+      "name": "Tinh chất lửa",
+      "description": "Tinh chất thu được từ quái vật lửa.",
+      "type": "material",
+      "stackable": true
+    },
+    {
+      "id": "item_lava_crystal",
+      "name": "Tinh thể nham thạch",
+      "description": "Tinh thể nóng bỏng từ núi lửa.",
+      "type": "material",
+      "stackable": true
+    },
+    {
+      "id": "item_fire_crystal",
+      "name": "Tinh thể lửa",
+      "description": "Tinh thể chứa năng lượng lửa.",
+      "type": "material",
+      "stackable": true
+    },
+    {
+      "id": "dragon_pet",
+      "name": "Rồng con nuôi",
+      "description": "Thú cưng đặc biệt, phần thưởng anh hùng.",
+      "type": "pet",
+      "stackable": false
+    },
+    {
+      "id": "dragon_armor",
+      "name": "Giáp rồng",
+      "description": "Giáp chế tác từ vảy rồng.",
+      "type": "armor",
+      "stackable": false
+    },
+    {
+      "id": "dragon_sword",
+      "name": "Kiếm long nguyên",
+      "description": "Kiếm huyền thoại chế tác từ rồng.",
+      "type": "weapon",
+      "stackable": false
+    },
+    {
+      "id": "hero_medal",
+      "name": "Huy chương anh hùng",
+      "description": "Vinh danh người cứu vùng đất.",
+      "type": "quest",
+      "stackable": false
+    },
+    {
+      "id": "gloves_hunter",
+      "name": "Găng tay thợ săn",
+      "description": "Găng tay đặc biệt cho thợ săn.",
+      "type": "armor",
+      "stackable": false
+    },
+    {
+      "id": "ring_merchant",
+      "name": "Nhẫn may mắn của thương nhân",
+      "description": "Nhẫn mang lại may mắn cho thương nhân.",
+      "type": "accessory",
+      "stackable": false
+    },
+    {
+      "id": "amulet_protection",
+      "name": "Bùa hộ mệnh",
+      "description": "Bùa bảo vệ khỏi nguy hiểm.",
+      "type": "accessory",
+      "stackable": false
+    },
+    {
+      "id": "ancient_amulet",
+      "name": "Bùa hộ mệnh cổ đại",
+      "description": "Bùa cổ đại chứa sức mạnh bí ẩn.",
+      "type": "accessory",
+      "stackable": false
+    },
+    {
+      "id": "shadow_cloak",
+      "name": "Áo choàng bóng tối",
+      "description": "Áo choàng giúp ẩn thân.",
+      "type": "armor",
+      "stackable": false
+    },
+    {
+      "id": "staff_of_disruption",
+      "name": "Trượng phá hủy",
+      "description": "Trượng phép mạnh mẽ.",
+      "type": "weapon",
+      "stackable": false
+    },
+    {
+      "id": "magic_nullifier",
+      "name": "Bùa vô hiệu hóa phép thuật",
+      "description": "Vật phẩm chống phép thuật.",
+      "type": "quest",
+      "stackable": false
+    },
+    {
+      "id": "dragon_elixir",
+      "name": "Thuốc tiên rồng",
+      "description": "Thuốc tăng sức mạnh đặc biệt.",
+      "type": "consumable",
+      "stackable": true
+    },
+    {
+      "id": "mp_elixir",
+      "name": "Thuốc tiên MP",
+      "description": "Hồi phục MP cực mạnh.",
+      "type": "consumable",
+      "stackable": true
+    },
+    {
+      "id": "hp_elixir",
+      "name": "Thuốc tiên HP",
+      "description": "Hồi phục HP cực mạnh.",
+      "type": "consumable",
+      "stackable": true
+    },
+    {
+      "id": "wisdom_scroll",
+      "name": "Cuộn giấy trí tuệ",
+      "description": "Tăng trí tuệ khi sử dụng.",
+      "type": "consumable",
+      "stackable": true
+    },
+    {
+      "id": "poison_dagger",
+      "name": "Dao găm tẩm độc",
+      "description": "Vũ khí tẩm độc mạnh.",
+      "type": "weapon",
+      "stackable": false
+    },
+    {
+      "id": "armor_forest",
+      "name": "Áo giáp da thú rừng già",
+      "description": "Giáp đặc biệt từ rừng già.",
+      "type": "armor",
+      "stackable": false
+    },
+    {
+      "id": "helmet_lava",
+      "name": "Mũ giáp nham thạch",
+      "description": "Mũ giáp chế tác từ nham thạch.",
+      "type": "helmet",
+      "stackable": false
+    },
+    {
+      "id": "guardian_essence",
+      "name": "Tinh chất vệ binh rồng",
+      "description": "Tinh chất từ vệ binh rồng.",
+      "type": "material",
+      "stackable": true
+    },
+    {
+      "id": "dragon_tooth",
+      "name": "Răng rồng",
+      "description": "Răng rồng cổ đại.",
+      "type": "material",
+      "stackable": true
+    },
+    {
+      "id": "queen_pincer",
+      "name": "Kìm nữ hoàng bọ cạp",
+      "description": "Kìm của nữ hoàng bọ cạp.",
+      "type": "material",
+      "stackable": true
+    },
+    {
+      "id": "scorpion_shell",
+      "name": "Vỏ bọ cạp",
+      "description": "Vỏ ngoài của bọ cạp.",
+      "type": "material",
+      "stackable": true
+    },
+    { "id": "snake_skin", "name": "Da rắn", "description": "Da rắn sa mạc.", "type": "material", "stackable": true },
+    {
+      "id": "fire_scale",
+      "name": "Vảy lửa",
+      "description": "Vảy của thằn lằn lửa.",
+      "type": "material",
+      "stackable": true
+    },
+    {
+      "id": "lava_mucus",
+      "name": "Chất nhầy dung nham",
+      "description": "Chất nhầy từ sên dung nham.",
+      "type": "material",
+      "stackable": true
+    },
+    {
+      "id": "dark_robe",
+      "name": "Áo choàng bóng tối",
+      "description": "Áo choàng của tín đồ bóng tối.",
+      "type": "armor",
+      "stackable": false
+    },
+    {
+      "id": "dark_staff",
+      "name": "Trượng bóng tối",
+      "description": "Trượng phép của giáo chủ bóng tối.",
+      "type": "weapon",
+      "stackable": false
+    },
+    {
+      "id": "shadow_essence",
+      "name": "Tinh chất bóng tối",
+      "description": "Tinh chất từ quái thú bóng tối.",
+      "type": "material",
+      "stackable": true
+    },
+    {
+      "id": "corrupted_scale",
+      "name": "Vảy rồng bị tha hóa",
+      "description": "Vảy rồng bị ảnh hưởng bởi ma thuật đen.",
+      "type": "material",
+      "stackable": true
+    },
+    {
+      "id": "dragon_heart",
+      "name": "Trái tim rồng",
+      "description": "Trái tim rồng cổ đại.",
+      "type": "quest",
+      "stackable": false
+    },
+    {
+      "id": "dragon_heart_fragment",
+      "name": "Mảnh tim rồng",
+      "description": "Mảnh vỡ từ trái tim rồng.",
+      "type": "material",
+      "stackable": true
+    },
+    {
+      "id": "world_essence",
+      "name": "Tinh hoa thế giới",
+      "description": "Tinh túy năng lượng thế giới.",
+      "type": "material",
+      "stackable": true
+    },
+    {
+      "id": "rare_material",
+      "name": "Nguyên liệu hiếm",
+      "description": "Nguyên liệu quý hiếm từ boss.",
+      "type": "material",
+      "stackable": true
+    },
+    {
+      "id": "wolf_pelt",
+      "name": "Da sói",
+      "description": "Da của sói rừng, có thể dùng để chế tạo trang bị.",
+      "type": "material",
+      "price": 50,
+      "sellPrice": 20,
+      "stackable": true
+    },
+    {
+      "id": "magic_herb",
+      "name": "Thảo dược ma thuật",
+      "description": "Thảo dược có tính ma thuật, dùng để chế thuốc.",
+      "type": "material",
+      "price": 80,
+      "sellPrice": 30,
+      "stackable": true
+    },
+    {
+      "id": "ancient_relic",
+      "name": "Cổ vật bí ẩn",
+      "description": "Cổ vật có nguồn gốc bí ẩn, chứa năng lượng cổ xưa.",
+      "type": "quest",
+      "price": 500,
+      "sellPrice": 200,
+      "stackable": false
+    },
+    {
+      "id": "bear_pelt",
+      "name": "Da gấu",
+      "description": "Da của gấu rừng, dày và ấm, dùng để chế tạo trang bị.",
+      "type": "material",
+      "price": 100,
+      "sellPrice": 40,
+      "stackable": true
+    },
+    {
+      "id": "ancient_wood",
+      "name": "Gỗ cổ thụ",
+      "description": "Gỗ từ cây cổ thụ hàng trăm năm tuổi, chứa năng lượng tự nhiên.",
+      "type": "material",
+      "price": 120,
+      "sellPrice": 50,
+      "stackable": true
+    },
+    {
+      "id": "water_sample",
+      "name": "Mẫu nước kỳ lạ",
+      "description": "Mẫu nước có màu sắc và tính chất kỳ lạ từ hồ.",
+      "type": "quest",
+      "price": 30,
+      "sellPrice": 10,
+      "stackable": true
+    },
+    {
+      "id": "monster_scale",
+      "name": "Vảy quái vật",
+      "description": "Vảy từ quái vật nước, có ánh sáng lấp lánh.",
+      "type": "material",
+      "price": 200,
+      "sellPrice": 80,
+      "stackable": true
+    },
+    {
+      "id": "necromancer_symbol",
+      "name": "Biểu tượng của Pháp sư Tử Linh",
+      "description": "Biểu tượng ma thuật của Pháp sư Tử Linh, chứa năng lượng đen tối.",
+      "type": "quest",
+      "price": 300,
+      "sellPrice": 120,
+      "stackable": false
+    },
+    {
+      "id": "ancient_script",
+      "name": "Chữ viết cổ",
+      "description": "Mảnh giấy da chứa chữ viết cổ xưa, có thể giải mã lời nguyền.",
+      "type": "quest",
+      "price": 250,
+      "sellPrice": 100,
+      "stackable": true
+    },
+    {
+      "id": "purification_herb",
+      "name": "Thảo mộc thanh tẩy",
+      "description": "Thảo mộc hiếm có khả năng thanh tẩy năng lượng đen tối.",
+      "type": "material",
+      "price": 150,
+      "sellPrice": 60,
+      "stackable": true
+    },
+    {
+      "id": "slime_essence",
+      "name": "Tinh chất slime",
+      "description": "Tinh chất từ slime, dùng để chế tạo thuốc và dụng cụ ma thuật.",
+      "type": "material",
+      "price": 40,
+      "sellPrice": 15,
+      "stackable": true
+    },
+    {
+      "id": "rare_herb",
+      "name": "Thảo dược hiếm",
+      "description": "Thảo dược cực kỳ hiếm, chỉ mọc ở những nơi có năng lượng ma thuật cao.",
+      "type": "material",
+      "price": 200,
+      "sellPrice": 80,
+      "stackable": true
+    },
+
+    {
+      "id": "s_tansu_1",
+      "name": "Trượng Gỗ",
+      "description": "Trượng phép đơn giản làm từ gỗ, dành cho pháp sư tập sự",
+      "type": "weapon",
+      "subType": "staff",
+      "tier": "Tân Thủ",
+      "stats": {
+        "intelligence": 5,
+        "mp": 10,
+        "spellPower": 3
+      },
+      "statRange": {
+        "intelligence": [4, 6],
+        "mp": [8, 12],
+        "spellPower": [2, 4]
+      },
+      "price": 60,
+      "sellPrice": 18,
+      "stackable": false,
+      "requirements": {
+        "level": 1,
+        "class": ["mage", "healer"]
+      },
+      "elementBoost": {
+        "fire": 5,
+        "ice": 5
+      }
+    },
+
+    {
+      "id": "s_da_1",
+      "name": "Trượng Xương",
+      "description": "Trượng phép làm từ xương thú và đá ma thuật",
+      "type": "weapon",
+      "subType": "staff",
+      "tier": "Da",
+      "stats": {
+        "intelligence": 8,
+        "mp": 15,
+        "spellPower": 6
+      },
+      "statRange": {
+        "intelligence": [7, 9],
+        "mp": [12, 18],
+        "spellPower": [5, 7]
+      },
+      "price": 140,
+      "sellPrice": 42,
+      "stackable": false,
+      "requirements": {
+        "level": 3,
+        "class": ["mage", "healer"]
+      },
+      "elementBoost": {
+        "fire": 8,
+        "ice": 8
+      }
+    },
+
+    {
+      "id": "s_dong_1",
+      "name": "Trượng Đồng",
+      "description": "Trượng phép đúc từ đồng nguyên chất, dẫn năng lượng ma thuật tốt",
+      "type": "weapon",
+      "subType": "staff",
+      "tier": "Đồng",
+      "stats": {
+        "intelligence": 12,
+        "mp": 25,
+        "spellPower": 10
+      },
+      "statRange": {
+        "intelligence": [10, 14],
+        "mp": [20, 30],
+        "spellPower": [8, 12]
+      },
+      "price": 280,
+      "sellPrice": 84,
+      "stackable": false,
+      "requirements": {
+        "level": 5,
+        "class": ["mage", "healer"]
+      },
+      "elementBoost": {
+        "fire": 10,
+        "ice": 10
+      }
+    },
+
+    {
+      "id": "s_bac_1",
+      "name": "Trượng Bạc",
+      "description": "Trượng phép làm từ bạc tinh khiết, khuếch đại ma thuật mạnh mẽ",
+      "type": "weapon",
+      "subType": "staff",
+      "tier": "Bạc",
+      "stats": {
+        "intelligence": 18,
+        "mp": 40,
+        "spellPower": 15
+      },
+      "statRange": {
+        "intelligence": [16, 20],
+        "mp": [35, 45],
+        "spellPower": [13, 17]
+      },
+      "price": 550,
+      "sellPrice": 165,
+      "stackable": false,
+      "requirements": {
+        "level": 10,
+        "class": ["mage", "healer"]
+      },
+      "elementBoost": {
+        "fire": 15,
+        "ice": 15
+      }
+    },
+
+    {
+      "id": "s_vang_1",
+      "name": "Trượng Vàng",
+      "description": "Trượng phép làm từ vàng pha hợp kim đặc biệt, tăng cường sức mạnh phép thuật",
+      "type": "weapon",
+      "subType": "staff",
+      "tier": "Vàng",
+      "stats": {
+        "intelligence": 25,
+        "mp": 60,
+        "spellPower": 22
+      },
+      "statRange": {
+        "intelligence": [22, 28],
+        "mp": [50, 70],
+        "spellPower": [20, 24]
+      },
+      "price": 1100,
+      "sellPrice": 330,
+      "stackable": false,
+      "requirements": {
+        "level": 15,
+        "class": ["mage", "healer"]
+      },
+      "elementBoost": {
+        "fire": 20,
+        "ice": 20
+      }
+    },
+
+    {
+      "id": "s_bachkim_1",
+      "name": "Trượng Bạch Kim",
+      "description": "Trượng phép quý hiếm làm từ bạch kim, phóng thích ma thuật mạnh mẽ",
+      "type": "weapon",
+      "subType": "staff",
+      "tier": "Bạch Kim",
+      "stats": {
+        "intelligence": 35,
+        "mp": 85,
+        "spellPower": 30
+      },
+      "statRange": {
+        "intelligence": [32, 38],
+        "mp": [75, 95],
+        "spellPower": [28, 32]
+      },
+      "price": 2200,
+      "sellPrice": 660,
+      "stackable": false,
+      "requirements": {
+        "level": 20,
+        "class": ["mage", "healer"]
+      },
+      "elementBoost": {
+        "fire": 25,
+        "ice": 25
+      }
+    },
+
+    {
+      "id": "s_kimcuong_1",
+      "name": "Trượng Kim Cương",
+      "description": "Trượng phép siêu hiếm đính kim cương, khuếch đại ma thuật gấp nhiều lần",
+      "type": "weapon",
+      "subType": "staff",
+      "tier": "Kim Cương",
+      "stats": {
+        "intelligence": 45,
+        "mp": 120,
+        "spellPower": 40
+      },
+      "statRange": {
+        "intelligence": [42, 48],
+        "mp": [100, 140],
+        "spellPower": [38, 42]
+      },
+      "price": 5500,
+      "sellPrice": 1650,
+      "stackable": false,
+      "requirements": {
+        "level": 30,
+        "class": ["mage", "healer"]
+      },
+      "elementBoost": {
+        "fire": 30,
+        "ice": 30
+      }
+    },
+
+    {
+      "id": "s_hacdien_1",
+      "name": "Trượng Hắc Diện",
+      "description": "Trượng phép huyền thoại làm từ vật liệu ngoài hành tinh, sức mạnh khó lường",
+      "type": "weapon",
+      "subType": "staff",
+      "tier": "Hắc Diện",
+      "stats": {
+        "intelligence": 60,
+        "mp": 160,
+        "spellPower": 55
+      },
+      "statRange": {
+        "intelligence": [55, 65],
+        "mp": [140, 180],
+        "spellPower": [50, 60]
+      },
+      "price": 11000,
+      "sellPrice": 3300,
+      "stackable": false,
+      "requirements": {
+        "level": 40,
+        "class": ["mage", "healer"]
+      },
+      "elementBoost": {
+        "fire": 40,
+        "ice": 40
+      }
+    },
+
+    {
+      "id": "g_tansu_1",
+      "name": "Găng Vải",
+      "description": "Găng tay vải đơn giản dùng để tập võ",
+      "type": "weapon",
+      "subType": "gloves",
+      "tier": "Tân Thủ",
+      "stats": {
+        "agility": 3,
+        "attack": 6
+      },
+      "statRange": {
+        "agility": [2, 4],
+        "attack": [4, 8]
+      },
+      "price": 45,
+      "sellPrice": 14,
+      "stackable": false,
+      "requirements": {
+        "level": 1,
+        "class": ["monk", "fighter"]
+      },
+      "comboBoost": 5
+    },
+
+    {
+      "id": "g_da_1",
+      "name": "Găng Da",
+      "description": "Găng tay làm từ da thú chắc chắn, tăng lực đòn",
+      "type": "weapon",
+      "subType": "gloves",
+      "tier": "Da",
+      "stats": {
+        "agility": 6,
+        "attack": 12
+      },
+      "statRange": {
+        "agility": [5, 7],
+        "attack": [10, 14]
+      },
+      "price": 110,
+      "sellPrice": 33,
+      "stackable": false,
+      "requirements": {
+        "level": 3,
+        "class": ["monk", "fighter"]
+      },
+      "comboBoost": 8
+    },
+
+    {
+      "id": "g_dong_1",
+      "name": "Găng Đồng",
+      "description": "Găng tay có lớp đồng gia cố, tăng sức mạnh đòn đánh",
+      "type": "weapon",
+      "subType": "gloves",
+      "tier": "Đồng",
+      "stats": {
+        "agility": 9,
+        "attack": 18
+      },
+      "statRange": {
+        "agility": [8, 10],
+        "attack": [16, 20]
+      },
+      "price": 230,
+      "sellPrice": 69,
+      "stackable": false,
+      "requirements": {
+        "level": 5,
+        "class": ["monk", "fighter"]
+      },
+      "comboBoost": 10
+    },
+
+    {
+      "id": "g_bac_1",
+      "name": "Găng Bạc",
+      "description": "Găng tay được đúc từ bạc tinh khiết, tăng tốc độ và sức mạnh",
+      "type": "weapon",
+      "subType": "gloves",
+      "tier": "Bạc",
+      "stats": {
+        "agility": 14,
+        "attack": 26
+      },
+      "statRange": {
+        "agility": [12, 16],
+        "attack": [23, 29]
+      },
+      "price": 480,
+      "sellPrice": 144,
+      "stackable": false,
+      "requirements": {
+        "level": 10,
+        "class": ["monk", "fighter"]
+      },
+      "comboBoost": 15
+    },
+
+    {
+      "id": "g_vang_1",
+      "name": "Găng Vàng",
+      "description": "Găng tay được đúc từ vàng pha hợp kim đặc biệt, tăng sức mạnh đòn đánh",
+      "type": "weapon",
+      "subType": "gloves",
+      "tier": "Vàng",
+      "stats": {
+        "agility": 20,
+        "attack": 30
+      },
+      "statRange": {
+        "agility": [18, 22],
+        "attack": [35, 45]
+      },
+      "price": 950,
+      "sellPrice": 285,
+      "stackable": false,
+      "requirements": {
+        "level": 15,
+        "class": ["monk", "fighter"]
+      },
+      "comboBoost": 20
+    },
+
+    {
+      "id": "g_bachkim_1",
+      "name": "Găng Bạch Kim",
+      "description": "Găng tay quý hiếm làm từ bạch kim, tăng sức mạnh và tốc độ đòn đánh",
+      "type": "weapon",
+      "subType": "gloves",
+      "tier": "Bạch Kim",
+      "stats": {
+        "agility": 28,
+        "attack": 55
+      },
+      "statRange": {
+        "agility": [25, 30],
+        "attack": [50, 60]
+      },
+      "price": 1900,
+      "sellPrice": 570,
+      "stackable": false,
+      "requirements": {
+        "level": 20,
+        "class": ["monk", "fighter"]
+      },
+      "comboBoost": 25
+    },
+
+    {
+      "id": "g_kimcuong_1",
+      "name": "Găng Kim Cương",
+      "description": "Găng tay siêu hiếm được đính kim cương, tăng sức mạnh và tốc độ đòn đánh",
+      "type": "weapon",
+      "subType": "gloves",
+      "tier": "Kim Cương",
+      "stats": {
+        "agility": 38,
+        "attack": 75
+      },
+      "statRange": {
+        "agility": [35, 40],
+        "attack": [65, 85]
+      },
+      "price": 4800,
+      "sellPrice": 1440,
+      "stackable": false,
+      "requirements": {
+        "level": 30,
+        "class": ["monk", "fighter"]
+      },
+      "comboBoost": 30
+    },
+
+    {
+      "id": "g_hacdien_1",
+      "name": "Găng Hắc Diện",
+      "description": "Găng tay huyền thoại làm từ vật liệu ngoài hành tinh, sức mạnh khó lường",
+      "type": "weapon",
+      "subType": "gloves",
+      "tier": "Hắc Diện",
+      "stats": {
+        "agility": 50,
+        "attack": 105
+      },
+      "statRange": {
+        "agility": [48, 52],
+        "attack": [100, 110]
+      },
+      "price": 9600,
+      "sellPrice": 2880,
+      "stackable": false,
+      "requirements": {
+        "level": 40,
+        "class": ["monk", "fighter"]
+      },
+      "comboBoost": 40
+    },
+
+    {
+      "id": "cm_tansu_1",
+      "name": "Áo Choàng Học Viên",
+      "description": "Áo choàng dành cho học viên pháp sư mới vào nghề",
+      "type": "cape",
+      "subType": "mage_robe",
+      "tier": "Tân Thủ",
+      "stats": {
+        "intelligence": 3,
+        "mp": 15,
+        "spellPower": 2
+      },
+      "statRange": {
+        "intelligence": [2, 4],
+        "mp": [10, 20],
+        "spellPower": [1, 3]
+      },
+      "price": 70,
+      "sellPrice": 21,
+      "stackable": false,
+      "requirements": {
+        "level": 1,
+        "class": ["mage", "healer"]
+      },
+      "elementBoost": {
+        "all": 3
+      }
+    },
+
+    {
+      "id": "cm_bac_1",
+      "name": "Áo Choàng Pháp Sư Bạc",
+      "description": "Áo choàng thêu chỉ bạc dành cho pháp sư trung cấp",
+      "type": "cape",
+      "subType": "mage_robe",
+      "tier": "Bạc",
+      "stats": {
+        "intelligence": 12,
+        "mp": 50,
+        "spellPower": 10
+      },
+      "statRange": {
+        "intelligence": [10, 14],
+        "mp": [45, 55],
+        "spellPower": [8, 12]
+      },
+      "price": 600,
+      "sellPrice": 180,
+      "stackable": false,
+      "requirements": {
+        "level": 10,
+        "class": ["mage", "healer"]
+      },
+      "elementBoost": {
+        "all": 10
+      }
+    },
+
+    {
+      "id": "cm_vang_1",
+      "name": "Áo Choàng Pháp Sư Vàng",
+      "description": "Áo choàng thêu chỉ vàng dành cho pháp sư cao cấp",
+      "type": "cape",
+      "subType": "mage_robe",
+      "tier": "Vàng",
+      "stats": {
+        "intelligence": 18,
+        "mp": 80,
+        "spellPower": 15
+      },
+      "statRange": {
+        "intelligence": [16, 20],
+        "mp": [70, 90],
+        "spellPower": [13, 17]
+      },
+      "price": 1200,
+      "sellPrice": 360,
+      "stackable": false,
+      "requirements": {
+        "level": 15,
+        "class": ["mage", "healer"]
+      },
+      "elementBoost": {
+        "all": 15
+      }
+    },
+
+    {
+      "id": "cv_tansu_1",
+      "name": "Áo Võ Sinh",
+      "description": "Áo võ dành cho võ sinh mới vào nghề",
+      "type": "cape",
+      "subType": "monk_robe",
+      "tier": "Tân Thủ",
+      "stats": {
+        "agility": 3,
+        "speed": 2,
+        "defense": 1
+      },
+      "statRange": {
+        "agility": [2, 4],
+        "speed": [1, 3],
+        "defense": [0, 2]
+      },
+      "price": 60,
+      "sellPrice": 18,
+      "stackable": false,
+      "requirements": {
+        "level": 1,
+        "class": ["monk", "fighter"]
+      },
+      "comboBoost": 3
+    },
+
+    {
+      "id": "cv_bac_1",
+      "name": "Áo Võ Sư Bạc",
+      "description": "Áo võ thêu chỉ bạc dành cho võ sư trung cấp",
+      "type": "cape",
+      "subType": "monk_robe",
+      "tier": "Bạc",
+      "stats": {
+        "agility": 10,
+        "speed": 8,
+        "defense": 5
+      },
+      "statRange": {
+        "agility": [8, 12],
+        "speed": [6, 10],
+        "defense": [4, 6]
+      },
+      "price": 500,
+      "sellPrice": 150,
+      "stackable": false,
+      "requirements": {
+        "level": 10,
+        "class": ["monk", "fighter"]
+      },
+      "comboBoost": 10
+    },
+
+    {
+      "id": "cv_vang_1",
+      "name": "Áo Võ Sư Vàng",
+      "description": "Áo võ thêu chỉ vàng dành cho võ sư cao cấp",
+      "type": "cape",
+      "subType": "monk_robe",
+      "tier": "Vàng",
+      "stats": {
+        "agility": 15,
+        "speed": 12,
+        "defense": 8
+      },
+      "statRange": {
+        "agility": [13, 17],
+        "speed": [10, 14],
+        "defense": [7, 9]
+      },
+      "price": 1000,
+      "sellPrice": 300,
+      "stackable": false,
+      "requirements": {
+        "level": 15,
+        "class": ["monk", "fighter"]
+      },
+      "comboBoost": 15
+    }
+  ],
+  "equipmentTiers": [
+    {
+      "id": "tansu",
+      "name": "Tân Thủ",
+      "dropChance": 50,
+      "minLevel": 1
+    },
+    {
+      "id": "da",
+      "name": "Da",
+      "dropChance": 40,
+      "minLevel": 3
+    },
+    {
+      "id": "dong",
+      "name": "Đồng",
+      "dropChance": 30,
+      "minLevel": 5
+    },
+    {
+      "id": "bac",
+      "name": "Bạc",
+      "dropChance": 20,
+      "minLevel": 10
+    },
+    {
+      "id": "vang",
+      "name": "Vàng",
+      "dropChance": 12,
+      "minLevel": 15
+    },
+    {
+      "id": "bachkim",
+      "name": "Bạch Kim",
+      "dropChance": 7,
+      "minLevel": 20
+    },
+    {
+      "id": "kimcuong",
+      "name": "Kim Cương",
+      "dropChance": 3,
+      "minLevel": 30
+    },
+    {
+      "id": "hacdien",
+      "name": "Hắc Diện",
+      "dropChance": 1,
+      "minLevel": 40
+    }
+  ],
+  "hiddenTraits": [
+    {
+      "id": "hoalong",
+      "name": "Hỏa Long",
+      "effects": {
+        "attack": 15
+      },
+      "description": "Sức mạnh của rồng lửa chảy trong trang bị"
+    },
+    {
+      "id": "banglong",
+      "name": "Băng Long",
+      "effects": {
+        "intelligence": 5,
+        "defense": 8
+      },
+      "description": "Sức mạnh của rồng băng bảo vệ người sở hữu"
+    },
+    {
+      "id": "phonglong",
+      "name": "Phong Long",
+      "effects": {
+        "speed": 10,
+        "agility": 8
+      },
+      "description": "Tốc độ của rồng gió thổi qua trang bị"
+    },
+    {
+      "id": "tholong",
+      "name": "Thổ Long",
+      "effects": {
+        "defense": 10,
+        "vitality": 10
+      },
+      "description": "Sức bền của rồng đất thấm vào trang bị"
+    },
+    {
+      "id": "luclong",
+      "name": "Lục Long",
+      "effects": {
+        "vitality": 5,
+        "hp": 30,
+        "mp": 20
+      },
+      "description": "Sinh lực của rồng xanh hồi phục người sở hữu"
+    }
+  ],
+  "setBonus": {
+    "hoalong": {
+      "name": "Bộ Hỏa Long",
+      "requiredCount": 5,
+      "effects": {
+        "attack": 50,
+        "skillDamage": 0.2
+      },
+      "description": "Đòn tấn công của bạn thiêu đốt kẻ địch, gây thêm 20% sát thương kỹ năng"
+    },
+    "banglong": {
+      "name": "Bộ Băng Long",
+      "requiredCount": 5,
+      "effects": {
+        "intelligence": 15,
+        "defense": 25,
+        "magicDefense": 0.2
+      },
+      "description": "Làn da của bạn trở nên cứng cáp, giảm 20% sát thương phép thuật"
+    },
+    "phonglong": {
+      "name": "Bộ Phong Long",
+      "requiredCount": 5,
+      "effects": {
+        "speed": 30,
+        "agility": 15,
+        "dodgeChance": 0.1
+      },
+      "description": "Tốc độ phi thường cho phép bạn né tránh đòn tấn công với xác suất 10%"
+    },
+    "tholong": {
+      "name": "Bộ Thổ Long",
+      "requiredCount": 5,
+      "effects": {
+        "defense": 30,
+        "vitality": 20,
+        "damageReduction": 0.15
+      },
+      "description": "Cơ thể của bạn trở nên cứng cáp, giảm 15% sát thương nhận vào"
+    },
+    "luclong": {
+      "name": "Bộ Lục Long",
+      "requiredCount": 5,
+      "effects": {
+        "vitality": 15,
+        "hpRegen": 5,
+        "mpRegen": 3
+      },
+      "description": "Sinh lực dồi dào, hồi 5 HP và 3 MP mỗi lượt"
+    }
+  },
+  
+  "chests": [
+    {
+      "id": "uncommon_chest",
+      "name": "Rương Không Phổ Biến",
+      "description": "Rương chứa vật phẩm không phổ biến",
+      "type": "chest",
+      "rarity": "uncommon",
+      "price": 500,
+      "sellPrice": 100,
+      "stackable": true,
+      "loot": {
+        "item_chance": 100,
+        "gold_min": 50,
+        "gold_max": 200
+      }
+    },
+    {
+      "id": "rare_chest",
+      "name": "Rương Hiếm",
+      "description": "Rương chứa vật phẩm hiếm",
+      "type": "chest",
+      "rarity": "rare",
+      "price": 1000,
+      "sellPrice": 200,
+      "stackable": true,
+      "loot": {
+        "item_chance": 100,
+        "gold_min": 100,
+        "gold_max": 500
+      }
+    },
+    {
+      "id": "epic_chest",
+      "name": "Rương Sử Thi",
+      "description": "Rương chứa vật phẩm sử thi",
+      "type": "chest",
+      "rarity": "epic",
+      "price": 2000,
+      "sellPrice": 500,
+      "stackable": true,
+      "loot": {
+        "item_chance": 100,
+        "gold_min": 200,
+        "gold_max": 1000
+      }
+    },
+    {
+      "id": "legendary_chest",
+      "name": "Rương Huyền Thoại",
+      "description": "Rương chứa vật phẩm huyền thoại",
+      "type": "chest",
+      "rarity": "legendary",
+      "price": 5000,
+      "sellPrice": 1000,
+      "stackable": true,
+      "loot": {
+        "item_chance": 100,
+        "gold_min": 500,
+        "gold_max": 2000
+      }
+    },
+    {
+      "id": "skill_point",
+      "name": "Điểm Kỹ Năng",
+      "description": "Dùng để nâng cấp kỹ năng",
+      "type": "consumable",
+      "effects": {
+        "special": "skill_point"
+      },
+      "price": 2000,
+      "sellPrice": 0,
+      "stackable": true
+    },
+    {
+      "id": "skill_point_fragment",
+      "name": "Mảnh Điểm Kỹ Năng",
+      "description": "Thu thập 5 mảnh để tạo thành 1 điểm kỹ năng",
+      "type": "material",
+      "price": 500,
+      "sellPrice": 100,
+      "stackable": true,
+      "maxStack": 99
+    }
+  ]
+}

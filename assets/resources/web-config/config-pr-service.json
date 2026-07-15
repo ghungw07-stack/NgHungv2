@@ -1,0 +1,17 @@
+{
+  "activePr": false,
+  "prObjects": [
+    {
+      "ten": "Form 1",
+      "idZalo": "-1",
+      "noiDung": "Test 1",
+      "hinhAnh": [],
+      "video": [],
+      "link": {},
+      "thoiGianGui": ["03:00", "05:00", "08:00", "11:00", "13:00", "16:00", "19:00", "22:00"],
+      "customContent": {}
+    }
+  ],
+  "selectedGroups": {},
+  "selectedFriends": {}
+}

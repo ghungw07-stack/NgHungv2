@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="referrer" content="no-referrer">
+    <title>H H H - Zalo Bot - Gửi tin nhắn riêng</title>
+    <link rel="stylesheet" href="/styles/base/main.css" />
+    <link rel="stylesheet" href="/styles/base/theme.css" />
+    <link rel="stylesheet" href="/styles/base/body.css" />
+    <link rel="stylesheet" href="/styles/base/header.css" />
+    <link rel="stylesheet" href="/styles/base/footer.css" />
+    <link rel="stylesheet" href="/styles/pages/send-private-message.css" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400&display=swap"
+      rel="stylesheet"
+    />
+    <script src="/socket.io/socket.io.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" />
+    <script src="/scripts/core/config.js"></script>
+  </head>
+  <body>
+    <div class="menu-toggle" id="menuToggle">
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+    </div>
+
+    <div class="color-change" id="colorChange">
+      <i class="fas fa-palette"></i>
+    </div>
+
+    <nav class="side-menu" id="sideMenu"></nav>
+
+    <div class="parallax-container">
+      <header>
+        <div class="inner">
+          <div class="main">
+            <h2 id="pageTitle" class="title">H H H - Zalo Bot - Gửi tin nhắn riêng</h2>
+          </div>
+        </div>
+      </header>
+
+      <main>
+        <div class="container">
+          <!-- Phần chọn bot -->
+          <div class="bot-selector-section">
+            <h3>Chọn Bot để gửi tin nhắn</h3>
+            <div class="bot-selector">
+              <select id="botSelector" class="bot-select">
+                <option value="">-- Chọn bot của bạn --</option>
+              </select>
+              <button id="refreshBotsBtn" class="btn-refresh" title="Làm mới danh sách bot">
+                <i class="fas fa-sync-alt"></i>
+              </button>
+            </div>
+            <div id="selectedBotInfo" class="selected-bot-info" style="display: none;">
+              <div class="bot-info-content">
+                <img id="selectedBotAvatar" class="bot-avatar" src="" alt="Bot Avatar" style="display: none;" />
+                <div class="bot-avatar placeholder" id="selectedBotAvatarPlaceholder" style="display: none;"></div>
+                <div class="bot-details">
+                  <div class="bot-name" id="selectedBotName"></div>
+                  <div class="bot-id" id="selectedBotId"></div>
+                  <div class="bot-status" id="selectedBotStatus"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Phần tìm nhóm -->
+          <div class="group-search-section">
+            <h3>Tìm nhóm</h3>
+            <div class="group-search">
+              <input 
+                type="text" 
+                id="groupInput" 
+                class="group-input" 
+                placeholder="Nhập ID nhóm hoặc link nhóm (ví dụ: 123456789 hoặc https://zalo.me/g/xxxxxx)"
+              />
+              <div class="input-hint">
+                <i class="fas fa-info-circle"></i>
+                <span><strong>Lưu ý:</strong> Hệ thống sẽ thử lấy thành viên từ link trước. Nếu không lấy được đầy đủ, bot cần tham gia nhóm để quét toàn bộ thành viên. Với ID nhóm, bot phải tham gia nhóm trước.</span>
+              </div>
+              <button id="scanGroupBtn" class="btn-scan" disabled>
+                <i class="fas fa-search"></i> Quét thành viên
+              </button>
+            </div>
+            <div id="groupInfo" class="group-info" style="display: none;">
+              <div class="group-info-content">
+                <span id="groupName" class="group-name"></span>
+                <span id="groupMemberCount" class="group-member-count"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Phần nhập tin nhắn -->
+          <div class="message-section">
+            <h3>Nội dung tin nhắn</h3>
+            <textarea 
+              id="messageContent" 
+              class="message-textarea" 
+              rows="4" 
+              placeholder="Nhập nội dung tin nhắn cần gửi..."
+            ></textarea>
+
+            <div class="file-row">
+              <div class="file-upload">
+                <input 
+                  type="file" 
+                  id="fileInputPrivate" 
+                  multiple 
+                  accept="image/*,video/*"
+                />
+                <label for="fileInputPrivate">
+                  <i class="fas fa-paperclip"></i> 
+                </label>
+              </div>
+              <div id="fileListPrivate" class="attachments"></div>
+            </div>
+          </div>
+
+          <!-- Phần danh sách thành viên -->
+          <div class="members-section">
+            <div class="members-header">
+              <h3>Danh sách thành viên</h3>
+              <div class="members-actions">
+                <span id="selectedCount" class="selected-count">Đã chọn: 0</span>
+                <button id="selectAllBtn" class="btn-action">
+                  <i class="fas fa-check-double"></i> Chọn tất cả
+                </button>
+                <button id="unselectAllBtn" class="btn-action">
+                  <i class="fas fa-times"></i> Bỏ chọn tất cả
+                </button>
+                <button id="sendSelectedBtn" class="btn-send" disabled>
+                  <i class="fas fa-paper-plane"></i> Gửi cho người đã chọn
+                </button>
+              </div>
+            </div>
+            <div class="members-search">
+              <input 
+                type="text" 
+                id="membersSearchInput" 
+                class="search-input" 
+                placeholder="Tìm kiếm theo tên hoặc ID..."
+              />
+              <i class="fas fa-search search-icon"></i>
+            </div>
+            <div id="membersList" class="members-list">
+              <div class="empty-state">
+                <i class="fas fa-users"></i>
+                <p>Chưa có thành viên nào. Vui lòng quét thành viên từ nhóm.</p>
+              </div>
+            </div>
+            <div class="members-pagination" id="membersPagination" style="display: none;">
+              <button class="pagination-btn" id="prevPageBtn" disabled>
+                <i class="fas fa-chevron-left"></i> Trang trước
+              </button>
+              <span class="pagination-info" id="paginationInfo">Trang 1 / 1</span>
+              <button class="pagination-btn" id="nextPageBtn" disabled>
+                Trang sau <i class="fas fa-chevron-right"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <footer>
+        <div class="ticker">
+          <div class="inner-footer">
+            <span class="ticker-content"></span>
+          </div>
+        </div>
+      </footer>
+    </div>
+
+    <!-- Thông báo popup -->
+    <div id="popupNotification" class="popup" style="display: none">
+      <div class="popup-content">
+        <h2 id="popupTitle"></h2>
+        <p id="popupMessage"></p>
+        <button id="closePopupNotification">Đóng</button>
+      </div>
+    </div>
+
+    <!-- Hộp thoại xác nhận -->
+    <div id="confirmDialog" class="popup" style="display: none">
+      <div class="popup-content">
+        <h2 id="confirmTitle">Xác nhận</h2>
+        <p id="confirmMessage"></p>
+        <div class="confirm-buttons">
+          <button id="confirmYes">Đồng ý</button>
+          <button id="confirmNo">Hủy</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="/scripts/core/colorChanger.js"></script>
+    <script src="/scripts/core/menuHandler.js"></script>
+    <script src="/scripts/core/common.js"></script>
+    <script src="/scripts/core/theme.js"></script>
+    <script src="/scripts/pages/send-private-message.js"></script>
+    <script src="/scripts/components/sideMenu.js"></script>
+  </body>
+</html>
+

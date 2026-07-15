@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NgHung - Zalo Bot - Đăng nhập</title>
+    <link rel="stylesheet" href="/styles/base/main.css" />
+    <link rel="stylesheet" href="/styles/pages/login.css" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" />
+  </head>
+  <body>
+    <div class="parallax-container">
+      <div class="login-container">
+        <div class="login-box">
+          <h1>NgHung Zalo Bot System - NgHung</h1>
+          <h2>Đăng Nhập</h2>
+          <form id="loginForm">
+            <div class="input-group">
+              <i class="fas fa-user"></i>
+              <input type="text" id="username" name="username" placeholder="Tên đăng nhập" required>
+            </div>
+            <div class="input-group">
+              <i class="fas fa-lock"></i>
+              <input type="password" id="password" name="password" placeholder="Mật khẩu" required>
+            </div>
+            <div class="error-message" id="errorMessage"></div>
+            <button type="submit" class="login-button">Đăng nhập</button>
+          </form>
+        </div>
+      </div>
+    </div>
+    
+    <script>
+      document.getElementById('loginForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        const errorMessage = document.getElementById('errorMessage');
+        
+        try {
+          const response = await fetch('/api/login', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ username, password }),
+          });
+          
+          const data = await response.json();
+          
+          if (response.ok) {
+            window.location.href = '/admin-panel.html';
+          } else {
+            errorMessage.textContent = data.message || 'Đăng nhập không thành công';
+            errorMessage.style.display = 'block';
+          }
+        } catch (error) {
+          errorMessage.textContent = 'Lỗi kết nối đến máy chủ';
+          errorMessage.style.display = 'block';
+        }
+      });
+    </script>
+  </body>
+  </html>
+
+

@@ -1,0 +1,1035 @@
+{
+  "VP6N8D5203TPH83JVSO4T89G7O6E1T80": {
+    "globalId": "VP6N8D5203TPH83JVSO4T89G7O6E1T80",
+    "name": "N D Q",
+    "status": "online",
+    "lastActivity": 1751275039823,
+    "createdAt": 1751270694643,
+    "currentArea": "town",
+    "bag": {
+      "maxSlots": 35,
+      "item": [
+        {
+          "name": "Thuốc Hồi HP Nhỏ",
+          "id": "hp1",
+          "amount": 5
+        },
+        {
+          "name": "Thuốc Hồi MP Nhỏ",
+          "id": "mp1",
+          "amount": 5
+        },
+        {
+          "id": "hp1",
+          "name": "Thuốc Hồi HP Nhỏ",
+          "amount": 50,
+          "isLocked": true
+        },
+        {
+          "id": "hp2",
+          "name": "Thuốc Hồi HP Vừa",
+          "amount": 30,
+          "isLocked": true
+        },
+        {
+          "id": "hp3",
+          "name": "Thuốc Hồi HP Lớn",
+          "amount": 10,
+          "isLocked": true
+        },
+        {
+          "id": "mp1",
+          "name": "Thuốc Hồi MP Nhỏ",
+          "amount": 50,
+          "isLocked": true
+        },
+        {
+          "id": "mp2",
+          "name": "Thuốc Hồi MP Vừa",
+          "amount": 30,
+          "isLocked": true
+        },
+        {
+          "id": "mp3",
+          "name": "Thuốc Hồi MP Lớn",
+          "amount": 10,
+          "isLocked": true
+        },
+        {
+          "id": "potion_attack",
+          "name": "Thuốc Tăng Tấn Công",
+          "amount": 10,
+          "isLocked": true
+        },
+        {
+          "id": "potion_defense",
+          "name": "Thuốc Tăng Phòng Thủ",
+          "amount": 10,
+          "isLocked": true
+        }
+      ]
+    },
+    "money": {
+      "gold": 5400,
+      "diamond": 0,
+      "meteorite": 0
+    },
+    "stat": {
+      "level": 4,
+      "exp": {
+        "current": 300,
+        "next": 450
+      },
+      "hp": {
+        "current": 130,
+        "max": 130
+      },
+      "mp": {
+        "current": 65,
+        "max": 65
+      },
+      "speed": 23,
+      "attack": 32,
+      "intelligence": 16,
+      "defense": 8,
+      "vitality": 10,
+      "critRate": 5,
+      "critDmg": 150,
+      "dodge": 3,
+      "accuracy": 10,
+      "skillPoint": 6
+    },
+    "quests": {
+      "active": [
+        {
+          "id": "quest_003",
+          "name": "Thợ săn quái vật",
+          "description": "Rừng gần thị trấn Town có tên là Khu Rừng U Tối đang bị quái vật tấn công. Hãy tiêu diệt một số quái vật để giúp bảo vệ thị trấn.",
+          "type": "main",
+          "requirements": {
+            "level": 2,
+            "prerequisiteQuests": [
+              "quest_002"
+            ]
+          },
+          "objectives": [
+            {
+              "id": "q003_kill_wolf",
+              "type": "kill",
+              "targetId": "wolf1",
+              "targetName": "Sói rừng",
+              "required": 3,
+              "description": "Tiêu diệt 3 Sói rừng trong Khu Rừng U Tối",
+              "progress": 0,
+              "completed": false
+            },
+            {
+              "id": "q003_kill_slime",
+              "type": "kill",
+              "targetId": "slime1",
+              "targetName": "Slime xanh",
+              "required": 2,
+              "description": "Tiêu diệt 2 Slime xanh trong Khu Rừng U Tối",
+              "progress": 0,
+              "completed": false
+            },
+            {
+              "id": "q003_collect_wolf_pelt",
+              "type": "collect",
+              "targetId": "wolf_pelt",
+              "targetName": "Da sói",
+              "required": 2,
+              "description": "Thu thập 2 Da sói",
+              "progress": 0,
+              "completed": false
+            },
+            {
+              "id": "q003_talk_mayor",
+              "type": "talk",
+              "targetId": "npc_mayor",
+              "targetName": "Thị Trưởng Eldor",
+              "required": 1,
+              "description": "Báo cáo với Thị trưởng sau khi hoàn thành nhiệm vụ",
+              "progress": 0,
+              "completed": false
+            }
+          ],
+          "dropChances": {
+            "wolf1": {
+              "wolf_pelt": 75
+            },
+            "slime1": {
+              "slime_essence": 50
+            }
+          },
+          "rewards": {
+            "gold": 200,
+            "exp": 250,
+            "skillPoints": 2,
+            "items": [
+              {
+                "id": "hp2",
+                "name": "Thuốc hồi HP vừa",
+                "amount": 3
+              }
+            ]
+          }
+        }
+      ],
+      "completed": [
+        "quest_001",
+        "quest_002"
+      ]
+    },
+    "body": {
+      "head": {
+        "id": "h_tansu_1",
+        "name": "Mũ Vải",
+        "description": "Mũ vải đơn giản bảo vệ đầu",
+        "type": "helmet",
+        "price": 40,
+        "rarity": "common",
+        "icon": "",
+        "effects": null,
+        "stats": {
+          "defense": 3
+        },
+        "requirements": {
+          "level": 1
+        },
+        "stackable": false,
+        "maxStack": 99,
+        "usable": false,
+        "tradable": true,
+        "data": {
+          "id": "h_tansu_1",
+          "name": "Mũ Vải",
+          "description": "Mũ vải đơn giản bảo vệ đầu",
+          "type": "helmet",
+          "tier": "Tân Thủ",
+          "stats": {
+            "defense": 3
+          },
+          "statRange": {
+            "defense": [
+              2,
+              4
+            ]
+          },
+          "price": 40,
+          "sellPrice": 10,
+          "stackable": false,
+          "requirements": {
+            "level": 1
+          }
+        },
+        "hiddenTrait": null,
+        "subType": null,
+        "tier": "Tân Thủ",
+        "elementBoost": null,
+        "comboBoost": null,
+        "isLocked": true,
+        "isQuestItem": false,
+        "amount": 1
+      },
+      "chest": {
+        "id": "a_tansu_1",
+        "name": "Áo Vải",
+        "description": "Áo vải đơn giản nhưng ấm áp",
+        "type": "armor",
+        "price": 60,
+        "rarity": "common",
+        "icon": "",
+        "effects": null,
+        "stats": {
+          "defense": 4,
+          "vitality": 3
+        },
+        "requirements": {
+          "level": 1
+        },
+        "stackable": false,
+        "maxStack": 99,
+        "usable": false,
+        "tradable": true,
+        "data": {
+          "id": "a_tansu_1",
+          "name": "Áo Vải",
+          "description": "Áo vải đơn giản nhưng ấm áp",
+          "type": "armor",
+          "tier": "Tân Thủ",
+          "stats": {
+            "defense": 4,
+            "vitality": 3
+          },
+          "statRange": {
+            "defense": [
+              3,
+              5
+            ],
+            "vitality": [
+              2,
+              4
+            ]
+          },
+          "price": 60,
+          "sellPrice": 18,
+          "stackable": false,
+          "requirements": {
+            "level": 1
+          }
+        },
+        "hiddenTrait": null,
+        "subType": null,
+        "tier": "Tân Thủ",
+        "elementBoost": null,
+        "comboBoost": null,
+        "isLocked": true,
+        "isQuestItem": false,
+        "amount": 1
+      },
+      "back": null,
+      "arm": {
+        "id": "w_tansu_1",
+        "name": "Kiếm Gỗ",
+        "description": "Kiếm gỗ tập luyện dành cho tân binh",
+        "type": "weapon",
+        "price": 50,
+        "rarity": "common",
+        "icon": "",
+        "effects": null,
+        "stats": {
+          "attack": 8
+        },
+        "requirements": {
+          "level": 1
+        },
+        "stackable": false,
+        "maxStack": 99,
+        "usable": false,
+        "tradable": true,
+        "data": {
+          "id": "w_tansu_1",
+          "name": "Kiếm Gỗ",
+          "description": "Kiếm gỗ tập luyện dành cho tân binh",
+          "type": "weapon",
+          "tier": "Tân Thủ",
+          "stats": {
+            "attack": 8
+          },
+          "statRange": {
+            "attack": [
+              6,
+              10
+            ]
+          },
+          "price": 50,
+          "sellPrice": 15,
+          "stackable": false,
+          "requirements": {
+            "level": 1
+          }
+        },
+        "hiddenTrait": null,
+        "subType": null,
+        "tier": "Tân Thủ",
+        "elementBoost": null,
+        "comboBoost": null,
+        "isLocked": true,
+        "isQuestItem": false,
+        "amount": 1
+      },
+      "leg": {
+        "id": "b_tansu_1",
+        "name": "Giày Vải",
+        "description": "Giày vải đơn giản nhưng thoải mái",
+        "type": "boots",
+        "price": 30,
+        "rarity": "common",
+        "icon": "",
+        "effects": null,
+        "stats": {
+          "speed": 3
+        },
+        "requirements": {
+          "level": 1
+        },
+        "stackable": false,
+        "maxStack": 99,
+        "usable": false,
+        "tradable": true,
+        "data": {
+          "id": "b_tansu_1",
+          "name": "Giày Vải",
+          "description": "Giày vải đơn giản nhưng thoải mái",
+          "type": "boots",
+          "tier": "Tân Thủ",
+          "stats": {
+            "speed": 3
+          },
+          "statRange": {
+            "speed": [
+              2,
+              4
+            ]
+          },
+          "price": 30,
+          "sellPrice": 9,
+          "stackable": false,
+          "requirements": {
+            "level": 1
+          }
+        },
+        "hiddenTrait": null,
+        "subType": null,
+        "tier": "Tân Thủ",
+        "elementBoost": null,
+        "comboBoost": null,
+        "isLocked": true,
+        "isQuestItem": false,
+        "amount": 1
+      }
+    },
+    "skill": {
+      "active": [
+        {
+          "id": "skill_slash",
+          "name": "Đoạn Kiếm",
+          "type": "active",
+          "description": "Chém một nhát cắt gọn, gây sát thương vật lý cao",
+          "level": 1,
+          "maxLevel": 10,
+          "cooldownTurns": 2,
+          "remainingCooldown": 0,
+          "mpCost": 10,
+          "cost": {
+            "gold": 100
+          }
+        }
+      ],
+      "passive": []
+    },
+    "knownIds": [
+      "2625280118793095163"
+    ],
+    "achievement": {
+      "Tân Thủ": {
+        "duration": -1
+      }
+    },
+    "effects": {},
+    "respawnTime": null,
+    "currentCombat": null,
+    "targetSelection": null,
+    "combatBuffs": [],
+    "combatDebuffs": [],
+    "lastBossAttack": 0,
+    "pvpPreparationEndTime": null
+  },
+  "G17P6U90C5D1K8L3FN9UKD6JAB5UNM00": {
+    "globalId": "G17P6U90C5D1K8L3FN9UKD6JAB5UNM00",
+    "name": "Hà Huy Hoàng",
+    "status": "online",
+    "lastActivity": 1759608367303,
+    "createdAt": 1759608183626,
+    "currentArea": "town",
+    "bag": {
+      "maxSlots": 35,
+      "item": [
+        {
+          "name": "Thuốc Hồi HP Nhỏ",
+          "id": "hp1",
+          "amount": 5
+        },
+        {
+          "name": "Thuốc Hồi MP Nhỏ",
+          "id": "mp1",
+          "amount": 5
+        },
+        {
+          "id": "hp1",
+          "name": "Thuốc Hồi HP Nhỏ",
+          "amount": 50,
+          "isLocked": true
+        },
+        {
+          "id": "hp2",
+          "name": "Thuốc Hồi HP Vừa",
+          "amount": 30,
+          "isLocked": true
+        },
+        {
+          "id": "hp3",
+          "name": "Thuốc Hồi HP Lớn",
+          "amount": 10,
+          "isLocked": true
+        },
+        {
+          "id": "mp1",
+          "name": "Thuốc Hồi MP Nhỏ",
+          "amount": 50,
+          "isLocked": true
+        },
+        {
+          "id": "mp2",
+          "name": "Thuốc Hồi MP Vừa",
+          "amount": 30,
+          "isLocked": true
+        },
+        {
+          "id": "mp3",
+          "name": "Thuốc Hồi MP Lớn",
+          "amount": 15,
+          "isLocked": true
+        },
+        {
+          "id": "potion_attack",
+          "name": "Thuốc Tăng Tấn Công",
+          "amount": 10,
+          "isLocked": true
+        },
+        {
+          "id": "potion_defense",
+          "name": "Thuốc Tăng Phòng Thủ",
+          "amount": 10,
+          "isLocked": true
+        },
+        {
+          "id": "w_tansu_1",
+          "name": "Kiếm Gỗ",
+          "description": "Kiếm gỗ tập luyện dành cho tân binh",
+          "type": "weapon",
+          "price": 50,
+          "rarity": "common",
+          "icon": "",
+          "effects": null,
+          "stats": {
+            "attack": 8
+          },
+          "requirements": {
+            "level": 1
+          },
+          "stackable": false,
+          "maxStack": 99,
+          "usable": false,
+          "tradable": true,
+          "data": {
+            "id": "w_tansu_1",
+            "name": "Kiếm Gỗ",
+            "description": "Kiếm gỗ tập luyện dành cho tân binh",
+            "type": "weapon",
+            "tier": "Tân Thủ",
+            "stats": {
+              "attack": 8
+            },
+            "statRange": {
+              "attack": [
+                6,
+                10
+              ]
+            },
+            "price": 50,
+            "sellPrice": 15,
+            "stackable": false,
+            "requirements": {
+              "level": 1
+            }
+          },
+          "hiddenTrait": null,
+          "subType": null,
+          "tier": "Tân Thủ",
+          "elementBoost": null,
+          "comboBoost": null,
+          "isLocked": true,
+          "isQuestItem": false,
+          "amount": 1
+        },
+        {
+          "id": "a_tansu_1",
+          "name": "Áo Vải",
+          "description": "Áo vải đơn giản nhưng ấm áp",
+          "type": "armor",
+          "price": 60,
+          "rarity": "common",
+          "icon": "",
+          "effects": null,
+          "stats": {
+            "defense": 4,
+            "vitality": 3
+          },
+          "requirements": {
+            "level": 1
+          },
+          "stackable": false,
+          "maxStack": 99,
+          "usable": false,
+          "tradable": true,
+          "data": {
+            "id": "a_tansu_1",
+            "name": "Áo Vải",
+            "description": "Áo vải đơn giản nhưng ấm áp",
+            "type": "armor",
+            "tier": "Tân Thủ",
+            "stats": {
+              "defense": 4,
+              "vitality": 3
+            },
+            "statRange": {
+              "defense": [
+                3,
+                5
+              ],
+              "vitality": [
+                2,
+                4
+              ]
+            },
+            "price": 60,
+            "sellPrice": 18,
+            "stackable": false,
+            "requirements": {
+              "level": 1
+            }
+          },
+          "hiddenTrait": null,
+          "subType": null,
+          "tier": "Tân Thủ",
+          "elementBoost": null,
+          "comboBoost": null,
+          "isLocked": true,
+          "isQuestItem": false,
+          "amount": 1
+        },
+        {
+          "id": "h_tansu_1",
+          "name": "Mũ Vải",
+          "description": "Mũ vải đơn giản bảo vệ đầu",
+          "type": "helmet",
+          "price": 40,
+          "rarity": "common",
+          "icon": "",
+          "effects": null,
+          "stats": {
+            "defense": 3
+          },
+          "requirements": {
+            "level": 1
+          },
+          "stackable": false,
+          "maxStack": 99,
+          "usable": false,
+          "tradable": true,
+          "data": {
+            "id": "h_tansu_1",
+            "name": "Mũ Vải",
+            "description": "Mũ vải đơn giản bảo vệ đầu",
+            "type": "helmet",
+            "tier": "Tân Thủ",
+            "stats": {
+              "defense": 3
+            },
+            "statRange": {
+              "defense": [
+                2,
+                4
+              ]
+            },
+            "price": 40,
+            "sellPrice": 10,
+            "stackable": false,
+            "requirements": {
+              "level": 1
+            }
+          },
+          "hiddenTrait": null,
+          "subType": null,
+          "tier": "Tân Thủ",
+          "elementBoost": null,
+          "comboBoost": null,
+          "isLocked": true,
+          "isQuestItem": false,
+          "amount": 1
+        },
+        {
+          "id": "b_tansu_1",
+          "name": "Giày Vải",
+          "description": "Giày vải đơn giản nhưng thoải mái",
+          "type": "boots",
+          "price": 30,
+          "rarity": "common",
+          "icon": "",
+          "effects": null,
+          "stats": {
+            "speed": 3
+          },
+          "requirements": {
+            "level": 1
+          },
+          "stackable": false,
+          "maxStack": 99,
+          "usable": false,
+          "tradable": true,
+          "data": {
+            "id": "b_tansu_1",
+            "name": "Giày Vải",
+            "description": "Giày vải đơn giản nhưng thoải mái",
+            "type": "boots",
+            "tier": "Tân Thủ",
+            "stats": {
+              "speed": 3
+            },
+            "statRange": {
+              "speed": [
+                2,
+                4
+              ]
+            },
+            "price": 30,
+            "sellPrice": 9,
+            "stackable": false,
+            "requirements": {
+              "level": 1
+            }
+          },
+          "hiddenTrait": null,
+          "subType": null,
+          "tier": "Tân Thủ",
+          "elementBoost": null,
+          "comboBoost": null,
+          "isLocked": true,
+          "isQuestItem": false,
+          "amount": 1
+        },
+        {
+          "id": "exp_scroll",
+          "name": "Cuộn Kinh Nghiệm",
+          "amount": 5,
+          "isLocked": true
+        },
+        {
+          "id": "w_vang_1",
+          "name": "Kiếm Vàng",
+          "description": "Kiếm chế tác từ vàng pha hợp kim đặc biệt",
+          "type": "weapon",
+          "price": 1000,
+          "rarity": "common",
+          "icon": "",
+          "effects": null,
+          "stats": {
+            "attack": 80
+          },
+          "requirements": {
+            "level": 15
+          },
+          "stackable": false,
+          "maxStack": 99,
+          "usable": false,
+          "tradable": true,
+          "data": {
+            "id": "w_vang_1",
+            "name": "Kiếm Vàng",
+            "description": "Kiếm chế tác từ vàng pha hợp kim đặc biệt",
+            "type": "weapon",
+            "tier": "Vàng",
+            "stats": {
+              "attack": 80
+            },
+            "statRange": {
+              "attack": [
+                60,
+                100
+              ]
+            },
+            "price": 1000,
+            "sellPrice": 300,
+            "stackable": false,
+            "requirements": {
+              "level": 15
+            }
+          },
+          "hiddenTrait": "fire",
+          "subType": null,
+          "tier": "Vàng",
+          "elementBoost": null,
+          "comboBoost": null,
+          "isLocked": true,
+          "isQuestItem": false,
+          "amount": 1
+        },
+        {
+          "id": "a_vang_1",
+          "name": "Áo Giáp Vàng",
+          "description": "Áo giáp vàng sang trọng và bền bỉ",
+          "type": "armor",
+          "price": 1200,
+          "rarity": "common",
+          "icon": "",
+          "effects": null,
+          "stats": {
+            "defense": 28,
+            "vitality": 15
+          },
+          "requirements": {
+            "level": 15
+          },
+          "stackable": false,
+          "maxStack": 99,
+          "usable": false,
+          "tradable": true,
+          "data": {
+            "id": "a_vang_1",
+            "name": "Áo Giáp Vàng",
+            "description": "Áo giáp vàng sang trọng và bền bỉ",
+            "type": "armor",
+            "tier": "Vàng",
+            "stats": {
+              "defense": 28,
+              "vitality": 15
+            },
+            "statRange": {
+              "defense": [
+                25,
+                31
+              ],
+              "vitality": [
+                13,
+                17
+              ]
+            },
+            "price": 1200,
+            "sellPrice": 360,
+            "stackable": false,
+            "requirements": {
+              "level": 15
+            }
+          },
+          "hiddenTrait": "fire",
+          "subType": null,
+          "tier": "Vàng",
+          "elementBoost": null,
+          "comboBoost": null,
+          "isLocked": true,
+          "isQuestItem": false,
+          "amount": 1
+        },
+        {
+          "id": "h_vang_1",
+          "name": "Mũ Vàng",
+          "description": "Mũ làm từ vàng pha trộn kim loại chắc chắn",
+          "type": "helmet",
+          "price": 800,
+          "rarity": "common",
+          "icon": "",
+          "effects": null,
+          "stats": {
+            "defense": 13
+          },
+          "requirements": {
+            "level": 15
+          },
+          "stackable": false,
+          "maxStack": 99,
+          "usable": false,
+          "tradable": true,
+          "data": {
+            "id": "h_vang_1",
+            "name": "Mũ Vàng",
+            "description": "Mũ làm từ vàng pha trộn kim loại chắc chắn",
+            "type": "helmet",
+            "tier": "Vàng",
+            "stats": {
+              "defense": 13
+            },
+            "statRange": {
+              "defense": [
+                12,
+                15
+              ]
+            },
+            "price": 800,
+            "sellPrice": 240,
+            "stackable": false,
+            "requirements": {
+              "level": 15
+            }
+          },
+          "hiddenTrait": "fire",
+          "subType": null,
+          "tier": "Vàng",
+          "elementBoost": null,
+          "comboBoost": null,
+          "isLocked": true,
+          "isQuestItem": false,
+          "amount": 1
+        },
+        {
+          "id": "b_vang_1",
+          "name": "Giày Vàng",
+          "description": "Giày vàng sang trọng và nhanh nhẹn",
+          "type": "boots",
+          "price": 700,
+          "rarity": "common",
+          "icon": "",
+          "effects": null,
+          "stats": {
+            "speed": 15,
+            "defense": 8
+          },
+          "requirements": {
+            "level": 15
+          },
+          "stackable": false,
+          "maxStack": 99,
+          "usable": false,
+          "tradable": true,
+          "data": {
+            "id": "b_vang_1",
+            "name": "Giày Vàng",
+            "description": "Giày vàng sang trọng và nhanh nhẹn",
+            "type": "boots",
+            "tier": "Vàng",
+            "stats": {
+              "speed": 15,
+              "defense": 8
+            },
+            "statRange": {
+              "speed": [
+                13,
+                17
+              ],
+              "defense": [
+                7,
+                9
+              ]
+            },
+            "price": 700,
+            "sellPrice": 210,
+            "stackable": false,
+            "requirements": {
+              "level": 15
+            }
+          },
+          "hiddenTrait": "fire",
+          "subType": null,
+          "tier": "Vàng",
+          "elementBoost": null,
+          "comboBoost": null,
+          "isLocked": true,
+          "isQuestItem": false,
+          "amount": 1
+        },
+        {
+          "id": "s_vang_1",
+          "name": "Khiên Vàng",
+          "description": "Khiên vàng sang trọng và chắc chắn",
+          "type": "shield",
+          "price": 800,
+          "rarity": "common",
+          "icon": "",
+          "effects": null,
+          "stats": {
+            "defense": 22
+          },
+          "requirements": {
+            "level": 15
+          },
+          "stackable": false,
+          "maxStack": 99,
+          "usable": false,
+          "tradable": true,
+          "data": {
+            "id": "s_vang_1",
+            "name": "Khiên Vàng",
+            "description": "Khiên vàng sang trọng và chắc chắn",
+            "type": "shield",
+            "tier": "Vàng",
+            "stats": {
+              "defense": 22
+            },
+            "statRange": {
+              "defense": [
+                19,
+                25
+              ]
+            },
+            "price": 800,
+            "sellPrice": 240,
+            "stackable": false,
+            "requirements": {
+              "level": 15
+            }
+          },
+          "hiddenTrait": "fire",
+          "subType": null,
+          "tier": "Vàng",
+          "elementBoost": null,
+          "comboBoost": null,
+          "isLocked": true,
+          "isQuestItem": false,
+          "amount": 1
+        }
+      ]
+    },
+    "money": {
+      "gold": 27500,
+      "diamond": 0,
+      "meteorite": 0
+    },
+    "stat": {
+      "level": 17,
+      "exp": {
+        "current": 1650,
+        "next": 1750
+      },
+      "hp": {
+        "current": 260,
+        "max": 260
+      },
+      "mp": {
+        "current": 130,
+        "max": 130
+      },
+      "speed": 36,
+      "attack": 84,
+      "intelligence": 42,
+      "defense": 21,
+      "vitality": 10,
+      "critRate": 5,
+      "critDmg": 150,
+      "dodge": 3,
+      "accuracy": 10,
+      "skillPoint": 32
+    },
+    "quests": {
+      "active": [],
+      "completed": []
+    },
+    "body": {
+      "head": null,
+      "chest": null,
+      "back": null,
+      "arm": null,
+      "leg": null
+    },
+    "skill": {
+      "active": [],
+      "passive": []
+    },
+    "knownIds": [
+      "5078208539235733870"
+    ],
+    "achievement": {
+      "Tân Thủ": {
+        "duration": -1
+      }
+    },
+    "effects": {},
+    "respawnTime": null,
+    "currentCombat": null,
+    "targetSelection": null,
+    "combatBuffs": [],
+    "combatDebuffs": [],
+    "lastBossAttack": 0,
+    "pvpPreparationEndTime": null
+  }
+}

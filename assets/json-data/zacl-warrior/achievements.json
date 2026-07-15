@@ -1,0 +1,383 @@
+{
+  "achievements": [
+    {
+      "id": "first_blood",
+      "name": "Máu Đầu",
+      "description": "Tiêu diệt quái vật đầu tiên",
+      "reward": {
+        "gold": 100,
+        "exp": 50,
+        "items": []
+      },
+      "category": "combat"
+    },
+    {
+      "id": "monster_hunter_10",
+      "name": "Thợ Săn Tập Sự",
+      "description": "Tiêu diệt 10 quái vật",
+      "reward": {
+        "gold": 200,
+        "exp": 100,
+        "items": []
+      },
+      "category": "combat",
+      "requirement": {
+        "monsters_killed": 10
+      }
+    },
+    {
+      "id": "monster_hunter_50",
+      "name": "Thợ Săn Quái Vật",
+      "description": "Tiêu diệt 50 quái vật",
+      "reward": {
+        "gold": 500,
+        "exp": 250,
+        "items": []
+      },
+      "category": "combat",
+      "requirement": {
+        "monsters_killed": 50
+      }
+    },
+    {
+      "id": "monster_hunter_100",
+      "name": "Sát Thủ Quái Vật",
+      "description": "Tiêu diệt 100 quái vật",
+      "reward": {
+        "gold": 1000,
+        "exp": 500,
+        "items": ["uncommon_chest"]
+      },
+      "category": "combat",
+      "requirement": {
+        "monsters_killed": 100
+      }
+    },
+    {
+      "id": "level_10",
+      "name": "Tập Sự",
+      "description": "Đạt cấp độ 10",
+      "reward": {
+        "gold": 200,
+        "exp": 0,
+        "items": ["skill_book2"]
+      },
+      "category": "level",
+      "requirement": {
+        "level": 10
+      }
+    },
+    {
+      "id": "level_20",
+      "name": "Kiếm Sĩ",
+      "description": "Đạt cấp độ 20",
+      "reward": {
+        "gold": 500,
+        "exp": 0,
+        "items": ["uncommon_chest"]
+      },
+      "category": "level",
+      "requirement": {
+        "level": 20
+      }
+    },
+    {
+      "id": "level_30",
+      "name": "Chiến Binh",
+      "description": "Đạt cấp độ 30",
+      "reward": {
+        "gold": 1000,
+        "exp": 0,
+        "items": ["rare_chest"]
+      },
+      "category": "level",
+      "requirement": {
+        "level": 30
+      }
+    },
+    {
+      "id": "level_50",
+      "name": "Đại Hiệp",
+      "description": "Đạt cấp độ 50",
+      "reward": {
+        "gold": 2000,
+        "exp": 0,
+        "items": ["epic_chest"]
+      },
+      "category": "level",
+      "requirement": {
+        "level": 50
+      }
+    },
+    {
+      "id": "level_100",
+      "name": "Huyền Thoại",
+      "description": "Đạt cấp độ 100",
+      "reward": {
+        "gold": 5000,
+        "exp": 0,
+        "items": ["legendary_chest"]
+      },
+      "category": "level",
+      "requirement": {
+        "level": 100
+      }
+    },
+    {
+      "id": "equip_full_set",
+      "name": "Trang Bị Đầy Đủ",
+      "description": "Trang bị đầy đủ set đồ",
+      "reward": {
+        "gold": 300,
+        "exp": 150,
+        "items": []
+      },
+      "category": "equipment"
+    },
+    {
+      "id": "equip_rare_full",
+      "name": "Hàng Hiếm",
+      "description": "Trang bị đầy đủ set đồ hiếm",
+      "reward": {
+        "gold": 1000,
+        "exp": 500,
+        "items": ["skill_point_fragment"]
+      },
+      "category": "equipment"
+    },
+    {
+      "id": "equip_epic_full",
+      "name": "Sử Thi",
+      "description": "Trang bị đầy đủ set đồ sử thi",
+      "reward": {
+        "gold": 2000,
+        "exp": 1000,
+        "items": ["skill_point"]
+      },
+      "category": "equipment"
+    },
+    {
+      "id": "equip_hidden_trait",
+      "name": "Sức Mạnh Ẩn",
+      "description": "Kích hoạt nội tại ẩn từ set đồ",
+      "reward": {
+        "gold": 1500,
+        "exp": 800,
+        "items": ["rare_chest"]
+      },
+      "category": "equipment"
+    },
+    {
+      "id": "skill_first",
+      "name": "Học Trò",
+      "description": "Học kỹ năng đầu tiên",
+      "reward": {
+        "gold": 200,
+        "exp": 100,
+        "items": []
+      },
+      "category": "skill"
+    },
+    {
+      "id": "skill_master_5",
+      "name": "Nghệ Nhân",
+      "description": "Học 5 kỹ năng",
+      "reward": {
+        "gold": 500,
+        "exp": 250,
+        "items": ["mp2"]
+      },
+      "category": "skill",
+      "requirement": {
+        "skills_learned": 5
+      }
+    },
+    {
+      "id": "skill_master_10",
+      "name": "Bậc Thầy",
+      "description": "Học 10 kỹ năng",
+      "reward": {
+        "gold": 1000,
+        "exp": 500,
+        "items": ["skill_point"]
+      },
+      "category": "skill",
+      "requirement": {
+        "skills_learned": 10
+      }
+    },
+    {
+      "id": "gold_1000",
+      "name": "Nhà Giàu Mới Nổi",
+      "description": "Có 1,000 vàng",
+      "reward": {
+        "gold": 0,
+        "exp": 100,
+        "items": []
+      },
+      "category": "wealth",
+      "requirement": {
+        "gold": 1000
+      }
+    },
+    {
+      "id": "gold_10000",
+      "name": "Thương Gia",
+      "description": "Có 10,000 vàng",
+      "reward": {
+        "gold": 0,
+        "exp": 500,
+        "items": ["uncommon_chest"]
+      },
+      "category": "wealth",
+      "requirement": {
+        "gold": 10000
+      }
+    },
+    {
+      "id": "gold_100000",
+      "name": "Đại Gia",
+      "description": "Có 100,000 vàng",
+      "reward": {
+        "gold": 0,
+        "exp": 1000,
+        "items": ["epic_chest"]
+      },
+      "category": "wealth",
+      "requirement": {
+        "gold": 100000
+      }
+    },
+    {
+      "id": "explorer_5",
+      "name": "Nhà Thám Hiểm",
+      "description": "Khám phá 5 khu vực",
+      "reward": {
+        "gold": 300,
+        "exp": 150,
+        "items": []
+      },
+      "category": "exploration",
+      "requirement": {
+        "areas_discovered": 5
+      }
+    },
+    {
+      "id": "explorer_10",
+      "name": "Nhà Thám Hiểm Dày Dạn",
+      "description": "Khám phá 10 khu vực",
+      "reward": {
+        "gold": 600,
+        "exp": 300,
+        "items": ["hp3"]
+      },
+      "category": "exploration",
+      "requirement": {
+        "areas_discovered": 10
+      }
+    },
+    {
+      "id": "explorer_all",
+      "name": "Nhà Thám Hiểm Lão Luyện",
+      "description": "Khám phá tất cả khu vực",
+      "reward": {
+        "gold": 2000,
+        "exp": 1000,
+        "items": ["rare_chest", "skill_point"]
+      },
+      "category": "exploration",
+      "requirement": {
+        "areas_discovered": "all"
+      }
+    },
+    {
+      "id": "pvp_first_win",
+      "name": "Chiến Thắng Đầu Tiên",
+      "description": "Giành chiến thắng PvP đầu tiên",
+      "reward": {
+        "gold": 500,
+        "exp": 250,
+        "items": []
+      },
+      "category": "pvp"
+    },
+    {
+      "id": "pvp_5_win",
+      "name": "Kiếm Sĩ Chiến Đấu",
+      "description": "Giành 5 chiến thắng PvP",
+      "reward": {
+        "gold": 1000,
+        "exp": 500,
+        "items": []
+      },
+      "category": "pvp",
+      "requirement": {
+        "pvp_wins": 5
+      }
+    },
+    {
+      "id": "pvp_20_win",
+      "name": "Đấu Sĩ Lão Luyện",
+      "description": "Giành 20 chiến thắng PvP",
+      "reward": {
+        "gold": 2000,
+        "exp": 1000,
+        "items": ["epic_chest"]
+      },
+      "category": "pvp",
+      "requirement": {
+        "pvp_wins": 20
+      }
+    },
+    {
+      "id": "boss_first",
+      "name": "Kẻ Săn Boss",
+      "description": "Đánh bại boss đầu tiên",
+      "reward": {
+        "gold": 1000,
+        "exp": 500,
+        "items": ["rare_chest"]
+      },
+      "category": "boss"
+    },
+    {
+      "id": "boss_5",
+      "name": "Kẻ Săn Boss Lão Luyện",
+      "description": "Đánh bại 5 boss",
+      "reward": {
+        "gold": 2000,
+        "exp": 1000,
+        "items": ["epic_chest"]
+      },
+      "category": "boss",
+      "requirement": {
+        "bosses_killed": 5
+      }
+    },
+    {
+      "id": "world_boss_first",
+      "name": "Nhà Vô Địch",
+      "description": "Tham gia tiêu diệt World Boss đầu tiên",
+      "reward": {
+        "gold": 1500,
+        "exp": 800,
+        "items": ["rare_chest"]
+      },
+      "category": "boss"
+    },
+    {
+      "id": "world_boss_5",
+      "name": "Kẻ Hủy Diệt",
+      "description": "Tham gia tiêu diệt 5 World Boss",
+      "reward": {
+        "gold": 3000,
+        "exp": 1500,
+        "items": ["legendary_chest"]
+      },
+      "category": "boss",
+      "requirement": {
+        "world_bosses_killed": 5
+      }
+    }
+  ]
+} 

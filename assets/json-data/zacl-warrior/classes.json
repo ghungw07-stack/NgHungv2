@@ -1,0 +1,86 @@
+{
+  "classes": [
+    {
+      "id": "warrior",
+      "name": "Chiến Binh",
+      "description": "Chiến binh là những người sở hữu sức mạnh vượt trội và khả năng phòng thủ đáng nể. Họ thường xông pha nơi tiền tuyến, dùng sức mạnh cơ bắp và vũ khí hạng nặng để áp đảo kẻ địch.",
+      "stats_bonus": {
+        "attack": 3,
+        "vitality": 2,
+        "defense": 2,
+        "intelligence": 0,
+        "speed": 1
+      },
+      "starting_skills": ["skill_slash", "skill_block"],
+      "exclusive_skills": [
+        "skill_titan_strength",
+        "skill_shield_wall",
+        "skill_berserker_rage",
+        "skill_whirlwind",
+        "skill_counter_attack",
+        "skill_earth_shatter",
+        "skill_iron_skin",
+        "skill_battle_cry",
+        "skill_last_stand",
+        "skill_weapon_mastery"
+      ],
+      "weapon_proficiency": ["sword", "axe", "hammer", "shield"],
+      "armor_proficiency": ["heavy"]
+    },
+    {
+      "id": "mage",
+      "name": "Pháp Sư",
+      "description": "Pháp sư là những người thông thạo về ma thuật và kiến thức huyền bí. Họ có thể triệu hồi các nguyên tố tự nhiên để tấn công kẻ địch từ xa và hỗ trợ đồng đội.",
+      "stats_bonus": {
+        "intelligence": 4,
+        "mp": 30,
+        "vitality": 0,
+        "speed": 2,
+        "defense": 0
+      },
+      "starting_skills": ["skill_fireball", "skill_magic_shield"],
+      "exclusive_skills": [
+        "skill_arcane_explosion",
+        "skill_meteor_shower",
+        "skill_ice_storm",
+        "skill_chain_lightning",
+        "skill_mana_shield",
+        "skill_teleport",
+        "skill_time_warp",
+        "skill_elemental_mastery",
+        "skill_arcane_intellect",
+        "skill_phoenix_rebirth"
+      ],
+      "weapon_proficiency": ["staff", "wand", "orb"],
+      "armor_proficiency": ["cloth"]
+    },
+    {
+      "id": "ranger",
+      "name": "Kiếm Khách",
+      "description": "Kiếm khách là những người thành thạo về các kỹ thuật chiến đấu nhanh nhẹn và chính xác. Họ sử dụng tốc độ và sự linh hoạt để tránh đòn tấn công và gây sát thương chí mạng.",
+      "stats_bonus": {
+        "speed": 3,
+        "accuracy": 2,
+        "critRate": 2,
+        "attack": 1,
+        "intelligence": 1,
+        "defense": 0
+      },
+      "starting_skills": ["skill_double_attack", "skill_stealth"],
+      "exclusive_skills": [
+        "skill_shadow_form",
+        "skill_poison_blade",
+        "skill_assassinate",
+        "skill_smoke_bomb",
+        "skill_blade_dance",
+        "skill_death_mark",
+        "skill_shadow_step",
+        "skill_critical_strike",
+        "skill_evasion_mastery",
+        "skill_thousand_cuts"
+      ],
+      "weapon_proficiency": ["dagger", "bow", "dual_sword"],
+      "armor_proficiency": ["light"]
+    }
+  ]
+}

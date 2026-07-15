@@ -1,0 +1,179 @@
+/* Theme system: light (default), dark, gradient */
+:root {
+  --brand-700: #005ae0;
+  --brand-800: #004dc2;
+  --app-bg: #f5f7fb;
+  --surface: #ffffff;
+  --text-color: #111111;
+  --muted-text: #6b7280;
+  --border-color: #e5e7eb;
+  --header-bg: var(--brand-700);
+  --header-text: #ffffff;
+  --side-bg: #0b1220;
+  --side-hover-bg: #0f2a4f;
+  --scrollbar-thumb: #c5d1e5;
+  --scrollbar-thumb-hover: #a8b4c9;
+  --scrollbar-track: transparent;
+}
+
+/* Light theme */
+body.theme-light {
+  --app-bg: #ffffff;
+  --surface: #ffffff;
+  --text-color: #111111;
+  --muted-text: #6b7280;
+  --border-color: #e5e7eb;
+  --header-bg: var(--brand-700);
+  --header-text: #ffffff;
+  --side-bg: #0b1220;
+  --side-hover-bg: rgba(0, 0, 0, 0.12);
+  --scrollbar-thumb: #c5d1e5;
+  --scrollbar-thumb-hover: #a8b4c9;
+  --scrollbar-track: transparent;
+  --bg: var(--surface);
+  --border: var(--border-color);
+  --text: var(--text-color);
+  --text-muted: var(--muted-text);
+}
+
+/* Dark theme — professional graphite/navy, not pure black */
+body.theme-dark {
+  --brand-700: #3b82f6;
+  --brand-800: #2f6fed;
+  --app-bg: #0a0e16;
+  --surface: #131824;
+  --surface-2: #1a2130;
+  --text-color: #e8ebf1;
+  --muted-text: #8a93a8;
+  --border-color: #232b3c;
+  --header-bg: #101725;
+  --header-text: #eef1f7;
+  --side-bg: #0a0e16;
+  --side-hover-bg: rgba(59, 130, 246, 0.12);
+  --scrollbar-thumb: #2c3547;
+  --scrollbar-thumb-hover: #3a465c;
+  --scrollbar-track: transparent;
+  --status-active: #22c55e;
+  --status-pending: #f59e0b;
+  --status-rejected: #f43f5e;
+  --status-inactive: #64748b;
+  --bg: var(--surface);
+  --border: var(--border-color);
+  --text: var(--text-color);
+  --text-muted: var(--muted-text);
+}
+
+/* Gradient theme (brand gradient) */
+body.theme-gradient {
+  --app-bg: linear-gradient(120deg, #ffffff 0%, #f2f8ff 100%);
+  --surface: #ffffff;
+  --text-color: #111111;
+  --muted-text: #6b7280;
+  --border-color: #e5e7eb;
+  --header-bg: linear-gradient(135deg, #005ae0, #2d8cff);
+  --header-text: #ffffff;
+  --side-bg: #0b1220;
+  --side-hover-bg: rgba(255, 255, 255, 0.08);
+  --scrollbar-thumb: #c5d1e5;
+  --scrollbar-thumb-hover: #a8b4c9;
+  --scrollbar-track: transparent;
+  --bg: var(--surface);
+  --border: var(--border-color);
+  --text: var(--text-color);
+  --text-muted: var(--muted-text);
+}
+
+/* Apply variables */
+body {
+  background: var(--app-bg) !important;
+  color: var(--text-color) !important;
+}
+.grid-item,
+.commands .command-item,
+.log-content,
+.modal-content {
+  background: var(--surface) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-color) !important;
+}
+header,
+footer,
+.menu-header,
+.list-header,
+.list-footer,
+.ticker,
+.ticker .inner-footer {
+  background: var(--header-bg) !important;
+  color: var(--header-text) !important;
+}
+.side-menu {
+  background: var(--side-bg) !important;
+}
+.side-menu a:hover {
+  background: var(--side-hover-bg) !important;
+}
+.title,
+.list-title,
+h1, h2, h3, h4, h5 {
+  color: var(--header-text);
+}
+.info-sub,
+.bot-count,
+.no-results,
+.empty-sub {
+  color: var(--muted-text) !important;
+}
+
+/* Admin panel: parity across themes, driven fully by variables */
+.bot-row,
+.info-group,
+.action-sheet-panel,
+.metric-tile {
+  background: var(--surface) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-color) !important;
+}
+.metric-tile {
+  background: var(--app-bg) !important;
+}
+body.theme-dark .bot-row:hover {
+  background: var(--surface-2) !important;
+}
+.menu-btn {
+  background: var(--surface-2, #f3f4f6) !important;
+  color: var(--text-color) !important;
+  border-color: var(--border-color) !important;
+}
+body.theme-dark .menu-btn:hover {
+  background: #232c40 !important;
+}
+body.theme-dark .toast {
+  background: var(--surface) !important;
+  border-color: var(--border-color) !important;
+}
+body.theme-dark .toast-title {
+  color: var(--text-color) !important;
+}
+body.theme-dark .toast-message {
+  color: var(--muted-text) !important;
+}
+body.theme-dark .skeleton-item {
+  background: linear-gradient(90deg, #182034 25%, #212a41 37%, #182034 63%);
+  background-size: 400% 100%;
+}
+
+/* Bot commands page: ensure text colors in Dark mode */
+body.theme-dark .command-item p {
+  color: var(--text-color) !important;
+}
+body.theme-dark .command-item h5 {
+  color: var(--header-text) !important;
+}
+body.theme-dark .command-item .usage {
+  background: var(--surface-2) !important;
+  color: var(--text-color) !important;
+}
+body.theme-dark .command-category h3 {
+  background: var(--header-bg) !important;
+  color: var(--header-text) !important;
+}

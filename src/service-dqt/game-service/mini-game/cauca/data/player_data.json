@@ -1,0 +1,151 @@
+{
+  "3945920925522880809": {
+    "uid": "3945920925522880809",
+    "name": "Tamhoangdz",
+    "level": 0,
+    "exp": 0,
+    "money": 200,
+    "currentArea": 1,
+    "inventory": {
+      "fish": {},
+      "baits": {
+        "bait_rice": 50
+      },
+      "rods": [],
+      "tools": [],
+      "pets": [],
+      "potions": {},
+      "tickets": 0,
+      "skillCards": {}
+    },
+    "equipment": {
+      "rod": null,
+      "bait": null
+    },
+    "stats": {
+      "totalFishCaught": 0,
+      "rareCaught": 0,
+      "legendaryCaught": 0,
+      "mythicalCaught": 0,
+      "bossAttacks": 0,
+      "bossKills": 0,
+      "rodsBroken": 0,
+      "totalSpent": 0
+    },
+    "redeemedCodes": {},
+    "expToNext": 100,
+    "fishingSlots": 1,
+    "activeSlots": 1
+  },
+  "4883939333405123659": {
+    "uid": "4883939333405123659",
+    "name": "　",
+    "level": 0,
+    "exp": 0,
+    "money": 200,
+    "currentArea": 1,
+    "inventory": {
+      "fish": {},
+      "baits": {
+        "bait_rice": 50
+      },
+      "rods": [],
+      "tools": [],
+      "pets": [],
+      "potions": {},
+      "tickets": 0,
+      "skillCards": {}
+    },
+    "equipment": {
+      "rod": null,
+      "bait": null
+    },
+    "stats": {
+      "totalFishCaught": 0,
+      "rareCaught": 0,
+      "legendaryCaught": 0,
+      "mythicalCaught": 0,
+      "bossAttacks": 0,
+      "bossKills": 0,
+      "rodsBroken": 0,
+      "totalSpent": 0
+    },
+    "redeemedCodes": {}
+  },
+  "4251808945837205143": {
+    "uid": "4251808945837205143",
+    "name": "Nguyễn Gia Hưng",
+    "level": 0,
+    "exp": 0,
+    "money": 200,
+    "currentArea": 1,
+    "inventory": {
+      "fish": {},
+      "baits": {
+        "bait_rice": 50
+      },
+      "rods": [],
+      "tools": [],
+      "pets": [],
+      "potions": {},
+      "tickets": 0,
+      "skillCards": {}
+    },
+    "equipment": {
+      "rod": null,
+      "bait": null,
+      "rods": [
+        null
+      ]
+    },
+    "stats": {
+      "totalFishCaught": 0,
+      "rareCaught": 0,
+      "legendaryCaught": 0,
+      "mythicalCaught": 0,
+      "bossAttacks": 0,
+      "bossKills": 0,
+      "rodsBroken": 0,
+      "totalSpent": 0
+    },
+    "redeemedCodes": {},
+    "expToNext": 100,
+    "fishingSlots": 1,
+    "activeSlots": 1
+  },
+  "7837721893229851987": {
+    "uid": "7837721893229851987",
+    "name": "Thành Lộc",
+    "level": 0,
+    "exp": 0,
+    "money": 200,
+    "currentArea": 1,
+    "inventory": {
+      "fish": {},
+      "baits": {
+        "bait_rice": 50
+      },
+      "rods": [],
+      "tools": [],
+      "pets": [],
+      "potions": {},
+      "tickets": 0,
+      "skillCards": {}
+    },
+    "equipment": {
+      "rod": null,
+      "bait": null
+    },
+    "stats": {
+      "totalFishCaught": 0,
+      "rareCaught": 0,
+      "legendaryCaught": 0,
+      "mythicalCaught": 0,
+      "bossAttacks": 0,
+      "bossKills": 0,
+      "rodsBroken": 0,
+      "totalSpent": 0
+    },
+    "redeemedCodes": {}
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "shops": [
+    {
+      "id": "general_shop",
+      "name": "Cửa Hàng Tạp Hóa",
+      "description": "Bán các vật phẩm tiêu dùng cơ bản",
+      "items": ["hp1", "hp2", "hp3", "mp1", "mp2", "mp3", "potion_strength", "potion_defense", "exp_scroll"],
+      "area": "town"
+    },
+    {
+      "id": "weapon_shop",
+      "name": "Cửa Hàng Vũ Khí",
+      "description": "Bán các loại vũ khí cơ bản",
+      "items": ["w_tansu_1", "w_dong_1", "w_da_1"],
+      "area": "town"
+    },
+    {
+      "id": "armor_shop",
+      "name": "Cửa Hàng Áo Giáp",
+      "description": "Bán các loại áo giáp và phụ kiện phòng thủ",
+      "items": [
+        "a_da_1", "h_da_1", "b_da_1", "s_da_1",
+        "a_dong_1", "h_dong_1", "b_dong_1", "s_dong_1"
+      ],
+      "area": "town"
+    },
+    {
+      "id": "advanced_blacksmith",
+      "name": "Lò Rèn Hạng Cao",
+      "description": "Nơi bán các loại trang bị cao cấp",
+      "items": [
+        "w_bac_1", "a_bac_1", "h_bac_1", "b_bac_1", "s_bac_1", "c_bac_1"
+      ],
+      "area": "castle"
+    },
+    {
+      "id": "magic_emporium",
+      "name": "Cửa Hàng Ma Thuật",
+      "description": "Nơi bán các vật phẩm và trang bị ma thuật hiếm có",
+      "items": [
+        "w_vang_1", "a_vang_1", "h_vang_1", "b_vang_1", "s_vang_1", "c_vang_1"
+      ],
+      "area": "magic_tower"
+    }
+  ]
+}

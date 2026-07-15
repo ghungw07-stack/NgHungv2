@@ -1,0 +1,97 @@
+{
+  "4254486634487602711": {
+    "ownerId": "4254486634487602711",
+    "imei": "3d451688-459f-4988-8a84-cc3e950c28a1-a69b52f9d7f760edf3fd052bcda2542f",
+    "cookie": "zpw_sek=6KsX.459133747.a0.B0F4mvK2e8GMToNf1AHuybw67Pa7dbgyG9Gtlr6N39bXvKcmKeyYbKB94PracKNGMCCdDhfy1wTSfHpxTCvuyW",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+    "timeRemaining": -1,
+    "status": "active",
+    "createdAt": 1783695717018,
+    "createdBy": "Boi Vi Ai Ma Don Dau",
+    "infoOwner": {
+      "name": "Mai Thị Thu Hoa",
+      "description": "Ng Gia Hung",
+      "botInfo": "Hung Dz",
+      "nameServer": "Thu Hoa",
+      "typePlatform": "WEB",
+      "style": {
+        "nameServerSize": 16,
+        "textSize": 14,
+        "color": "default",
+        "nameServerType": "bold",
+        "textType": "none",
+        "icon": "🤖"
+      }
+    },
+    "approvedAt": 1783695620880,
+    "approvedBy": "626785955735131567",
+    "idBot": "628610835953511727",
+    "nameBot": "Iem Mei",
+    "idBotMainWithBot": "4251808945837205143",
+    "numberPhone": "84941967406"
+  },
+  "2781083003542819205": {
+    "ownerId": "2781083003542819205",
+    "imei": "23515282-42cc-4026-be0e-de76fe177dd9-a69b52f9d7f760edf3fd052bcda2542f",
+    "cookie": "zpw_sek=jIrS.456744454.a0.rv9uvZXgN66x7zaCd47W5yPZXNoVUy9koWwlJ_KxjNlvReGXn2YBUDWPgZZiVDqrm2Q_qoAPdqB4GCxXxolW5m",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+    "timeRemaining": 0,
+    "status": "pending",
+    "createdAt": 1783821866268,
+    "createdBy": "Qthz",
+    "infoOwner": {
+      "name": "Qthz",
+      "description": "",
+      "botInfo": "",
+      "nameServer": "",
+      "typePlatform": "web"
+    }
+  },
+  "5038411001626216177": {
+    "ownerId": "5038411001626216177",
+    "imei": "972ae22d-915e-47d9-90e7-3451abc1b5cf-a69b52f9d7f760edf3fd052bcda2542f",
+    "cookie": "zpw_sek=K341.339946445.a0.91kK5gY0VV4hzVYSnzwxY9tytkF4v9d2YR_Gy96sWzYVcS_cqAlpmTwybC61uuQgcxdaJ7a6nDsVtsdUjRIxY0",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+    "timeRemaining": 2349752000,
+    "status": "active",
+    "createdAt": 1783846611360,
+    "createdBy": "Hoàng Tùng",
+    "infoOwner": {
+      "name": "Hoàng Tùng",
+      "description": "",
+      "botInfo": "",
+      "nameServer": "Hoàng Tùng",
+      "typePlatform": "web"
+    },
+    "approvedAt": 1783846651916,
+    "approvedBy": "AUTO_PAYMENT",
+    "paymentRef": "FT26194L8SH6",
+    "idBot": "549817247255135264",
+    "nameBot": "Hoàng Tùng",
+    "idBotMainWithBot": "5404202191044253566",
+    "numberPhone": "84332357001"
+  },
+  "5182523037986374897": {
+    "ownerId": "5182523037986374897",
+    "imei": "655b0feb-dc84-44a1-a887-466aae402ab5-a69b52f9d7f760edf3fd052bcda2542f",
+    "cookie": "zpw_sek=o_Nq.460195535.a0.34h-pEwg5Fbjtv6KWzd_ZzdxckI0uztrmQYQoE7jkhdHbyx4x8kwmCgxaztLvCAjtxwWIpq1WDhRsENNyRF_Zm",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+    "timeRemaining": 2350138000,
+    "status": "active",
+    "createdAt": 1783846938851,
+    "createdBy": "Hoàng Tùng",
+    "infoOwner": {
+      "name": "Hoàng Tùng",
+      "description": "",
+      "botInfo": "",
+      "nameServer": "Hoàng Tùng",
+      "typePlatform": "web"
+    },
+    "approvedAt": 1783846986089,
+    "approvedBy": "626785955735131567",
+    "idBot": "622470776561634095",
+    "nameBot": "Hoàng Tùng",
+    "idBotMainWithBot": "5187507270480271985",
+    "numberPhone": "84778384296"
+  }
+}

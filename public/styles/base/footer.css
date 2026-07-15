@@ -1,0 +1,5 @@
+footer { width: 100%; background: #0f2a4f; color: #ffffff; position: sticky; bottom: 0; left: 0; right: 0; z-index: 998; }
+.ticker { width: 100%; overflow: hidden; background: #0f2a4f; }
+.inner-footer { padding: 8px 12px; white-space: nowrap; position: relative; }
+.ticker-content { display: inline-block; color: #ffffff; white-space: pre; will-change: transform; tab-size: 4; }
+@media screen and (max-width: 768px) { .inner-footer { padding: 6px 10px; } .ticker-content { font-size: 14px; } }

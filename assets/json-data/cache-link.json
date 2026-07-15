@@ -1,0 +1,4891 @@
+{
+  "soundcloud": {
+    "39498561": {
+      "title": "C-Walk - Co Khi Nao Roi Xa",
+      "artist": "Neg Ho",
+      "sq": {
+        "fileUrl": "https://voice-aac-dl.zdn.vn/6888776303334581074/cc18c9d6fe991dc74488.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:39498561/c3497be3-79f5-4df3-bfbd-2f70113a39ad/stream/progressive",
+          "preset": "mp3_0_0",
+          "duration": 256592,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1783697017610
+      }
+    },
+    "104550461": {
+      "title": "Hơi thở cuối - AT117 ft BlackBi",
+      "artist": "SevenTee",
+      "sq": {
+        "fileUrl": "https://voice-aac-dl.zdn.vn/3823403238036587927/0a9337c9bc855fdb0694.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:104550461/1aaff1ff-6564-41be-8e61-54dc6780055e/stream/progressive",
+          "preset": "mp3_0_0",
+          "duration": 201057,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1783691011216
+      }
+    },
+    "202624867": {
+      "title": "Anh Sai Roi - Son Tung M TP",
+      "artist": "Santong Liv",
+      "sq": {
+        "fileUrl": "https://f2-zcloud-voice-aac.zdn.vn/477814463410309039/8c386dd96cd18d8fd4c0.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:202624867/f965ff6b-ab33-4e44-a2b9-dfa96dab5ff5/stream/progressive",
+          "preset": "mp3_0_0",
+          "duration": 262189,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1765947503421
+      }
+    },
+    "308334317": {
+      "title": "Nơi Này Có Anh",
+      "artist": "VPOP",
+      "sq": {
+        "fileUrl": "https://f1-zcloud-voice-aac.zdn.vn/675083075604480889/771238dcb78a54d40d9b.aac?createby=NguyenGiaHung_Bot/1784044974697.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:308334317/31f9e1a1-a203-4b46-8b8b-bc15e90978fe/stream/progressive",
+          "preset": "mp3_0_0",
+          "duration": 261900,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1784044974699
+      }
+    },
+    "319333327": {
+      "title": "Trái Tim Em Cũng Biết Đau - Thái Hoàng",
+      "artist": "Thái Hoàng with ♥",
+      "sq": {
+        "fileUrl": "https://voice-aac-dl.zdn.vn/2541643939960233166/1c25f2ce938670d82997.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:319333327/50db2e45-64c1-4054-bf5a-ff2bdd40786c/stream/progressive",
+          "preset": "mp3_0_0",
+          "duration": 326796,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1783833641412
+      }
+    },
+    "339452759": {
+      "title": "TÚY ÂM - XESI x MASEW x NHATNGUYEN",
+      "artist": "Xesi",
+      "sq": {
+        "fileUrl": "https://f1-zcloud-voice-aac.zdn.vn/496862592888796568/37deb1caf1ef11b148fe.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:339452759/25bc7bb2-20f1-4e30-8678-f11ecfe8bc1f/stream/progressive",
+          "preset": "mp3_0_0",
+          "duration": 201500,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1777524999121
+      }
+    },
+    "386810288": {
+      "title": "nguoi la oi",
+      "artist": "Moon",
+      "sq": {
+        "fileUrl": "https://voice-aac-dl.zdn.vn/5520251778799178003/8fb5ae245068b336ea79.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:386810288/ed1a2e26-cfc1-4505-bccb-a6a0d8ae4782/stream/progressive",
+          "preset": "mp3_0_0",
+          "duration": 217385,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1783691874407
+      }
+    },
+    "705751516": {
+      "title": "Em Ơi Lên Phố - Minh Vương M4U",
+      "artist": "conbocodon",
+      "sq": {
+        "fileUrl": "https://f2-zcloud-voice-aac.zdn.vn/8711903680469271226/3a58705f3a7ada24836b.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:705751516/2a4941da-0c1e-4b60-b72f-7e03f2e86133/stream/progressive",
+          "preset": "mp3_0_1",
+          "duration": 231602,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1777526302629
+      }
+    },
+    "813364705": {
+      "title": "Chúc bé ngủ ngon",
+      "artist": "Kay",
+      "sq": {
+        "fileUrl": "https://f2-voice-aac-dl.zdn.vn/4344386781394743676/8bb1556ed9203a7e6331.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:813364705/131c018f-534b-4354-9d0b-403e493a1116/stream/progressive",
+          "preset": "mp3_0_1",
+          "duration": 87954,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1783765937403
+      }
+    },
+    "832502620": {
+      "title": "Có Thể Hay Không? / 可不可以? (抖音热歌)",
+      "artist": "Ngọc Huyền",
+      "sq": {
+        "fileUrl": "https://voice-aac-dl.zdn.vn/6420156377741006328/af3661aebff95ca705e8.aac?createby=NguyenGiaHung_Bot/1784025613294.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:832502620/db89b8da-7cce-413d-a459-46f1b99c4a3d/stream/progressive",
+          "preset": "mp3_0_1",
+          "duration": 240953,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1784025613295
+      }
+    },
+    "1056448558": {
+      "title": "Ngây Thơ Remix - Ciray",
+      "artist": "Hiệp phạm",
+      "sq": {
+        "fileUrl": "https://f2-voice-aac-dl.zdn.vn/4317647539337297781/b81f1e50d51c36426f0d.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:1056448558/9e003561-e5ef-4bc9-ab62-ee6b89777bbc/stream/progressive",
+          "preset": "mp3_0_1",
+          "duration": 231706,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1783696619484
+      }
+    },
+    "1094218003": {
+      "title": "10 ngàn năm",
+      "artist": "h.ngocday~",
+      "sq": {
+        "fileUrl": "https://voice-aac-dl.zdn.vn/9206585908267372282/f0664dd33f9cdcc2858d.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:1094218003/eec34050-a134-439a-80a4-5c97023b75ee/stream/progressive",
+          "preset": "mp3_0_1",
+          "duration": 127556,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1783727099921
+      }
+    },
+    "1378228918": {
+      "title": "Tận Cùng Nỗi Nhớ",
+      "artist": "The BROS",
+      "sq": {
+        "fileUrl": "https://voice-aac-dl.zdn.vn/8494609041619083184/45e12875e33900675928.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:1378228918/13dc87f0-3d65-4966-83dc-227b6d53be4d/stream/progressive",
+          "preset": "mp3_1_0",
+          "duration": 291500,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1783696596597
+      }
+    },
+    "1482983230": {
+      "title": "Gió - Jank",
+      "artist": "Chanhh",
+      "sq": {
+        "fileUrl": "https://f2-zcloud-voice-aac.zdn.vn/3478080183923346172/51db54b10c94eccab585.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:1482983230/9c17344f-9e57-423c-b72c-6b8452fea5f2/stream/progressive",
+          "preset": "mp3_1_0",
+          "duration": 264490,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1777523996610
+      }
+    },
+    "1535081485": {
+      "title": "Hoa Cỏ Lau Remix",
+      "artist": "Lê Đình Nguyên",
+      "sq": {
+        "fileUrl": "https://voice-aac-dl.zdn.vn/8133903156625095781/ac80307f0730e46ebd21.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:1535081485/31cf4179-79a9-4209-ba20-5ab05b73b1fd/stream/progressive",
+          "preset": "mp3_1_0",
+          "duration": 186044,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1783697010457
+      }
+    },
+    "1679991678": {
+      "title": "Ngày Em Cưới (Qinn Remix) - Nguyen Trong Nghia",
+      "artist": "Nguyen Trong Nghia",
+      "sq": {
+        "fileUrl": "https://f1-zcloud-voice-aac.zdn.vn/1390756699491060059/cdeb25bd7f989fc6c689.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:1679991678/b88edf8e-1c17-49e4-988b-ebbb46ffcf17/stream/progressive",
+          "preset": "mp3_1_0",
+          "duration": 317440,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1777524252151
+      }
+    },
+    "1690368189": {
+      "title": "Ai Là Người Thương Em x Yêu Thương Là Bão Tố",
+      "artist": "Ngô Phát",
+      "sq": {
+        "fileUrl": "https://voice-aac-dl.zdn.vn/8328627932550264153/40f10d1c494daa13f35c.aac?createby=NguyenGiaHung_Bot/1784087841998.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:1690368189/6375f789-e20c-4298-a45c-ef5842eca919/stream/progressive",
+          "preset": "mp3_1_0",
+          "duration": 38792,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1784087841999
+      }
+    },
+    "1783089525": {
+      "title": "10 Ngàn Năm",
+      "artist": "Trường͛",
+      "sq": {
+        "fileUrl": "https://f2-voice-aac-dl.zdn.vn/7090192721493838982/f309a8f8f1b712e94ba6.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:1783089525/069e2be8-c4a2-440c-ae90-078e722f9faa/stream/progressive",
+          "preset": "mp3_1_0",
+          "duration": 235102,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1783733611068
+      }
+    },
+    "1827058476": {
+      "title": "EM ƠI LÊN PHỐ - TIPO REMIX",
+      "artist": "wng.lnk",
+      "sq": {
+        "fileUrl": "https://f1-zcloud-voice-aac.zdn.vn/6509908406820600112/9c7c92c4d8e138bf61f0.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:1827058476/986250c0-f451-40c5-8526-c747bf341a1b/stream/progressive",
+          "preset": "mp3_1_0",
+          "duration": 332330,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1777526270854
+      }
+    },
+    "1889205303": {
+      "title": "Đừng Tìm Anh Nữa 2024 - Thiện Toàn Rm",
+      "artist": "Thien Toan",
+      "sq": {
+        "fileUrl": "https://f2-voice-aac-dl.zdn.vn/5241905010774468429/58794ff4a4b947e71ea8.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:1889205303/dedaa31d-772e-4083-bbc2-34c4635d7f76/stream/progressive",
+          "preset": "mp3_1_0",
+          "duration": 342936,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1783672698434
+      }
+    },
+    "1938216128": {
+      "title": "- Một Giấc Mộng Xưa Lofi - Một Giấc Phiêu Bồng Lofi-",
+      "artist": "Dai Phat",
+      "sq": {
+        "fileUrl": "https://voice-aac-dl.zdn.vn/2511816009507231248/ff8db9938edc6d8234cd.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:1938216128/8b59923a-aa02-4722-91fd-e2b7150372d1/stream/progressive",
+          "preset": "mp3_1_0",
+          "duration": 149316,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1783697113271
+      }
+    },
+    "1939481954": {
+      "title": "Rất Lâu Rồi Mới Khóc (New Version) - Quốc Thiên | Trời hỡi khi nghe người ta nhắc chữ vợ chồng.mp3",
+      "artist": "linh trố",
+      "sq": {
+        "fileUrl": "https://voice-aac-dl.zdn.vn/7634028868734732746/11ca83c90c9defc3b68c.aac?createby=NguyenGiaHung_Bot/1783996766357.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:1939481954/fe0bedfa-b9f2-4260-bcb9-5e338ef81e64/stream/progressive",
+          "preset": "mp3_1_0",
+          "duration": 335647,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1783996766359
+      }
+    },
+    "1968012947": {
+      "title": "Mất Kết Nối - Dương Domic (Whisky Rmx)(𝓛𝓸-𝓯𝓲 𝓿𝓮𝓻.)",
+      "artist": "WHISKY",
+      "sq": {
+        "fileUrl": "https://f2-zcloud-voice-aac.zdn.vn/3944192267342526479/af0235110435e46bbd24.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:1968012947/efe00d08-d643-4bb5-902f-fd1c65f44a57/stream/progressive",
+          "preset": "mp3_1_0",
+          "duration": 212715,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1777544707713
+      }
+    },
+    "1997634231": {
+      "title": "Bát phương lai tài.m4r",
+      "artist": "Dalmiez",
+      "sq": {
+        "fileUrl": "https://f2-voice-aac-dl.zdn.vn/2928431293461462729/df03805eb711544f0d00.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:1997634231/d8ff85f4-9284-425e-9905-196cc4eec161/stream/progressive",
+          "preset": "mp3_1_0",
+          "duration": 232829,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1783697083058
+      }
+    },
+    "2003841843": {
+      "title": "Việt Mix Full 2H Hot TikTok 2025 Vol 15 | Nhạc Trẻ Remix 2025 Hay Nhất Hiện Nay",
+      "artist": "Đông Trần ✪",
+      "sq": {
+        "fileUrl": "https://bfg30.dlfl.vn/255c585e8dab2df574ba/2846134983687024666/1783693156920.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:2003841843/28b59aa8-b563-44e3-9aac-7626205170f7/stream/progressive",
+          "preset": "mp3_1_0",
+          "duration": 7470524,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1783693156934
+      }
+    },
+    "2025530180": {
+      "title": "Track 06 x Nơi Này Có Anh (ATOM Mashup)",
+      "artist": "ATOM",
+      "sq": {
+        "fileUrl": "https://voice-aac-dl.zdn.vn/548898793608087849/cbbc3cabe5e706b95ff6.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:2025530180/b1e7e1ea-ebbe-405e-b69e-517b94e33c7d/stream/progressive",
+          "preset": "mp3_1_0",
+          "duration": 243513,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1783695231357
+      }
+    },
+    "2036077584": {
+      "title": "THƯƠNG THÌ THÔI X EM MUỐN TA LÀ GÌ REMIX - NHẠC REMIX TIKTOK 2025 TRIỆU VIEW",
+      "artist": "Nhat",
+      "sq": {
+        "fileUrl": "https://f39-zfcloud.zdn.vn/71aa9767888328dd7192/4261941415264252949?createby=HaHuyHoang_Bot/1780026879364.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:2036077584/2792accc-6404-4768-bdc3-0361262c9358/stream/progressive",
+          "preset": "mp3_1_0",
+          "duration": 3492232,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1780026879372
+      }
+    },
+    "2036981020": {
+      "title": "Tinh Vệ x Bát Phương Lai Tài -八方来财 x 精卫 (DJ阿布 抖音版2025)",
+      "artist": "Ng Việt Hùng",
+      "sq": {
+        "fileUrl": "https://voice-aac-dl.zdn.vn/1981419493561275750/00736db859f7baa9e3e6.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:2036981020/c4e029ff-dabc-4321-ac79-cdbf75777316/stream/progressive",
+          "preset": "mp3_1_0",
+          "duration": 254955,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1783697134099
+      }
+    },
+    "2083593234": {
+      "title": "NST- 2K25 CANH PHI YEN FT KHOC TRONG MUA HOTTREND TIKTOK - CUBII MIX",
+      "artist": "✈️✈️CuBii✈️✈️",
+      "sq": {
+        "fileUrl": "https://fg41.dlfl.vn/21ed188acf7f6f21366e/4726210653926068757/1783696828317.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:2083593234/33c90a72-0969-4c61-9504-7557201d06e2/stream/progressive",
+          "preset": "mp3_1_0",
+          "duration": 4283507,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1783696828325
+      }
+    },
+    "2095453251": {
+      "title": "Phạm Kỳ live \" Anh Vui \" (Anh vui đến nỗi nghẹn ngào)",
+      "artist": "Hương Phan",
+      "sq": {
+        "fileUrl": "https://f2-voice-aac-dl.zdn.vn/7302633587019397541/e8a2efbcabed48b311fc.aac?createby=NguyenGiaHung_Bot/1784087909985.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:2095453251/b3ce2be1-c795-4b20-a866-eb989e139c8f/stream/progressive",
+          "preset": "mp3_1_0",
+          "duration": 210312,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1784087909986
+      }
+    },
+    "2129255616": {
+      "title": "(2 in 1) Mưa Rơi Vào Phòng x Cành Phi Yến Trong Mưa Remix (Giọt Nước)",
+      "artist": "Kênh Remix Giọt Nước 💧",
+      "sq": {
+        "fileUrl": "https://voice-aac-dl.zdn.vn/8648484747476835842/98bb68485e07bd59e416.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:2129255616/480efee3-f09c-42ed-ab84-943843c35bab/stream/progressive",
+          "preset": "mp3_1_0",
+          "duration": 370364,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1783696889216
+      }
+    },
+    "2169738945": {
+      "title": "Người Đầu Tiên - Juky San, Em Xinh Say Hi",
+      "artist": "Em Xinh Say Hi",
+      "sq": {
+        "fileUrl": "https://f1-zcloud-voice-aac.zdn.vn/2829115214032028756/fd93eef9acdc4c8215cd.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:2169738945/59d65724-5517-4805-bc84-8292b791cd98/stream/progressive",
+          "preset": "mp3_1_0",
+          "duration": 228859,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1777525292971
+      }
+    },
+    "2189351055": {
+      "title": "TƯƠNG TƯ NÀNG CA SĨ - AVICIII ACV REMIX",
+      "artist": "Hiếu Remon",
+      "sq": {
+        "fileUrl": "https://voice-aac-dl.zdn.vn/8619043000637593115/6c739ab3dcfd3fa366ec.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:2189351055/584f02ea-ebfb-4bc4-8c15-72e30d0a3e8c/stream/progressive",
+          "preset": "mp3_1_0",
+          "duration": 246988,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1783759237955
+      }
+    },
+    "2199158087": {
+      "title": "Mix 15 Bản Full Hychun x Đông Remix || Vô Tình x Cưới Thôi x Cưới Đi x Rằng Em Mãi Ở Bên ...",
+      "artist": "Nguyễn Huy",
+      "sq": {
+        "fileUrl": "https://fg41.dlfl.vn/cf3d2ce7f812584c0103/4693827813846916945/1783695266441.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:2199158087/24d24293-8ef5-4512-8f6d-4be2211921a4/stream/progressive",
+          "preset": "mp3_1_0",
+          "duration": 4588931,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1783695266451
+      }
+    },
+    "2239062131": {
+      "title": "Between Years – 15h Melodic & Progressive Journey - FULL",
+      "artist": "Zemmco",
+      "sq": {
+        "fileUrl": "https://bfg31.dlfl.vn/f0878ae53a109a4ec301/3288203749607396538/1783771099918.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:2239062131/756e0c56-33a6-4b23-b00a-ec45e2b2117b/stream/progressive",
+          "preset": "mp3_1_0",
+          "duration": 55132526,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1783771100048
+      }
+    },
+    "2243728277": {
+      "title": "Tinh Vệ Remix | 精卫DJ - DJ她说  Remix",
+      "artist": "Tizh 🎶",
+      "sq": {
+        "fileUrl": "https://voice-aac-dl.zdn.vn/5701688293036869596/89a30c8922c7c19998d6.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:2243728277/e4344f35-339a-43e8-8172-3e7eeef5a337/stream/progressive",
+          "preset": "mp3_1_0",
+          "duration": 259004,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1783749978477
+      }
+    },
+    "2249617652": {
+      "title": "Full 2h - 50 Năm Sau - Đạt Híp Ft Hoàng Ngọc Mix",
+      "artist": "Đào Quang Đạt",
+      "sq": {
+        "fileUrl": "https://bfg30.dlfl.vn/4292e1d03525957bcc34/8109829157298444647/1783694768041.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:2249617652/aedbed86-5d5f-4aad-9341-b9e814569bfb/stream/progressive",
+          "preset": "mp3_1_0",
+          "duration": 7587318,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1783694768062
+      }
+    },
+    "2276620595": {
+      "title": "lo 1 loi thuong zenzy remix",
+      "artist": "Prodbyzenzy",
+      "sq": {
+        "fileUrl": "https://voice-aac-dl.zdn.vn/3105347952612865359/5a9553e6eda90ef757b8.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:2276620595/1d984f1a-dff8-4112-b54d-c04a248dbcf7/stream/progressive",
+          "preset": "mp3_1_0",
+          "duration": 150282,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1783736329113
+      }
+    },
+    "2314914782": {
+      "title": "SƠN THUỶ TRÙNG MÂY x THUỶ CHUNG x YẾN VÔ HIẾT (VIETZ x WI. REMIX)",
+      "artist": "WirA Records",
+      "sq": {
+        "fileUrl": "https://f2-voice-aac-dl.zdn.vn/6519702277551754173/f395b69553dbb085e9ca.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:2314914782/7512daa7-15db-4890-b7c3-45ec38311c0b/stream/progressive",
+          "preset": "mp3_1_0",
+          "duration": 375397,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1783768250966
+      }
+    },
+    "2342528147": {
+      "title": "Tìm Em (Slowed)",
+      "artist": "Shi",
+      "sq": {
+        "fileUrl": "https://voice-aac-dl.zdn.vn/3928861875695989674/56d3cee4b8a95bf702b8.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:2342528147/1165bc03-e3d5-4821-a72b-0d81343d3ce8/stream/progressive",
+          "preset": "mp3_1_0",
+          "duration": 312408,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1783657391214
+      }
+    },
+    "2342941655": {
+      "title": "Hngle - Tìm em ft Bảo Anh",
+      "artist": "Chouji",
+      "sq": {
+        "fileUrl": "https://voice-aac-dl.zdn.vn/768639797295770871/0eec931470589306ca49.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:2342941655/adebece1-2c4c-44ce-a864-53c6a104f349/stream/progressive",
+          "preset": "mp3_1_0",
+          "duration": 254313,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1783692909984
+      }
+    },
+    "2344620467": {
+      "title": "Tim Em ( Prod.Hades )",
+      "artist": "Hades",
+      "sq": {
+        "fileUrl": "https://voice-aac-dl.zdn.vn/5762323543604466697/09cee8bd52f4b1aae8e5.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:2344620467/1c4085b8-ed3b-4602-9a99-71db1fb55cc8/stream/progressive",
+          "preset": "mp3_1_0",
+          "duration": 282103,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1783786153567
+      }
+    },
+    "2345254835": {
+      "title": "Tìm em remix",
+      "artist": "dũng fjs💫",
+      "sq": {
+        "fileUrl": "https://voice-aac-dl.zdn.vn/2414754628400677762/b518e6cb1384f0daa995.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:2345254835/c9342217-4f1f-4096-bd7e-6bea2073c5a1/stream/progressive",
+          "preset": "mp3_1_0",
+          "duration": 423888,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1783741794979
+      }
+    },
+    "2352825707": {
+      "title": "3 IN 1 CANH PHI YEN TRONG MUA - VAN KHANH.mp3",
+      "artist": "❤️‍🔥✈️THT✈️❤️‍🔥",
+      "sq": {
+        "fileUrl": "https://voice-aac-dl.zdn.vn/644010135558872813/edc976fabeb65de804a7.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:2352825707/0b03c462-06af-4958-892d-c7f4e1733b30/stream/progressive",
+          "preset": "mp3_1_0",
+          "duration": 285264,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1783696745984
+      }
+    },
+    "2352878372": {
+      "title": "Bốn Chữ Lắm Remix (Ver Chuẩn TikTok) - Yêu Lắm Thương Lắm Mà Xa Lắm Chứ Đau Lắm Ai Chờ Mong Chờ...",
+      "artist": "Simlee Music 🎶",
+      "sq": {
+        "fileUrl": "https://f2-voice-aac-dl.zdn.vn/8124414268221929849/6e3cf40db343501d0952.aac",
+        "progressiveUrl": {
+          "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:2352878372/90db05e9-2002-46a9-aa82-28c3980dde58/stream/progressive",
+          "preset": "mp3_1_0",
+          "duration": 280032,
+          "snipped": false,
+          "format": {
+            "protocol": "progressive",
+            "mime_type": "audio/mpeg"
+          },
+          "quality": "sq",
+          "is_legacy_transcoding": true
+        },
+        "timestamp": 1783759394110
+      }
+    }
+  },
+  "CIRCLE_WEBP": {
+    "202624867_t5": {
+      "webp": {
+        "fileName": "circle_1765947571496.webp",
+        "totalSize": 2637212,
+        "finished": 1,
+        "clientFileId": 1765947517219,
+        "chunkId": 1,
+        "fileId": 313968480685,
+        "fileUrl": "https://f36-zfcloud.zdn.vn/6b60b0423f1e9f40c60f/1273593988641197292?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "451c619f4a838e04035fae5f220b3ea0",
+        "url": "https://f36-zfcloud.zdn.vn/6b60b0423f1e9f40c60f/1273593988641197292?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1765947571496.webp",
+          "totalSize": 2637212,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1765947517860
+      }
+    },
+    "/djtrieumuzik/deep-house-vol1-l%E1%BA%A1c-tr%C3%B4i-2020-dj-trieu-muzik-0337273111mp3843mb/_t5": {
+      "webp": {
+        "fileName": "circle_1765950625785.webp",
+        "totalSize": 3667550,
+        "finished": 1,
+        "clientFileId": 1765950542543,
+        "chunkId": 1,
+        "fileId": 313969045265,
+        "fileUrl": "https://f35-zfcloud.zdn.vn/a2b43c2b4a74ea2ab365/2721574253034763511?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "07c0ecc3e219b8e4db936c5b4fcfaa0b",
+        "url": "https://f35-zfcloud.zdn.vn/a2b43c2b4a74ea2ab365/2721574253034763511?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1765950625785.webp",
+          "totalSize": 3667550,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1765950555033
+      }
+    },
+    "/Xi-Dolce-Mix/vi%E1%BB%87t-mix-2019-ai-l%C3%A0-ng%C6%B0%E1%BB%9Di-th%C6%B0%C6%A1ng-em-ph%C6%B0%C6%A1ng-xa-xi-dolce-mix/_t5": {
+      "webp": {
+        "fileName": "circle_1765952572049.webp",
+        "totalSize": 2217784,
+        "finished": 1,
+        "clientFileId": 1765952493276,
+        "chunkId": 1,
+        "fileId": 313969449123,
+        "fileUrl": "https://f37-zfcloud.zdn.vn/a04d8625fa7a5a24036b/1168879857802491249?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "dcd8598179739e2dd12fa343ed0b31cc",
+        "url": "https://f37-zfcloud.zdn.vn/a04d8625fa7a5a24036b/1168879857802491249?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1765952572049.webp",
+          "totalSize": 2217784,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1765952494111
+      }
+    },
+    "/soncon123/fff/_t5": {
+      "webp": {
+        "fileName": "circle_1765953020078.webp",
+        "totalSize": 3104052,
+        "finished": 1,
+        "clientFileId": 1765952949550,
+        "chunkId": 1,
+        "fileId": 313969583901,
+        "fileUrl": "https://f36-zfcloud.zdn.vn/615ffb08855725097c46/8304964230860920880?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "e2ff10a034c5713c6e13238ca627dcea",
+        "url": "https://f36-zfcloud.zdn.vn/615ffb08855725097c46/8304964230860920880?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1765953020078.webp",
+          "totalSize": 3104052,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1765952950237
+      }
+    },
+    "ZWAEIUUB_t5": {
+      "webp": {
+        "fileName": "circle_1777509476281.webp",
+        "totalSize": 3214346,
+        "finished": 1,
+        "clientFileId": 1777509450629,
+        "chunkId": 1,
+        "fileId": 315927935160,
+        "fileUrl": "https://f39-zfcloud.zdn.vn/9a1c6bc0db0b7b55221a/8529824611831795762?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "57266032802c028673168fefb5d7ff4d",
+        "url": "https://f39-zfcloud.zdn.vn/9a1c6bc0db0b7b55221a/8529824611831795762?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1777509476281.webp",
+          "totalSize": 3214346,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1777509451267
+      }
+    },
+    "1482983230_t5": {
+      "webp": {
+        "fileName": "circle_1777524240220.webp",
+        "totalSize": 4619390,
+        "finished": 1,
+        "clientFileId": 1777524163300,
+        "chunkId": 1,
+        "fileId": 315929267165,
+        "fileUrl": "https://f41-zfcloud.zdn.vn/59c3d2ac7d67dd398476/6716210626505572714?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "7f51d5e85cd20abaf91e4f9e7255ed77",
+        "url": "https://f41-zfcloud.zdn.vn/59c3d2ac7d67dd398476/6716210626505572714?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1777524240220.webp",
+          "totalSize": 4619390,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1777524163849
+      }
+    },
+    "1679991678_t5": {
+      "webp": {
+        "fileName": "circle_1777524323802.webp",
+        "totalSize": 1912494,
+        "finished": 1,
+        "clientFileId": 1777524263896,
+        "chunkId": 1,
+        "fileId": 315929273534,
+        "fileUrl": "https://f40-zfcloud.zdn.vn/728b9acb3500955ecc11/7457929813193202377?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "60851453e6608836162ef9d97cd4fb37",
+        "url": "https://f40-zfcloud.zdn.vn/728b9acb3500955ecc11/7457929813193202377?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1777524323802.webp",
+          "totalSize": 1912494,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1777524264412
+      }
+    },
+    "Z708O0OU_t5": {
+      "webp": {
+        "fileName": "circle_1777524342488.webp",
+        "totalSize": 3844752,
+        "finished": 1,
+        "clientFileId": 1777524319802,
+        "chunkId": 1,
+        "fileId": 315929277417,
+        "fileUrl": "https://f40-zfcloud.zdn.vn/8fe630b19f7a3f24666b/7714644370053278467?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "93c593f204fb00c006130984e1b9579f",
+        "url": "https://f40-zfcloud.zdn.vn/8fe630b19f7a3f24666b/7714644370053278467?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1777524342488.webp",
+          "totalSize": 3844752,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1777524320416
+      }
+    },
+    "339452759_t5": {
+      "webp": {
+        "fileName": "circle_1777525093696.webp",
+        "totalSize": 2909748,
+        "finished": 1,
+        "clientFileId": 1777525013060,
+        "chunkId": 1,
+        "fileId": 315929324316,
+        "fileUrl": "https://f39-zfcloud.zdn.vn/226868e7c72c67723e3d/1061739882647939251?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "a61207d68038b6387bd732d4e1791f57",
+        "url": "https://f39-zfcloud.zdn.vn/226868e7c72c67723e3d/1061739882647939251?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1777525093696.webp",
+          "totalSize": 2909748,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1777525013540
+      }
+    },
+    "2169738945_t5": {
+      "webp": {
+        "fileName": "circle_1777525318170.webp",
+        "totalSize": 2674648,
+        "finished": 1,
+        "clientFileId": 1777525306752,
+        "chunkId": 1,
+        "fileId": 315929342974,
+        "fileUrl": "https://f40-zfcloud.zdn.vn/46f3efa4416fe131b87e/8660451091191518642?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "ca12a68522f42b6fb04545c39ecdce04",
+        "url": "https://f40-zfcloud.zdn.vn/46f3efa4416fe131b87e/8660451091191518642?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1777525318170.webp",
+          "totalSize": 2674648,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1777525307128
+      }
+    },
+    "705751516_t5": {
+      "webp": {
+        "fileName": "circle_1777526364061.webp",
+        "totalSize": 3227574,
+        "finished": 1,
+        "clientFileId": 1777526316925,
+        "chunkId": 1,
+        "fileId": 315929405100,
+        "fileUrl": "https://f40-zfcloud.zdn.vn/0134fd7654bdf4e3adac/4400321457041906932?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "eed11747dec8603e35663512e772d099",
+        "url": "https://f40-zfcloud.zdn.vn/0134fd7654bdf4e3adac/4400321457041906932?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1777526364061.webp",
+          "totalSize": 3227574,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1777526317472
+      }
+    },
+    "81f64427bfeb59ae_t5": {
+      "webp": {
+        "fileName": "circle_1777537493413.webp",
+        "totalSize": 2260054,
+        "finished": 1,
+        "clientFileId": 1777537463422,
+        "chunkId": 1,
+        "fileId": 315930134433,
+        "fileUrl": "https://f40-zfcloud.zdn.vn/ab436160f3ab53f50aba/8193179097097364297?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "3930af2613058dba815e03f825faa28e",
+        "url": "https://f40-zfcloud.zdn.vn/ab436160f3ab53f50aba/8193179097097364297?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1777537493413.webp",
+          "totalSize": 2260054,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1777537463856
+      }
+    },
+    "Z6IB6AUO_t5": {
+      "webp": {
+        "fileName": "circle_1777538016302.webp",
+        "totalSize": 2291968,
+        "finished": 1,
+        "clientFileId": 1777537999036,
+        "chunkId": 1,
+        "fileId": 315930183267,
+        "fileUrl": "https://f41-zfcloud.zdn.vn/c4a7c3c55e0efe50a71f/3109316892139710092?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "3b2db307c4a1ce0fc9c9aac567b1af76",
+        "url": "https://f41-zfcloud.zdn.vn/c4a7c3c55e0efe50a71f/3109316892139710092?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1777538016302.webp",
+          "totalSize": 2291968,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1777537999594
+      }
+    },
+    "1968012947_t5": {
+      "webp": {
+        "fileName": "circle_1777544755830.webp",
+        "totalSize": 2747274,
+        "finished": 1,
+        "clientFileId": 1777544722400,
+        "chunkId": 1,
+        "fileId": 315930784653,
+        "fileUrl": "https://f39-zfcloud.zdn.vn/70d38084044fa411fd5e/2548421442011136031?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "0ce7bdb0d753fe2bf4c4e46778a5f257",
+        "url": "https://f39-zfcloud.zdn.vn/70d38084044fa411fd5e/2548421442011136031?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1777544755830.webp",
+          "totalSize": 2747274,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1777544724072
+      }
+    },
+    "2342528147_t5": {
+      "webp": {
+        "fileName": "circle_1783657454378.webp",
+        "totalSize": 1854420,
+        "finished": 1,
+        "clientFileId": 1783657404996,
+        "chunkId": 1,
+        "fileId": 316493644653,
+        "fileUrl": "https://f41-zfcloud.zdn.vn/3490a809a0fc00a259ed/2642650877597817405?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "5473a7b32c07a458792c4d51d5af0909",
+        "url": "https://f41-zfcloud.zdn.vn/3490a809a0fc00a259ed/2642650877597817405?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1783657454378.webp",
+          "totalSize": 1854420,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1783657405405
+      }
+    },
+    "1889205303_t5": {
+      "webp": {
+        "fileName": "circle_1783672790780.webp",
+        "totalSize": 2327980,
+        "finished": 1,
+        "clientFileId": 1783672711145,
+        "chunkId": 1,
+        "fileId": 316494713590,
+        "fileUrl": "https://f41-zfcloud.zdn.vn/2195d5dd2e288e76d739/8247239876774338621?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "ff7cd8081a8f66223cdf777f437e9421",
+        "url": "https://f41-zfcloud.zdn.vn/2195d5dd2e288e76d739/8247239876774338621?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1783672790780.webp",
+          "totalSize": 2327980,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1783672711325
+      }
+    },
+    "104550461_t5": {
+      "webp": {
+        "fileName": "circle_1783691025500.webp",
+        "totalSize": 2198888,
+        "finished": 1,
+        "clientFileId": 1783691025923,
+        "chunkId": 1,
+        "fileId": 316495828969,
+        "fileUrl": "https://f40-zfcloud.zdn.vn/4abfb0f25a07fa59a316/1985036057636123713?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "19695af8b01a518085a3647c01b99576",
+        "url": "https://f40-zfcloud.zdn.vn/4abfb0f25a07fa59a316/1985036057636123713?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1783691025500.webp",
+          "totalSize": 2198888,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1783691026196
+      }
+    },
+    "386810288_t5": {
+      "webp": {
+        "fileName": "circle_1783691892686.webp",
+        "totalSize": 3031288,
+        "finished": 1,
+        "clientFileId": 1783691888402,
+        "chunkId": 1,
+        "fileId": 316495855410,
+        "fileUrl": "https://f41-zfcloud.zdn.vn/47a566808c752c2b7564/1527439862626473606?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "d85070c2e8a2fb37cf55808a52fa5b85",
+        "url": "https://f41-zfcloud.zdn.vn/47a566808c752c2b7564/1527439862626473606?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1783691892686.webp",
+          "totalSize": 3031288,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1783691888817
+      }
+    },
+    "2342941655_t5": {
+      "webp": {
+        "fileName": "circle_1783692961914.webp",
+        "totalSize": 2893274,
+        "finished": 1,
+        "clientFileId": 1783692922723,
+        "chunkId": 1,
+        "fileId": 316495895393,
+        "fileUrl": "https://f41-zfcloud.zdn.vn/63432e02fbf75ba902e6/4444450530079782374?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "b0edc2dd5fd8aa5efcdd5ab34f34c306",
+        "url": "https://f41-zfcloud.zdn.vn/63432e02fbf75ba902e6/4444450530079782374?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1783692961914.webp",
+          "totalSize": 2893274,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1783692922994
+      }
+    },
+    "m4OopfbooS9C_t5": {
+      "webp": {
+        "fileName": "circle_1783692988613.webp",
+        "totalSize": 2154282,
+        "finished": 1,
+        "clientFileId": 1783692990995,
+        "chunkId": 1,
+        "fileId": 316495895136,
+        "fileUrl": "https://f41-zfcloud.zdn.vn/d1259d654890e8ceb181/3006220304110176642?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "843386aea3c458ef38284f211dd073d2",
+        "url": "https://f41-zfcloud.zdn.vn/d1259d654890e8ceb181/3006220304110176642?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1783692988613.webp",
+          "totalSize": 2154282,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1783692991200
+      }
+    },
+    "2003841843_t5": {
+      "webp": {
+        "fileName": "circle_1783693253284.webp",
+        "totalSize": 3064876,
+        "finished": 1,
+        "clientFileId": 1783693171383,
+        "chunkId": 1,
+        "fileId": 316495910074,
+        "fileUrl": "https://f40-zfcloud.zdn.vn/eb637d6da89808c65189/2109228713848048858?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "52e594617a9e7b55eae2e1b34c08b27d",
+        "url": "https://f40-zfcloud.zdn.vn/eb637d6da89808c65189/2109228713848048858?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1783693253284.webp",
+          "totalSize": 3064876,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1783693171583
+      }
+    },
+    "wgpNJZxMdoMX_t5": {
+      "webp": {
+        "fileName": "circle_1783693853507.webp",
+        "totalSize": 2691206,
+        "finished": 1,
+        "clientFileId": 1783693784826,
+        "chunkId": 1,
+        "fileId": 316495931349,
+        "fileUrl": "https://f41-zfcloud.zdn.vn/4799be646b91cbcf9280/4241597244599442509?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "3d59ed545344414484f24f77e5b56ef1",
+        "url": "https://f41-zfcloud.zdn.vn/4799be646b91cbcf9280/4241597244599442509?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1783693853507.webp",
+          "totalSize": 2691206,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1783693785025
+      }
+    },
+    "2249617652_t5": {
+      "webp": {
+        "fileName": "circle_1783694833550.webp",
+        "totalSize": 2532754,
+        "finished": 1,
+        "clientFileId": 1783694782144,
+        "chunkId": 1,
+        "fileId": 316495960208,
+        "fileUrl": "https://f41-zfcloud.zdn.vn/80363d74e98149df1090/461117182601884895?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "e12f18c8d24fac1e9f7231c81f1aee7c",
+        "url": "https://f41-zfcloud.zdn.vn/80363d74e98149df1090/461117182601884895?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1783694833550.webp",
+          "totalSize": 2532754,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1783694782352
+      }
+    },
+    "2025530180_t5": {
+      "webp": {
+        "fileName": "circle_1783695267253.webp",
+        "totalSize": 2003630,
+        "finished": 1,
+        "clientFileId": 1783695245241,
+        "chunkId": 1,
+        "fileId": 316495983925,
+        "fileUrl": "https://f41-zfcloud.zdn.vn/96558e7a5a8ffad1a39e/7240228510366313849?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "5e53cb3840d362be3a6409f0ee51571e",
+        "url": "https://f41-zfcloud.zdn.vn/96558e7a5a8ffad1a39e/7240228510366313849?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1783695267253.webp",
+          "totalSize": 2003630,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1783695245405
+      }
+    },
+    "2199158087_t5": {
+      "webp": {
+        "fileName": "circle_1783695366515.webp",
+        "totalSize": 2672210,
+        "finished": 1,
+        "clientFileId": 1783695280692,
+        "chunkId": 1,
+        "fileId": 316495981448,
+        "fileUrl": "https://f40-zfcloud.zdn.vn/0b82aeb37a46da188357/5948993881576775818?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "e71e252787662e7a94a4ccada15616cb",
+        "url": "https://f40-zfcloud.zdn.vn/0b82aeb37a46da188357/5948993881576775818?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1783695366515.webp",
+          "totalSize": 2672210,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1783695280876
+      }
+    },
+    "1378228918_t5": {
+      "webp": {
+        "fileName": "circle_1783696663464.webp",
+        "totalSize": 4485400,
+        "finished": 1,
+        "clientFileId": 1783696610670,
+        "chunkId": 1,
+        "fileId": 316496025491,
+        "fileUrl": "https://f39-zfcloud.zdn.vn/c6797b34acc10c9f55d0/8652331149034180514?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "6f9afc64df05376603621c39d05a74e5",
+        "url": "https://f39-zfcloud.zdn.vn/c6797b34acc10c9f55d0/8652331149034180514?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1783696663464.webp",
+          "totalSize": 4485400,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1783696610897
+      }
+    },
+    "1056448558_t5": {
+      "webp": {
+        "fileName": "circle_1783696709151.webp",
+        "totalSize": 3650096,
+        "finished": 1,
+        "clientFileId": 1783696633324,
+        "chunkId": 1,
+        "fileId": 316496032285,
+        "fileUrl": "https://f41-zfcloud.zdn.vn/c920fa482dbd8de3d4ac/3940292308224131567?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "a5524ec927aaa76a475e9b2cfa49915d",
+        "url": "https://f41-zfcloud.zdn.vn/c920fa482dbd8de3d4ac/3940292308224131567?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1783696709151.webp",
+          "totalSize": 3650096,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1783696633586
+      }
+    },
+    "2352825707_t5": {
+      "webp": {
+        "fileName": "circle_1783696787061.webp",
+        "totalSize": 4089126,
+        "finished": 1,
+        "clientFileId": 1783696760312,
+        "chunkId": 1,
+        "fileId": 316496032290,
+        "fileUrl": "https://f40-zfcloud.zdn.vn/83358f5d58a8f8f6a1b9/1570924466124061254?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "7a568a333c758f2a5de46fdb7e53b71a",
+        "url": "https://f40-zfcloud.zdn.vn/83358f5d58a8f8f6a1b9/1570924466124061254?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1783696787061.webp",
+          "totalSize": 4089126,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1783696760649
+      }
+    },
+    "2083593234_t5": {
+      "webp": {
+        "fileName": "circle_1783696889134.webp",
+        "totalSize": 3723774,
+        "finished": 1,
+        "clientFileId": 1783696842428,
+        "chunkId": 1,
+        "fileId": 316496032787,
+        "fileUrl": "https://f41-zfcloud.zdn.vn/a9ad94c34336e368ba27/4301592851450520822?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "07e8a6669aa0d7044b67bb430159a0f8",
+        "url": "https://f41-zfcloud.zdn.vn/a9ad94c34336e368ba27/4301592851450520822?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1783696889134.webp",
+          "totalSize": 3723774,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1783696842740
+      }
+    },
+    "2129255616_t5": {
+      "webp": {
+        "fileName": "circle_1783696962884.webp",
+        "totalSize": 2475166,
+        "finished": 1,
+        "clientFileId": 1783696904024,
+        "chunkId": 1,
+        "fileId": 316496035595,
+        "fileUrl": "https://f41-zfcloud.zdn.vn/f1bbd4de032ba375fa3a/6448687110747830335?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "720cb9b2290cb097d92d34b6a25dabb8",
+        "url": "https://f41-zfcloud.zdn.vn/f1bbd4de032ba375fa3a/6448687110747830335?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1783696962884.webp",
+          "totalSize": 2475166,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1783696904268
+      }
+    },
+    "1535081485_t5": {
+      "webp": {
+        "fileName": "circle_1783697099018.webp",
+        "totalSize": 1524474,
+        "finished": 1,
+        "clientFileId": 1783697023730,
+        "chunkId": 1,
+        "fileId": 316496038171,
+        "fileUrl": "https://f41-zfcloud.zdn.vn/fff3cae01d15bd4be404/1131412697266313985?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "4c861cd6571620583aa3c7996722f57a",
+        "url": "https://f41-zfcloud.zdn.vn/fff3cae01d15bd4be404/1131412697266313985?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1783697099018.webp",
+          "totalSize": 1524474,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1783697023877
+      }
+    },
+    "39498561_t5": {
+      "webp": {
+        "fileName": "circle_1783697048191.webp",
+        "totalSize": 2180938,
+        "finished": 1,
+        "clientFileId": 1783697031041,
+        "chunkId": 1,
+        "fileId": 316496046473,
+        "fileUrl": "https://f39-zfcloud.zdn.vn/f324541783e223bc7af3/5893473008614934088?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "7c36e57287e26db1b99cb7d4165b85be",
+        "url": "https://f39-zfcloud.zdn.vn/f324541783e223bc7af3/5893473008614934088?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1783697048191.webp",
+          "totalSize": 2180938,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1783697031260
+      }
+    },
+    "1997634231_t5": {
+      "webp": {
+        "fileName": "circle_1783697123744.webp",
+        "totalSize": 2231378,
+        "finished": 1,
+        "clientFileId": 1783697092420,
+        "chunkId": 1,
+        "fileId": 316496040950,
+        "fileUrl": "https://f40-zfcloud.zdn.vn/b47f6c76bb831bdd4292/7918995416931938579?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "1d7dc84e31e07a0fab8512346cddc5dd",
+        "url": "https://f40-zfcloud.zdn.vn/b47f6c76bb831bdd4292/7918995416931938579?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1783697123744.webp",
+          "totalSize": 2231378,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1783697092643
+      }
+    },
+    "1938216128_t5": {
+      "webp": {
+        "fileName": "circle_1783697203729.webp",
+        "totalSize": 3488474,
+        "finished": 1,
+        "clientFileId": 1783697127670,
+        "chunkId": 1,
+        "fileId": 316496040951,
+        "fileUrl": "https://f39-zfcloud.zdn.vn/e1dd38d4ef214f7f1630/2166076916922747183?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "157f8cb5d89e75d8f63df739c712b33d",
+        "url": "https://f39-zfcloud.zdn.vn/e1dd38d4ef214f7f1630/2166076916922747183?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1783697203729.webp",
+          "totalSize": 3488474,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1783697127874
+      }
+    },
+    "1094218003_t5": {
+      "webp": {
+        "fileName": "circle_1783727198425.webp",
+        "totalSize": 2763612,
+        "finished": 1,
+        "clientFileId": 1783727114911,
+        "chunkId": 1,
+        "fileId": 316496280539,
+        "fileUrl": "https://f41-zfcloud.zdn.vn/17b8e51935ec95b2ccfd/3799552558442066245?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "c947f3d5667e04e08be7255bcc1711e3",
+        "url": "https://f41-zfcloud.zdn.vn/17b8e51935ec95b2ccfd/3799552558442066245?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1783727198425.webp",
+          "totalSize": 2763612,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1783727115106
+      }
+    },
+    "1783089525_t5": {
+      "webp": {
+        "fileName": "circle_1783733667191.webp",
+        "totalSize": 4296826,
+        "finished": 1,
+        "clientFileId": 1783733625223,
+        "chunkId": 1,
+        "fileId": 316496485011,
+        "fileUrl": "https://f41-zfcloud.zdn.vn/1770a1307dc5dd9b84d4/4816415264599124064?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "90a1c458b80bbaf95590a220df233da6",
+        "url": "https://f41-zfcloud.zdn.vn/1770a1307dc5dd9b84d4/4816415264599124064?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1783733667191.webp",
+          "totalSize": 4296826,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1783733625574
+      }
+    },
+    "2276620595_t5": {
+      "webp": {
+        "fileName": "circle_1783736369943.webp",
+        "totalSize": 2818548,
+        "finished": 1,
+        "clientFileId": 1783736342860,
+        "chunkId": 1,
+        "fileId": 316496651001,
+        "fileUrl": "https://f40-zfcloud.zdn.vn/5fb981415fb4ffeaa6a5/8584675988872787380?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "32a1e85e6bb9ebbaa8bdae5261b85997",
+        "url": "https://f40-zfcloud.zdn.vn/5fb981415fb4ffeaa6a5/8584675988872787380?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1783736369943.webp",
+          "totalSize": 2818548,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1783736343072
+      }
+    },
+    "2345254835_t5": {
+      "webp": {
+        "fileName": "circle_1783741870963.webp",
+        "totalSize": 2872128,
+        "finished": 1,
+        "clientFileId": 1783741809636,
+        "chunkId": 1,
+        "fileId": 316497009225,
+        "fileUrl": "https://f40-zfcloud.zdn.vn/b20ac64a02bfa2e1fbae/3297865890573737303?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "7b69b41fc0e9196456a7eca0073c500a",
+        "url": "https://f40-zfcloud.zdn.vn/b20ac64a02bfa2e1fbae/3297865890573737303?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1783741870963.webp",
+          "totalSize": 2872128,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1783741809823
+      }
+    },
+    "2243728277_t5": {
+      "webp": {
+        "fileName": "circle_1783749997117.webp",
+        "totalSize": 3314116,
+        "finished": 1,
+        "clientFileId": 1783749991698,
+        "chunkId": 1,
+        "fileId": 316497363580,
+        "fileUrl": "https://f41-zfcloud.zdn.vn/a360e5b8264d8613df5c/5080338947715020758?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "31f9a58370f5947817ecdac4641aa66c",
+        "url": "https://f41-zfcloud.zdn.vn/a360e5b8264d8613df5c/5080338947715020758?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1783749997117.webp",
+          "totalSize": 3314116,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1783749991881
+      }
+    },
+    "2189351055_t5": {
+      "webp": {
+        "fileName": "circle_1783759251668.webp",
+        "totalSize": 3306760,
+        "finished": 1,
+        "clientFileId": 1783759252054,
+        "chunkId": 1,
+        "fileId": 316497808696,
+        "fileUrl": "https://f39-zfcloud.zdn.vn/fd2ef4393ccc9c92c5dd/3270007158888327471?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "1430abae45efbc89b5d0ffb9d689e0c3",
+        "url": "https://f39-zfcloud.zdn.vn/fd2ef4393ccc9c92c5dd/3270007158888327471?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1783759251668.webp",
+          "totalSize": 3306760,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1783759252324
+      }
+    },
+    "2352878372_t5": {
+      "webp": {
+        "fileName": "circle_1783759437582.webp",
+        "totalSize": 2413350,
+        "finished": 1,
+        "clientFileId": 1783759407770,
+        "chunkId": 1,
+        "fileId": 316497815547,
+        "fileUrl": "https://f41-zfcloud.zdn.vn/6683acbe644bc4159d5a/6184090963285437434?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "7fb1121e396d7a704399597a07bfecc1",
+        "url": "https://f41-zfcloud.zdn.vn/6683acbe644bc4159d5a/6184090963285437434?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1783759437582.webp",
+          "totalSize": 2413350,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1783759408108
+      }
+    },
+    "813364705_t5": {
+      "webp": {
+        "fileName": "circle_1783765950646.webp",
+        "totalSize": 3127248,
+        "finished": 1,
+        "clientFileId": 1783765952168,
+        "chunkId": 1,
+        "fileId": 316498158782,
+        "fileUrl": "https://f41-zfcloud.zdn.vn/b25942a7f552550c0c43/5300638294471978537?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "fdfc6cfb256126fe98d1c55914496b65",
+        "url": "https://f41-zfcloud.zdn.vn/b25942a7f552550c0c43/5300638294471978537?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1783765950646.webp",
+          "totalSize": 3127248,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1783765952382
+      }
+    },
+    "6d907b7e178bb422_t5": {
+      "webp": {
+        "fileName": "circle_1783766283603.webp",
+        "totalSize": 2865500,
+        "finished": 1,
+        "clientFileId": 1783766269523,
+        "chunkId": 1,
+        "fileId": 316498175163,
+        "fileUrl": "https://f40-zfcloud.zdn.vn/6620939e246b8435dd7a/7068182573744206106?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "b2639e8c1369b8e0c3170e68e4a75520",
+        "url": "https://f40-zfcloud.zdn.vn/6620939e246b8435dd7a/7068182573744206106?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1783766283603.webp",
+          "totalSize": 2865500,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1783766269839
+      }
+    },
+    "2314914782_t5": {
+      "webp": {
+        "fileName": "circle_1783768267238.webp",
+        "totalSize": 3356050,
+        "finished": 1,
+        "clientFileId": 1783768265595,
+        "chunkId": 1,
+        "fileId": 316498245626,
+        "fileUrl": "https://f41-zfcloud.zdn.vn/e88e5d23ebd64b8812c7/5900517223291225853?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "92b175f3ba4a4349f364035dfe2b2602",
+        "url": "https://f41-zfcloud.zdn.vn/e88e5d23ebd64b8812c7/5900517223291225853?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1783768267238.webp",
+          "totalSize": 3356050,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1783768265784
+      }
+    },
+    "2239062131_t5": {
+      "webp": {
+        "fileName": "circle_1783771198018.webp",
+        "totalSize": 2170692,
+        "finished": 1,
+        "clientFileId": 1783771114925,
+        "chunkId": 1,
+        "fileId": 316498322235,
+        "fileUrl": "https://f41-zfcloud.zdn.vn/26d154a8e45d44031d4c/7039208232764890186?createby=HaHuyHoang_Bot",
+        "fileType": "others",
+        "checksum": "b9095e5edff15e1ded043fc1293d98aa",
+        "url": "https://f41-zfcloud.zdn.vn/26d154a8e45d44031d4c/7039208232764890186?createby=HaHuyHoang_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1783771198018.webp",
+          "totalSize": 2170692,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1783771115238
+      }
+    },
+    "2344620467_t5": {
+      "webp": {
+        "fileName": "circle_1783786203096.webp",
+        "totalSize": 3081866,
+        "finished": 1,
+        "clientFileId": 1783786166009,
+        "chunkId": 1,
+        "fileId": 316498711476,
+        "fileUrl": "https://f40-zfcloud.zdn.vn/abf058b9e64c46121f5d/4602753748723808507?createby=NguyenGiaHung_Bot",
+        "fileType": "others",
+        "checksum": "f36335eaae04626982642122745daa80",
+        "url": "https://f40-zfcloud.zdn.vn/abf058b9e64c46121f5d/4602753748723808507?createby=NguyenGiaHung_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1783786203096.webp",
+          "totalSize": 3081866,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1783786166305
+      }
+    },
+    "319333327_t5": {
+      "webp": {
+        "fileName": "circle_1783833676902.webp",
+        "totalSize": 4231554,
+        "finished": 1,
+        "clientFileId": 1783833655902,
+        "chunkId": 1,
+        "fileId": 316499408218,
+        "fileUrl": "https://f41-zfcloud.zdn.vn/425e41b1e144411a1855/5779381903365854744?createby=NguyenGiaHung_Bot",
+        "fileType": "others",
+        "checksum": "d90291390db2d76bf9bb06160b715b6c",
+        "url": "https://f41-zfcloud.zdn.vn/425e41b1e144411a1855/5779381903365854744?createby=NguyenGiaHung_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1783833676902.webp",
+          "totalSize": 4231554,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1783833656315
+      }
+    },
+    "Z88E608Z_t5": {
+      "webp": {
+        "fileName": "circle_1783921880872.webp",
+        "totalSize": 2408270,
+        "finished": 1,
+        "clientFileId": 1783921832888,
+        "chunkId": 1,
+        "fileId": 316502552670,
+        "fileUrl": "https://f41-zfcloud.zdn.vn/a17a76910665a63bff74/2134501922278213940?createby=NguyenGiaHung_Bot",
+        "fileType": "others",
+        "checksum": "ad317762b61570333465e69f31a20637",
+        "url": "https://f41-zfcloud.zdn.vn/a17a76910665a63bff74/2134501922278213940?createby=NguyenGiaHung_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1783921880872.webp",
+          "totalSize": 2408270,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1783921833072
+      }
+    },
+    "Z7U9IAUE_t5": {
+      "webp": {
+        "fileName": "circle_1783923844187.webp",
+        "totalSize": 3698632,
+        "finished": 1,
+        "clientFileId": 1783923787356,
+        "chunkId": 1,
+        "fileId": 316502641231,
+        "fileUrl": "https://f41-zfcloud.zdn.vn/b70b735a01aea1f0f8bf/4853345839233940343?createby=NguyenGiaHung_Bot",
+        "fileType": "others",
+        "checksum": "16e970e8da62c0b3341ad1251a81d5fa",
+        "url": "https://f41-zfcloud.zdn.vn/b70b735a01aea1f0f8bf/4853345839233940343?createby=NguyenGiaHung_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1783923844187.webp",
+          "totalSize": 3698632,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1783923787583
+      }
+    },
+    "Z708WECW_t5": {
+      "webp": {
+        "fileName": "circle_1783953726695.webp",
+        "totalSize": 2308314,
+        "finished": 1,
+        "clientFileId": 1783953722839,
+        "chunkId": 1,
+        "fileId": 316504769101,
+        "fileUrl": "https://f39-zfcloud.zdn.vn/970171d8232c8372da3d/8625300572827890841?createby=NguyenGiaHung_Bot",
+        "fileType": "others",
+        "checksum": "966c1f0456d9e6e12b63ccfdb262ab6d",
+        "url": "https://f39-zfcloud.zdn.vn/970171d8232c8372da3d/8625300572827890841?createby=NguyenGiaHung_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1783953726695.webp",
+          "totalSize": 2308314,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1783953723032
+      }
+    },
+    "Z88WECDF_t5": {
+      "webp": {
+        "fileName": "circle_1783995172454.webp",
+        "totalSize": 2849410,
+        "finished": 1,
+        "clientFileId": 1783995117108,
+        "chunkId": 1,
+        "fileId": 316505737191,
+        "fileUrl": "https://f41-zfcloud.zdn.vn/3f86629a216e8130d87f/4251003811787654731?createby=NguyenGiaHung_Bot",
+        "fileType": "others",
+        "checksum": "470fd0d8c93eb5341bcf1f85bb991d29",
+        "url": "https://f41-zfcloud.zdn.vn/3f86629a216e8130d87f/4251003811787654731?createby=NguyenGiaHung_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1783995172454.webp",
+          "totalSize": 2849410,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1783995117455
+      }
+    },
+    "1939481954_t5": {
+      "webp": {
+        "fileName": "circle_1783996808253.webp",
+        "totalSize": 2082478,
+        "finished": 1,
+        "clientFileId": 1783996779889,
+        "chunkId": 1,
+        "fileId": 316505917714,
+        "fileUrl": "https://f40-zfcloud.zdn.vn/460ae158adac0df254bd/8078841134063460604?createby=NguyenGiaHung_Bot",
+        "fileType": "others",
+        "checksum": "9cecfbf8c80a6efae9acef107ef7fabc",
+        "url": "https://f40-zfcloud.zdn.vn/460ae158adac0df254bd/8078841134063460604?createby=NguyenGiaHung_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1783996808253.webp",
+          "totalSize": 2082478,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1783996780200
+      }
+    },
+    "832502620_t5": {
+      "webp": {
+        "fileName": "circle_1784025636819.webp",
+        "totalSize": 1735642,
+        "finished": 1,
+        "clientFileId": 1784025625517,
+        "chunkId": 1,
+        "fileId": 316508391161,
+        "fileUrl": "https://f41-zfcloud.zdn.vn/4dcc66514da5edfbb4b4/2098803384783923255?createby=NguyenGiaHung_Bot",
+        "fileType": "others",
+        "checksum": "27ac9e5d2b6573388d3e5b5597a32ffd",
+        "url": "https://f41-zfcloud.zdn.vn/4dcc66514da5edfbb4b4/2098803384783923255?createby=NguyenGiaHung_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1784025636819.webp",
+          "totalSize": 1735642,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1784025626026
+      }
+    },
+    "308334317_t5": {
+      "webp": {
+        "fileName": "circle_1784045061002.webp",
+        "totalSize": 2684480,
+        "finished": 1,
+        "clientFileId": 1784044988534,
+        "chunkId": 1,
+        "fileId": 316509219759,
+        "fileUrl": "https://f41-zfcloud.zdn.vn/0da745975b63fb3da272/2971810158972635835?createby=NguyenGiaHung_Bot",
+        "fileType": "others",
+        "checksum": "025af4d0f8624a87a78b8666a3239477",
+        "url": "https://f41-zfcloud.zdn.vn/0da745975b63fb3da272/2971810158972635835?createby=NguyenGiaHung_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1784045061002.webp",
+          "totalSize": 2684480,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1784044988823
+      }
+    },
+    "Z7CE09AU_t5": {
+      "webp": {
+        "fileName": "circle_1784078730527.webp",
+        "totalSize": 2873860,
+        "finished": 1,
+        "clientFileId": 1784078677556,
+        "chunkId": 1,
+        "fileId": 316509716025,
+        "fileUrl": "https://f40-zfcloud.zdn.vn/6deaaa4fadbb0de554aa/5023531329598424568?createby=NguyenGiaHung_Bot",
+        "fileType": "others",
+        "checksum": "fd2d783c94754ad6409055c184f5bfce",
+        "url": "https://f40-zfcloud.zdn.vn/6deaaa4fadbb0de554aa/5023531329598424568?createby=NguyenGiaHung_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1784078730527.webp",
+          "totalSize": 2873860,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1784078677756
+      }
+    },
+    "1690368189_t5": {
+      "webp": {
+        "fileName": "circle_1784087920971.webp",
+        "totalSize": 4209390,
+        "finished": 1,
+        "clientFileId": 1784087857281,
+        "chunkId": 1,
+        "fileId": 316510644298,
+        "fileUrl": "https://f40-zfcloud.zdn.vn/b64ff13c05c8a596fcd9/8274877809211294979?createby=NguyenGiaHung_Bot",
+        "fileType": "others",
+        "checksum": "92ca0d2f11a2586db9a74e801cecac00",
+        "url": "https://f40-zfcloud.zdn.vn/b64ff13c05c8a596fcd9/8274877809211294979?createby=NguyenGiaHung_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1784087920971.webp",
+          "totalSize": 4209390,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1784087857616
+      }
+    },
+    "2095453251_t5": {
+      "webp": {
+        "fileName": "circle_1784087956171.webp",
+        "totalSize": 2296776,
+        "finished": 1,
+        "clientFileId": 1784087924310,
+        "chunkId": 1,
+        "fileId": 316510647051,
+        "fileUrl": "https://f40-zfcloud.zdn.vn/03710519f1ed51b308fc/7851719147520269350?createby=NguyenGiaHung_Bot",
+        "fileType": "others",
+        "checksum": "b44c77a32f59b8673e3d7f63fefb1a20",
+        "url": "https://f40-zfcloud.zdn.vn/03710519f1ed51b308fc/7851719147520269350?createby=NguyenGiaHung_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1784087956171.webp",
+          "totalSize": 2296776,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1784087924506
+      }
+    },
+    "Z6OE7D9O_t5": {
+      "webp": {
+        "fileName": "circle_1784093822030.webp",
+        "totalSize": 2915586,
+        "finished": 1,
+        "clientFileId": 1784093748399,
+        "chunkId": 1,
+        "fileId": 316511023489,
+        "fileUrl": "https://f41-zfcloud.zdn.vn/6a62e1c8123cb262eb2d/7027097813215820241?createby=NguyenGiaHung_Bot",
+        "fileType": "others",
+        "checksum": "d8ef5eebbde389436d6cc165a9085305",
+        "url": "https://f41-zfcloud.zdn.vn/6a62e1c8123cb262eb2d/7027097813215820241?createby=NguyenGiaHung_Bot.webp",
+        "stickerData": {
+          "error": false,
+          "fileName": "circle_1784093822030.webp",
+          "totalSize": 2915586,
+          "width": 512,
+          "height": 512,
+          "duration": null
+        },
+        "timestamp": 1784093748695
+      }
+    }
+  },
+  "mixcloud": {
+    "/djthaihoang1994/vi%E1%BB%87t-mix-2019-kh%C3%B4ng-ph%E1%BA%A3i-em-%C4%91%C3%BAng-kh%C3%B4ng-anh-sai-r%E1%BB%93i-dj-th%C3%A1i-ho%C3%A0ng/": {
+      "title": "Việt Mix 2019 - Không Phải Em Đúng Không & Anh Sai Rồi - Dj Thái Hoàng",
+      "artist": "Dj Thái Hoàng",
+      "default": {
+        "fileUrl": "https://f36-zfcloud.zdn.vn/c83e3015bf491f174658/3039682302153013415?createby=HaHuyHoang_Bot/1765947525094.aac",
+        "quality": "DASH audio",
+        "timestamp": 1765947525094
+      }
+    },
+    "/djtrieumuzik/deep-house-vol1-l%E1%BA%A1c-tr%C3%B4i-2020-dj-trieu-muzik-0337273111mp3843mb/": {
+      "title": "Deep House Vol.1 - Lạc Trôi 2020 - DJ TRIỆU MUZIK - 0337273111.mp3",
+      "artist": "DJ TRIỆU MUZIK - 0337273111",
+      "default": {
+        "fileUrl": "https://f37-zfcloud.zdn.vn/30ffe352950d35536c1c/3151104811515990296?createby=HaHuyHoang_Bot/1765950528268.aac",
+        "quality": "DASH audio",
+        "timestamp": 1765950528268
+      }
+    },
+    "/Xi-Dolce-Mix/vi%E1%BB%87t-mix-2019-ai-l%C3%A0-ng%C6%B0%E1%BB%9Di-th%C6%B0%C6%A1ng-em-ph%C6%B0%C6%A1ng-xa-xi-dolce-mix/": {
+      "title": "Việt Mix 2019 - Ai Là Người Thương Em & Phương Xa - Xi Dolce Mix",
+      "artist": "Xi Dolce ✈ ( Hà Nội )",
+      "default": {
+        "fileUrl": "https://f37-zfcloud.zdn.vn/d3825dfb21a481fad8b5/6939078093896792813?createby=HaHuyHoang_Bot/1765952481752.aac",
+        "quality": "DASH audio",
+        "timestamp": 1765952481752
+      }
+    },
+    "/soncon123/fff/": {
+      "title": "[ Việt Mix ] - Từng Yêu - Full Chất Lượng HD ... Son con   ( Chính Chủ )",
+      "artist": "Sơn Con",
+      "default": {
+        "fileUrl": "https://f38-zfcloud.zdn.vn/7cd427b259edf9b3a0fc/3286364569966311698?createby=HaHuyHoang_Bot/1765952936853.aac",
+        "quality": "DASH audio",
+        "timestamp": 1765952936853
+      }
+    }
+  },
+  "ZaloCustomSticker": {
+    "8614da3b80493659": {
+      "mp4": {
+        "caption": "",
+        "fileUrl": "https://f35-zfcloud.zdn.vn/3d0fe2b96ce5ccbb95f4/8223838927306042332?createby=HaHuyHoang_Bot.webp",
+        "type": "mp4",
+        "error": false,
+        "fileName": "sticker_1765947646148.webp",
+        "totalSize": 1879528,
+        "width": 512,
+        "height": 890,
+        "duration": null,
+        "timestamp": 1765947622876
+      }
+    },
+    "65a93439b4a108b7": {
+      "jpg": {
+        "caption": "",
+        "fileUrl": "https://f40-zfcloud.zdn.vn/b86da8051ecebe90e7df/6426206875811027357?createby=HaHuyHoang_Bot.webp",
+        "type": "jpg",
+        "error": false,
+        "fileName": "sticker_1777505012257.webp",
+        "totalSize": 12344,
+        "width": 512,
+        "height": 336,
+        "duration": null,
+        "timestamp": 1777504989599
+      }
+    },
+    "18e3c79606e85f20": {
+      "jpg": {
+        "caption": "",
+        "fileUrl": "https://f40-zfcloud.zdn.vn/828c24c7920c32526b1d/4645690870002660237?createby=HaHuyHoang_Bot.webp",
+        "type": "jpg",
+        "error": false,
+        "fileName": "sticker_1777505347287.webp",
+        "totalSize": 6806,
+        "width": 512,
+        "height": 242,
+        "duration": null,
+        "timestamp": 1777505327287
+      }
+    },
+    "247000a953c3dd9a": {
+      "jpg": {
+        "caption": "",
+        "fileUrl": "https://f40-zfcloud.zdn.vn/3e045247e28c42d21b9d/5692596229845700564?createby=HaHuyHoang_Bot.webp",
+        "type": "jpg",
+        "error": false,
+        "fileName": "sticker_1777508797151.webp",
+        "totalSize": 22146,
+        "width": 512,
+        "height": 1138,
+        "duration": null,
+        "timestamp": 1777508732003
+      }
+    },
+    "91e57d34429a12b3": {
+      "jpg": {
+        "caption": "",
+        "fileUrl": "https://f40-zfcloud.zdn.vn/6fa2e8e85823f87da132/2007617491368920876?createby=HaHuyHoang_Bot.webp",
+        "type": "jpg",
+        "error": false,
+        "fileName": "sticker_1777508858053.webp",
+        "totalSize": 21884,
+        "width": 512,
+        "height": 1138,
+        "duration": null,
+        "timestamp": 1777508771346
+      }
+    },
+    "bab1ab524a45a500": {
+      "webp": {
+        "caption": "",
+        "fileUrl": "https://f40-zfcloud.zdn.vn/30bf4885f84e5810015f/3029022720619590530?createby=HaHuyHoang_Bot.webp",
+        "type": "webp",
+        "error": false,
+        "fileName": "sticker_1777509044124.webp",
+        "totalSize": 2708,
+        "width": 128,
+        "height": 128,
+        "duration": null,
+        "timestamp": 1777509015065
+      }
+    },
+    "783df47fb8d61edd": {
+      "mp4": {
+        "caption": "",
+        "fileUrl": "https://f39-zfcloud.zdn.vn/0b265f99e252420c1b43/5118493498139989765?createby=HaHuyHoang_Bot.webp",
+        "type": "mp4",
+        "error": false,
+        "fileName": "sticker_1777512405120.webp",
+        "totalSize": 1546198,
+        "width": 512,
+        "height": 512,
+        "duration": null,
+        "timestamp": 1777512341140
+      }
+    },
+    "f25c8350babc6676": {
+      "mp4": {
+        "caption": "",
+        "fileUrl": "https://f41-zfcloud.zdn.vn/a424e5525999f9c7a088/5203061386107200292?createby=HaHuyHoang_Bot.webp",
+        "type": "mp4",
+        "error": false,
+        "fileName": "sticker_1777512508984.webp",
+        "totalSize": 5126698,
+        "width": 512,
+        "height": 512,
+        "duration": null,
+        "timestamp": 1777512498534
+      }
+    },
+    "8245b711b295ba20": {
+      "mp4": {
+        "caption": "",
+        "fileUrl": "https://f39-zfcloud.zdn.vn/fcae7a40d78b77d52e9a/8180783366449940535?createby=HaHuyHoang_Bot.webp",
+        "type": "mp4",
+        "error": false,
+        "fileName": "sticker_1777522912664.webp",
+        "totalSize": 3824802,
+        "width": 512,
+        "height": 930,
+        "duration": null,
+        "timestamp": 1777522869520
+      }
+    },
+    "a79e2975649c0c0a": {
+      "jpg": {
+        "caption": "",
+        "fileUrl": "https://f40-zfcloud.zdn.vn/74bf4326eced4cb315fc/2769096565629511868?createby=HaHuyHoang_Bot.webp",
+        "type": "jpg",
+        "error": false,
+        "fileName": "sticker_1777525165697.webp",
+        "totalSize": 17860,
+        "width": 512,
+        "height": 1138,
+        "duration": null,
+        "timestamp": 1777525082818
+      }
+    },
+    "b26bb92b5867082b": {
+      "webp": {
+        "caption": "",
+        "fileUrl": "https://f40-zfcloud.zdn.vn/52241b44b58f15d14c9e/4752466699474095794?createby=HaHuyHoang_Bot.webp",
+        "type": "webp",
+        "error": false,
+        "fileName": "sticker_1777525210927.webp",
+        "totalSize": 17096,
+        "width": 475,
+        "height": 409,
+        "duration": null,
+        "timestamp": 1777525116304
+      }
+    },
+    "4405e093279e28f4": {
+      "jpg": {
+        "caption": "",
+        "fileUrl": "https://f41-zfcloud.zdn.vn/9bf45617f8dc588201cd/2896888728244185471?createby=HaHuyHoang_Bot.webp",
+        "type": "jpg",
+        "error": false,
+        "fileName": "sticker_1777525724815.webp",
+        "totalSize": 26826,
+        "width": 512,
+        "height": 910,
+        "duration": null,
+        "timestamp": 1777525642019
+      }
+    },
+    "229a43d4c29b472a": {
+      "jpg": {
+        "caption": "",
+        "fileUrl": "https://f39-zfcloud.zdn.vn/5ac2b0391ef2beace7e3/2416301646631443887?createby=HaHuyHoang_Bot.webp",
+        "type": "jpg",
+        "error": false,
+        "fileName": "sticker_1777525766803.webp",
+        "totalSize": 25630,
+        "width": 512,
+        "height": 682,
+        "duration": null,
+        "timestamp": 1777525744550
+      }
+    },
+    "45eba197ef9facbd": {
+      "mp4": {
+        "caption": "",
+        "fileUrl": "https://f40-zfcloud.zdn.vn/8f55adcb0400a45efd11/1449519487065737688?createby=HaHuyHoang_Bot.webp",
+        "type": "mp4",
+        "error": false,
+        "fileName": "sticker_1777527285087.webp",
+        "totalSize": 5817256,
+        "width": 512,
+        "height": 910,
+        "duration": null,
+        "timestamp": 1777527275419
+      }
+    },
+    "415b3df97f3f40bf": {
+      "mp4": {
+        "caption": "",
+        "fileUrl": "https://f40-zfcloud.zdn.vn/6003da9c7357d3098a46/8076518609927406670?createby=HaHuyHoang_Bot.webp",
+        "type": "mp4",
+        "error": false,
+        "fileName": "sticker_1777527296622.webp",
+        "totalSize": 5217970,
+        "width": 512,
+        "height": 910,
+        "duration": null,
+        "timestamp": 1777527284218
+      }
+    },
+    "fc3fd083001fde18": {
+      "webp": {
+        "caption": "",
+        "fileUrl": "https://f39-zfcloud.zdn.vn/e15110a0b86b1835417a/8229470171140832411?createby=HaHuyHoang_Bot.webp",
+        "type": "webp",
+        "error": false,
+        "fileName": "sticker_1777528063509.webp",
+        "totalSize": 30068,
+        "width": 239,
+        "height": 208,
+        "duration": null,
+        "timestamp": 1777528000861
+      }
+    },
+    "70e39ffffc576884": {
+      "jpg": {
+        "caption": "",
+        "fileUrl": "https://f40-zfcloud.zdn.vn/e14732c59a0e3a50631f/1108209786288585814?createby=HaHuyHoang_Bot.webp",
+        "type": "jpg",
+        "error": false,
+        "fileName": "sticker_1777528492483.webp",
+        "totalSize": 10532,
+        "width": 512,
+        "height": 768,
+        "duration": null,
+        "timestamp": 1777528409878
+      }
+    },
+    "7869070c7a70e115": {
+      "jpg": {
+        "caption": "",
+        "fileUrl": "https://f41-zfcloud.zdn.vn/cb0bd2a1796ad934807b/8589663190343313021?createby=HaHuyHoang_Bot.webp",
+        "type": "jpg",
+        "error": false,
+        "fileName": "sticker_1777529563722.webp",
+        "totalSize": 16610,
+        "width": 512,
+        "height": 512,
+        "duration": null,
+        "timestamp": 1777529547472
+      }
+    },
+    "7ab527c13fd37e7c": {
+      "mp4": {
+        "caption": "",
+        "fileUrl": "https://f40-zfcloud.zdn.vn/025d50c5c70e67503e1f/5414568693214672395?createby=HaHuyHoang_Bot.webp",
+        "type": "mp4",
+        "error": false,
+        "fileName": "sticker_1777534065716.webp",
+        "totalSize": 604354,
+        "width": 512,
+        "height": 512,
+        "duration": null,
+        "timestamp": 1777534043113
+      }
+    },
+    "b917a15afe9f6a26": {
+      "mp4": {
+        "caption": "",
+        "fileUrl": "https://f41-zfcloud.zdn.vn/07895650c79b67c53e8a/2469544486345738273?createby=HaHuyHoang_Bot.webp",
+        "type": "mp4",
+        "error": false,
+        "fileName": "sticker_1777535637550.webp",
+        "totalSize": 1698672,
+        "width": 512,
+        "height": 910,
+        "duration": null,
+        "timestamp": 1777535555944
+      }
+    },
+    "b413352a59e1b86": {
+      "jpg": {
+        "caption": "",
+        "fileUrl": "https://f40-zfcloud.zdn.vn/36092ca3bd681d364479/5212902878907430269?createby=HaHuyHoang_Bot.webp",
+        "type": "jpg",
+        "error": false,
+        "fileName": "sticker_1777535664856.webp",
+        "totalSize": 6760,
+        "width": 512,
+        "height": 512,
+        "duration": null,
+        "timestamp": 1777535604750
+      }
+    },
+    "68b12331ed5bb4a3": {
+      "mp4": {
+        "caption": "",
+        "fileUrl": "https://f39-zfcloud.zdn.vn/aa31795be99049ce1081/3394850985728896052?createby=HaHuyHoang_Bot.webp",
+        "type": "mp4",
+        "error": false,
+        "fileName": "sticker_1777535875576.webp",
+        "totalSize": 923928,
+        "width": 512,
+        "height": 558,
+        "duration": null,
+        "timestamp": 1777535805875
+      }
+    },
+    "9ce0ab579150e0fd": {
+      "jpg": {
+        "caption": "",
+        "fileUrl": "https://f41-zfcloud.zdn.vn/fe174be1d82a7874213b/2716917746694579365?createby=HaHuyHoang_Bot.webp",
+        "type": "jpg",
+        "error": false,
+        "fileName": "sticker_1777537008701.webp",
+        "totalSize": 26732,
+        "width": 512,
+        "height": 512,
+        "duration": null,
+        "timestamp": 1777536957860
+      }
+    },
+    "be6bf272ec4465f5": {
+      "jpg": {
+        "caption": "",
+        "fileUrl": "https://f40-zfcloud.zdn.vn/c9917555e69e46c01f8f/7430267251906772010?createby=HaHuyHoang_Bot.webp",
+        "type": "jpg",
+        "error": false,
+        "fileName": "sticker_1777537080885.webp",
+        "totalSize": 17572,
+        "width": 512,
+        "height": 640,
+        "duration": null,
+        "timestamp": 1777536996672
+      }
+    },
+    "81f64427bfeb59ae": {
+      "webp": {
+        "caption": "",
+        "fileUrl": "https://f41-zfcloud.zdn.vn/488399d10b1aab44f20b/3595510660776757301?createby=HaHuyHoang_Bot.webp",
+        "type": "webp",
+        "error": false,
+        "fileName": "sticker_1777537466882.webp",
+        "totalSize": 8978,
+        "width": 502,
+        "height": 512,
+        "duration": null,
+        "timestamp": 1777537418578
+      }
+    },
+    "7c8e6b1037285f92": {
+      "jpg": {
+        "caption": "",
+        "fileUrl": "https://f39-zfcloud.zdn.vn/369aeeef7524d57a8c35/4266852073958335292?createby=HaHuyHoang_Bot.webp",
+        "type": "jpg",
+        "error": false,
+        "fileName": "sticker_1777542285121.webp",
+        "totalSize": 12188,
+        "width": 512,
+        "height": 364,
+        "duration": null,
+        "timestamp": 1777542259854
+      }
+    },
+    "8d8cc20ff5aa664f": {
+      "jpg": {
+        "caption": "",
+        "fileUrl": "https://f41-zfcloud.zdn.vn/e0f807ad9c663c386577/6294416442745740887?createby=HaHuyHoang_Bot.webp",
+        "type": "jpg",
+        "error": false,
+        "fileName": "sticker_1777542410965.webp",
+        "totalSize": 19900,
+        "width": 512,
+        "height": 512,
+        "duration": null,
+        "timestamp": 1777542352510
+      }
+    },
+    "3bcceed3e4947909": {
+      "mp4": {
+        "caption": "",
+        "fileUrl": "https://f41-zfcloud.zdn.vn/68923dadb06610384977/8765241178490869677?createby=HaHuyHoang_Bot.webp",
+        "type": "mp4",
+        "error": false,
+        "fileName": "sticker_1777552681499.webp",
+        "totalSize": 459194,
+        "width": 512,
+        "height": 512,
+        "duration": null,
+        "timestamp": 1777552673695
+      }
+    },
+    "9337e79659a60aab": {
+      "webppx8": {
+        "caption": "\nHiệu ứng pixel: 8",
+        "fileUrl": "https://f41-zfcloud.zdn.vn/05b761f2b90719594016/7820376045107285447?createby=HaHuyHoang_Bot.webp",
+        "type": "webp",
+        "error": false,
+        "fileName": "sticker_1783737835712.webp",
+        "totalSize": 6320,
+        "width": 512,
+        "height": 572,
+        "duration": null,
+        "timestamp": 1783737788296
+      },
+      "webpcat": {
+        "caption": "\nĐã ép khung 512x512",
+        "fileUrl": "https://f39-zfcloud.zdn.vn/a539c46f1c9abcc4e58b/2851497709524483214?createby=HaHuyHoang_Bot.webp",
+        "type": "webp",
+        "error": false,
+        "fileName": "sticker_1783737895931.webp",
+        "totalSize": 15178,
+        "width": 512,
+        "height": 512,
+        "duration": null,
+        "timestamp": 1783737806351
+      }
+    },
+    "1a1ccecd68adf508": {
+      "webpsp2": {
+        "caption": "\n(Lưu ý: đối số sp chỉ áp dụng cho video, ảnh tĩnh sẽ bỏ qua)",
+        "fileUrl": "https://f40-zfcloud.zdn.vn/1a0450f7e702475c1e13/3069617328980025434?createby=HaHuyHoang_Bot.webp",
+        "type": "webp",
+        "error": false,
+        "fileName": "sticker_1783766065302.webp",
+        "totalSize": 3127248,
+        "width": 512,
+        "height": 512,
+        "duration": null,
+        "timestamp": 1783766000228
+      }
+    },
+    "fb78a276cc0e9b4": {
+      "jpgxp": {
+        "caption": "\nĐã áp dụng xóa phông!",
+        "fileUrl": "https://f40-zfcloud.zdn.vn/48bca42d15d8b586ecc9/8358899081217659761?createby=HaHuyHoang_Bot.webp",
+        "type": "jpg",
+        "error": false,
+        "fileName": "sticker_1783770303898.webp",
+        "totalSize": 9186,
+        "width": 512,
+        "height": 768,
+        "duration": null,
+        "timestamp": 1783770279786
+      }
+    },
+    "9e342fbb7e7f6d62": {
+      "jpg": {
+        "caption": "",
+        "fileUrl": "https://f40-zfcloud.zdn.vn/bf38d13e63cbc3959ada/8399341706935760325?createby=HaHuyHoang_Bot.webp",
+        "type": "jpg",
+        "error": false,
+        "fileName": "sticker_1783776552809.webp",
+        "totalSize": 13568,
+        "width": 512,
+        "height": 910,
+        "duration": null,
+        "timestamp": 1783776535737
+      }
+    },
+    "7100f0042f2f24c4": {
+      "jpg": {
+        "caption": "",
+        "fileUrl": "https://f41-zfcloud.zdn.vn/c9fb6e62d39773c92a86/5363432628780110478?createby=HaHuyHoang_Bot.webp",
+        "type": "jpg",
+        "error": false,
+        "fileName": "sticker_1783780113155.webp",
+        "totalSize": 4262,
+        "width": 512,
+        "height": 190,
+        "duration": null,
+        "timestamp": 1783780056524
+      }
+    },
+    "b744a627b6dab75": {
+      "jpg": {
+        "caption": "",
+        "fileUrl": "https://f39-zfcloud.zdn.vn/73c800809475342b6d64/3717988387577091327?createby=NguyenGiaHung_Bot.webp",
+        "type": "jpg",
+        "error": false,
+        "fileName": "sticker_1783857933820.webp",
+        "totalSize": 16064,
+        "width": 512,
+        "height": 768,
+        "duration": null,
+        "timestamp": 1783857905533
+      }
+    },
+    "256d8d227c426f43": {
+      "mp4": {
+        "caption": "",
+        "fileUrl": "https://f40-zfcloud.zdn.vn/964384f5c601665f3f10/3988418905265455115?createby=NguyenGiaHung_Bot.webp",
+        "type": "mp4",
+        "error": false,
+        "fileName": "sticker_1783996236091.webp",
+        "totalSize": 1834504,
+        "width": 512,
+        "height": 512,
+        "duration": null,
+        "timestamp": 1783996144901
+      }
+    },
+    "51bb3b4451657522": {
+      "mp4": {
+        "caption": "",
+        "fileUrl": "https://f39-zfcloud.zdn.vn/a87f8a57c7a367fd3eb2/453277178272422341?createby=NguyenGiaHung_Bot.webp",
+        "type": "mp4",
+        "error": false,
+        "fileName": "sticker_1783996475326.webp",
+        "totalSize": 3615770,
+        "width": 512,
+        "height": 1010,
+        "duration": null,
+        "timestamp": 1783996437821
+      }
+    },
+    "53460a6397232294": {
+      "jpg": {
+        "caption": "",
+        "fileUrl": "https://f39-zfcloud.zdn.vn/706fcec0da347a6a2325/3808142965060692848?createby=NguyenGiaHung_Bot.webp",
+        "type": "jpg",
+        "error": false,
+        "fileName": "sticker_1784029799632.webp",
+        "totalSize": 32244,
+        "width": 512,
+        "height": 682,
+        "duration": null,
+        "timestamp": 1784029740065
+      }
+    },
+    "475c46e96cdfad14": {
+      "jpg": {
+        "caption": "",
+        "fileUrl": "https://f41-zfcloud.zdn.vn/f5f8e3c8f33c53620a2d/1947935683234118379?createby=NguyenGiaHung_Bot.webp",
+        "type": "jpg",
+        "error": false,
+        "fileName": "sticker_1784035404205.webp",
+        "totalSize": 71710,
+        "width": 512,
+        "height": 512,
+        "duration": null,
+        "timestamp": 1784035373251
+      }
+    },
+    "4234f5bb15e12d2e": {
+      "jpg": {
+        "caption": "",
+        "fileUrl": "https://f39-zfcloud.zdn.vn/0c4a465d5fa9fff7a6b8/3671347734310240812?createby=NguyenGiaHung_Bot.webp",
+        "type": "jpg",
+        "error": false,
+        "fileName": "sticker_1784047797773.webp",
+        "totalSize": 30978,
+        "width": 512,
+        "height": 682,
+        "duration": null,
+        "timestamp": 1784047718578
+      }
+    },
+    "eb54d8af116ecc6c": {
+      "webpcat": {
+        "caption": "\nĐã ép khung 512x512",
+        "fileUrl": "https://f40-zfcloud.zdn.vn/3069e419fded5db304fc/3627074322574615844?createby=NguyenGiaHung_Bot.webp",
+        "type": "webp",
+        "error": false,
+        "fileName": "sticker_1784047793209.webp",
+        "totalSize": 21756,
+        "width": 512,
+        "height": 512,
+        "duration": null,
+        "timestamp": 1784047768357
+      }
+    },
+    "e6e9fa072f13ae03": {
+      "webp6": {
+        "caption": "\nBo cong sticker: 6%",
+        "fileUrl": "https://f39-zfcloud.zdn.vn/dfa3aaa9b35d13034a4c/4246832320444768834?createby=NguyenGiaHung_Bot.webp",
+        "type": "webp",
+        "error": false,
+        "fileName": "sticker_1784047886175.webp",
+        "totalSize": 21438,
+        "width": 512,
+        "height": 512,
+        "duration": null,
+        "timestamp": 1784047794650
+      }
+    },
+    "c030bafec7f82155": {
+      "webppx8": {
+        "caption": "\nHiệu ứng pixel: 8",
+        "fileUrl": "https://f41-zfcloud.zdn.vn/0824663b7fcfdf9186de/7829442583813157307?createby=NguyenGiaHung_Bot.webp",
+        "type": "webp",
+        "error": false,
+        "fileName": "sticker_1784047832008.webp",
+        "totalSize": 4716,
+        "width": 512,
+        "height": 512,
+        "duration": null,
+        "timestamp": 1784047812157
+      }
+    },
+    "80e9ef4b8ec93c25": {
+      "mp4": {
+        "caption": "",
+        "fileUrl": "https://f41-zfcloud.zdn.vn/9dae1d5d13a9b3f7eab8/9037390589216915874?createby=NguyenGiaHung_Bot.webp",
+        "type": "mp4",
+        "error": false,
+        "fileName": "sticker_1784084338541.webp",
+        "totalSize": 10174252,
+        "width": 512,
+        "height": 904,
+        "duration": null,
+        "timestamp": 1784084318146
+      }
+    }
+  },
+  "VideoTemplate": {
+    "https://files.catbox.moe/u2vj3q.mp4": {
+      "title": "https://fg43.dlfl.vn/2baead06245a8404dd4b/7169971873200988681",
+      "mp4": {
+        "fileUrl": "https://fg43.dlfl.vn/2baead06245a8404dd4b/7169971873200988681",
+        "error": false,
+        "fileName": "7169971873200988681",
+        "totalSize": 1911319,
+        "width": 720,
+        "height": 1280,
+        "duration": 15600,
+        "timestamp": 1765947906517
+      }
+    },
+    "https://i.imgur.com/f7s3IME.mp4": {
+      "title": "https://fg62.dlfl.vn/2bf69adaea854adb1394/1513449428080272622",
+      "mp4": {
+        "fileUrl": "https://fg62.dlfl.vn/2bf69adaea854adb1394/1513449428080272622",
+        "error": false,
+        "fileName": "1513449428080272622",
+        "totalSize": 713400,
+        "width": 320,
+        "height": 576,
+        "duration": 10700,
+        "timestamp": 1765951502717
+      }
+    },
+    "https://imgur.com/7ZwsHpX.mp4": {
+      "title": "https://imgur.com/7ZwsHpX.mp4",
+      "mp4": {
+        "fileUrl": "https://f39-zfcloud.zdn.vn/910237f49d013d5f6410/7493501978650455049?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "7493501978650455049?createby=NguyenGiaHung_Bot",
+        "totalSize": 5198351,
+        "width": 960,
+        "height": 1706,
+        "duration": 12466.667,
+        "timestamp": 1783854305823
+      }
+    },
+    "https://imgur.com/p5dyqHB.mp4": {
+      "title": "https://imgur.com/p5dyqHB.mp4",
+      "mp4": {
+        "fileUrl": "https://f39-zfcloud.zdn.vn/bcf41f6c939933c76a88/3006269736112546641?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "3006269736112546641?createby=NguyenGiaHung_Bot",
+        "totalSize": 9041068,
+        "width": 960,
+        "height": 1706,
+        "duration": 14400,
+        "timestamp": 1783911906708
+      }
+    },
+    "https://i.imgur.com/ZzcBrrP.mp4": {
+      "title": "https://i.imgur.com/ZzcBrrP.mp4",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/45c6894630b390edc9a2/1470678418466629208?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "1470678418466629208?createby=NguyenGiaHung_Bot",
+        "totalSize": 6618910,
+        "width": 960,
+        "height": 1706,
+        "duration": 14966.667,
+        "timestamp": 1783807504044
+      }
+    },
+    "https://i.imgur.com/C8n4IyJ.mp4": {
+      "title": "https://i.imgur.com/C8n4IyJ.mp4",
+      "mp4": {
+        "fileUrl": "https://f39-zfcloud.zdn.vn/c81b27dccb296b773238/4787271064161207419?createby=HaHuyHoang_Bot",
+        "error": false,
+        "fileName": "4787271064161207419?createby=HaHuyHoang_Bot",
+        "totalSize": 5147250,
+        "width": 960,
+        "height": 1706,
+        "duration": 17033.333,
+        "timestamp": 1783681504569
+      }
+    },
+    "https://imgur.com/Qqpw6PZ.mp4": {
+      "title": "https://imgur.com/Qqpw6PZ.mp4",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/07dcadbf7d4add14845b/6050630216085948016?createby=HaHuyHoang_Bot",
+        "error": false,
+        "fileName": "6050630216085948016?createby=HaHuyHoang_Bot",
+        "totalSize": 9887203,
+        "width": 960,
+        "height": 1706,
+        "duration": 14933.332999999999,
+        "timestamp": 1783721103589
+      }
+    },
+    "https://imgur.com/mHOzorE.mp4": {
+      "title": "https://fg63.dlfl.vn/4d5bb5f0c7af67f13ebe/5856093178177372732",
+      "mp4": {
+        "fileUrl": "https://fg63.dlfl.vn/4d5bb5f0c7af67f13ebe/5856093178177372732",
+        "error": false,
+        "fileName": "5856093178177372732",
+        "totalSize": 8288854,
+        "width": 960,
+        "height": 1706,
+        "duration": 19400,
+        "timestamp": 1765951937440
+      }
+    },
+    "https://imgur.com/28nhSJd.mp4": {
+      "title": "https://ot46.dlfl.vn/c847dc675cacfcf2a5bd/2662325571326197525",
+      "mp4": {
+        "fileUrl": "https://ot46.dlfl.vn/c847dc675cacfcf2a5bd/2662325571326197525",
+        "error": false,
+        "fileName": "2662325571326197525",
+        "totalSize": 3346090,
+        "width": 960,
+        "height": 1708,
+        "duration": 10000,
+        "timestamp": 1777548912157
+      }
+    },
+    "https://imgur.com/xPWZp1X.mp4": {
+      "title": "https://fg42.dlfl.vn/1eb6cac3b89c18c2418d/3878413203596885371",
+      "mp4": {
+        "fileUrl": "https://fg42.dlfl.vn/1eb6cac3b89c18c2418d/3878413203596885371",
+        "error": false,
+        "fileName": "3878413203596885371",
+        "totalSize": 4684709,
+        "width": 960,
+        "height": 1708,
+        "duration": 10200,
+        "timestamp": 1765951981471
+      }
+    },
+    "https://imgur.com/XybAmea.mp4": {
+      "title": "https://fg40.dlfl.vn/7d31b047c21862463b09/7219620972698067749",
+      "mp4": {
+        "fileUrl": "https://fg40.dlfl.vn/7d31b047c21862463b09/7219620972698067749",
+        "error": false,
+        "fileName": "7219620972698067749",
+        "totalSize": 6929815,
+        "width": 960,
+        "height": 1706,
+        "duration": 10533.333,
+        "timestamp": 1765951983252
+      }
+    },
+    "https://i.imgur.com/bGQezkT.mp4": {
+      "title": "https://ot45.dlfl.vn/4ce9fef84e33ee6db722/2885417886990187925",
+      "mp4": {
+        "fileUrl": "https://ot45.dlfl.vn/4ce9fef84e33ee6db722/2885417886990187925",
+        "error": false,
+        "fileName": "2885417886990187925",
+        "totalSize": 2399976,
+        "width": 480,
+        "height": 854,
+        "duration": 20533.333,
+        "timestamp": 1777509133331
+      }
+    },
+    "https://i.imgur.com/NqY7eOf.mp4": {
+      "title": "https://ot45.dlfl.vn/e21bb7c30508a556fc19/5634083828008148508",
+      "mp4": {
+        "fileUrl": "https://ot45.dlfl.vn/e21bb7c30508a556fc19/5634083828008148508",
+        "error": false,
+        "fileName": "5634083828008148508",
+        "totalSize": 2720498,
+        "width": 480,
+        "height": 854,
+        "duration": 17733.333,
+        "timestamp": 1777511410721
+      }
+    },
+    "https://imgur.com/N9KBpSP.mp4": {
+      "title": "https://ot48.dlfl.vn/76486672c9b969e730a8/5878214704132553604",
+      "mp4": {
+        "fileUrl": "https://ot48.dlfl.vn/76486672c9b969e730a8/5878214704132553604",
+        "error": false,
+        "fileName": "5878214704132553604",
+        "totalSize": 6672987,
+        "width": 960,
+        "height": 1754,
+        "duration": 9900,
+        "timestamp": 1777524484849
+      }
+    },
+    "https://i.imgur.com/kMNuv22.mp4": {
+      "title": "https://f41-zfcloud.zdn.vn/83f5adf05a05fa5ba314/2275388926455666634?createby=HaHuyHoang_Bot",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/83f5adf05a05fa5ba314/2275388926455666634?createby=HaHuyHoang_Bot",
+        "error": false,
+        "fileName": "2275388926455666634?createby=HaHuyHoang_Bot",
+        "totalSize": 4448972,
+        "width": 854,
+        "height": 480,
+        "duration": 16566.666999999998,
+        "timestamp": 1783663503125
+      }
+    },
+    "https://imgur.com/s5VcSQv.mp4": {
+      "title": "https://imgur.com/s5VcSQv.mp4",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/19b24cedb21812464b09/6719135712713946059?createby=HaHuyHoang_Bot",
+        "error": false,
+        "fileName": "6719135712713946059?createby=HaHuyHoang_Bot",
+        "totalSize": 4119021,
+        "width": 960,
+        "height": 1704,
+        "duration": 12600,
+        "timestamp": 1783670704478
+      }
+    },
+    "https://imgur.com/h3Jfb0U.mp4": {
+      "title": "https://imgur.com/h3Jfb0U.mp4",
+      "mp4": {
+        "fileUrl": "https://f40-zfcloud.zdn.vn/0e7fcbae2e5b8e05d74a/2710741734618644929?createby=HaHuyHoang_Bot",
+        "error": false,
+        "fileName": "2710741734618644929?createby=HaHuyHoang_Bot",
+        "totalSize": 8251084,
+        "width": 960,
+        "height": 1706,
+        "duration": 15600,
+        "timestamp": 1783674304697
+      }
+    },
+    "https://i.imgur.com/VSh7JWQ.mp4": {
+      "title": "https://i.imgur.com/VSh7JWQ.mp4",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/3df2564cb6b916e74fa8/1125548406600433663?createby=HaHuyHoang_Bot",
+        "error": false,
+        "fileName": "1125548406600433663?createby=HaHuyHoang_Bot",
+        "totalSize": 2427807,
+        "width": 480,
+        "height": 854,
+        "duration": 23666.667,
+        "timestamp": 1783677903618
+      }
+    },
+    "https://files.catbox.moe/er5fdt.mp4": {
+      "title": "https://files.catbox.moe/er5fdt.mp4",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/de1282a06255c20b9b44/3278783810318818866?createby=HaHuyHoang_Bot",
+        "error": false,
+        "fileName": "3278783810318818866?createby=HaHuyHoang_Bot",
+        "totalSize": 4431833,
+        "width": 576,
+        "height": 1024,
+        "duration": 18800,
+        "timestamp": 1783677916268
+      }
+    },
+    "https://i.imgur.com/nwi0Oi7.mp4": {
+      "title": "https://f41-zfcloud.zdn.vn/c0e64615aae00abe53f1/3054489853520125086?createby=HaHuyHoang_Bot",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/c0e64615aae00abe53f1/3054489853520125086?createby=HaHuyHoang_Bot",
+        "error": false,
+        "fileName": "3054489853520125086?createby=HaHuyHoang_Bot",
+        "totalSize": 5223676,
+        "width": 960,
+        "height": 1706,
+        "duration": 14566.667000000001,
+        "timestamp": 1783681504518
+      }
+    },
+    "https://files.catbox.moe/2f4go8.mp4": {
+      "title": "https://f41-zfcloud.zdn.vn/ccec74afa35a03045a4b/1538321109524204851?createby=HaHuyHoang_Bot",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/ccec74afa35a03045a4b/1538321109524204851?createby=HaHuyHoang_Bot",
+        "error": false,
+        "fileName": "1538321109524204851?createby=HaHuyHoang_Bot",
+        "totalSize": 1975859,
+        "width": 576,
+        "height": 1024,
+        "duration": 19100,
+        "timestamp": 1783696660829
+      }
+    },
+    "https://i.imgur.com/At86LhL.mp4": {
+      "title": "https://i.imgur.com/At86LhL.mp4",
+      "mp4": {
+        "fileUrl": "https://f40-zfcloud.zdn.vn/7f6255a18454240a7d45/5074287416046643307?createby=HaHuyHoang_Bot",
+        "error": false,
+        "fileName": "5074287416046643307?createby=HaHuyHoang_Bot",
+        "totalSize": 13152321,
+        "width": 960,
+        "height": 1706,
+        "duration": 19433.333000000002,
+        "timestamp": 1783706704161
+      }
+    },
+    "https://imgur.com/kUqGMV0.mp4": {
+      "title": "https://imgur.com/kUqGMV0.mp4",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/8f22f7ff260a8654df1b/994193192677369139?createby=HaHuyHoang_Bot",
+        "error": false,
+        "fileName": "994193192677369139?createby=HaHuyHoang_Bot",
+        "totalSize": 11897943,
+        "width": 960,
+        "height": 1706,
+        "duration": 30966.667,
+        "timestamp": 1783706704173
+      }
+    },
+    "https://i.imgur.com/9I0PQID.mp4": {
+      "title": "https://f41-zfcloud.zdn.vn/50b9e11130e490bac9f5/6538263750258030485?createby=HaHuyHoang_Bot",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/50b9e11130e490bac9f5/6538263750258030485?createby=HaHuyHoang_Bot",
+        "error": false,
+        "fileName": "6538263750258030485?createby=HaHuyHoang_Bot",
+        "totalSize": 3415755,
+        "width": 480,
+        "height": 854,
+        "duration": 24066.666999999998,
+        "timestamp": 1783710303214
+      }
+    },
+    "https://files.catbox.moe/xnkhdt.mp4": {
+      "title": "https://f40-zfcloud.zdn.vn/7d42e4f03505955bcc14/2233157521568939921?createby=HaHuyHoang_Bot",
+      "mp4": {
+        "fileUrl": "https://f40-zfcloud.zdn.vn/7d42e4f03505955bcc14/2233157521568939921?createby=HaHuyHoang_Bot",
+        "error": false,
+        "fileName": "2233157521568939921?createby=HaHuyHoang_Bot",
+        "totalSize": 4137298,
+        "width": 576,
+        "height": 1024,
+        "duration": 20400,
+        "timestamp": 1783710303430
+      }
+    },
+    "https://i.imgur.com/OYdyML6.mp4": {
+      "title": "https://f41-zfcloud.zdn.vn/68ac2cd6fc235c7d0532/8595888356998694464?createby=HaHuyHoang_Bot",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/68ac2cd6fc235c7d0532/8595888356998694464?createby=HaHuyHoang_Bot",
+        "error": false,
+        "fileName": "8595888356998694464?createby=HaHuyHoang_Bot",
+        "totalSize": 1728555,
+        "width": 640,
+        "height": 368,
+        "duration": 12600,
+        "timestamp": 1783717502540
+      }
+    },
+    "https://i.imgur.com/eEXTCiJ.mp4": {
+      "title": "https://f41-zfcloud.zdn.vn/0cc6458d957835266c69/7508579328257585183?createby=HaHuyHoang_Bot",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/0cc6458d957835266c69/7508579328257585183?createby=HaHuyHoang_Bot",
+        "error": false,
+        "fileName": "7508579328257585183?createby=HaHuyHoang_Bot",
+        "totalSize": 2761199,
+        "width": 852,
+        "height": 480,
+        "duration": 12866.667,
+        "timestamp": 1783717502562
+      }
+    },
+    "https://i.imgur.com/VGOJ972.mp4": {
+      "title": "https://i.imgur.com/VGOJ972.mp4",
+      "mp4": {
+        "fileUrl": "https://f39-zfcloud.zdn.vn/9442993549c0e99eb0d1/6889832239933030087?createby=HaHuyHoang_Bot",
+        "error": false,
+        "fileName": "6889832239933030087?createby=HaHuyHoang_Bot",
+        "totalSize": 7941124,
+        "width": 960,
+        "height": 1706,
+        "duration": 20700,
+        "timestamp": 1783721103112
+      }
+    },
+    "https://imgur.com/g8grFuJ.mp4": {
+      "title": "https://imgur.com/g8grFuJ.mp4",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/331c6034b0c1109f49d0/7186910467196277747?createby=HaHuyHoang_Bot",
+        "error": false,
+        "fileName": "7186910467196277747?createby=HaHuyHoang_Bot",
+        "totalSize": 5309391,
+        "width": 960,
+        "height": 1706,
+        "duration": 14366.667,
+        "timestamp": 1783724703323
+      }
+    },
+    "https://i.imgur.com/gccjl6k.mp4": {
+      "title": "https://f41-zfcloud.zdn.vn/4cb77766a79307cd5e82/4161939384061405361?createby=HaHuyHoang_Bot",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/4cb77766a79307cd5e82/4161939384061405361?createby=HaHuyHoang_Bot",
+        "error": false,
+        "fileName": "4161939384061405361?createby=HaHuyHoang_Bot",
+        "totalSize": 14708422,
+        "width": 960,
+        "height": 1706,
+        "duration": 28366.667,
+        "timestamp": 1783724703395
+      }
+    },
+    "https://i.imgur.com/5VvseSK.mp4": {
+      "title": "https://i.imgur.com/5VvseSK.mp4",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/92f2e15d33a893f6cab9/3007244237113574031?createby=HaHuyHoang_Bot",
+        "error": false,
+        "fileName": "3007244237113574031?createby=HaHuyHoang_Bot",
+        "totalSize": 9167503,
+        "width": 960,
+        "height": 1706,
+        "duration": 13400,
+        "timestamp": 1783731903786
+      }
+    },
+    "https://imgur.com/5GNmK16.mp4": {
+      "title": "https://imgur.com/5GNmK16.mp4",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/9b053fb6ed434d1d1452/6812637837324880940?createby=HaHuyHoang_Bot",
+        "error": false,
+        "fileName": "6812637837324880940?createby=HaHuyHoang_Bot",
+        "totalSize": 12312698,
+        "width": 960,
+        "height": 1706,
+        "duration": 20666.667,
+        "timestamp": 1783731904620
+      }
+    },
+    "https://i.imgur.com/kT7cEs0.mp4": {
+      "title": "https://i.imgur.com/kT7cEs0.mp4",
+      "mp4": {
+        "fileUrl": "https://f40-zfcloud.zdn.vn/f11f44b79b423b1c6253/6409470578078525223?createby=HaHuyHoang_Bot",
+        "error": false,
+        "fileName": "6409470578078525223?createby=HaHuyHoang_Bot",
+        "totalSize": 2652543,
+        "width": 482,
+        "height": 854,
+        "duration": 15100,
+        "timestamp": 1783735502868
+      }
+    },
+    "https://i.imgur.com/s1hN633.mp4": {
+      "title": "https://f41-zfcloud.zdn.vn/360c97a54850e80eb141/409334015687834188?createby=HaHuyHoang_Bot",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/360c97a54850e80eb141/409334015687834188?createby=HaHuyHoang_Bot",
+        "error": false,
+        "fileName": "409334015687834188?createby=HaHuyHoang_Bot",
+        "totalSize": 5318809,
+        "width": 960,
+        "height": 1620,
+        "duration": 12600,
+        "timestamp": 1783735503067
+      }
+    },
+    "https://i.imgur.com/4YQzCQe.mp4": {
+      "title": "https://i.imgur.com/4YQzCQe.mp4",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/b9e514cbcf3e6f60362f/4937541502746307988?createby=HaHuyHoang_Bot",
+        "error": false,
+        "fileName": "4937541502746307988?createby=HaHuyHoang_Bot",
+        "totalSize": 17980434,
+        "width": 960,
+        "height": 1706,
+        "duration": 21966.667,
+        "timestamp": 1783739104846
+      }
+    },
+    "https://imgur.com/7gfCxrj.mp4": {
+      "title": "https://imgur.com/7gfCxrj.mp4",
+      "mp4": {
+        "fileUrl": "https://f39-zfcloud.zdn.vn/fa05cc2317d6b788eec7/6312182322236583099?createby=HaHuyHoang_Bot",
+        "error": false,
+        "fileName": "6312182322236583099?createby=HaHuyHoang_Bot",
+        "totalSize": 8696811,
+        "width": 960,
+        "height": 1706,
+        "duration": 17000,
+        "timestamp": 1783739104850
+      }
+    },
+    "https://i.imgur.com/mbduKum.mp4": {
+      "title": "https://i.imgur.com/mbduKum.mp4",
+      "mp4": {
+        "fileUrl": "https://f40-zfcloud.zdn.vn/4fde59679d923dcc6483/3694207266883749035?createby=HaHuyHoang_Bot",
+        "error": false,
+        "fileName": "3694207266883749035?createby=HaHuyHoang_Bot",
+        "totalSize": 15876290,
+        "width": 960,
+        "height": 1706,
+        "duration": 29166.667,
+        "timestamp": 1783742705466
+      }
+    },
+    "https://files.catbox.moe/mhgrms.mp4": {
+      "title": "https://f41-zfcloud.zdn.vn/806236f8f70d57530e1c/1068714353983757005?createby=HaHuyHoang_Bot",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/806236f8f70d57530e1c/1068714353983757005?createby=HaHuyHoang_Bot",
+        "error": false,
+        "fileName": "1068714353983757005?createby=HaHuyHoang_Bot",
+        "totalSize": 1230629,
+        "width": 576,
+        "height": 1024,
+        "duration": 17800,
+        "timestamp": 1783746304403
+      }
+    },
+    "https://i.imgur.com/9slvvhC.mp4": {
+      "title": "https://f40-zfcloud.zdn.vn/2daaf36b309e90c0c98f/3965228622549264664?createby=HaHuyHoang_Bot",
+      "mp4": {
+        "fileUrl": "https://f40-zfcloud.zdn.vn/2daaf36b309e90c0c98f/3965228622549264664?createby=HaHuyHoang_Bot",
+        "error": false,
+        "fileName": "3965228622549264664?createby=HaHuyHoang_Bot",
+        "totalSize": 2516874,
+        "width": 640,
+        "height": 368,
+        "duration": 17633.333,
+        "timestamp": 1783749903480
+      }
+    },
+    "https://i.imgur.com/8h23MAZ.mp4": {
+      "title": "https://f39-zfcloud.zdn.vn/dabaae796d8ccdd2949d/6039966440393247345?createby=HaHuyHoang_Bot",
+      "mp4": {
+        "fileUrl": "https://f39-zfcloud.zdn.vn/dabaae796d8ccdd2949d/6039966440393247345?createby=HaHuyHoang_Bot",
+        "error": false,
+        "fileName": "6039966440393247345?createby=HaHuyHoang_Bot",
+        "totalSize": 3304363,
+        "width": 854,
+        "height": 480,
+        "duration": 23033.333,
+        "timestamp": 1783749903562
+      }
+    },
+    "https://imgur.com/UW57fI5.mp4": {
+      "title": "https://f41-zfcloud.zdn.vn/76321d18d3ed73b32afc/5914275757020604222?createby=HaHuyHoang_Bot",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/76321d18d3ed73b32afc/5914275757020604222?createby=HaHuyHoang_Bot",
+        "error": false,
+        "fileName": "5914275757020604222?createby=HaHuyHoang_Bot",
+        "totalSize": 22968853,
+        "width": 960,
+        "height": 1706,
+        "duration": 21966.667,
+        "timestamp": 1783757107056
+      }
+    },
+    "https://files.catbox.moe/u7vdhb.mp4": {
+      "title": "https://f40-zfcloud.zdn.vn/b34fa7631396b3c8ea87/1364271658996928979?createby=HaHuyHoang_Bot",
+      "mp4": {
+        "fileUrl": "https://f40-zfcloud.zdn.vn/b34fa7631396b3c8ea87/1364271658996928979?createby=HaHuyHoang_Bot",
+        "error": false,
+        "fileName": "1364271658996928979?createby=HaHuyHoang_Bot",
+        "totalSize": 2333166,
+        "width": 576,
+        "height": 1024,
+        "duration": 27600,
+        "timestamp": 1783764305657
+      }
+    },
+    "https://files.catbox.moe/gtsori.mp4": {
+      "title": "https://files.catbox.moe/gtsori.mp4",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/a018773fc3ca63943adb/3865560357056831197?createby=HaHuyHoang_Bot",
+        "error": false,
+        "fileName": "3865560357056831197?createby=HaHuyHoang_Bot",
+        "totalSize": 3749453,
+        "width": 576,
+        "height": 1024,
+        "duration": 18733.333,
+        "timestamp": 1783764306474
+      }
+    },
+    "https://i.imgur.com/0pH5oOM.mp4": {
+      "title": "https://i.imgur.com/0pH5oOM.mp4",
+      "mp4": {
+        "fileUrl": "https://f40-zfcloud.zdn.vn/06621b80ad750d2b5464/1796455276362205861?createby=HaHuyHoang_Bot",
+        "error": false,
+        "fileName": "1796455276362205861?createby=HaHuyHoang_Bot",
+        "totalSize": 7145892,
+        "width": 960,
+        "height": 1706,
+        "duration": 17560,
+        "timestamp": 1783767904361
+      }
+    },
+    "https://imgur.com/DvKbTOv.mp4": {
+      "title": "https://imgur.com/DvKbTOv.mp4",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/745378b5ce406e1e3751/7094002153300098348?createby=HaHuyHoang_Bot",
+        "error": false,
+        "fileName": "7094002153300098348?createby=HaHuyHoang_Bot",
+        "totalSize": 23251304,
+        "width": 960,
+        "height": 1706,
+        "duration": 23900,
+        "timestamp": 1783767906107
+      }
+    },
+    "https://files.catbox.moe/ersc8o": {
+      "title": "https://f41-zfcloud.zdn.vn/940d1fd0ae250e7b5734/1814374718300601582?createby=HaHuyHoang_Bot",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/940d1fd0ae250e7b5734/1814374718300601582?createby=HaHuyHoang_Bot",
+        "error": false,
+        "fileName": "1814374718300601582?createby=HaHuyHoang_Bot",
+        "totalSize": 1038522,
+        "width": 576,
+        "height": 768,
+        "duration": 15033.333,
+        "timestamp": 1783769504548
+      }
+    },
+    "https://i.imgur.com/zhZbMR8.mp4": {
+      "title": "https://f39-zfcloud.zdn.vn/feb5e67f578af7d4ae9b/8389012693637018709?createby=HaHuyHoang_Bot",
+      "mp4": {
+        "fileUrl": "https://f39-zfcloud.zdn.vn/feb5e67f578af7d4ae9b/8389012693637018709?createby=HaHuyHoang_Bot",
+        "error": false,
+        "fileName": "8389012693637018709?createby=HaHuyHoang_Bot",
+        "totalSize": 10997953,
+        "width": 960,
+        "height": 1706,
+        "duration": 21833.333,
+        "timestamp": 1783769555459
+      }
+    },
+    "https://imgur.com/kWjqVly.mp4": {
+      "title": "https://imgur.com/kWjqVly.mp4",
+      "mp4": {
+        "fileUrl": "https://f40-zfcloud.zdn.vn/0f16191ca0e900b759f8/7688221664377705696?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "7688221664377705696?createby=NguyenGiaHung_Bot",
+        "totalSize": 4314084,
+        "width": 960,
+        "height": 1706,
+        "duration": 12666.667,
+        "timestamp": 1783793105951
+      }
+    },
+    "https://i.imgur.com/sQkFXuU.mp4": {
+      "title": "https://f40-zfcloud.zdn.vn/135ce2385bcdfb93a2dc/1269738425944965609?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f40-zfcloud.zdn.vn/135ce2385bcdfb93a2dc/1269738425944965609?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "1269738425944965609?createby=NguyenGiaHung_Bot",
+        "totalSize": 9133776,
+        "width": 960,
+        "height": 1706,
+        "duration": 15033.333,
+        "timestamp": 1783793105964
+      }
+    },
+    "https://imgur.com/GH1JpVx.mp4": {
+      "title": "https://imgur.com/GH1JpVx.mp4",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/2c13c31b7aeedab083ff/7807403483624495567?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "7807403483624495567?createby=NguyenGiaHung_Bot",
+        "totalSize": 13607959,
+        "width": 960,
+        "height": 1706,
+        "duration": 28300,
+        "timestamp": 1783793106200
+      }
+    },
+    "https://files.catbox.moe/bkv7h9.mp4": {
+      "title": "https://files.catbox.moe/bkv7h9.mp4",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/06211f0ea6fb06a55fea/8036015524703921707?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "8036015524703921707?createby=NguyenGiaHung_Bot",
+        "totalSize": 2187945,
+        "width": 716,
+        "height": 1280,
+        "duration": 21500,
+        "timestamp": 1783796704026
+      }
+    },
+    "https://files.catbox.moe/p1lldc.mp4": {
+      "title": "https://f41-zfcloud.zdn.vn/d2313fe2861726497f06/1002050941097829786?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/d2313fe2861726497f06/1002050941097829786?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "1002050941097829786?createby=NguyenGiaHung_Bot",
+        "totalSize": 1703808,
+        "width": 368,
+        "height": 656,
+        "duration": 21300,
+        "timestamp": 1783796704031
+      }
+    },
+    "https://files.catbox.moe/y873eo.mp4": {
+      "title": "https://f39-zfcloud.zdn.vn/ac08eb2952dcf282abcd/5929735556589163856?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f39-zfcloud.zdn.vn/ac08eb2952dcf282abcd/5929735556589163856?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "5929735556589163856?createby=NguyenGiaHung_Bot",
+        "totalSize": 2531061,
+        "width": 576,
+        "height": 1024,
+        "duration": 24100,
+        "timestamp": 1783796704347
+      }
+    },
+    "https://files.catbox.moe/spcxst.mp4": {
+      "title": "https://files.catbox.moe/spcxst.mp4",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/5fc4741fcdea6db434fb/3760523599575618045?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "3760523599575618045?createby=NguyenGiaHung_Bot",
+        "totalSize": 3020203,
+        "width": 576,
+        "height": 1024,
+        "duration": 21833.333,
+        "timestamp": 1783796705182
+      }
+    },
+    "https://i.imgur.com/EE6yFDf.mp4": {
+      "title": "https://f41-zfcloud.zdn.vn/e07593ed2a188a46d309/8339356368496128473?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/e07593ed2a188a46d309/8339356368496128473?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "8339356368496128473?createby=NguyenGiaHung_Bot",
+        "totalSize": 1700926,
+        "width": 640,
+        "height": 368,
+        "duration": 14500,
+        "timestamp": 1783803902463
+      }
+    },
+    "https://i.imgur.com/gkJgysl.mp4": {
+      "title": "https://f39-zfcloud.zdn.vn/ecbef95340a6e0f8b9b7/8868059379571737160?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f39-zfcloud.zdn.vn/ecbef95340a6e0f8b9b7/8868059379571737160?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "8868059379571737160?createby=NguyenGiaHung_Bot",
+        "totalSize": 2591304,
+        "width": 852,
+        "height": 480,
+        "duration": 17633.333,
+        "timestamp": 1783803902658
+      }
+    },
+    "https://i.imgur.com/6MKfQEs.mp4": {
+      "title": "https://f40-zfcloud.zdn.vn/63dc853e3ccb9c95c5da/4005650131115382207?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f40-zfcloud.zdn.vn/63dc853e3ccb9c95c5da/4005650131115382207?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "4005650131115382207?createby=NguyenGiaHung_Bot",
+        "totalSize": 2991519,
+        "width": 854,
+        "height": 480,
+        "duration": 13366.667,
+        "timestamp": 1783803902716
+      }
+    },
+    "https://i.imgur.com/P0g76I6.mp4": {
+      "title": "https://f39-zfcloud.zdn.vn/9071a5a61c53bc0de542/7608616808879958023?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f39-zfcloud.zdn.vn/9071a5a61c53bc0de542/7608616808879958023?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "7608616808879958023?createby=NguyenGiaHung_Bot",
+        "totalSize": 10370121,
+        "width": 576,
+        "height": 576,
+        "duration": 35766.667,
+        "timestamp": 1783803903823
+      }
+    },
+    "https://imgur.com/G96Yxg5.mp4": {
+      "title": "https://imgur.com/G96Yxg5.mp4",
+      "mp4": {
+        "fileUrl": "https://f40-zfcloud.zdn.vn/16b4a33f1acaba94e3db/2939873086641283831?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "2939873086641283831?createby=NguyenGiaHung_Bot",
+        "totalSize": 12824721,
+        "width": 960,
+        "height": 1706,
+        "duration": 18066.666999999998,
+        "timestamp": 1783807505556
+      }
+    },
+    "https://imgur.com/0rgRRUs.mp4": {
+      "title": "https://imgur.com/0rgRRUs.mp4",
+      "mp4": {
+        "fileUrl": "https://f40-zfcloud.zdn.vn/15cdbd4d04b8a4e6fda9/1480523108245188330?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "1480523108245188330?createby=NguyenGiaHung_Bot",
+        "totalSize": 6964806,
+        "width": 960,
+        "height": 1706,
+        "duration": 19760,
+        "timestamp": 1783807505646
+      }
+    },
+    "https://imgur.com/mGLv6G7.mp4": {
+      "title": "https://imgur.com/mGLv6G7.mp4",
+      "mp4": {
+        "fileUrl": "https://f39-zfcloud.zdn.vn/1a63631bdbee7bb022ff/1152907373188868854?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "1152907373188868854?createby=NguyenGiaHung_Bot",
+        "totalSize": 5553620,
+        "width": 960,
+        "height": 1706,
+        "duration": 14433.332999999999,
+        "timestamp": 1783811104960
+      }
+    },
+    "https://imgur.com/8M1unpQ.mp4": {
+      "title": "https://f41-zfcloud.zdn.vn/b61893432bb68be8d2a7/4800370335680091586?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/b61893432bb68be8d2a7/4800370335680091586?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "4800370335680091586?createby=NguyenGiaHung_Bot",
+        "totalSize": 6669872,
+        "width": 960,
+        "height": 1706,
+        "duration": 19766.667,
+        "timestamp": 1783811105201
+      }
+    },
+    "https://imgur.com/lSGl7gF.mp4": {
+      "title": "https://imgur.com/lSGl7gF.mp4",
+      "mp4": {
+        "fileUrl": "https://f40-zfcloud.zdn.vn/a611ac5e14abb4f5edba/4243279897812747187?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "4243279897812747187?createby=NguyenGiaHung_Bot",
+        "totalSize": 9347094,
+        "width": 960,
+        "height": 1702,
+        "duration": 22760,
+        "timestamp": 1783811105987
+      }
+    },
+    "https://i.imgur.com/j4jQoKW.mp4": {
+      "title": "https://i.imgur.com/j4jQoKW.mp4",
+      "mp4": {
+        "fileUrl": "https://f40-zfcloud.zdn.vn/fe243b1883ed23b37afc/7378809422623658153?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "7378809422623658153?createby=NguyenGiaHung_Bot",
+        "totalSize": 14799540,
+        "width": 960,
+        "height": 1706,
+        "duration": 26033.333,
+        "timestamp": 1783814703772
+      }
+    },
+    "https://imgur.com/Veykt2F.mp4": {
+      "title": "https://f40-zfcloud.zdn.vn/06df82043af19aafc3e0/7584757711074215041?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f40-zfcloud.zdn.vn/06df82043af19aafc3e0/7584757711074215041?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "7584757711074215041?createby=NguyenGiaHung_Bot",
+        "totalSize": 13404854,
+        "width": 960,
+        "height": 1706,
+        "duration": 21433.333000000002,
+        "timestamp": 1783814704995
+      }
+    },
+    "https://imgur.com/ogrRKf7.mp4": {
+      "title": "https://imgur.com/ogrRKf7.mp4",
+      "mp4": {
+        "fileUrl": "https://f40-zfcloud.zdn.vn/ddd36fead71f77412e0e/2838853328546268126?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "2838853328546268126?createby=NguyenGiaHung_Bot",
+        "totalSize": 16173790,
+        "width": 960,
+        "height": 1706,
+        "duration": 26966.667,
+        "timestamp": 1783814705178
+      }
+    },
+    "https://imgur.com/g6UQQCL.mp4": {
+      "title": "https://imgur.com/g6UQQCL.mp4",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/381564cbdc3e7c60252f/4042287303204010755?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "4042287303204010755?createby=NguyenGiaHung_Bot",
+        "totalSize": 12924601,
+        "width": 960,
+        "height": 1706,
+        "duration": 19466.667,
+        "timestamp": 1783814705611
+      }
+    },
+    "https://imgur.com/4EGfUJv.mp4": {
+      "title": "https://f39-zfcloud.zdn.vn/b825fae04115e14bb804/7284454813368085467?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f39-zfcloud.zdn.vn/b825fae04115e14bb804/7284454813368085467?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "7284454813368085467?createby=NguyenGiaHung_Bot",
+        "totalSize": 12350868,
+        "width": 960,
+        "height": 1706,
+        "duration": 20200,
+        "timestamp": 1783818306570
+      }
+    },
+    "https://imgur.com/JHAW2Kg.mp4": {
+      "title": "https://imgur.com/JHAW2Kg.mp4",
+      "mp4": {
+        "fileUrl": "https://f40-zfcloud.zdn.vn/090834f28f072f597616/7372579640414490020?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "7372579640414490020?createby=NguyenGiaHung_Bot",
+        "totalSize": 16993141,
+        "width": 960,
+        "height": 1706,
+        "duration": 27000,
+        "timestamp": 1783818306649
+      }
+    },
+    "https://i.imgur.com/WLoITED.mp4": {
+      "title": "https://i.imgur.com/WLoITED.mp4",
+      "mp4": {
+        "fileUrl": "https://f39-zfcloud.zdn.vn/6afe66bcc34963173a58/3086671933225542007?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "3086671933225542007?createby=NguyenGiaHung_Bot",
+        "totalSize": 8854015,
+        "width": 960,
+        "height": 1706,
+        "duration": 16040,
+        "timestamp": 1783821907184
+      }
+    },
+    "https://imgur.com/22uuEnc.mp4": {
+      "title": "https://imgur.com/22uuEnc.mp4",
+      "mp4": {
+        "fileUrl": "https://f39-zfcloud.zdn.vn/75b64414e0e140bf19f0/826824059550336312?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "826824059550336312?createby=NguyenGiaHung_Bot",
+        "totalSize": 2906127,
+        "width": 960,
+        "height": 1706,
+        "duration": 10900,
+        "timestamp": 1783825504876
+      }
+    },
+    "https://i.imgur.com/efUBlic.mp4": {
+      "title": "https://i.imgur.com/efUBlic.mp4",
+      "mp4": {
+        "fileUrl": "https://f40-zfcloud.zdn.vn/99550a80ac750c2b5564/7167015555664736784?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "7167015555664736784?createby=NguyenGiaHung_Bot",
+        "totalSize": 4379916,
+        "width": 960,
+        "height": 1706,
+        "duration": 12133.333,
+        "timestamp": 1783829105154
+      }
+    },
+    "https://files.catbox.moe/6q9zoj.mp4": {
+      "title": "https://f41-zfcloud.zdn.vn/303e0d03adf60da854e7/4445253468359124007?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/303e0d03adf60da854e7/4445253468359124007?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "4445253468359124007?createby=NguyenGiaHung_Bot",
+        "totalSize": 4052659,
+        "width": 576,
+        "height": 1024,
+        "duration": 20600,
+        "timestamp": 1783832705173
+      }
+    },
+    "https://files.catbox.moe/0stj04.mp4": {
+      "title": "https://f41-zfcloud.zdn.vn/58658874288188dfd190/8906789157552599190?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/58658874288188dfd190/8906789157552599190?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "8906789157552599190?createby=NguyenGiaHung_Bot",
+        "totalSize": 3521557,
+        "width": 576,
+        "height": 1024,
+        "duration": 22666.667,
+        "timestamp": 1783832705177
+      }
+    },
+    "https://i.imgur.com/obCzZUO.mp4": {
+      "title": "https://f41-zfcloud.zdn.vn/da8dfeb45e41fe1fa750/8811376746363607436?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/da8dfeb45e41fe1fa750/8811376746363607436?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "8811376746363607436?createby=NguyenGiaHung_Bot",
+        "totalSize": 3677529,
+        "width": 480,
+        "height": 854,
+        "duration": 17200,
+        "timestamp": 1783832705179
+      }
+    },
+    "https://i.imgur.com/QT3Wccr.mp4": {
+      "title": "https://f41-zfcloud.zdn.vn/83bf6943cab66ae833a7/900539864592359127?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/83bf6943cab66ae833a7/900539864592359127?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "900539864592359127?createby=NguyenGiaHung_Bot",
+        "totalSize": 888903,
+        "width": 640,
+        "height": 368,
+        "duration": 10000,
+        "timestamp": 1783836303870
+      }
+    },
+    "https://i.imgur.com/Sbk0J2U.mp4": {
+      "title": "https://f40-zfcloud.zdn.vn/316f4a95e960493e1071/1537586144008426825?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f40-zfcloud.zdn.vn/316f4a95e960493e1071/1537586144008426825?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "1537586144008426825?createby=NguyenGiaHung_Bot",
+        "totalSize": 1666985,
+        "width": 640,
+        "height": 368,
+        "duration": 11000,
+        "timestamp": 1783836303963
+      }
+    },
+    "https://i.imgur.com/EQSRSLo.mp4": {
+      "title": "https://f41-zfcloud.zdn.vn/fe4d15b1b644161a4f55/1263798652904317642?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/fe4d15b1b644161a4f55/1263798652904317642?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "1263798652904317642?createby=NguyenGiaHung_Bot",
+        "totalSize": 1496447,
+        "width": 854,
+        "height": 480,
+        "duration": 8833.333,
+        "timestamp": 1783836304088
+      }
+    },
+    "https://imgur.com/cVq5DBj.mp4": {
+      "title": "https://imgur.com/cVq5DBj.mp4",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/b7957318dded7db324fc/3595026652244735787?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "3595026652244735787?createby=NguyenGiaHung_Bot",
+        "totalSize": 10205639,
+        "width": 960,
+        "height": 1704,
+        "duration": 16633.333,
+        "timestamp": 1783847105903
+      }
+    },
+    "https://i.imgur.com/360Fm6X.mp4": {
+      "title": "https://i.imgur.com/360Fm6X.mp4",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/33ce92463ab39aedc3a2/4855232315411910195?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "4855232315411910195?createby=NguyenGiaHung_Bot",
+        "totalSize": 6977278,
+        "width": 480,
+        "height": 854,
+        "duration": 23000,
+        "timestamp": 1783850704867
+      }
+    },
+    "https://files.catbox.moe/qwjsfs.mp4": {
+      "title": "https://f41-zfcloud.zdn.vn/389635259dd03d8e64c1/5323314602265505045?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/389635259dd03d8e64c1/5323314602265505045?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "5323314602265505045?createby=NguyenGiaHung_Bot",
+        "totalSize": 2773203,
+        "width": 576,
+        "height": 1024,
+        "duration": 18166.667,
+        "timestamp": 1783850704916
+      }
+    },
+    "https://files.catbox.moe/pu46ug.mp4": {
+      "title": "https://f39-zfcloud.zdn.vn/c06d333698c3389d61d2/2164559959338955246?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f39-zfcloud.zdn.vn/c06d333698c3389d61d2/2164559959338955246?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "2164559959338955246?createby=NguyenGiaHung_Bot",
+        "totalSize": 3056345,
+        "width": 576,
+        "height": 1024,
+        "duration": 18100,
+        "timestamp": 1783850704928
+      }
+    },
+    "https://imgur.com/pgYH6qW.mp4": {
+      "title": "https://imgur.com/pgYH6qW.mp4",
+      "mp4": {
+        "fileUrl": "https://f40-zfcloud.zdn.vn/11128a961663b63def72/4814487457430753902?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "4814487457430753902?createby=NguyenGiaHung_Bot",
+        "totalSize": 7648406,
+        "width": 960,
+        "height": 1706,
+        "duration": 17566.666999999998,
+        "timestamp": 1783879507175
+      }
+    },
+    "https://files.catbox.moe/s9fdsr.mp4": {
+      "title": "https://f41-zfcloud.zdn.vn/24407f2be0de408019cf/289602385553272295?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/24407f2be0de408019cf/289602385553272295?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "289602385553272295?createby=NguyenGiaHung_Bot",
+        "totalSize": 3756902,
+        "width": 576,
+        "height": 1024,
+        "duration": 21433.333000000002,
+        "timestamp": 1783883105531
+      }
+    },
+    "https://files.catbox.moe/0cwn46.mp4": {
+      "title": "https://f39-zfcloud.zdn.vn/cc5c96fd0a08aa56f319/8194440011626514881?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f39-zfcloud.zdn.vn/cc5c96fd0a08aa56f319/8194440011626514881?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "8194440011626514881?createby=NguyenGiaHung_Bot",
+        "totalSize": 2946836,
+        "width": 576,
+        "height": 1024,
+        "duration": 19066.666999999998,
+        "timestamp": 1783883106008
+      }
+    },
+    "https://i.imgur.com/QQRY3Zk.mp4": {
+      "title": "https://f41-zfcloud.zdn.vn/08126227fdd25d8c04c3/1501779823049425220?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/08126227fdd25d8c04c3/1501779823049425220?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "1501779823049425220?createby=NguyenGiaHung_Bot",
+        "totalSize": 1929730,
+        "width": 640,
+        "height": 480,
+        "duration": 17300,
+        "timestamp": 1783890303116
+      }
+    },
+    "https://i.imgur.com/CLZt0fa.mp4": {
+      "title": "https://f40-zfcloud.zdn.vn/fffdf9d56620c67e9f31/8437583611692511170?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f40-zfcloud.zdn.vn/fffdf9d56620c67e9f31/8437583611692511170?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "8437583611692511170?createby=NguyenGiaHung_Bot",
+        "totalSize": 3269017,
+        "width": 640,
+        "height": 368,
+        "duration": 32233.333000000002,
+        "timestamp": 1783890303283
+      }
+    },
+    "https://i.imgur.com/0RgD0zJ.mp4": {
+      "title": "https://f40-zfcloud.zdn.vn/e48714a98b5c2b02724d/5069940117273756556?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f40-zfcloud.zdn.vn/e48714a98b5c2b02724d/5069940117273756556?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "5069940117273756556?createby=NguyenGiaHung_Bot",
+        "totalSize": 4341269,
+        "width": 854,
+        "height": 480,
+        "duration": 10133.333,
+        "timestamp": 1783890303507
+      }
+    },
+    "https://i.imgur.com/8CNTIKk.mp4": {
+      "title": "https://f40-zfcloud.zdn.vn/9fb9a05c3fa99ff7c6b8/7743381819761506911?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f40-zfcloud.zdn.vn/9fb9a05c3fa99ff7c6b8/7743381819761506911?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "7743381819761506911?createby=NguyenGiaHung_Bot",
+        "totalSize": 5700462,
+        "width": 960,
+        "height": 1706,
+        "duration": 15533.333,
+        "timestamp": 1783897505921
+      }
+    },
+    "https://i.imgur.com/rxKyazv.mp4": {
+      "title": "https://i.imgur.com/rxKyazv.mp4",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/d1d8d0484ebdeee3b7ac/7102031710925120285?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "7102031710925120285?createby=NguyenGiaHung_Bot",
+        "totalSize": 6187660,
+        "width": 960,
+        "height": 1702,
+        "duration": 11520,
+        "timestamp": 1783901104950
+      }
+    },
+    "https://imgur.com/7F1fZ4v.mp4": {
+      "title": "https://f41-zfcloud.zdn.vn/1518c81953ecf3b2aafd/5999001684445606521?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/1518c81953ecf3b2aafd/5999001684445606521?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "5999001684445606521?createby=NguyenGiaHung_Bot",
+        "totalSize": 9763412,
+        "width": 960,
+        "height": 1708,
+        "duration": 28366.667,
+        "timestamp": 1783904706935
+      }
+    },
+    "https://imgur.com/7bXqkxM.mp4": {
+      "title": "https://f41-zfcloud.zdn.vn/d309baca3c3f9c61c52e/1942082349438445155?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/d309baca3c3f9c61c52e/1942082349438445155?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "1942082349438445155?createby=NguyenGiaHung_Bot",
+        "totalSize": 4780505,
+        "width": 960,
+        "height": 1706,
+        "duration": 8800,
+        "timestamp": 1783908306291
+      }
+    },
+    "https://imgur.com/xlaT7Vk.mp4": {
+      "title": "https://f39-zfcloud.zdn.vn/18e5471bc1ee61b038ff/7593593497810007345?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f39-zfcloud.zdn.vn/18e5471bc1ee61b038ff/7593593497810007345?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "7593593497810007345?createby=NguyenGiaHung_Bot",
+        "totalSize": 4826665,
+        "width": 960,
+        "height": 1706,
+        "duration": 14966.667,
+        "timestamp": 1783908306361
+      }
+    },
+    "https://imgur.com/ZHtrn8X.mp4": {
+      "title": "https://f41-zfcloud.zdn.vn/d206fcc17634d66a8f25/8481873346984581260?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/d206fcc17634d66a8f25/8481873346984581260?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "8481873346984581260?createby=NguyenGiaHung_Bot",
+        "totalSize": 5589511,
+        "width": 960,
+        "height": 1704,
+        "duration": 18033.333,
+        "timestamp": 1783915506424
+      }
+    },
+    "https://i.imgur.com/aKt47k0.mp4": {
+      "title": "https://f41-zfcloud.zdn.vn/536437cf413be165b82a/7880019396809123304?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/536437cf413be165b82a/7880019396809123304?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "7880019396809123304?createby=NguyenGiaHung_Bot",
+        "totalSize": 5883148,
+        "width": 480,
+        "height": 854,
+        "duration": 18266.667,
+        "timestamp": 1783919106085
+      }
+    },
+    "https://i.imgur.com/RuLS9Hj.mp4": {
+      "title": "https://f39-zfcloud.zdn.vn/be59d1e5a711074f5e00/8255031763947530056?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f39-zfcloud.zdn.vn/be59d1e5a711074f5e00/8255031763947530056?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "8255031763947530056?createby=NguyenGiaHung_Bot",
+        "totalSize": 7397000,
+        "width": 480,
+        "height": 854,
+        "duration": 27500,
+        "timestamp": 1783919106110
+      }
+    },
+    "https://files.catbox.moe/7qvh0j.mp4": {
+      "title": "https://f41-zfcloud.zdn.vn/a9084399356d9533cc7c/7553513162519951685?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/a9084399356d9533cc7c/7553513162519951685?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "7553513162519951685?createby=NguyenGiaHung_Bot",
+        "totalSize": 6984255,
+        "width": 576,
+        "height": 1024,
+        "duration": 28966.667,
+        "timestamp": 1783919106216
+      }
+    },
+    "https://i.imgur.com/WbnsVbS.mp4": {
+      "title": "https://f40-zfcloud.zdn.vn/b33a6e341dc0bd9ee4d1/5257753012444776432?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f40-zfcloud.zdn.vn/b33a6e341dc0bd9ee4d1/5257753012444776432?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "5257753012444776432?createby=NguyenGiaHung_Bot",
+        "totalSize": 2313172,
+        "width": 854,
+        "height": 480,
+        "duration": 8666.667,
+        "timestamp": 1783922705664
+      }
+    },
+    "https://i.imgur.com/HCBYfUn.mp4": {
+      "title": "https://f41-zfcloud.zdn.vn/c96c38774b83ebddb292/3836986387408011841?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/c96c38774b83ebddb292/3836986387408011841?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "3836986387408011841?createby=NguyenGiaHung_Bot",
+        "totalSize": 3288770,
+        "width": 854,
+        "height": 480,
+        "duration": 13166.667,
+        "timestamp": 1783922705688
+      }
+    },
+    "https://i.imgur.com/ce0hGMi.mp4": {
+      "title": "https://f39-zfcloud.zdn.vn/61c996afe55b45051c4a/655449053787106803?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f39-zfcloud.zdn.vn/61c996afe55b45051c4a/655449053787106803?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "655449053787106803?createby=NguyenGiaHung_Bot",
+        "totalSize": 5750059,
+        "width": 854,
+        "height": 480,
+        "duration": 14766.667,
+        "timestamp": 1783922706456
+      }
+    },
+    "https://i.imgur.com/xsmJkdV.mp4": {
+      "title": "https://i.imgur.com/xsmJkdV.mp4",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/07662ea14e55ee0bb744/327891402793700567?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "327891402793700567?createby=NguyenGiaHung_Bot",
+        "totalSize": 4297037,
+        "width": 960,
+        "height": 1706,
+        "duration": 16466.667,
+        "timestamp": 1783933506391
+      }
+    },
+    "https://i.imgur.com/3hnWCyC.mp4": {
+      "title": "https://f40-zfcloud.zdn.vn/994ef72a99de398060cf/6902220157179435436?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f40-zfcloud.zdn.vn/994ef72a99de398060cf/6902220157179435436?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "6902220157179435436?createby=NguyenGiaHung_Bot",
+        "totalSize": 3598282,
+        "width": 480,
+        "height": 854,
+        "duration": 16166.667,
+        "timestamp": 1783937105665
+      }
+    },
+    "https://files.catbox.moe/b7wssb.mp4": {
+      "title": "https://f41-zfcloud.zdn.vn/262e6f3d01c9a197f8d8/512973092970948764?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/262e6f3d01c9a197f8d8/512973092970948764?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "512973092970948764?createby=NguyenGiaHung_Bot",
+        "totalSize": 3333957,
+        "width": 576,
+        "height": 1024,
+        "duration": 25900,
+        "timestamp": 1783937106178
+      }
+    },
+    "https://i.imgur.com/hpDI3bw.mp4": {
+      "title": "https://f41-zfcloud.zdn.vn/5056515708a3a8fdf1b2/7914254328089997033?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/5056515708a3a8fdf1b2/7914254328089997033?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "7914254328089997033?createby=NguyenGiaHung_Bot",
+        "totalSize": 6991741,
+        "width": 480,
+        "height": 854,
+        "duration": 29633.333,
+        "timestamp": 1783969520355
+      }
+    },
+    "https://i.imgur.com/cl6nDtR.mp4": {
+      "title": "https://f41-zfcloud.zdn.vn/25f0370c6ef8cea697e9/7442559164752574739?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/25f0370c6ef8cea697e9/7442559164752574739?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "7442559164752574739?createby=NguyenGiaHung_Bot",
+        "totalSize": 1093201,
+        "width": 854,
+        "height": 480,
+        "duration": 11233.333,
+        "timestamp": 1783976703113
+      }
+    },
+    "https://i.imgur.com/I7cWxrw.mp4": {
+      "title": "https://f41-zfcloud.zdn.vn/6fb2826adb9e7bc0228f/8180482309756672494?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/6fb2826adb9e7bc0228f/8180482309756672494?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "8180482309756672494?createby=NguyenGiaHung_Bot",
+        "totalSize": 2645481,
+        "width": 854,
+        "height": 480,
+        "duration": 16233.332999999999,
+        "timestamp": 1783976703229
+      }
+    },
+    "https://i.imgur.com/w0jZXga.mp4": {
+      "title": "https://f39-zfcloud.zdn.vn/10c3ff0fa6fb06a55fea/3122496320635891682?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f39-zfcloud.zdn.vn/10c3ff0fa6fb06a55fea/3122496320635891682?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "3122496320635891682?createby=NguyenGiaHung_Bot",
+        "totalSize": 8493017,
+        "width": 854,
+        "height": 480,
+        "duration": 28933.333000000002,
+        "timestamp": 1783976703973
+      }
+    },
+    "https://i.imgur.com/iNrjRvh.mp4": {
+      "title": "https://f39-zfcloud.zdn.vn/0066278c7e78de268769/743445160923986411?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f39-zfcloud.zdn.vn/0066278c7e78de268769/743445160923986411?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "743445160923986411?createby=NguyenGiaHung_Bot",
+        "totalSize": 8987355,
+        "width": 960,
+        "height": 1706,
+        "duration": 18600,
+        "timestamp": 1783980305587
+      }
+    },
+    "https://i.imgur.com/bgN7tmI.mp4": {
+      "title": "https://f41-zfcloud.zdn.vn/65f1cdbb954f35116c5e/4455193822410059711?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/65f1cdbb954f35116c5e/4455193822410059711?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "4455193822410059711?createby=NguyenGiaHung_Bot",
+        "totalSize": 8881875,
+        "width": 960,
+        "height": 1706,
+        "duration": 20600,
+        "timestamp": 1783983906290
+      }
+    },
+    "https://imgur.com/7zJQSur.mp4": {
+      "title": "https://f40-zfcloud.zdn.vn/9cd5e595bd611d3f4470/6391504151360961757?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f40-zfcloud.zdn.vn/9cd5e595bd611d3f4470/6391504151360961757?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "6391504151360961757?createby=NguyenGiaHung_Bot",
+        "totalSize": 10690579,
+        "width": 960,
+        "height": 1706,
+        "duration": 19333.333,
+        "timestamp": 1783983906361
+      }
+    },
+    "https://imgur.com/wempuEQ.mp4": {
+      "title": "https://f40-zfcloud.zdn.vn/eec633b86b4ccb12925d/8675555301680463946?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f40-zfcloud.zdn.vn/eec633b86b4ccb12925d/8675555301680463946?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "8675555301680463946?createby=NguyenGiaHung_Bot",
+        "totalSize": 11571682,
+        "width": 960,
+        "height": 1706,
+        "duration": 24166.667,
+        "timestamp": 1783983906430
+      }
+    },
+    "https://imgur.com/lq5ktTy.mp4": {
+      "title": "https://imgur.com/lq5ktTy.mp4",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/09bed67b938f33d16a9e/5717140238950392631?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "5717140238950392631?createby=NguyenGiaHung_Bot",
+        "totalSize": 5590447,
+        "width": 960,
+        "height": 1702,
+        "duration": 14200,
+        "timestamp": 1783991105477
+      }
+    },
+    "https://imgur.com/pkZtB2A.mp4": {
+      "title": "https://f40-zfcloud.zdn.vn/0e2893f1d605765b2f14/2828279306071204159?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f40-zfcloud.zdn.vn/0e2893f1d605765b2f14/2828279306071204159?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "2828279306071204159?createby=NguyenGiaHung_Bot",
+        "totalSize": 9934265,
+        "width": 960,
+        "height": 1706,
+        "duration": 16800,
+        "timestamp": 1783991106427
+      }
+    },
+    "https://i.imgur.com/0zhCzKC.mp4": {
+      "title": "https://i.imgur.com/0zhCzKC.mp4",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/fd50be8af07e5020096f/2854696244648481481?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "2854696244648481481?createby=NguyenGiaHung_Bot",
+        "totalSize": 22380582,
+        "width": 960,
+        "height": 1706,
+        "duration": 34566.667,
+        "timestamp": 1783998307833
+      }
+    },
+    "https://i.imgur.com/7KGtqk7.mp4": {
+      "title": "https://i.imgur.com/7KGtqk7.mp4",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/3c5ea53191c5319b68d4/3635500345512192672?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "3635500345512192672?createby=NguyenGiaHung_Bot",
+        "totalSize": 2020455,
+        "width": 960,
+        "height": 1706,
+        "duration": 5733.333,
+        "timestamp": 1784001904450
+      }
+    },
+    "https://i.imgur.com/UxuJOTJ.mp4": {
+      "title": "https://i.imgur.com/UxuJOTJ.mp4",
+      "mp4": {
+        "fileUrl": "https://f40-zfcloud.zdn.vn/9dcde6a3d65776092f46/3746802961426258429?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "3746802961426258429?createby=NguyenGiaHung_Bot",
+        "totalSize": 6200669,
+        "width": 480,
+        "height": 854,
+        "duration": 22800,
+        "timestamp": 1784005505409
+      }
+    },
+    "https://i.imgur.com/0d5ZgRm.mp4": {
+      "title": "https://f41-zfcloud.zdn.vn/c25cea8cd87878262169/2119053997870333030?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/c25cea8cd87878262169/2119053997870333030?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "2119053997870333030?createby=NguyenGiaHung_Bot",
+        "totalSize": 1220284,
+        "width": 852,
+        "height": 480,
+        "duration": 11200,
+        "timestamp": 1784009104197
+      }
+    },
+    "https://i.imgur.com/THZLbFy.mp4": {
+      "title": "https://f41-zfcloud.zdn.vn/7ab8b9708b842bda7295/2390457346296739517?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/7ab8b9708b842bda7295/2390457346296739517?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "2390457346296739517?createby=NguyenGiaHung_Bot",
+        "totalSize": 1929863,
+        "width": 640,
+        "height": 480,
+        "duration": 17300,
+        "timestamp": 1784009117138
+      }
+    },
+    "https://files.catbox.moe/ynie9e.mp4": {
+      "title": "https://files.catbox.moe/ynie9e.mp4",
+      "mp4": {
+        "fileUrl": "https://f39-zfcloud.zdn.vn/9d9768f64102e15cb813/5834810031872757015?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "5834810031872757015?createby=NguyenGiaHung_Bot",
+        "totalSize": 4680735,
+        "width": 576,
+        "height": 1024,
+        "duration": 27433.333000000002,
+        "timestamp": 1784023503471
+      }
+    },
+    "https://files.catbox.moe/5ob71t.mp4": {
+      "title": "https://f39-zfcloud.zdn.vn/2025d644ffb05fee06a1/2104855941048901651?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f39-zfcloud.zdn.vn/2025d644ffb05fee06a1/2104855941048901651?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "2104855941048901651?createby=NguyenGiaHung_Bot",
+        "totalSize": 5681826,
+        "width": 576,
+        "height": 1024,
+        "duration": 29033.333,
+        "timestamp": 1784023503481
+      }
+    },
+    "https://files.catbox.moe/kz3pqe.mp4": {
+      "title": "https://f41-zfcloud.zdn.vn/4415b6059ff13faf66e0/1672098784654195053?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/4415b6059ff13faf66e0/1672098784654195053?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "1672098784654195053?createby=NguyenGiaHung_Bot",
+        "totalSize": 5696150,
+        "width": 576,
+        "height": 1024,
+        "duration": 33800,
+        "timestamp": 1784023503537
+      }
+    },
+    "https://i.imgur.com/rEe9vcW.mp4": {
+      "title": "https://f39-zfcloud.zdn.vn/964acd0fd8fb78a521ea/5175516369442400593?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f39-zfcloud.zdn.vn/964acd0fd8fb78a521ea/5175516369442400593?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "5175516369442400593?createby=NguyenGiaHung_Bot",
+        "totalSize": 3987096,
+        "width": 960,
+        "height": 1706,
+        "duration": 12320,
+        "timestamp": 1784027102601
+      }
+    },
+    "https://imgur.com/yZdSNit.mp4": {
+      "title": "https://f40-zfcloud.zdn.vn/020bd2accb586b063249/330727417173911857?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f40-zfcloud.zdn.vn/020bd2accb586b063249/330727417173911857?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "330727417173911857?createby=NguyenGiaHung_Bot",
+        "totalSize": 7175821,
+        "width": 960,
+        "height": 1706,
+        "duration": 18200,
+        "timestamp": 1784052304290
+      }
+    },
+    "https://files.catbox.moe/4enfky.mp4": {
+      "title": "https://f41-zfcloud.zdn.vn/52a1eda5f551550f0c40/7964935695440729999?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/52a1eda5f551550f0c40/7964935695440729999?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "7964935695440729999?createby=NguyenGiaHung_Bot",
+        "totalSize": 2740709,
+        "width": 576,
+        "height": 1024,
+        "duration": 24066.666999999998,
+        "timestamp": 1784055902874
+      }
+    },
+    "https://files.catbox.moe/1ram8m.mp4": {
+      "title": "https://f41-zfcloud.zdn.vn/ee783d4225b685e8dca7/2345226498267796996?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/ee783d4225b685e8dca7/2345226498267796996?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "2345226498267796996?createby=NguyenGiaHung_Bot",
+        "totalSize": 2369760,
+        "width": 720,
+        "height": 1280,
+        "duration": 16600,
+        "timestamp": 1784055902878
+      }
+    },
+    "https://files.catbox.moe/xuhml7": {
+      "title": "https://f39-zfcloud.zdn.vn/37d0e53bfdcf5d9104de/5678065253932957868?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f39-zfcloud.zdn.vn/37d0e53bfdcf5d9104de/5678065253932957868?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "5678065253932957868?createby=NguyenGiaHung_Bot",
+        "totalSize": 1508680,
+        "width": 576,
+        "height": 576,
+        "duration": 14700,
+        "timestamp": 1784063102783
+      }
+    },
+    "https://imgur.com/Zs1PwqC.mp4": {
+      "title": "https://f40-zfcloud.zdn.vn/bcc2bb32a3c603985ad7/2923296082895274219?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f40-zfcloud.zdn.vn/bcc2bb32a3c603985ad7/2923296082895274219?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "2923296082895274219?createby=NguyenGiaHung_Bot",
+        "totalSize": 2581560,
+        "width": 960,
+        "height": 540,
+        "duration": 11966.667,
+        "timestamp": 1784063103160
+      }
+    },
+    "https://imgur.com/pYdFeZZ.mp4": {
+      "title": "https://f41-zfcloud.zdn.vn/b27d014005b4a5eafca5/8495140472174406658?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/b27d014005b4a5eafca5/8495140472174406658?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "8495140472174406658?createby=NguyenGiaHung_Bot",
+        "totalSize": 16661226,
+        "width": 960,
+        "height": 1706,
+        "duration": 23633.333,
+        "timestamp": 1784077505936
+      }
+    },
+    "https://files.catbox.moe/smff2f.mp4": {
+      "title": "https://f41-zfcloud.zdn.vn/38691eecee184e461709/2743308085951750755?createby=NguyenGiaHung_Bot",
+      "mp4": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/38691eecee184e461709/2743308085951750755?createby=NguyenGiaHung_Bot",
+        "error": false,
+        "fileName": "2743308085951750755?createby=NguyenGiaHung_Bot",
+        "totalSize": 3847826,
+        "width": 576,
+        "height": 1024,
+        "duration": 21466.667,
+        "timestamp": 1784091903306
+      }
+    }
+  },
+  "tiktok": {
+    "7580900038101011729": {
+      "title": "em oi okay thì mình tới luôn 😝😝#wedj🚀🔥 #producer ",
+      "540p": {
+        "fileUrl": "https://fg63.dlfl.vn/86d5d0045858f806a149/855163762089514193",
+        "timestamp": 1765948138361
+      }
+    },
+    "7583211432536280341": {
+      "title": "a oi e lam gi sai… #lienquanmobile  #setlovelienquan #xhtiktok #fyp #creatortiemnang_aov ",
+      "540p": {
+        "fileUrl": "https://fg62.dlfl.vn/eece5213da4f7a11235e/270194356309986422",
+        "timestamp": 1765948155109
+      }
+    },
+    "7582181286077336850": {
+      "title": "Một mình anh ôm lòng đớn đau #viralvideo #lyrics #nhachaymoingay #xuhuongtiktok #fyp ",
+      "540p": {
+        "fileUrl": "https://fg41.dlfl.vn/3519f6d57e89ded78798/2216308582471823523",
+        "timestamp": 1765948177377
+      }
+    },
+    "7631237575243517192": {
+      "title": "Python Lyrics? #python #code #hottrend ",
+      "540p": {
+        "fileUrl": "https://fg41.dlfl.vn/01b315a4b46f14314d7e/2704762872031573463",
+        "timestamp": 1777519975047
+      }
+    },
+    "7634121937999957266": {
+      "title": "Dc @Xuannhii #xh #fyp #DJ ",
+      "540p": {
+        "fileUrl": "https://fg41.dlfl.vn/6f0d9fa6336d9333ca7c/4856414506796685365",
+        "timestamp": 1777523949669
+      }
+    },
+    "7633829952768527637": {
+      "title": "🎶🎹🎺KHÔNG NGHE HƠI PHÍ ||by edit Yt music #fbtxuhuong #nhachaymoingay #music #trending #nhacchotiktok ",
+      "540p": {
+        "fileUrl": "https://fg40.dlfl.vn/827680c52c0e8c50d51f/4213485625203161933",
+        "timestamp": 1777523983923
+      }
+    },
+    "7633242407806586120": {
+      "title": "엄청난 쉐이킹! 인도 최고의 밀크셰이크 🌎위치 인도 코치 💵가격 50루피 #drink #milkshake #viral ",
+      "540p": {
+        "fileUrl": "https://fg40.dlfl.vn/4e8e2a49848224dc7d93/3455396603653230164",
+        "timestamp": 1777525757128
+      }
+    },
+    "7633593470711696658": {
+      "title": "#vairal #viral #xh #xh #fyp ",
+      "540p": {
+        "fileUrl": "https://fg41.dlfl.vn/190901b5a87e0820516f/4983998210973300655",
+        "timestamp": 1777527126920
+      }
+    },
+    "7634183292660567317": {
+      "title": "Takeru Segawa trả thành công món nợ trước Rodtang Jitmuangnon ngay trên sân nhà ở trận đấu tâm điểm sự kiện ONE SAMURAI 1.#onechampionship #muaythai #takeru #rodtang #vothuat ",
+      "540p": {
+        "fileUrl": "https://fg41.dlfl.vn/e2c6e80840c3e09db9d2/4832597115020424058",
+        "timestamp": 1777528105893
+      }
+    },
+    "7633290452023774472": {
+      "title": "Nhạc 1h bao phê🔥  Không nghe hơi phí 😘 Đeo tai vào để cảm nhận tuyệt vời nhất 🎧🎧🎧 #nhachaymoingay🎧 #nhacremix #nhacnaychillphet #fbtxuhuong ",
+      "540p": {
+        "fileUrl": "https://bfg32.dlfl.vn/5ea3dc2474efd4b18dfe/6671892231799351044",
+        "timestamp": 1777528407987
+      }
+    },
+    "Nó nhẹ nhàng mà có cuốn #musicnetwork #nhachaymoingay #cover ": {
+      "540p": {
+        "fileUrl": "https://f39-zfcloud.zdn.vn/7c03d8963663963dcf72/7667915638508339169?createby=HaHuyHoang_Bot",
+        "timestamp": 1783685103451
+      }
+    },
+    "Danh sách nhạc trẻ ballad chill nhẹ nhàng 2026 #nhachaymoingay #music #nhacbuon #chill #tamtrang": {
+      "540p": {
+        "fileUrl": "https://f39-zfcloud.zdn.vn/b85846e6a813084d5102/2458942224581991838?createby=HaHuyHoang_Bot",
+        "timestamp": 1783685103826
+      }
+    },
+    "7319863578368937218": {
+      "title": "Hơi Thở Cuối - AT 117 Feat BlackBi #nhac8x9x #5akmusic",
+      "540p": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/c458e50732f292accbe3/4909962783512165978?createby=HaHuyHoang_Bot",
+        "timestamp": 1783696534325
+      }
+    },
+    "7641140560446655762": {
+      "title": "Chiếc váy trắng tinh em thả dáng em tỏa sáng...❣️ #arismusic #noigiolen #capcut #capcutpioneer #pioneertemplate ",
+      "540p": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/b6448c2a4ddfed81b4ce/3231978362830760112?createby=HaHuyHoang_Bot",
+        "timestamp": 1783745469104
+      }
+    },
+    "7659676669573090580": {
+      "title": "Áng mây kia rộng chơi lâu rồi #moontrend #caooc20 #viral #nhachaymoingay #xuhuong ",
+      "540p": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/714862bca24902175b58/6801944973862964493?createby=HaHuyHoang_Bot",
+        "timestamp": 1783747954073
+      }
+    },
+    "7659201626837765383": {
+      "title": "Thằng kia nha - Thôi đi học  #fyp ",
+      "540p": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/7d3ba53866cdc6939fdc/2473883455434838044?createby=HaHuyHoang_Bot",
+        "timestamp": 1783749263119
+      }
+    },
+    "7645258535487540488": {
+      "title": ":))#xuhuong #xuhuongtiktok #xh #nhanvatchinh #xhhhhhhhhhhhhhhhhhhhhhhhhhhhhh ",
+      "540p": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/52729d672b928bccd283/7850737725925943077?createby=HaHuyHoang_Bot",
+        "timestamp": 1783767171938
+      }
+    },
+    "7658146744290594068": {
+      "title": "Đang buồn đang chán ai đi Núi Bà Đen cùng không ạ..? Chi phí mình lo hết. #nuibaden #CapCut #xuhuongtiktok #fyppppppppppppppppppppppp ",
+      "540p": {
+        "fileUrl": "https://f39-zfcloud.zdn.vn/0fbbdf506da5cdfb94b4/5265591534954877549?createby=HaHuyHoang_Bot",
+        "timestamp": 1783777235417
+      }
+    },
+    "7661189780406816020": {
+      "title": "Chơi game hog? #girl #lienminhhuyenthoai #tocchien #lienquanmobile #aram ",
+      "540p": {
+        "fileUrl": "https://f39-zfcloud.zdn.vn/5fa10947bbb21bec42a3/238064100588259170?createby=HaHuyHoang_Bot",
+        "timestamp": 1783777376164
+      }
+    },
+    "7659819663420886290": {
+      "title": "Sin lối vì đã giấu đi năng lực thật sự của mình 🥰 #nghiemtuc #violin #motdoi #motdoiviolin #violincover ",
+      "540p": {
+        "fileUrl": "https://f40-zfcloud.zdn.vn/ef9f19d6a723077d5e32/3132105273916500966?createby=HaHuyHoang_Bot",
+        "timestamp": 1783785705579
+      }
+    },
+    "7644115920373222664": {
+      "title": "gia ngân dễ thươn 🧏🏻‍♀️ #giangan #bdbt #yeugiangan #giangandethuong #xhhhhhhhhhhhhhhhhhhhhhhh ",
+      "540p": {
+        "fileUrl": "https://f39-zfcloud.zdn.vn/edf54bb3f54655180c57/1954044929485656512?createby=NguyenGiaHung_Bot",
+        "timestamp": 1783786040441
+      }
+    },
+    "7655926353878977806": {
+      "title": "I luv my random boredom lol never know wat I might do🤣🤣🤣#draft #fypagee #trending #randomboredom",
+      "540p": {
+        "fileUrl": "https://f40-zfcloud.zdn.vn/d8a8b6eeeb1a4b44120b/261458498276176352?createby=NguyenGiaHung_Bot",
+        "timestamp": 1783954383542
+      }
+    },
+    "7660404092296088853": {
+      "title": "Djtmemay có yêu tao không... #lyrics #videolyrics #nhachaymoingay #music #DuyQuy ",
+      "540p": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/b9d7f604e6f046ae1fe1/8258269789747196521?createby=NguyenGiaHung_Bot",
+        "timestamp": 1784035675263
+      }
+    },
+    "7661566021622369556": {
+      "title": "KIẾM LAI SHORT | \"Xuân phong cũng có xuân phong sầu, không phiền xuân phong vì ta ưu\" #donghua3d #hoathinh3d #kiemlai #剑来 #tetinhxuan",
+      "540p": {
+        "fileUrl": "https://f39-zfcloud.zdn.vn/3a7802f8f30c53520a1d/3924997910760295975?createby=NguyenGiaHung_Bot",
+        "timestamp": 1784090729789
+      }
+    }
+  },
+  "zingmp3": {
+    "ZWAEIUUB": {
+      "title": "Sóng Gió",
+      "artist": "Jack, K-ICM",
+      "128kbps": {
+        "fileUrl": "https://f2-zcloud-voice-aac.zdn.vn/4089920460044218034/1c5bab999dbc7de224ad.aac",
+        "timestamp": 1777509436376
+      }
+    },
+    "Z708O0OU": {
+      "title": "Ngày Em Cưới",
+      "artist": "Nguyễn Vĩ",
+      "128kbps": {
+        "fileUrl": "https://f1-zcloud-voice-aac.zdn.vn/5200947464137969698/4e8f13415664b63aef75.aac",
+        "timestamp": 1777524305422
+      }
+    },
+    "Z6IB6AUO": {
+      "title": "Chim Trắng Mồ Côi (Remix)",
+      "artist": "Saka Trương Tuyền",
+      "128kbps": {
+        "fileUrl": "https://f2-zcloud-voice-aac.zdn.vn/435917423263316458/7be7e7d01df5fdaba4e4.aac",
+        "timestamp": 1777537978953
+      }
+    },
+    "Z88E608Z": {
+      "title": "Sầu Đượm Tơ Vương (LQT Remix)",
+      "artist": "Lương Quý Tuấn",
+      "128kbps": {
+        "fileUrl": "https://voice-aac-dl.zdn.vn/2577932759442279357/efb92981afcb4c9515da.aac",
+        "timestamp": 1783921817378
+      }
+    },
+    "Z7U9IAUE": {
+      "title": "Tìm Em (Remix)",
+      "artist": "Vinz, Exclusive Music, Hồ Quang Hiếu",
+      "128kbps": {
+        "fileUrl": "https://voice-aac-dl.zdn.vn/6762048185639339731/b65cb8844cceaf90f6df.aac",
+        "timestamp": 1783923773054
+      }
+    },
+    "Z708WECW": {
+      "title": "Buông Hàng x Đêm Nay Ai Bảnh (Remix)",
+      "artist": "Tunzg",
+      "128kbps": {
+        "fileUrl": "https://voice-aac-dl.zdn.vn/4234454104703332138/156e59b279e69ab8c3f7.aac",
+        "timestamp": 1783953711199
+      }
+    },
+    "Z88WECDF": {
+      "title": "Không Buông",
+      "artist": "Hngle, Ari",
+      "128kbps": {
+        "fileUrl": "https://f2-voice-aac-dl.zdn.vn/7338677315275135653/6141def341a7a2f9fbb6.aac",
+        "timestamp": 1783995101944
+      }
+    },
+    "Z7CE09AU": {
+      "title": "Sao Mình Chưa Nắm Tay Nhau (Duke Remix)",
+      "artist": "Diijam Studio",
+      "128kbps": {
+        "fileUrl": "https://f2-voice-aac-dl.zdn.vn/8728510148019355746/8937a7d3818262dc3b93.aac?createby=NguyenGiaHung_Bot/1784078662621.aac",
+        "timestamp": 1784078662622
+      }
+    },
+    "Z6OE7D9O": {
+      "title": "Lỡ Một Lời Thương (Remix)",
+      "artist": "Vy Oanh",
+      "128kbps": {
+        "fileUrl": "https://voice-aac-dl.zdn.vn/4839305215179721063/4cf9409bc2ca219478db.aac?createby=NguyenGiaHung_Bot/1784093734191.aac",
+        "timestamp": 1784093734192
+      }
+    }
+  },
+  "youtube": {
+    "j8U06veqxdU": {
+      "title": "SÓNG GIÓ | ICM x JACK | OFFICIAL MUSIC VIDEO",
+      "720p": {
+        "fileUrl": "https://ot45.dlfl.vn/fa33c7a1696ac934907b/5508614798971539840",
+        "duration": 350016.333,
+        "timestamp": 1777526112108
+      }
+    },
+    "8x2NjwwHUbQ": {
+      "title": "JACK - HỒNG NHAN [OFFICIAL MV] | G5R",
+      "720p": {
+        "fileUrl": "https://ot50.dlfl.vn/9283e81b46d0e68ebfc1/3984229923389949924",
+        "duration": 195150,
+        "timestamp": 1777526143098
+      }
+    },
+    "L6xFlo-o3Kc": {
+      "title": "NGẪU NHIÊN | Trịnh Công Sơn | Hà An Huy | Musique de Salon",
+      "720p": {
+        "fileUrl": "https://f41-zfcloud.zdn.vn/362fb36eee9a4ec4178b/8619150863517914040?createby=NguyenGiaHung_Bot",
+        "duration": 194827.967,
+        "timestamp": 1783954433716
+      }
+    }
+  },
+  "nhaccuatui": {
+    "m4OopfbooS9C": {
+      "title": "Tìm Em",
+      "artist": "Hngle, Bảo Anh",
+      "320kbps": {
+        "fileUrl": "https://fg41.dlfl.vn/9cf94583907630286967/4501538414362771231/1783692977286.aac",
+        "timestamp": 1783692977288
+      }
+    },
+    "wgpNJZxMdoMX": {
+      "title": "Cưới Đi",
+      "artist": "2T, ChangC",
+      "320kbps": {
+        "fileUrl": "https://f2-voice-aac-dl.zdn.vn/7736913776632392570/0507b99550d9b387eac8.aac",
+        "timestamp": 1783693771119
+      }
+    }
+  },
+  "facebook": {
+    "2198458607576684": {
+      "title": "31K views · 3.2K reactions | tặng anh babythree 2008% #reels #reels | Ha Anh Thu",
+      "HD": {
+        "fileUrl": [
+          {
+            "fileUrl": "https://f41-zfcloud.zdn.vn/742be1ef441ae444bd0b/3838273395295266443?createby=NguyenGiaHung_Bot",
+            "duration": 12679.346000000001,
+            "width": 576,
+            "height": 1024,
+            "totalSize": 1713208
+          }
+        ],
+        "timestamp": 1783823169375
+      }
+    },
+    "1001383229429742": {
+      "title": "59K views · 6.5K reactions | cố tỏ ra dethuong để được anh thương 😭 #reels #viral | Ha Anh Thu",
+      "HD": {
+        "fileUrl": [
+          {
+            "fileUrl": "https://f39-zfcloud.zdn.vn/0da666d9642dc4739d3c/2600282602206493029?createby=NguyenGiaHung_Bot",
+            "duration": 12746.079,
+            "width": 576,
+            "height": 1024,
+            "totalSize": 1896563
+          }
+        ],
+        "timestamp": 1784081534759
+      }
+    }
+  }
+}

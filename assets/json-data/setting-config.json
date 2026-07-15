@@ -1,0 +1,7 @@
+{
+  "CHUNK_UPLOAD": 12,
+  "TIME_OUT_UPLOAD_CHUNK": 15000,
+  "USE_PROXY": false,
+  "PROXY_HTTP": "",
+  "CHUNK_M3U8": 32
+}

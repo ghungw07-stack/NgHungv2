@@ -1,0 +1,207 @@
+{
+  "codes": [
+    {
+      "id": "code_tanthu",
+      "code": "TANTHU",
+      "name": "Mã quà tặng tân thủ",
+      "description": "Mã code dành cho người chơi mới, nhận được nhiều vật phẩm hữu ích",
+      "isActive": true,
+      "maxUses": -1,
+      "currentUses": 0,
+      "userLimit": 1,
+      "expireDate": null,
+      "requiredLevel": 0,
+      "usedUsers": {
+        "VP6N8D5203TPH83JVSO4T89G7O6E1T80": true,
+        "G17P6U90C5D1K8L3FN9UKD6JAB5UNM00": true
+      },
+      "createdAt": 1703980800000,
+      "rewards": {
+        "gold": 5000,
+        "exp": 1000,
+        "bagSlots": 15,
+        "items": [
+          {
+            "id": "hp1",
+            "amount": 50
+          },
+          {
+            "id": "hp2",
+            "amount": 30
+          },
+          {
+            "id": "hp3",
+            "amount": 10
+          },
+          {
+            "id": "mp1",
+            "amount": 50
+          },
+          {
+            "id": "mp2",
+            "amount": 30
+          },
+          {
+            "id": "mp3",
+            "amount": 10
+          },
+          {
+            "id": "potion_attack",
+            "amount": 10
+          },
+          {
+            "id": "potion_defense",
+            "amount": 10
+          },
+          {
+            "id": "w_tansu_1",
+            "amount": 1
+          },
+          {
+            "id": "a_tansu_1",
+            "amount": 1
+          },
+          {
+            "id": "h_tansu_1",
+            "amount": 1
+          },
+          {
+            "id": "b_tansu_1",
+            "amount": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "code_exp2025",
+      "code": "EXP2025",
+      "name": "Mã tăng kinh nghiệm",
+      "description": "Mã code giúp tăng cấp nhanh chóng",
+      "isActive": true,
+      "maxUses": 100,
+      "currentUses": 0,
+      "userLimit": 1,
+      "expireDate": 1764547200000,
+      "requiredLevel": 0,
+      "usedUsers": {
+        "G17P6U90C5D1K8L3FN9UKD6JAB5UNM00": true
+      },
+      "createdAt": 1703980800000,
+      "rewards": {
+        "gold": 2000,
+        "exp": 5000,
+        "items": [
+          {
+            "id": "exp_scroll",
+            "amount": 5
+          },
+          {
+            "id": "mp3",
+            "amount": 5
+          }
+        ]
+      }
+    },
+    {
+      "id": "code_warrior2025",
+      "code": "WARRIOR2025",
+      "name": "Mã đặc biệt - Chiến Binh Huyền Thoại",
+      "description": "Mã đặc biệt với trang bị có nội tại ẩn",
+      "isActive": true,
+      "maxUses": 50,
+      "currentUses": 0,
+      "userLimit": 1,
+      "expireDate": 1748476800000,
+      "requiredLevel": 10,
+      "usedUsers": {},
+      "createdAt": 1703980800000,
+      "rewards": {
+        "gold": 10000,
+        "exp": 3000,
+        "bagSlots": 10,
+        "items": [
+          {
+            "id": "w_bac_1",
+            "amount": 1
+          },
+          {
+            "id": "a_bac_1",
+            "amount": 1
+          },
+          {
+            "id": "h_bac_1",
+            "amount": 1
+          },
+          {
+            "id": "b_bac_1",
+            "amount": 1
+          },
+          {
+            "id": "s_bac_1",
+            "amount": 1
+          },
+          {
+            "id": "hp3",
+            "amount": 20
+          },
+          {
+            "id": "mp3",
+            "amount": 20
+          }
+        ]
+      }
+    },
+    {
+      "id": "code_thanthoai",
+      "code": "THANTHOAI",
+      "name": "Bộ Thần Thoại",
+      "description": "Bộ trang bị huyền thoại với nội tại Lửa Rồng",
+      "isActive": true,
+      "maxUses": 10,
+      "currentUses": 0,
+      "userLimit": 1,
+      "expireDate": 1798156800000,
+      "requiredLevel": 50,
+      "usedUsers": {
+        "G17P6U90C5D1K8L3FN9UKD6JAB5UNM00": true
+      },
+      "createdAt": 1703980800000,
+      "rewards": {
+        "gold": 20000,
+        "exp": 10000,
+        "items": [
+          {
+            "id": "w_vang_1",
+            "name": "Kiếm Vàng",
+            "amount": 1,
+            "hiddenTrait": "fire"
+          },
+          {
+            "id": "a_vang_1",
+            "name": "Áo Giáp Vàng",
+            "amount": 1,
+            "hiddenTrait": "fire"
+          },
+          {
+            "id": "h_vang_1",
+            "name": "Mũ Vàng",
+            "amount": 1,
+            "hiddenTrait": "fire"
+          },
+          {
+            "id": "b_vang_1",
+            "name": "Giày Vàng",
+            "amount": 1,
+            "hiddenTrait": "fire"
+          },
+          {
+            "id": "s_vang_1",
+            "name": "Khiên Vàng",
+            "amount": 1,
+            "hiddenTrait": "fire"
+          }
+        ]
+      }
+    }
+  ]
+}

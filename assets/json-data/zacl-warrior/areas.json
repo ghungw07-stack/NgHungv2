@@ -1,0 +1,447 @@
+{
+  "areas": [
+    {
+      "id": "pet_garden",
+      "name": "Vườn Thú",
+      "description": "Khu vực dành cho việc nâng cấp thú cưỡi, mua pet hoặc thú cưỡi mới.",
+      "isHostile": false,
+      "npcs": [
+        {
+          "id": "npc_pet_caretaker",
+          "name": "Bà Pheorlina",
+          "description": "Người chuyên chăm sóc và nâng cấp thú cưỡi. Hãy đến đây để nâng cấp thú của bạn!"
+        },
+        {
+          "id": "npc_pet_seller",
+          "name": "Ông Modilaner",
+          "description": "Người bán các loại pet và thú cưỡi. Hãy chọn một người bạn đồng hành mới!"
+        }
+      ],
+      "connections": ["town"]
+    },
+    {
+      "id": "town",
+      "name": "Town - [Thị Trấn Khởi Đầu]",
+      "description": "Nơi bắt đầu cuộc hành trình của bạn, có các cửa hàng và dịch vụ cơ bản",
+      "isHostile": false,
+      "npcs": [
+        {
+          "id": "npc_blacksmith",
+          "name": "Thợ Rèn Kinler",
+          "description": "Chuyên gia rèn và nâng cấp trang bị. Hãy mang nguyên liệu đến để nâng cấp!"
+        },
+        {
+          "id": "npc_mayor",
+          "name": "Thị Trưởng Eldor",
+          "description": "Thị trưởng của Town, một người đàn ông có kinh nghiệm và biết nhiều về vùng đất này."
+        },
+        {
+          "id": "npc_healer",
+          "name": "Nữ Tu Ana",
+          "description": "Người chữa lành bằng phép thuật thần thánh, có thể giúp bạn hồi phục hoàn toàn."
+        }
+      ],
+      "shops": ["general_shop", "weapon_shop"],
+      "connections": ["pet_garden", "forest_1", "training_ground", "inn"]
+    },
+    {
+      "id": "inn",
+      "name": "Quán Trọ Bình Yên",
+      "description": "Nơi nghỉ ngơi và lấy lại sức mạnh. Chi phí nghỉ ngơi: 10 vàng.",
+      "isHostile": false,
+      "npcs": [
+        {
+          "id": "innkeeper",
+          "name": "Bà chủ Melia",
+          "description": "Người phụ nữ vui vẻ, chủ quán trọ. Có nhiều tin đồn thú vị về vùng đất này."
+        }
+      ],
+      "connections": ["town"]
+    },
+    {
+      "id": "training_ground",
+      "name": "Sân Tập Luyện",
+      "description": "Nơi các chiến binh tập luyện và học hỏi kỹ năng mới.",
+      "isHostile": false,
+      "npcs": [
+        {
+          "id": "npc_trainer",
+          "name": "Huấn Luyện Viên Marcus",
+          "description": "Cựu chiến binh với kinh nghiệm chiến đấu phong phú, dạy các kỹ năng chiến đấu cơ bản.",
+          "skills": ["skill_slash", "skill_block", "skill_power_strike"]
+        },
+        {
+          "id": "npc_mage_trainer",
+          "name": "Pháp Sư Elyndra",
+          "description": "Pháp sư tài năng, chuyên dạy các ma pháp từ cơ bản đến nâng cao.",
+          "skills": ["skill_fireball", "skill_ice_shard", "skill_lightning_bolt", "skill_magic_shield"]
+        },
+        {
+          "id": "npc_advanced_trainer",
+          "name": "Bậc Thầy Eldrin",
+          "description": "Bậc thầy võ thuật huyền thoại, chỉ dạy cho những người có đủ trình độ.",
+          "skills": ["skill_whirlwind", "skill_counter_attack", "skill_berserker_rage"],
+          "requirements": {
+            "level": 10
+          }
+        }
+      ],
+      "connections": ["town"]
+    },
+    {
+      "id": "forest_1",
+      "name": "Khu Rừng U Tối",
+      "description": "Khu rừng gần thị trấn, có các sinh vật yếu nhưng nguy hiểm với người mới",
+      "isHostile": true,
+      "monsters": ["slime1", "wolf1"],
+      "monsterDensity": 0.7,
+      "connections": ["town", "forest_2", "cave_1"]
+    },
+    {
+      "id": "forest_2",
+      "name": "Khu Rừng Sâu Thẳm",
+      "description": "Phần sâu hơn của khu rừng, với những sinh vật mạnh mẽ hơn và nguy hiểm hơn",
+      "isHostile": true,
+      "monsters": ["wolf2", "slime2", "snake1", "bear1"],
+      "monsterDensity": 0.8,
+      "connections": ["forest_1", "graveyard"],
+      "treasures": [
+        { "itemId": "hp2", "chance": 0.4, "amount": 2 },
+        { "itemId": "mp2", "chance": 0.4, "amount": 1 },
+        { "itemId": "armor1", "chance": 0.1, "amount": 1 }
+      ]
+    },
+    {
+      "id": "cave_1",
+      "name": "Hang Động U Tối",
+      "description": "Hang động tối tăm ẩn chứa nhiều nguy hiểm và kho báu",
+      "isHostile": true,
+      "monsters": ["goblin1", "bat1", "goblin2"],
+      "monsterDensity": 0.9,
+      "requirements": { "level": 10 },
+      "connections": ["forest_1", "cave_2"],
+      "treasures": [
+        { "itemId": "hp1", "chance": 0.5, "amount": 3 },
+        { "itemId": "mp1", "chance": 0.5, "amount": 2 },
+        { "itemId": "wd1", "chance": 0.1, "amount": 1 }
+      ]
+    },
+    {
+      "id": "cave_2",
+      "name": "Hang Động Sâu Thẳm",
+      "description": "Phần sâu nhất của hệ thống hang động, nơi những sinh vật mạnh mẽ nhất ẩn náu",
+      "isHostile": true,
+      "monsters": ["goblin3", "skeleton1"],
+      "monsterDensity": 1.0,
+      "requirements": { "level": 15 },
+      "connections": ["cave_1"],
+      "treasures": [
+        { "itemId": "hp2", "chance": 0.6, "amount": 2 },
+        { "itemId": "mp2", "chance": 0.6, "amount": 2 },
+        { "itemId": "helmet1", "chance": 0.2, "amount": 1 },
+        { "itemId": "boots1", "chance": 0.2, "amount": 1 }
+      ]
+    },
+    {
+      "id": "graveyard",
+      "name": "Nghĩa Trang Cổ",
+      "description": "Một nghĩa trang cổ đầy các linh hồn bất an và sinh vật không chết",
+      "isHostile": true,
+      "monsters": ["ghost1", "zombie1", "lich1"],
+      "monsterDensity": 1.0,
+      "requirements": { "level": 20 },
+      "connections": ["forest_2"],
+      "treasures": [
+        { "itemId": "hp3", "chance": 0.3, "amount": 1 },
+        { "itemId": "mp3", "chance": 0.3, "amount": 1 },
+        { "itemId": "cape2", "chance": 0.15, "amount": 1 },
+        { "itemId": "skill_book2", "chance": 0.1, "amount": 1 }
+      ]
+    },
+    {
+      "id": "ancient_temple",
+      "name": "Đền Cổ Thăng Thiên",
+      "description": "Một ngôi đền cổ với kiến trúc hùng vĩ, nơi các bậc thầy võ công ẩn cư tu luyện.",
+      "isHostile": false,
+      "npcs": [
+        {
+          "id": "grand_master",
+          "name": "Đại Sư Korath",
+          "description": "Người canh giữ bí kíp võ công bí truyền, chỉ truyền dạy cho những người thực sự xứng đáng.",
+          "skills": [
+            "skill_shield_wall",
+            "skill_berserker",
+            "skill_thunder_strike",
+            "skill_stealth",
+            "skill_life_drain"
+          ],
+          "dialogs": [
+            "Con có đủ sự kiên nhẫn để học hỏi không?",
+            "Sức mạnh thật sự đến từ sự tĩnh tâm, không phải sự hung hăng.",
+            "Ta chỉ truyền dạy cho những ai đã chứng tỏ bản thân.",
+            "Võ công cần được sử dụng để bảo vệ kẻ yếu, không phải để đàn áp."
+          ]
+        }
+      ],
+      "requirements": { "level": 25 },
+      "connections": ["mountain_peak"]
+    },
+    {
+      "id": "mountain_peak",
+      "name": "Đỉnh Núi Tiên Cảnh",
+      "description": "Đỉnh núi cao nhất trong dãy núi, nơi giáp với bầu trời và là đường vào đền cổ.",
+      "isHostile": true,
+      "monsters": ["harpy1", "mountain_troll1"],
+      "monsterDensity": 0.7,
+      "connections": ["mountain_2", "ancient_temple"],
+      "treasures": [
+        { "itemId": "hp3", "chance": 0.4, "amount": 2 },
+        { "itemId": "mp3", "chance": 0.4, "amount": 2 }
+      ]
+    },
+    {
+      "id": "wasteland",
+      "name": "Vùng đất hoang vu",
+      "description": "Vùng đất khô cằn với những sinh vật nguy hiểm ẩn náu khắp nơi.",
+      "levelRequirement": 22,
+      "isHostile": true,
+      "npcs": [
+        {
+          "id": "npc_hunter_chief",
+          "name": "Thủ lĩnh thợ săn",
+          "description": "Một người dũng cảm dẫn đầu nhóm thợ săn vào vùng đất hoang vu."
+        }
+      ],
+      "monsters": ["monster_scorpion", "desert_snake"],
+      "monsterDensity": 0.6,
+      "connections": ["town", "desert_outpost"],
+      "treasures": [
+        { "itemId": "hp2", "chance": 0.3, "amount": 1 },
+        { "itemId": "mp2", "chance": 0.3, "amount": 1 }
+      ]
+    },
+    {
+      "id": "desert_outpost",
+      "name": "Tiền đồn sa mạc",
+      "description": "Một pháo đài nhỏ tại biên giới sa mạc, nơi các thợ săn và thám hiểm nghỉ ngơi.",
+      "levelRequirement": 22,
+      "isHostile": false,
+      "npcs": [
+        {
+          "id": "npc_outpost_captain",
+          "name": "Đội trưởng tiền đồn",
+          "description": "Vị chỉ huy già dặn với nhiều vết sẹo từ những trận chiến trong sa mạc."
+        },
+        {
+          "id": "npc_alchemist",
+          "name": "Nhà giả kim",
+          "description": "Một người đàn ông lạ lùng với nhiều bình thuốc kỳ lạ, chuyên nghiên cứu độc tố."
+        }
+      ],
+      "shops": ["desert_supplies"],
+      "connections": ["wasteland", "scorpion_nest"],
+      "treasures": []
+    },
+    {
+      "id": "scorpion_nest",
+      "name": "Tổ bò cạp",
+      "description": "Hang ổ của những con bò cạp khổng lồ, đầy nguy hiểm và độc tố.",
+      "levelRequirement": 25,
+      "isHostile": true,
+      "npcs": [],
+      "monsters": ["monster_scorpion", "monster_scorpion_guard", "monster_scorpion_queen"],
+      "monsterDensity": 0.8,
+      "connections": ["desert_outpost"],
+      "treasures": [
+        { "itemId": "item_scorpion_poison", "chance": 0.5, "amount": 1 },
+        { "itemId": "hp3", "chance": 0.4, "amount": 2 }
+      ]
+    },
+    {
+      "id": "volcano_path",
+      "name": "Đường lên núi lửa",
+      "description": "Con đường dốc và nóng bỏng dẫn lên núi lửa đang có dấu hiệu hoạt động.",
+      "levelRequirement": 28,
+      "isHostile": true,
+      "npcs": [
+        {
+          "id": "npc_volcano_sage",
+          "name": "Hiền triết núi lửa",
+          "description": "Một người già ẩn dật đã nghiên cứu núi lửa này suốt hàng thập kỷ."
+        }
+      ],
+      "monsters": ["fire_lizard", "lava_slug"],
+      "monsterDensity": 0.5,
+      "connections": ["town", "volcano_crater"],
+      "treasures": [{ "itemId": "item_lava_crystal", "chance": 0.6, "amount": 1 }]
+    },
+    {
+      "id": "volcano_crater",
+      "name": "Miệng núi lửa",
+      "description": "Trung tâm của núi lửa, nơi dung nham sôi sục và những sinh vật lửa di chuyển.",
+      "levelRequirement": 30,
+      "isHostile": true,
+      "npcs": [],
+      "monsters": ["monster_fire_elemental", "monster_lava_golem"],
+      "monsterDensity": 0.7,
+      "connections": ["volcano_path", "dragon_lair"],
+      "treasures": [
+        { "itemId": "fire_essence", "chance": 0.4, "amount": 1 },
+        { "itemId": "item_fire_crystal", "chance": 0.3, "amount": 1 }
+      ]
+    },
+    {
+      "id": "ancient_library",
+      "name": "Thư viện cổ",
+      "description": "Một thư viện cổ kính chứa vô số kiến thức và bí ẩn của thế giới này.",
+      "levelRequirement": 33,
+      "isHostile": false,
+      "npcs": [
+        {
+          "id": "npc_archivist",
+          "name": "Người quản lý thư viện",
+          "description": "Một học giả già với đôi mắt sáng trí tuệ, người gìn giữ tri thức cổ xưa."
+        },
+        {
+          "id": "npc_archmage",
+          "name": "Đại pháp sư",
+          "description": "Vị phù thủy quyền năng nhất của thế giới, người nghiên cứu ma thuật cổ đại."
+        }
+      ],
+      "connections": ["town", "magic_forge", "dark_cavern"],
+      "treasures": [{ "itemId": "item_ancient_tome", "chance": 0.7, "amount": 1 }]
+    },
+    {
+      "id": "magic_forge",
+      "name": "Lò rèn phép thuật",
+      "description": "Nơi chế tạo các vật phẩm ma thuật quyền năng bằng sức mạnh của các nguyên tố.",
+      "levelRequirement": 40,
+      "isHostile": false,
+      "npcs": [
+        {
+          "id": "npc_forge_master",
+          "name": "Bậc thầy rèn",
+          "description": "Thợ rèn huyền thoại có thể chế tạo vũ khí từ những nguyên liệu kỳ lạ nhất."
+        }
+      ],
+      "connections": ["ancient_library"],
+      "treasures": [{ "itemId": "item_arcane_dust", "chance": 0.8, "amount": 2 }]
+    },
+    {
+      "id": "dark_cavern",
+      "name": "Hang động tối tăm",
+      "description": "Hang động sâu hút tràn ngập bóng tối và năng lượng hắc ám từ những nghi lễ bí ẩn.",
+      "levelRequirement": 35,
+      "isHostile": true,
+      "npcs": [],
+      "monsters": ["monster_shadow_cultist", "shadow_beast"],
+      "monsterDensity": 0.7,
+      "connections": ["ancient_library", "ritual_chamber"],
+      "treasures": [
+        { "itemId": "item_shadow_rune", "chance": 0.6, "amount": 1 },
+        { "itemId": "hp3", "chance": 0.4, "amount": 1 }
+      ]
+    },
+    {
+      "id": "ritual_chamber",
+      "name": "Phòng nghi lễ",
+      "description": "Căn phòng ngầm nơi các tín đồ bóng tối thực hiện nghi lễ triệu hồi nguy hiểm.",
+      "levelRequirement": 38,
+      "isHostile": true,
+      "npcs": [],
+      "monsters": ["monster_shadow_cultist", "monster_shadow_high_priest"],
+      "monsterDensity": 0.8,
+      "connections": ["dark_cavern"],
+      "treasures": [{ "itemId": "item_ritual_artifact", "chance": 0.5, "amount": 1 }]
+    },
+    {
+      "id": "dragon_lair",
+      "name": "Hang rồng",
+      "description": "Hang động rộng lớn dưới núi lửa, nơi ở của một con rồng cổ đại.",
+      "levelRequirement": 42,
+      "isHostile": true,
+      "npcs": [
+        {
+          "id": "npc_dragon_sage",
+          "name": "Hiền giả long tộc",
+          "description": "Một người đàn ông bí ẩn có thể giao tiếp với rồng và hiểu biết về chúng."
+        }
+      ],
+      "monsters": ["young_dragon", "dragon_guardian"],
+      "monsterDensity": 0.6,
+      "connections": ["volcano_crater", "dragon_heart_chamber"],
+      "treasures": [
+        { "itemId": "item_dragon_scale", "chance": 0.7, "amount": 1 },
+        { "itemId": "item_dragon_heart", "chance": 0.3, "amount": 1 }
+      ]
+    },
+    {
+      "id": "dragon_heart_chamber",
+      "name": "Trung tâm hang rồng",
+      "description": "Phòng chính của hang rồng, nơi rồng cổ đại nghỉ ngơi và bị ảnh hưởng bởi ma thuật bóng tối.",
+      "levelRequirement": 48,
+      "isHostile": true,
+      "npcs": [],
+      "monsters": ["monster_corrupted_dragon"],
+      "monsterDensity": 1.0,
+      "connections": ["dragon_lair"],
+      "treasures": []
+    },
+    {
+      "id": "forest_3",
+      "name": "Rừng già",
+      "description": "Khu rừng cổ xưa, nơi trú ngụ của những sinh vật mạnh mẽ.",
+      "isHostile": true,
+      "monsters": ["bear1", "wolf2"],
+      "monsterDensity": 0.9,
+      "connections": ["forest_2"],
+      "treasures": [{ "itemId": "legendary_wolf_fur", "chance": 0.2, "amount": 1 }]
+    },
+    {
+      "id": "magic_tower",
+      "name": "Tháp ma thuật",
+      "description": "Nơi nghiên cứu phép thuật và bán vật phẩm ma thuật.",
+      "isHostile": false,
+      "npcs": [{ "id": "npc_archmage", "name": "Đại pháp sư", "description": "Phù thủy quyền năng nhất thế giới." }],
+      "shops": ["magic_emporium"],
+      "connections": ["ancient_library"]
+    },
+    {
+      "id": "castle",
+      "name": "Lâu đài cổ",
+      "description": "Lâu đài của các hiệp sĩ và quý tộc xưa.",
+      "isHostile": false,
+      "npcs": [],
+      "shops": ["advanced_blacksmith"],
+      "connections": ["town"]
+    },
+    {
+      "id": "deep_forest",
+      "name": "Rừng sâu",
+      "description": "Khu rừng rậm rạp, nơi trú ngụ của thợ săn và nhiều bí ẩn.",
+      "isHostile": true,
+      "npcs": [{ "id": "npc_hunter", "name": "Thợ săn Sylvan", "description": "Thợ săn chuyên nghiệp." }],
+      "monsters": ["wolf2", "bear1"],
+      "monsterDensity": 0.8,
+      "connections": ["forest_2"]
+    },
+    {
+      "id": "lakeside",
+      "name": "Bờ hồ cổ",
+      "description": "Bờ hồ yên tĩnh, nơi ngư dân sinh sống.",
+      "isHostile": false,
+      "npcs": [{ "id": "npc_fisherman", "name": "Ngư dân Olan", "description": "Người câu cá hiếm." }],
+      "connections": ["town"]
+    },
+    {
+      "id": "martial_temple",
+      "name": "Đền võ thuật",
+      "description": "Nơi các bậc thầy võ thuật truyền dạy kỹ năng.",
+      "isHostile": false,
+      "npcs": [
+        { "id": "npc_advanced_trainer", "name": "Bậc thầy Eldrin", "description": "Bậc thầy võ thuật huyền thoại." }
+      ],
+      "connections": ["training_ground"]
+    }
+  ]
+}

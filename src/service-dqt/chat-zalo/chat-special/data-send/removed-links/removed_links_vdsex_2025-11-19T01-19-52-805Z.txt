@@ -1,0 +1,12 @@
+# Links đã xóa từ file vdsex.txt
+# Thời gian: 08:19:52 19/11/2025
+# Số lượng: 7
+# Tổng links đã kiểm tra: 213
+
+https://imgur.com/NqJiScu.mp4 # Error: Link not accessible (Status: N/A)
+https://imgur.com/CUqeWSG.mp4 # Error: Link not accessible (Status: N/A)
+https://imgur.com/i3LZDZm.mp4 # Error: Link not accessible (Status: N/A)
+https://imgur.com/qQRGMip.mp4 # Error: Link not accessible (Status: N/A)
+https://imgur.com/80kWZqu.mp4 # Error: Link not accessible (Status: N/A)
+https://imgur.com/WPe60PR.mp4 # Error: Link not accessible (Status: N/A)
+https://imgur.com/3RaHRpu.mp4 # Error: Link not accessible (Status: N/A)

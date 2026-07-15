@@ -1,0 +1,957 @@
+{
+  "quests": [
+    {
+      "id": "quest_001",
+      "name": "Hành trình bắt đầu",
+      "description": "Chào mừng đến với thế giới của Zacl Warrior! Hãy bắt đầu hành trình của bạn bằng cách khám phá thị trấn và nói chuyện với Thị trưởng, dùng lệnh talk <tên_npc> để nói chuyện và dùng lệnh move <nơi_cần_đến> để di chuyển.",
+      "type": "main",
+      "requirements": {
+        "level": 1
+      },
+      "objectives": [
+        {
+          "id": "q001_talk_mayor",
+          "type": "talk",
+          "targetId": "npc_mayor",
+          "targetName": "Thị Trưởng Eldor",
+          "required": 1,
+          "description": "Nói chuyện với Thị trưởng Eldor trong thị trấn"
+        },
+        {
+          "id": "q001_explore_training",
+          "type": "explore",
+          "targetId": "training_ground",
+          "targetName": "Sân Tập Luyện",
+          "required": 1,
+          "description": "Khám phá Sân Tập Luyện"
+        }
+      ],
+      "rewards": {
+        "gold": 50,
+        "exp": 100,
+        "items": [
+          {
+            "id": "hp1",
+            "name": "Thuốc hồi HP nhỏ",
+            "amount": 2
+          },
+          {
+            "id": "mp1",
+            "name": "Thuốc hồi MP nhỏ",
+            "amount": 2
+          }
+        ]
+      }
+    },
+    {
+      "id": "quest_002",
+      "name": "Huấn luyện kỹ năng",
+      "description": "Để trở thành chiến binh mạnh mẽ, bạn cần học các kỹ năng chiến đấu cơ bản từ Huấn Luyện Viên Marcus.",
+      "type": "main",
+      "requirements": {
+        "level": 2,
+        "prerequisiteQuests": ["quest_001"]
+      },
+      "objectives": [
+        {
+          "id": "q002_talk_trainer",
+          "type": "talk",
+          "targetId": "npc_trainer",
+          "targetName": "Huấn Luyện Viên Marcus",
+          "required": 1,
+          "description": "Nói chuyện với Huấn Luyện Viên Marcus tại Sân Tập Luyện"
+        },
+        {
+          "id": "q002_learn_slash",
+          "type": "learn",
+          "targetId": "skill_slash",
+          "targetName": "Kỹ năng Đoạn Kiếm",
+          "required": 1,
+          "description": "Học kỹ năng Đoạn Kiếm từ Huấn Luyện Viên Marcus"
+        }
+      ],
+      "rewards": {
+        "gold": 100,
+        "exp": 150,
+        "skillPoints": 1,
+        "items": [
+          {
+            "id": "w_tansu_1",
+            "name": "Kiếm Gỗ",
+            "amount": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "quest_003",
+      "name": "Thợ săn quái vật",
+      "description": "Rừng gần thị trấn Town có tên là Khu Rừng U Tối đang bị quái vật tấn công. Hãy tiêu diệt một số quái vật để giúp bảo vệ thị trấn.",
+      "type": "main",
+      "requirements": {
+        "level": 2,
+        "prerequisiteQuests": ["quest_002"]
+      },
+      "objectives": [
+        {
+          "id": "q003_kill_wolf",
+          "type": "kill",
+          "targetId": "wolf1",
+          "targetName": "Sói rừng",
+          "required": 3,
+          "description": "Tiêu diệt 3 Sói rừng trong Khu Rừng U Tối"
+        },
+        {
+          "id": "q003_kill_slime",
+          "type": "kill",
+          "targetId": "slime1",
+          "targetName": "Slime xanh",
+          "required": 2,
+          "description": "Tiêu diệt 2 Slime xanh trong Khu Rừng U Tối"
+        },
+        {
+          "id": "q003_collect_wolf_pelt",
+          "type": "collect",
+          "targetId": "wolf_pelt",
+          "targetName": "Da sói",
+          "required": 2,
+          "description": "Thu thập 2 Da sói"
+        },
+        {
+          "id": "q003_talk_mayor",
+          "type": "talk",
+          "targetId": "npc_mayor",
+          "targetName": "Thị Trưởng Eldor",
+          "required": 1,
+          "description": "Báo cáo với Thị trưởng sau khi hoàn thành nhiệm vụ"
+        }
+      ],
+      "dropChances": {
+        "wolf1": {
+          "wolf_pelt": 75
+        },
+        "slime1": {
+          "slime_essence": 50
+        }
+      },
+      "rewards": {
+        "gold": 200,
+        "exp": 250,
+        "skillPoints": 2,
+        "items": [
+          {
+            "id": "hp2",
+            "name": "Thuốc hồi HP vừa",
+            "amount": 3
+          }
+        ]
+      }
+    },
+    {
+      "id": "quest_004",
+      "name": "Thu thập thảo dược",
+      "description": "Nữ Tu Ana cần một số thảo dược để chế thuốc. Hãy thu thập chúng từ khu rừng và mang về cho cô ấy.",
+      "type": "main",
+      "requirements": {
+        "level": 3,
+        "prerequisiteQuests": ["quest_003"]
+      },
+      "objectives": [
+        {
+          "id": "q004_talk_healer",
+          "type": "talk",
+          "targetId": "npc_healer",
+          "targetName": "Nữ Tu Ana",
+          "required": 1,
+          "description": "Nói chuyện với Nữ Tu Ana về nhiệm vụ"
+        },
+        {
+          "id": "q004_collect_herb",
+          "type": "collect",
+          "targetId": "magic_herb",
+          "targetName": "Thảo dược ma thuật",
+          "required": 5,
+          "description": "Thu thập 5 Thảo dược ma thuật từ Khu Rừng U Tối"
+        },
+        {
+          "id": "q004_deliver_herb",
+          "type": "talk",
+          "targetId": "npc_healer",
+          "targetName": "Nữ Tu Ana",
+          "required": 2,
+          "description": "Mang thảo dược về cho Nữ Tu Ana"
+        }
+      ],
+      "dropChances": {
+        "wolf1": {
+          "magic_herb": 15
+        },
+        "slime1": {
+          "magic_herb": 35
+        },
+        "wolf2": {
+          "magic_herb": 25
+        },
+        "slime2": {
+          "magic_herb": 45
+        }
+      },
+      "rewards": {
+        "gold": 250,
+        "exp": 300,
+        "items": [
+          {
+            "id": "atk1",
+            "name": "Thuốc Tăng Tấn Công",
+            "amount": 1
+          },
+          {
+            "id": "hp2",
+            "name": "Thuốc Hồi HP Vừa",
+            "amount": 2
+          }
+        ]
+      }
+    },
+    {
+      "id": "quest_005",
+      "name": "Khám phá hang động",
+      "description": "Có tin đồn về kho báu ẩn trong hang động gần núi. Thị trưởng Eldor muốn bạn khám phá nơi đó!",
+      "type": "main",
+      "requirements": {
+        "level": 4,
+        "prerequisiteQuests": ["quest_004"]
+      },
+      "objectives": [
+        {
+          "id": "q005_talk_mayor",
+          "type": "talk",
+          "targetId": "npc_mayor",
+          "targetName": "Thị Trưởng Eldor",
+          "required": 1,
+          "description": "Nói chuyện với Thị trưởng Eldor về nhiệm vụ"
+        },
+        {
+          "id": "q005_explore_cave",
+          "type": "explore",
+          "targetId": "cave_1",
+          "targetName": "Hang Động U Tối",
+          "required": 1,
+          "description": "Khám phá Hang Động U Tối"
+        },
+        {
+          "id": "q005_kill_goblin",
+          "type": "kill",
+          "targetId": "goblin1",
+          "targetName": "Goblin",
+          "required": 4,
+          "description": "Tiêu diệt 4 Goblin trong hang động"
+        },
+        {
+          "id": "q005_collect_ancient_relic",
+          "type": "collect",
+          "targetId": "ancient_relic",
+          "targetName": "Cổ vật bí ẩn",
+          "required": 1,
+          "description": "Thu thập Cổ vật bí ẩn trong hang động"
+        },
+        {
+          "id": "q005_deliver_relic",
+          "type": "talk",
+          "targetId": "npc_mayor",
+          "targetName": "Thị Trưởng Eldor",
+          "required": 2,
+          "description": "Mang Cổ vật về cho Thị trưởng Eldor"
+        }
+      ],
+      "dropChances": {
+        "goblin1": {
+          "ancient_relic": 25,
+          "goblin_ear": 80
+        },
+        "goblin2": {
+          "ancient_relic": 40,
+          "goblin_ear": 90
+        },
+        "bat1": {
+          "bat_wing": 75
+        }
+      },
+      "rewards": {
+        "gold": 500,
+        "exp": 600,
+        "items": [
+          {
+            "id": "amulet_protection",
+            "name": "Bùa hộ mệnh",
+            "amount": 1
+          },
+          {
+            "id": "hp2",
+            "name": "Thuốc hồi HP vừa",
+            "amount": 2
+          }
+        ]
+      }
+    },
+    {
+      "id": "quest_006",
+      "name": "Nhiệm vụ cứu giúp",
+      "description": "Một nhóm thương nhân bị tấn công trên đường đến thị trấn. Họ cần sự giúp đỡ ngay lập tức!",
+      "type": "main",
+      "requirements": {
+        "level": 5,
+        "prerequisiteQuests": ["quest_005"]
+      },
+      "objectives": [
+        {
+          "id": "q006_talk_eldor",
+          "type": "talk",
+          "targetId": "npc_mayor",
+          "targetName": "Thị Trưởng Eldor",
+          "required": 1,
+          "description": "Nhận thông tin về vụ tấn công từ Thị trưởng"
+        },
+        {
+          "id": "q006_talk_merchant",
+          "type": "talk",
+          "targetId": "npc_merchant_leader",
+          "targetName": "Thủ lĩnh thương nhân",
+          "required": 1,
+          "description": "Nói chuyện với thủ lĩnh thương nhân"
+        },
+        {
+          "id": "q006_kill_bandit",
+          "type": "kill",
+          "targetId": "monster_bandit",
+          "targetName": "Kẻ cướp",
+          "required": 5,
+          "description": "Tiêu diệt 5 Kẻ cướp"
+        },
+        {
+          "id": "q006_collect_goods",
+          "type": "collect",
+          "targetId": "item_stolen_goods",
+          "targetName": "Hàng hóa bị cướp",
+          "required": 3,
+          "description": "Thu thập 3 kiện hàng hóa bị cướp"
+        },
+        {
+          "id": "q006_deliver_goods",
+          "type": "talk",
+          "targetId": "npc_merchant_leader",
+          "targetName": "Thủ lĩnh thương nhân",
+          "required": 2,
+          "description": "Trả lại hàng hóa cho thủ lĩnh thương nhân"
+        }
+      ],
+      "dropChances": {
+        "monster_bandit": {
+          "item_stolen_goods": 60,
+          "bandit_mask": 40
+        }
+      },
+      "rewards": {
+        "gold": 800,
+        "exp": 700,
+        "items": [
+          {
+            "id": "ring_merchant",
+            "name": "Nhẫn may mắn của thương nhân",
+            "amount": 1
+          },
+          {
+            "id": "hp3",
+            "name": "Thuốc Hồi HP Lớn",
+            "amount": 2
+          }
+        ]
+      }
+    },
+    {
+      "id": "quest_007",
+      "name": "Thử thách của rừng già",
+      "description": "Để chứng minh sức mạnh, bạn cần đối mặt với những thách thức trong khu rừng già và thu thập những chiến lợi phẩm quý giá.",
+      "type": "main",
+      "requirements": {
+        "level": 6,
+        "prerequisiteQuests": ["quest_006"]
+      },
+      "objectives": [
+        {
+          "id": "q007_talk_hunter",
+          "type": "talk",
+          "targetId": "npc_hunter",
+          "targetName": "Thợ Săn Sylvan",
+          "required": 1,
+          "description": "Nói chuyện với Thợ Săn Sylvan về thử thách"
+        },
+        {
+          "id": "q007_explore_forest",
+          "type": "explore",
+          "targetId": "forest_3",
+          "targetName": "Rừng già",
+          "required": 1,
+          "description": "Khám phá khu rừng già"
+        },
+        {
+          "id": "q007_kill_bear",
+          "type": "kill",
+          "targetId": "bear1",
+          "targetName": "Gấu rừng",
+          "required": 2,
+          "description": "Tiêu diệt 2 Gấu rừng"
+        },
+        {
+          "id": "q007_collect_bear_pelt",
+          "type": "collect",
+          "targetId": "bear_pelt",
+          "targetName": "Da gấu",
+          "required": 2,
+          "description": "Thu thập 2 Da gấu"
+        },
+        {
+          "id": "q007_collect_ancient_wood",
+          "type": "collect",
+          "targetId": "ancient_wood",
+          "targetName": "Gỗ cổ thụ",
+          "required": 3,
+          "description": "Thu thập 3 Gỗ cổ thụ"
+        },
+        {
+          "id": "q007_deliver_items",
+          "type": "talk",
+          "targetId": "npc_hunter",
+          "targetName": "Thợ Săn Sylvan",
+          "required": 2,
+          "description": "Mang chiến lợi phẩm về cho Thợ Săn Sylvan"
+        }
+      ],
+      "dropChances": {
+        "bear1": {
+          "bear_pelt": 80,
+          "bear_claw": 50
+        },
+        "wolf2": {
+          "ancient_wood": 30
+        },
+        "snake1": {
+          "snake_fang": 70,
+          "ancient_wood": 20
+        }
+      },
+      "rewards": {
+        "gold": 1000,
+        "exp": 1200,
+        "items": [
+          {
+            "id": "w_dong_1",
+            "name": "Kiếm Đồng",
+            "amount": 1
+          },
+          {
+            "id": "hp3",
+            "name": "Thuốc hồi HP lớn",
+            "amount": 3
+          }
+        ]
+      }
+    },
+    {
+      "id": "quest_008",
+      "name": "Bí ẩn của ngư dân",
+      "description": "Ngư dân Olan đang gặp rắc rối với một sinh vật bí ẩn dưới hồ. Hãy giúp ông ấy tìm ra sự thật!",
+      "type": "main",
+      "requirements": {
+        "level": 7,
+        "prerequisiteQuests": ["quest_006"]
+      },
+      "objectives": [
+        {
+          "id": "q008_talk_fisherman",
+          "type": "talk",
+          "targetId": "npc_fisherman",
+          "targetName": "Ngư Dân Olan",
+          "required": 1,
+          "description": "Nói chuyện với Ngư Dân Olan về sinh vật bí ẩn"
+        },
+        {
+          "id": "q008_explore_lake",
+          "type": "explore",
+          "targetId": "lakeside",
+          "targetName": "Bờ Hồ",
+          "required": 1,
+          "description": "Khám phá khu vực Bờ Hồ"
+        },
+        {
+          "id": "q008_collect_water_sample",
+          "type": "collect",
+          "targetId": "water_sample",
+          "targetName": "Mẫu nước kỳ lạ",
+          "required": 3,
+          "description": "Thu thập 3 mẫu nước kỳ lạ"
+        },
+        {
+          "id": "q008_kill_water_monster",
+          "type": "kill",
+          "targetId": "water_monster",
+          "targetName": "Quái vật nước",
+          "required": 1,
+          "description": "Tiêu diệt Quái vật nước"
+        },
+        {
+          "id": "q008_collect_monster_scale",
+          "type": "collect",
+          "targetId": "monster_scale",
+          "targetName": "Vảy quái vật",
+          "required": 1,
+          "description": "Thu thập Vảy quái vật"
+        },
+        {
+          "id": "q008_deliver_evidence",
+          "type": "talk",
+          "targetId": "npc_fisherman",
+          "targetName": "Ngư Dân Olan",
+          "required": 2,
+          "description": "Mang bằng chứng về cho Ngư Dân Olan"
+        }
+      ],
+      "dropChances": {
+        "water_monster": {
+          "monster_scale": 100,
+          "lake_pearl": 50
+        }
+      },
+      "rewards": {
+        "gold": 1200,
+        "exp": 1500,
+        "items": [
+          {
+            "id": "w_bac_1",
+            "name": "Kiếm Bạc",
+            "amount": 1
+          },
+          {
+            "id": "mp3",
+            "name": "Thuốc hồi MP lớn",
+            "amount": 3
+          }
+        ]
+      }
+    },
+    {
+      "id": "quest_009",
+      "name": "Kẻ đào mộ",
+      "description": "Có báo cáo về một kẻ đào mộ đang quấy nhiễu Nghĩa Trang Cổ. Hãy điều tra và ngăn chặn hắn!",
+      "type": "main",
+      "requirements": {
+        "level": 8,
+        "prerequisiteQuests": ["quest_007"]
+      },
+      "objectives": [
+        {
+          "id": "q009_talk_elder",
+          "type": "talk",
+          "targetId": "npc_elder",
+          "targetName": "Trưởng Lão Mysticus",
+          "required": 1,
+          "description": "Nói chuyện với Trưởng Lão Mysticus về kẻ đào mộ"
+        },
+        {
+          "id": "q009_explore_graveyard",
+          "type": "explore",
+          "targetId": "graveyard",
+          "targetName": "Nghĩa Trang Cổ",
+          "required": 1,
+          "description": "Khám phá Nghĩa Trang Cổ"
+        },
+        {
+          "id": "q009_kill_undead",
+          "type": "kill",
+          "targetId": "zombie1",
+          "targetName": "Xác sống",
+          "required": 5,
+          "description": "Tiêu diệt 5 Xác sống"
+        },
+        {
+          "id": "q009_collect_evidence",
+          "type": "collect",
+          "targetId": "necromancer_symbol",
+          "targetName": "Biểu tượng của Pháp sư Tử Linh",
+          "required": 1,
+          "description": "Thu thập Biểu tượng của Pháp sư Tử Linh"
+        },
+        {
+          "id": "q009_kill_necromancer",
+          "type": "kill",
+          "targetId": "necromancer",
+          "targetName": "Pháp sư Tử Linh",
+          "required": 1,
+          "description": "Tiêu diệt Pháp sư Tử Linh"
+        },
+        {
+          "id": "q009_report_elder",
+          "type": "talk",
+          "targetId": "npc_elder",
+          "targetName": "Trưởng Lão Mysticus",
+          "required": 2,
+          "description": "Báo cáo với Trưởng Lão Mysticus"
+        }
+      ],
+      "dropChances": {
+        "zombie1": {
+          "rotten_flesh": 80,
+          "necromancer_symbol": 10
+        },
+        "ghost1": {
+          "ectoplasm": 70,
+          "necromancer_symbol": 15
+        },
+        "necromancer": {
+          "necromancer_staff": 100,
+          "dark_essence": 80
+        }
+      },
+      "rewards": {
+        "gold": 1500,
+        "exp": 2000,
+        "items": [
+          {
+            "id": "c_bac_1",
+            "name": "Áo Choàng Bạc",
+            "amount": 1
+          },
+          {
+            "id": "potion1",
+            "name": "Thuốc Hồi Phục Đặc Biệt",
+            "amount": 3
+          }
+        ]
+      }
+    },
+    {
+      "id": "quest_010",
+      "name": "Lời nguyền của đền cổ",
+      "description": "Đền Cổ Thăng Thiên đang bị một lời nguyền cổ xưa ảnh hưởng. Hãy tìm hiểu và giải cứu ngôi đền!",
+      "type": "main",
+      "requirements": {
+        "level": 9,
+        "prerequisiteQuests": ["quest_009"]
+      },
+      "objectives": [
+        {
+          "id": "q010_talk_archivist",
+          "type": "talk",
+          "targetId": "npc_archivist",
+          "targetName": "Người quản lý thư viện",
+          "required": 1,
+          "description": "Nói chuyện với Người quản lý thư viện về lời nguyền"
+        },
+        {
+          "id": "q010_explore_temple",
+          "type": "explore",
+          "targetId": "ancient_temple",
+          "targetName": "Đền Cổ Thăng Thiên",
+          "required": 1,
+          "description": "Khám phá Đền Cổ Thăng Thiên"
+        },
+        {
+          "id": "q010_collect_ancient_script",
+          "type": "collect",
+          "targetId": "ancient_script",
+          "targetName": "Chữ viết cổ",
+          "required": 3,
+          "description": "Thu thập 3 mảnh Chữ viết cổ"
+        },
+        {
+          "id": "q010_collect_purification_herb",
+          "type": "collect",
+          "targetId": "purification_herb",
+          "targetName": "Thảo mộc thanh tẩy",
+          "required": 5,
+          "description": "Thu thập 5 Thảo mộc thanh tẩy"
+        },
+        {
+          "id": "q010_kill_temple_guardian",
+          "type": "kill",
+          "targetId": "temple_guardian",
+          "targetName": "Vệ binh đền cổ",
+          "required": 1,
+          "description": "Đánh bại Vệ binh đền cổ"
+        },
+        {
+          "id": "q010_talk_grand_master",
+          "type": "talk",
+          "targetId": "grand_master",
+          "targetName": "Đại Sư Korath",
+          "required": 1,
+          "description": "Nói chuyện với Đại Sư Korath về nghi thức thanh tẩy"
+        },
+        {
+          "id": "q010_report_archivist",
+          "type": "talk",
+          "targetId": "npc_archivist",
+          "targetName": "Người quản lý thư viện",
+          "required": 2,
+          "description": "Báo cáo kết quả cho Người quản lý thư viện"
+        }
+      ],
+      "dropChances": {
+        "harpy1": {
+          "purification_herb": 60
+        },
+        "mountain_troll1": {
+          "ancient_script": 40,
+          "troll_tooth": 70
+        },
+        "temple_guardian": {
+          "temple_key": 100,
+          "guardian_essence": 80,
+          "ancient_script": 100
+        }
+      },
+      "rewards": {
+        "gold": 2000,
+        "exp": 2500,
+        "skillPoints": 5,
+        "items": [
+          {
+            "id": "c_vang_1",
+            "name": "Áo Choàng Vàng",
+            "amount": 1
+          },
+          {
+            "id": "skill_book2",
+            "name": "Sách Kỹ Năng: Thiêu Đốt",
+            "amount": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "side_quest_001",
+      "name": "Săn bắt thêm",
+      "description": "Thị trấn vẫn còn lo lắng về quái vật. Hãy tiêu diệt thêm quái vật để kiếm thêm kinh nghiệm và điểm kỹ năng.",
+      "type": "side",
+      "requirements": {
+        "level": 4,
+        "prerequisiteQuests": ["quest_003"]
+      },
+      "objectives": [
+        {
+          "id": "sq001_kill_any",
+          "type": "kill",
+          "targetId": "any",
+          "targetName": "Bất kỳ quái vật nào",
+          "required": 10,
+          "description": "Tiêu diệt 10 quái vật bất kỳ"
+        }
+      ],
+      "rewards": {
+        "gold": 150,
+        "exp": 200,
+        "skillPoints": 2,
+        "items": [
+          {
+            "id": "hp1",
+            "name": "Thuốc hồi HP nhỏ",
+            "amount": 5
+          }
+        ]
+      }
+    },
+    {
+      "id": "side_quest_002",
+      "name": "Thử thách kỹ năng",
+      "description": "Huấn luyện viên Marcus muốn kiểm tra kỹ năng của bạn. Hãy sử dụng kỹ năng chiến đấu để thể hiện sức mạnh.",
+      "type": "side",
+      "requirements": {
+        "level": 6,
+        "prerequisiteQuests": ["quest_002"]
+      },
+      "objectives": [
+        {
+          "id": "sq002_use_skill",
+          "type": "use_skill",
+          "targetId": "any",
+          "targetName": "Bất kỳ kỹ năng nào",
+          "required": 15,
+          "description": "Sử dụng kỹ năng chiến đấu 15 lần"
+        },
+        {
+          "id": "sq002_talk_trainer",
+          "type": "talk",
+          "targetId": "npc_trainer",
+          "targetName": "Huấn Luyện Viên Marcus",
+          "required": 1,
+          "description": "Báo cáo với Huấn luyện viên Marcus"
+        }
+      ],
+      "rewards": {
+        "gold": 100,
+        "exp": 180,
+        "skillPoints": 3,
+        "items": [
+          {
+            "id": "mp2",
+            "name": "Thuốc hồi MP vừa",
+            "amount": 3
+          }
+        ]
+      }
+    },
+    {
+      "id": "side_quest_003",
+      "name": "Thu thập tài nguyên",
+      "description": "Thương gia Williams cần nguyên liệu để kinh doanh. Hãy thu thập các vật phẩm từ quái vật.",
+      "type": "side",
+      "requirements": {
+        "level": 7,
+        "prerequisiteQuests": ["quest_004"]
+      },
+      "objectives": [
+        {
+          "id": "sq003_collect_pelt",
+          "type": "collect",
+          "targetId": "wolf_pelt",
+          "targetName": "Da sói",
+          "required": 5,
+          "description": "Thu thập 5 Da sói"
+        },
+        {
+          "id": "sq003_collect_essence",
+          "type": "collect",
+          "targetId": "slime_essence",
+          "targetName": "Tinh chất slime",
+          "required": 3,
+          "description": "Thu thập 3 Tinh chất slime"
+        }
+      ],
+      "dropChances": {
+        "wolf1": {
+          "wolf_pelt": 80
+        },
+        "wolf2": {
+          "wolf_pelt": 85
+        },
+        "slime1": {
+          "slime_essence": 60
+        },
+        "slime2": {
+          "slime_essence": 70
+        }
+      },
+      "rewards": {
+        "gold": 300,
+        "exp": 250,
+        "skillPoints": 2,
+        "items": [
+          {
+            "id": "w_da_1",
+            "name": "Dao Da",
+            "amount": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "side_quest_004",
+      "name": "Chiến binh mạnh mẽ",
+      "description": "Chứng minh sức mạnh của bạn bằng cách đạt được một số chỉ số nhất định.",
+      "type": "side",
+      "requirements": {
+        "level": 10,
+        "prerequisiteQuests": ["quest_005"]
+      },
+      "objectives": [
+        {
+          "id": "sq004_reach_level",
+          "type": "reach_level",
+          "targetId": "15",
+          "targetName": "Cấp 15",
+          "required": 1,
+          "description": "Đạt cấp 15"
+        },
+        {
+          "id": "sq004_kill_bosses",
+          "type": "kill",
+          "targetId": "boss",
+          "targetName": "Boss bất kỳ",
+          "required": 3,
+          "description": "Tiêu diệt 3 boss bất kỳ"
+        }
+      ],
+      "rewards": {
+        "gold": 800,
+        "exp": 600,
+        "skillPoints": 5,
+        "items": [
+          {
+            "id": "skill_book1",
+            "name": "Sách Kỹ Năng: Đoạn Kiếm",
+            "amount": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "side_quest_005",
+      "name": "Chuyên gia thảo dược",
+      "description": "Nữ Tu Ana cần thêm thảo dược hiếm để nghiên cứu. Hãy giúp cô ấy thu thập chúng.",
+      "type": "side",
+      "requirements": {
+        "level": 12,
+        "prerequisiteQuests": ["quest_004"]
+      },
+      "objectives": [
+        {
+          "id": "sq005_collect_rare_herb",
+          "type": "collect",
+          "targetId": "rare_herb",
+          "targetName": "Thảo dược hiếm",
+          "required": 8,
+          "description": "Thu thập 8 Thảo dược hiếm từ quái vật mạnh"
+        },
+        {
+          "id": "sq005_deliver_herb",
+          "type": "talk",
+          "targetId": "npc_healer",
+          "targetName": "Nữ Tu Ana",
+          "required": 1,
+          "description": "Giao thảo dược cho Nữ Tu Ana"
+        }
+      ],
+      "dropChances": {
+        "orc_warrior1": {
+          "rare_herb": 25
+        },
+        "goblin_shaman1": {
+          "rare_herb": 30
+        },
+        "wolf2": {
+          "rare_herb": 15
+        },
+        "slime2": {
+          "rare_herb": 20
+        }
+      },
+      "rewards": {
+        "gold": 500,
+        "exp": 400,
+        "skillPoints": 4,
+        "items": [
+          {
+            "id": "hp3",
+            "name": "Thuốc hồi HP lớn",
+            "amount": 5
+          },
+          {
+            "id": "mp3",
+            "name": "Thuốc hồi MP lớn",
+            "amount": 3
+          }
+        ]
+      }
+    }
+  ]
+}

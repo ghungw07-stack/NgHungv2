@@ -1,0 +1,52 @@
+{
+  "VIRUSTOTAL": [
+    ""
+  ],
+  "CLOUDMERSIVE": [
+    ""
+  ],
+  "ZALO_AI": [
+    ""
+  ],
+  "HUNGDEV": [
+    "e9f4bcf0452179106391b134e6d64c"
+  ],
+  "PICPURIFY": [
+    ""
+  ],
+  "GEMINI": [
+    "AIzaSyD0EUYQQmrpaUITi0kjWeY0hC-8PcVaL0o",
+    "AIzaSyBtlMV8C7nta1Sa5dgybsfILExX5yUxbLw",
+    "AIzaSyD8hF44Cg1LApwMl_PcPwX2fBvpXaXNWoE"
+  ],
+  "REMOVEBG": [
+    "qtNicGwvBb337zsLYJ3ZUEzr",
+    "RQ2rWUVw212RKNBha8yDmN9x",
+    "ZK5ZEYz9sKMBB1H86rDeyXnj",
+    "UhtD8TXrfSpT7W4L9gENQFro"
+  ],
+  "SIMSIMI": [
+    "GZyOSYF-1Pr5bDnMZ-ng2bNQVbkvtH1OeJyNBjoi"
+  ],
+  "ZINGMP3": {
+    "listApi": [
+      {
+        "apiKey": "38e8643fb0dc04e8d65b99994d3dafff",
+        "secretKey": "10a01dcf33762d3a204cb96429918ff6"
+      },
+      {
+        "apiKey": "X5BM3w8N7MKozC0B85o4KMlzLZKhV00y",
+        "secretKey": "acOrvUS15XRW2o9JksiK1KgQ6Vbds8ZW"
+      }
+    ],
+    "cookiePremium": "za_oauth_v4=7414f6a38828155949bfd1624a18ea18ccea437e0ca75e6159daee089bd024fb",
+    "version": "1.13.9"
+  },
+  "SOUNDCLOUD": {
+    "clientId": "lmRjTI0FqeXygHMXc3hRzS7hth20PNk5",
+    "lastUpdate": "2026-07-13T05:33:24.835Z"
+  },
+  "SPOTIFY": {
+    "cookie": "sp_t=0958903bc9fe4732df39d3def23c2c77; sp_adid=ba267383-7bbe-42dc-a0f8-1c348970195b; OptanonAlertBoxClosed=2025-07-11T02:26:37.335Z; sp_dc=AQA7iCTEDVVcbPUINwboqrJwGxOg7KbfkfpXTgP44CtQ6KEHtEvaBJJUgz6Ytfub1-orgESb6E95H4jgynfRuoqdNm79Aq6huE8XPPm7YJnP_CEBlaVG1FRj9jCD3_IWtmNYaT-MeFWNA0GsYe0i8Q6B3FrRTuBxbmn63bfC4QGRLSEwpcfUnw5ByTwal1JPDmYxTzRWLade7iQgh8t_JnjwBQ5iyMjUwI1Y-kYdyfz58e7N-8-I006XvUpezgYSbwXgWIHvOX_49Kc; sp_key=48ec8037-a8e4-4af2-bd05-eece03418027; sp_landing=https%3A%2F%2Fopen.spotify.com%2F%3Fsp_cid%3D0958903bc9fe4732df39d3def23c2c77%26device%3Ddesktop; OptanonConsent=isGpcEnabled=0&datestamp=Wed+Jul+16+2025+13%3A35%3A03+GMT%2B0700+(Indochina+Time)&version=202411.2.0&browserGpcFlag=0&isIABGlobal=false&hosts=&landingPath=NotLandingPage&groups=s00%3A1%2Cf00%3A1%2Cm00%3A1%2Ct00%3A1%2Ci00%3A1%2Cf11%3A1%2Cm03%3A1&geolocation=VN%3BHN&AwaitingReconsent=false; _cs_mk_ga=0.42234173812452924_1752647703859; sss=1; _gid=GA1.2.1894745182.1752647704; _gat_UA-5784146-31=1; _ga=GA1.1.1463638411.1752200767; _ga_BMC5VGR8YS=GS2.2.s1752647704$o9$g0$t1752647704$j60$l0$h0; _ga_ZWG1NSHWD8=GS2.1.s1752647704$o10$g1$t1752647728$j36$l0$h0"
+  }
+}
