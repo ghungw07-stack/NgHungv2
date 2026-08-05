@@ -67,8 +67,9 @@ export async function uploadAudioFile(mp3Path, api, message, uploadCloud = false
  * Tải Và Chuyển Đổi Âm Thanh Sang Dạng Tương Thích
  */
 export async function downloadAndConvertAudio(url, api, message, uploadCloud = false) {
-  const isMp3 = url.includes(".mp3") || url.includes("sndcdn");
-  const ext = isMp3 ? ".mp3" : ".aac";
+  const isM3u8 = url.includes(".m3u8") || url.includes("playlist.m3u8");
+  const isMp3 = !isM3u8 && (url.includes(".mp3") || url.includes("sndcdn"));
+  const ext = isM3u8 ? ".m4a" : (isMp3 ? ".mp3" : ".aac");
   const audioPath = path.join(tempDir, `temp_${randomIDTemp()}${ext}`);
 
   try {
@@ -126,8 +127,18 @@ export async function downloadAndConvertAudio(url, api, message, uploadCloud = f
       }
       await handle.close();
       
-      const voiceFinalUrl = await uploadAudioFile(audioPath, api, message, uploadCloud);
-      return voiceFinalUrl;
+      const extractedAacPath = audioPath.replace(".m4a", "_adts.aac");
+      try {
+        await execAsync(`ffmpeg -y -i "${audioPath}" -c:a copy "${extractedAacPath}"`);
+        const voiceFinalUrl = await uploadAudioFile(extractedAacPath, api, message, uploadCloud);
+        return voiceFinalUrl;
+      } catch (e) {
+        console.error("Lỗi extract AAC từ fMP4:", e.message);
+        // Fallback to original
+        return await uploadAudioFile(audioPath, api, message, uploadCloud);
+      } finally {
+        await deleteFile(extractedAacPath).catch(() => {});
+      }
     }
     
     // NẾU LÀ PROGRESSIVE MP3 (Tải chunks)
