@@ -2,8 +2,7 @@ import axios from "axios";
 import path from "path";
 import fs from "fs";
 import youtubeDl from "youtube-dl-exec";
-import { getFileExtension, getFileSize } from "../../../../api-zalo/utils.js";
-import { deleteFile, execAsync, getFileTypeRemote, writeFilePromise } from "../../../../utils/util.js";
+import { deleteFile, execAsync, writeFilePromise } from "../../../../utils/util.js";
 import { tempDir } from "../../../../utils/io-json.js";
 import { randomIDTemp } from "../../../../utils/format-util.js";
 
@@ -14,7 +13,7 @@ export async function convertToM4A(inputPath) {
   const outputPath = inputPath.replace(".mp3", ".m4a");
   const timeStart = performance.now();
   try {
-    const ffmpegCommand = ["ffmpeg", "-y", "-i", inputPath, "-vn", "-c:a", "aac", "-q:a", "2", outputPath].join(" ");
+    const ffmpegCommand = ["ffmpeg", "-y", "-i", inputPath, "-vn", "-c:a", "aac", "-b:a", "96k", "-ar", "44100", "-ac", "1", outputPath].join(" ");
 
     await execAsync(ffmpegCommand);
     const timeEnd = performance.now();
@@ -29,8 +28,7 @@ export async function convertToM4A(inputPath) {
 /**
  * Chuyển đổi file MP3 sang AAC
  */
-export async function convertToAAC(inputPath) {
-  const outputPath = inputPath.replace(".mp3", ".aac");
+export async function convertToAAC(inputPath, outputPath = inputPath.replace(/\.mp3$/i, ".aac")) {
   try {
     const ffmpegCommand = ["ffmpeg", "-y", "-i", inputPath, "-vn", "-c:a", "aac", "-q:a", "2", outputPath].join(" ");
 
@@ -46,40 +44,22 @@ export async function convertToAAC(inputPath) {
  * Upload file audio và trả về URL
  */
 export async function uploadAudioFile(mp3Path, api, message, uploadCloud = false) {
-  let accPath = null;
   try {
-    let voiceFinalUrl;
-    const fileSize = await getFileSize(mp3Path);
-    if (fileSize > 9437184) {
-      const ext = getFileExtension(mp3Path);
-      if (ext == "aac" || ext == "m4a") {
-        voiceFinalUrl = await api.uploadAttachment([mp3Path], message.threadId, message.type, {
-          uploadCloud,
-        });
-      } else {
-        const parsedPath = path.parse(mp3Path);
-        accPath = path.join(parsedPath.dir, parsedPath.name + ".aac");
-        fs.renameSync(mp3Path, accPath);
-        voiceFinalUrl = await api.uploadAttachment([accPath], message.threadId, message.type, {
-          uploadCloud,
-        });
-        fs.renameSync(accPath, mp3Path);
-      }
-      voiceFinalUrl = voiceFinalUrl[0].fileUrl;
-    } else {
-      voiceFinalUrl = await api.uploadAttachment([mp3Path], message.threadId, message.type, {
-        uploadCloud,
-      });
-      voiceFinalUrl = voiceFinalUrl[0].fileUrl;
-    }
-    if (!voiceFinalUrl.endsWith(".aac")) {
-      voiceFinalUrl = voiceFinalUrl + `/${Date.now()}.aac`;
+    const uploadResult = await api.uploadAttachment([mp3Path], message.threadId, message.type, {
+      uploadCloud,
+      isCloudVoice: uploadCloud,
+    });
+    let voiceFinalUrl = uploadResult?.[0]?.fileUrl || uploadResult?.[0]?.normalUrl;
+    if (!voiceFinalUrl) throw new Error("Zalo không trả về link nhạc sau khi upload");
+    // Zalo cloud/regular-file URLs are extensionless; voice forwarding needs
+    // the generated extension suffix (for example .../<fileId>/<timestamp>.aac).
+    const ext = path.extname(mp3Path).replace(".", "") || "aac";
+    if (!voiceFinalUrl.endsWith(`.${ext}`)) {
+      voiceFinalUrl = voiceFinalUrl + `/${Date.now()}.${ext}`;
     }
     return voiceFinalUrl;
   } catch (error) {
     throw error;
-  } finally {
-    deleteFile(accPath);
   }
 }
 
@@ -87,30 +67,153 @@ export async function uploadAudioFile(mp3Path, api, message, uploadCloud = false
  * Tải Và Chuyển Đổi Âm Thanh Sang Dạng Tương Thích
  */
 export async function downloadAndConvertAudio(url, api, message, uploadCloud = false) {
-  let mp3Path;
+  const isMp3 = url.includes(".mp3") || url.includes("sndcdn");
+  const ext = isMp3 ? ".mp3" : ".aac";
+  const audioPath = path.join(tempDir, `temp_${randomIDTemp()}${ext}`);
 
   try {
-    const response = await axios({
-      url,
-      method: "GET",
-      responseType: "stream",
-    });
-    const fileType = await getFileTypeRemote(url);
-    mp3Path = path.join(tempDir, `temp_${randomIDTemp()}.${fileType.ext}`);
-    await new Promise((resolve, reject) => {
-      const writer = fs.createWriteStream(mp3Path);
-      response.data.pipe(writer);
-      writer.on("finish", resolve);
-      writer.on("error", reject);
-    });
 
-    const voiceFinalUrl = await uploadAudioFile(mp3Path, api, message, uploadCloud);
+    const headers = {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.1 Safari/537.36",
+      "Accept": "*/*",
+      "Referer": "https://www.youtube.com/"
+    };
+    
+    // NẾU LÀ HLS M3U8 (Tải cực nhanh & Không cần transcode ffmpeg)
+    if (url.includes(".m3u8") || url.includes("playlist.m3u8")) {
+      const m3u8Content = (await axios.get(url, { headers })).data;
+      const lines = m3u8Content.split('\n');
+      
+      const initLine = lines.find(l => l.startsWith('#EXT-X-MAP:URI="'));
+      const initUrl = initLine ? initLine.match(/URI="(.*?)"/)[1] : null;
+      
+      let segmentUrls = lines.filter(l => l && !l.startsWith('#'));
+      
+      // Giới hạn max 95MB ~ 600 segments (mỗi segment ~150KB)
+      if (segmentUrls.length > 600) {
+        segmentUrls = segmentUrls.slice(0, 600);
+      }
+      
+      const handle = await fs.promises.open(audioPath, "w");
+      let offset = 0;
+      
+      if (initUrl) {
+        const initRes = await axios.get(initUrl, { responseType: "arraybuffer", headers });
+        await handle.write(initRes.data, 0, initRes.data.byteLength, offset);
+        offset += initRes.data.byteLength;
+      }
+      
+      const MAX_CONCURRENT = 50;
+      for (let i = 0; i < segmentUrls.length; i += MAX_CONCURRENT) {
+        const batch = segmentUrls.slice(i, i + MAX_CONCURRENT);
+        const buffers = await Promise.all(batch.map(async (segUrl) => {
+          let retries = 3;
+          while (retries > 0) {
+            try {
+              const res = await axios.get(segUrl, { responseType: "arraybuffer", headers, timeout: 8000 });
+              return res.data;
+            } catch (e) {
+              retries--;
+              if (retries === 0) throw e;
+            }
+          }
+        }));
+        
+        for (const buf of buffers) {
+          await handle.write(buf, 0, buf.byteLength, offset);
+          offset += buf.byteLength;
+        }
+      }
+      await handle.close();
+      
+      const voiceFinalUrl = await uploadAudioFile(audioPath, api, message, uploadCloud);
+      return voiceFinalUrl;
+    }
+    
+    // NẾU LÀ PROGRESSIVE MP3 (Tải chunks)
+    const head = await axios.head(url, { headers, timeout: 8_000, validateStatus: (s) => s >= 200 && s < 400 }).catch(() => ({ headers: {} }));
+    let totalSize = Number(head.headers["content-length"] || 0);
+    const contentType = head.headers["content-type"] || "";
+
+    // Nếu là MP3 và > 95MB (nhạc Soundcloud >1h40p), cắt ngang ở 95MB để Zalo vẫn nhận là Voice message (<100MB)
+    if (contentType.includes("mpeg") || url.includes("sndcdn")) {
+      const MAX_VOICE_SIZE = 95 * 1024 * 1024;
+      if (totalSize > MAX_VOICE_SIZE) {
+        totalSize = MAX_VOICE_SIZE;
+      }
+    }
+
+    const canRange = /bytes/i.test(String(head.headers["accept-ranges"] || ""));
+    const chunkSize = 2 * 1024 * 1024;
+    if (totalSize > chunkSize && canRange) {
+      const handle = await fs.promises.open(audioPath, "w");
+      await handle.truncate(totalSize);
+      const ranges = [];
+      for (let start = 0; start < totalSize; start += chunkSize) {
+        ranges.push([start, Math.min(totalSize - 1, start + chunkSize - 1)]);
+      }
+      let cursor = 0;
+      const worker = async () => {
+        while (true) {
+          const index = cursor++;
+          if (index >= ranges.length) return;
+          const [start, end] = ranges[index];
+          let retries = 3;
+          while (retries > 0) {
+            try {
+              const response = await axios.get(url, {
+                responseType: "arraybuffer",
+                headers: { ...headers, Range: `bytes=${start}-${end}` },
+                timeout: 60_000,
+                maxContentLength: Infinity,
+                maxBodyLength: Infinity,
+              });
+              await handle.write(Buffer.from(response.data), 0, end - start + 1, start);
+              break; // Success
+            } catch (err) {
+              retries--;
+              if (retries === 0) throw err;
+              await new Promise(r => setTimeout(r, 1000));
+            }
+          }
+        }
+      };
+      
+      try {
+        await Promise.all(Array.from({ length: Math.min(50, ranges.length) }, worker));
+      } finally {
+        await handle.close();
+      }
+    } else {
+      const MAX_VOICE_SIZE = 95 * 1024 * 1024;
+      const isCapped = contentType.includes("mpeg") || url.includes("sndcdn");
+      const response = await axios.get(url, { headers, responseType: "stream", timeout: 0 });
+      await new Promise((resolve, reject) => {
+        const writer = fs.createWriteStream(audioPath);
+        let downloaded = 0;
+        
+        response.data.on("data", (chunk) => {
+          downloaded += chunk.length;
+          if (isCapped && downloaded > MAX_VOICE_SIZE) {
+            response.data.destroy(); // Dừng tải khi đạt 95MB
+            writer.end();
+            resolve();
+          }
+        });
+
+        response.data.pipe(writer);
+        writer.on("finish", resolve);
+        writer.on("error", reject);
+        response.data.on("error", reject);
+      });
+    }
+    const voiceFinalUrl = await uploadAudioFile(audioPath, api, message, uploadCloud);
 
     return voiceFinalUrl;
   } catch (error) {
     throw error;
   } finally {
-    await deleteFile(mp3Path);
+    await deleteFile(audioPath);
   }
 }
 
@@ -145,14 +248,8 @@ export async function downloadMixcloudWithYtDlp(mixcloudUrl, api, message, uploa
     
     if (actualFile) {
       const actualPath = path.join(dir, actualFile);
-      if (actualPath !== tempAudioPath) {
-        if (fs.existsSync(actualPath)) {
-          if (actualPath.endsWith(".m4a")) {
-            fs.renameSync(actualPath, tempAudioPath);
-          } else {
-            fs.renameSync(actualPath, tempAudioPath);
-          }
-        }
+      if (actualPath !== tempAudioPath && fs.existsSync(actualPath)) {
+        fs.renameSync(actualPath, tempAudioPath);
       }
     }
 
@@ -228,6 +325,7 @@ export async function extractAudioFromVideo(input, api, message, uploadCloud = t
         url: input,
         method: "GET",
         responseType: "stream",
+        timeout: 0,
       });
       await new Promise((resolve, reject) => {
         const writer = fs.createWriteStream(tempVideoPath);

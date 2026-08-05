@@ -7,7 +7,8 @@ import {
   sendMessageFromSQL,
   sendMessageWarningRequest,
 } from "../../chat-zalo/chat-style/chat-style.js";
-import { downloadAndConvertAudio } from "../../chat-zalo/chat-special/send-voice/process-audio.js";
+import { downloadAndConvertAudio, downloadMixcloudWithYtDlp } from "../../chat-zalo/chat-special/send-voice/process-audio.js";
+import { searchYouTube, getYoutubeVideoInfo } from "../youtube/youtube-service.js";
 import { removeMention } from "../../../utils/format-util.js";
 import { sendVoiceMusic } from "../../chat-zalo/chat-special/send-voice/send-voice.js";
 import { setSelectionsMapData } from "../index.js";
@@ -348,7 +349,22 @@ export async function handleSendTrackSoundCloud(api, message, track) {
   } else {
     await sendMessageCompleteRequest(api, message, object, 10000);
     progressiveUrl = streamData.progressiveUrl;
-    voiceUrl = await downloadAndConvertAudio(streamData.url, api, message, true);
+
+    const hlsM4a = track.media?.transcodings?.find(t => t.format.protocol === "hls" && t.format.mime_type.includes("mp4a"));
+    let m3u8Url = null;
+    if (hlsM4a) {
+      try {
+        const streamResponse = await axios.get(`${hlsM4a.url}?client_id=${track.client_id || "TwElDfIgW9RpAzLMUSy9g1VvI2Kao7my"}&track_authorization=${track.track_authorization}`);
+        m3u8Url = streamResponse.data.url;
+      } catch (e) {
+        console.warn("Lỗi lấy HLS url:", e.message);
+      }
+    }
+    
+    // Luôn ưu tiên dùng HLS M3U8 để lấy chuẩn AAC mà không cần chuyển đổi
+    const finalDownloadUrl = m3u8Url || streamData.url;
+    voiceUrl = await downloadAndConvertAudio(finalDownloadUrl, api, message, true);
+    
     setCacheData(
       PLATFORM,
       track.id,
