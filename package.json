@@ -8,7 +8,9 @@
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
-    "bot": "node bot.js"
+    "bot": "node bot.js",
+    "start:v2": "node src-v2/index.js",
+    "test": "node --test test/*.test.js"
   },
   "author": "NGH",
   "license": "ISC",
