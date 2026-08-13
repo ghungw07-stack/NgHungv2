@@ -36,6 +36,7 @@ import { registerCommandManagerCommands } from "../modules/command-manager/comma
 import { registerMessageActionCommands } from "../modules/message-actions/commands.js";
 import { ParentRelayService } from "../modules/parent-relay/service.js";
 import { registerParentRelayEvents } from "../modules/parent-relay/events.js";
+import { registerPaymentCommands } from "../modules/payments/commands.js";
 
 export class BotRuntime {
   constructor({ client, config, scheduler, logger, identity = {}, services = {} }) {
@@ -114,6 +115,7 @@ export class BotRuntime {
     registerSourceUpdateCommand(registry, { updater: this.services.sourceUpdater, identity: this.identity });
     registerCommandManagerCommands(registry, { settings: this.groupSettings });
     registerMessageActionCommands(registry, { client: this.client, groups: this.groups });
+    registerPaymentCommands(registry, { qr: this.services.paymentQr, client: this.client, identity: this.identity });
     this.dispatcher = new CommandDispatcher({
       prefix: this.config.prefix,
       prefixResolver: ({ threadId }) => this.groupSettings.getPrefix(threadId),
