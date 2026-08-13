@@ -125,6 +125,53 @@ export function registerMessageActionCommands(registry, { client, groups }) {
   });
 
   registry.register({
+    name: "quickmessage", permission: Permission.LEADER, cooldownMs: 3_000,
+    description: "Tạo tin nhắn nhanh trên tài khoản Zalo của bot",
+    async execute({ content, prefix, reply }) {
+      const raw = rawAfterCommand(content, prefix);
+      let payload;
+      try { payload = JSON.parse(raw); } catch { await reply('Dùng: !quickmessage {"keyword":"ok","title":"Đồng ý"}'); return; }
+      const keyword = String(payload?.keyword || "").trim().slice(0, 50);
+      const title = String(payload?.title || "").trim().slice(0, 2_000);
+      if (!keyword || !title || /\s/u.test(keyword)) { await reply("Keyword không được trống hoặc chứa khoảng trắng; title không được trống."); return; }
+      try {
+        await client.api.addQuickMessage({ keyword, title });
+        await reply(`Đã tạo quick message “${keyword}”.`);
+      } catch (error) {
+        if (Number(error?.code) === 821 || String(error?.message).includes("821")) await reply("Tài khoản đã đạt giới hạn quick message.");
+        else throw error;
+      }
+    },
+  });
+
+  registry.register({
+    name: "todo", permission: Permission.ADMIN, cooldownMs: 5_000,
+    description: "Giao một công việc Zalo cho người được tag hoặc UID",
+    async execute({ args, message, senderId, reply }) {
+      const mentions = (message?.data?.mentions || []).map((item) => String(item.uid || item.id)).filter(Boolean);
+      const explicitId = args.findLast((value) => /^\d{6,}$/.test(value));
+      const targets = [...new Set(mentions.length ? mentions : [explicitId || senderId])];
+      const ignored = new Set([...mentions.map((id) => `@${id}`), explicitId].filter(Boolean));
+      const content = args.filter((value) => !ignored.has(value) && !/^@/u.test(value)).join(" ").trim().slice(0, 1_000);
+      if (!content) { await reply("Dùng: !todo <nội dung> @tag hoặc <UID>"); return; }
+      await client.api.sendTodo(message, content, targets, -1, content);
+      await reply(`Đã giao một công việc cho ${targets.length} người.`);
+    },
+  });
+
+  registry.register({
+    name: "undo", permission: Permission.ADMIN, cooldownMs: 3_000,
+    description: "Thu hồi tin nhắn của chính bot đang được reply",
+    async execute({ message, reply }) {
+      const quote = message?.data?.quote;
+      if (!quote) { await reply("Hãy reply một tin nhắn của bot cần thu hồi."); return; }
+      const ownerId = String(quote.ownerId || quote.uidFrom || "");
+      if (ownerId && ownerId !== String(client.botId)) { await reply("Chỉ có thể thu hồi tin nhắn do chính bot gửi."); return; }
+      await client.api.undoMessage(message);
+    },
+  });
+
+  registry.register({
     name: "tagall", aliases: ["all"], permission: Permission.ADMIN, cooldownMs: 10_000,
     description: "Tag toàn bộ thành viên nhóm",
     async execute({ args, threadId, type, reply }) {

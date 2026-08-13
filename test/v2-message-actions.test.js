@@ -56,3 +56,33 @@ test("getmessage formats quoted metadata and clips large attachments", async () 
   assert.match(output, /đã rút gọn/);
   assert.ok(output.length < 4_500);
 });
+
+test("quickmessage validates and sends normalized Zalo payload", async () => {
+  let payload;
+  const registry = new CommandRegistry();
+  registerMessageActionCommands(registry, { client: { api: { async addQuickMessage(value) { payload = value; } } }, groups: {} });
+  await registry.resolve("quickmessage").execute({
+    content: '!quickmessage {"keyword":"ok","title":"Đồng ý"}', prefix: "!", reply: async () => {},
+  });
+  assert.deepEqual(payload, { keyword: "ok", title: "Đồng ý" });
+});
+
+test("undo refuses quoted messages owned by another user", async () => {
+  let called = false; let output;
+  const registry = new CommandRegistry();
+  registerMessageActionCommands(registry, { client: { botId: "bot", api: { async undoMessage() { called = true; } } }, groups: {} });
+  await registry.resolve("undo").execute({ message: { data: { quote: { ownerId: "user" } } }, reply: async (value) => { output = value; } });
+  assert.equal(called, false);
+  assert.match(output, /chính bot/);
+});
+
+test("todo sends one task instead of a repeated spam loop", async () => {
+  let call;
+  const registry = new CommandRegistry();
+  registerMessageActionCommands(registry, { client: { api: { async sendTodo(...args) { call = args; } } }, groups: {} });
+  await registry.resolve("todo").execute({
+    args: ["Kiểm", "tra", "hệ", "thống"], senderId: "123456", message: { data: {} }, reply: async () => {},
+  });
+  assert.equal(call[1], "Kiểm tra hệ thống");
+  assert.deepEqual(call[2], ["123456"]);
+});
