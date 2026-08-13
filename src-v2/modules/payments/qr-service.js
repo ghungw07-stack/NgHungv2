@@ -23,13 +23,13 @@ export class PaymentQrService {
     throw new Error("Chưa cấu hình tài khoản ngân hàng nhận thanh toán");
   }
 
-  async create({ targetId, kind = "BOTPAY", amount = this.price }) {
+  async create({ targetId, kind = "BOTPAY", amount = this.price, bank: suppliedBank, transferContent }) {
     return this.semaphore.run(async () => {
-      const bank = await this.bankAccount();
+      const bank = suppliedBank || await this.bankAccount();
       if (!/^\d{6}$/.test(String(bank.bankBin)) || !/^\d{6,20}$/.test(String(bank.accountNumber))) {
         throw new Error("Thông tin ngân hàng không hợp lệ");
       }
-      const content = `${kind} ${String(targetId)}`;
+      const content = String(transferContent || `${kind} ${String(targetId)}`).slice(0, 100);
       const url = new URL(`https://img.vietqr.io/image/${bank.bankBin}-${bank.accountNumber}-qr_only.png`);
       url.searchParams.set("amount", String(amount));
       url.searchParams.set("addInfo", content);
@@ -39,7 +39,7 @@ export class PaymentQrService {
       let completed = false;
       try {
         await this.http.download(url.href, downloaded, { maxBytes: 5 * 1024 * 1024 });
-        const title = kind === "BOTPAY" ? "THANH TOÁN THUÊ BOT" : "ỦNG HỘ GAME";
+        const title = kind === "BOTPAY" ? "THANH TOÁN THUÊ BOT" : kind === "DONATE" ? "ỦNG HỘ GAME" : "CHUYỂN KHOẢN NGÂN HÀNG";
         const svg = `<svg width="1000" height="1400" xmlns="http://www.w3.org/2000/svg">
           <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#071426"/><stop offset="1" stop-color="#102b4f"/></linearGradient></defs>
           <rect width="1000" height="1400" rx="56" fill="url(#bg)"/><rect x="70" y="210" width="860" height="860" rx="42" fill="#fff"/>

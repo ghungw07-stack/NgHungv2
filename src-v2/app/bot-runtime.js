@@ -24,6 +24,7 @@ import { registerMessageArchiveEvents } from "../modules/message-archive/events.
 import { ReminderService } from "../modules/reminders/service.js";
 import { LegacyMigration } from "../modules/migrations/legacy-migration.js";
 import { registerRuntimeCommands } from "./register-commands.js";
+import { BankAccountRepository } from "../modules/banking/repository.js";
 
 export class BotRuntime {
   constructor({ client, config, scheduler, logger, identity = {}, services = {} }) {
@@ -88,6 +89,8 @@ export class BotRuntime {
     await this.messageArchive.start();
     this.reminders = new ReminderService({ database: this.services.database, client: this.client, scheduler: this.scheduler, botId, logger: this.logger });
     await this.reminders.start();
+    this.bankAccounts = new BankAccountRepository({ database: this.services.database, botId });
+    await this.bankAccounts.start();
     this.xiDach = new XiDachGame({ sessions: this.gameSessions, players: this.players, scheduler: this.scheduler, botId });
     this.xiDach.start();
     registerRuntimeCommands(registry, {
@@ -99,6 +102,7 @@ export class BotRuntime {
       sourceUpdater: this.services.sourceUpdater, paymentQr: this.services.paymentQr,
       qr: this.services.qr, reminders: this.reminders,
       messageArchive: this.messageArchive,
+      bankAccounts: this.bankAccounts,
     });
     this.dispatcher = new CommandDispatcher({
       prefix: this.config.prefix,

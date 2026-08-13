@@ -25,6 +25,8 @@ import { registerContactCommands } from "../modules/contact-tools/commands.js";
 import { registerConversationCommands } from "../modules/conversation-tools/commands.js";
 import { registerStickerCommands } from "../modules/stickers/commands.js";
 import { registerEngagementCommands } from "../modules/engagement/commands.js";
+import { registerBankingCommands } from "../modules/banking/commands.js";
+import { registerAccountCommands } from "../modules/account/commands.js";
 
 export function registerRuntimeCommands(registry, dependencies) {
   const d = dependencies;
@@ -55,5 +57,7 @@ export function registerRuntimeCommands(registry, dependencies) {
   registerConversationCommands(registry, { client: d.client });
   registerStickerCommands(registry, { client: d.client });
   registerEngagementCommands(registry, { archive: d.messageArchive });
+  registerBankingCommands(registry, { accounts: d.bankAccounts, client: d.client, paymentQr: d.paymentQr });
+  registerAccountCommands(registry, { client: d.client });
   return registry;
 }
