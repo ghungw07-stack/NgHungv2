@@ -40,7 +40,11 @@ export class BotFleet {
     // Khởi động tuần tự để không tạo đỉnh RAM/CPU do nhiều phiên Zalo login cùng lúc.
     for (const [ownerId, botConfig] of children) {
       try {
-        await this.#startBot(botConfig, { isMain: false, mainBotId, ownerId, ownerIds: [ownerId] });
+        await this.#startBot(botConfig, {
+          isMain: false, mainBotId, ownerId, ownerIds: [ownerId],
+          name: botConfig.nameBot || botConfig.infoOwner?.name,
+          notifyParentPM: botConfig.notifyParentPM ?? botConfig.managerData?.notifyParentPM ?? true,
+        });
       } catch (error) {
         failures.push({ ownerId, reason: error.message });
         this.logger.error("Bot con khởi động thất bại", { ownerId, error: error.message });
@@ -84,6 +88,8 @@ export class BotFleet {
       mainBotId: String(main.client.botId),
       ownerId,
       ownerIds: [ownerId],
+      name: botConfig.nameBot || botConfig.infoOwner?.name,
+      notifyParentPM: botConfig.notifyParentPM ?? botConfig.managerData?.notifyParentPM ?? true,
     });
     return { started: true, botId: String(result.client.botId) };
   }

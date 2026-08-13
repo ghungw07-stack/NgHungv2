@@ -34,6 +34,8 @@ import { registerGroupEvents } from "../modules/group-events/events.js";
 import { registerSourceUpdateCommand } from "../modules/source-update/commands.js";
 import { registerCommandManagerCommands } from "../modules/command-manager/commands.js";
 import { registerMessageActionCommands } from "../modules/message-actions/commands.js";
+import { ParentRelayService } from "../modules/parent-relay/service.js";
+import { registerParentRelayEvents } from "../modules/parent-relay/events.js";
 
 export class BotRuntime {
   constructor({ client, config, scheduler, logger, identity = {}, services = {} }) {
@@ -124,6 +126,13 @@ export class BotRuntime {
       logger: this.logger,
     });
     this.events = new EventBus(this.logger);
+    this.parentRelay = new ParentRelayService({
+      client: this.client,
+      identity: this.identity,
+      enabled: this.identity.notifyParentPM !== false,
+      logger: this.logger,
+    });
+    registerParentRelayEvents(this.events, this.parentRelay);
     this.disposeMessageEvents = registerMessageEvents(this.events, {
       dispatcher: this.dispatcher,
       client: this.client,
