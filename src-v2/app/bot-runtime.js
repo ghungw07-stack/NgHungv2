@@ -28,6 +28,7 @@ import { BankAccountRepository } from "../modules/banking/repository.js";
 import { AutoReplyRepository } from "../modules/auto-reply/repository.js";
 import { registerAutoReplyEvents } from "../modules/auto-reply/events.js";
 import { registerPmReplyEvents } from "../modules/pm-reply/events.js";
+import { LegacyCommandCompatibility } from "../compatibility/legacy-commands.js";
 
 export class BotRuntime {
   constructor({ client, config, scheduler, logger, identity = {}, services = {} }) {
@@ -149,10 +150,15 @@ export class BotRuntime {
       logger: this.logger,
     });
     registerParentRelayEvents(this.events, this.parentRelay);
+    if (process.env.V2_LEGACY_COMMANDS === "1") {
+      this.legacyCommands = new LegacyCommandCompatibility({ client: this.client, botConfig: this.client.config, logger: this.logger });
+      await this.legacyCommands.start();
+    }
     this.disposeMessageEvents = registerMessageEvents(this.events, {
       dispatcher: this.dispatcher,
       client: this.client,
       logger: this.logger,
+      legacyCommands: this.legacyCommands,
     });
     this.autoJoin = new AutoJoinService({
       database: this.services.database,
@@ -198,6 +204,7 @@ export class BotRuntime {
     const discarded = this.queue.close();
     if (discarded) this.logger.info("Đã bỏ tác vụ đang chờ khi tắt bot", { discarded });
     this.disposeMessageEvents?.();
+    this.legacyCommands?.stop();
     this.disposeAutoReply?.();
     this.groupSettings?.clear();
     this.groups?.clear();

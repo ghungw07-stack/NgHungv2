@@ -1,6 +1,6 @@
 import { TtlCache } from "../../core/ttl-cache.js";
 
-export function registerMessageEvents(eventBus, { dispatcher, client, logger }) {
+export function registerMessageEvents(eventBus, { dispatcher, client, logger, legacyCommands }) {
   const seen = new TtlCache({ ttlMs: 30_000, maxSize: 20_000 });
   eventBus.on("message", "deduplicate", ({ message }) => {
     const id = message?.data?.cliMsgId ?? message?.data?.msgId;
@@ -11,6 +11,7 @@ export function registerMessageEvents(eventBus, { dispatcher, client, logger }) 
   }, { priority: 1000 });
   eventBus.on("message", "commands", async ({ message }) => {
     if (message?.isSelf || typeof message?.data?.content !== "string") return;
+    if (legacyCommands && await legacyCommands.handle(message)) return { stop: true };
     await dispatcher.dispatch({
       api: client.api,
       message,

@@ -10,7 +10,7 @@
     "start": "node src/index.js",
     "bot": "node bot.js",
     "start:v2": "node src-v2/index.js",
-    "start:v2:test": "PORT=3100 V2_MAIN_ONLY=1 node src-v2/index.js",
+    "start:v2:test": "PORT=3100 V2_MAIN_ONLY=1 V2_LEGACY_COMMANDS=1 node src-v2/index.js",
     "check:v2": "node --check src-v2/index.js && npm run parity:v2 && node --test test/*.test.js",
     "parity:v2": "node scripts/v2-parity-report.js",
     "test": "node --test test/*.test.js"

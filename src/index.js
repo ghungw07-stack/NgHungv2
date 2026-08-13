@@ -535,37 +535,29 @@ if (!globalThis.__NGHUNG_FATAL_GUARD__) {
   process.on("unhandledRejection", (reason) => exitOnFatal("unhandledRejection", reason));
 }
 
-// Initialize Data And Service
-await Promise.all([initializeDatabase(), initializeCacheLinkService()]);
-await Promise.all([initializeGameBauCua(), initializeGameChanLe()]);
-
-// Active Main Bot
 let configBotMain = readConfig();
-const api = await createBot(configBotMain);
-setRuntimeMainApi(api);
+let legacyCompatibilityInfrastructure;
+export function initializeLegacyCompatibility(api) {
+  legacyCompatibilityInfrastructure ||= Promise.all([
+    initializeDatabase(), initializeCacheLinkService(), initializeGameBauCua(), initializeGameChanLe(),
+  ]);
+  return legacyCompatibilityInfrastructure.then(() => initService(api));
+}
 
-// Start Web Server
-await startWebServer();
-
-// Active Bot Children
-await activeBotChildren(api);
-
-// Khôi phục Giveaway đang quay sau restart sau khi cả bot chính và bot con đã online.
-const { resumeGiveaway } = await import("./service-ngh/game-service/giveaway/giveaway.js");
-await resumeGiveaway(api);
-
-// Self-test vận hành: `pm2 sendSignal SIGUSR2 nghung-bot` sẽ dùng đúng API
-// của một bot con đang online để gửi cảnh báo thử về main bot và owner.
-// Không làm hỏng handler, không tắt listener và không tạo lỗi thật.
-process.on("SIGUSR2", () => {
-  const childManager = Object.values(apiManager.apiManagerObject).find((item) => !item.isMainBot);
-  if (!childManager?.apiZalo) {
-    console.warn("[runtime:self-test] Không có bot con online để kiểm tra cảnh báo.");
-    return;
-  }
-  void reportRuntimeError(
-    childManager.apiZalo,
-    "self_test",
-    Object.assign(new Error("Đây là cảnh báo thử nghiệm, bot vẫn hoạt động bình thường."), { code: "SELF_TEST" })
-  );
-});
+// Khi được v2 import làm thư viện tương thích, tuyệt đối không khởi động thêm
+// database/web/listener hoặc đăng nhập bot lần thứ hai.
+if (process.env.NGH_LEGACY_LIBRARY !== "1") {
+  await Promise.all([initializeDatabase(), initializeCacheLinkService()]);
+  await Promise.all([initializeGameBauCua(), initializeGameChanLe()]);
+  const api = await createBot(configBotMain);
+  setRuntimeMainApi(api);
+  await startWebServer();
+  await activeBotChildren(api);
+  const { resumeGiveaway } = await import("./service-ngh/game-service/giveaway/giveaway.js");
+  await resumeGiveaway(api);
+  process.on("SIGUSR2", () => {
+    const childManager = Object.values(apiManager.apiManagerObject).find((item) => !item.isMainBot);
+    if (!childManager?.apiZalo) return;
+    void reportRuntimeError(childManager.apiZalo, "self_test", Object.assign(new Error("Đây là cảnh báo thử nghiệm, bot vẫn hoạt động bình thường."), { code: "SELF_TEST" }));
+  });
+}
