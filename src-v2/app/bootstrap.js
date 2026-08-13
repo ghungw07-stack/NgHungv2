@@ -4,6 +4,9 @@ import { createLogger } from "../core/logger.js";
 import { Scheduler } from "../core/scheduler.js";
 import { MongoDatabase } from "../infrastructure/database/mongodb.js";
 import { BotFleet } from "./bot-fleet.js";
+import { TempFiles } from "../infrastructure/files/temp-files.js";
+import { SafeHttpClient } from "../infrastructure/http/safe-http-client.js";
+import { MediaService } from "../modules/media/service.js";
 
 export async function bootstrap() {
   const logger = createLogger({ context: { app: "ngh-bot-v2" } });
@@ -16,9 +19,16 @@ export async function bootstrap() {
   await database.start();
   lifecycle.add("mongodb", () => database.stop());
 
-  const fleet = new BotFleet({ config, scheduler, database, logger: logger.child({ component: "fleet" }) });
+  const tempFiles = new TempFiles({ rootDir: config.rootDir, logger: logger.child({ component: "temp" }) });
+  await tempFiles.start();
+  lifecycle.add("temp-files", () => tempFiles.stop());
+  scheduler.every("temp-files:cleanup", 10 * 60_000, () => tempFiles.cleanup());
+  const http = new SafeHttpClient();
+  const media = new MediaService({ http, tempFiles, concurrency: 2 });
+
+  const fleet = new BotFleet({ config, scheduler, database, media, logger: logger.child({ component: "fleet" }) });
   await fleet.start();
   lifecycle.add("fleet", () => fleet.stop());
 
-  return { config, database, scheduler, fleet, lifecycle, logger };
+  return { config, database, scheduler, fleet, media, lifecycle, logger };
 }

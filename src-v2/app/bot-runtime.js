@@ -14,6 +14,8 @@ import { Permission } from "../core/permissions.js";
 import { ModerationService } from "../modules/moderation/service.js";
 import { registerModerationEvents } from "../modules/moderation/events.js";
 import { registerModerationCommands } from "../modules/moderation/commands.js";
+import { registerMediaCommands } from "../modules/media/commands.js";
+import { registerUtilityCommands } from "../modules/utilities/commands.js";
 
 export class BotRuntime {
   constructor({ client, config, scheduler, logger, identity = {}, services = {} }) {
@@ -55,6 +57,8 @@ export class BotRuntime {
     registerGroupSettingsCommands(registry, { repository: this.groupSettings });
     registerGroupCommands(registry, { groups: this.groups, client: this.client });
     registerModerationCommands(registry, { repository: this.groupSettings });
+    registerMediaCommands(registry, { media: this.services.media, client: this.client });
+    registerUtilityCommands(registry, { client: this.client });
     this.dispatcher = new CommandDispatcher({
       prefix: this.config.prefix,
       prefixResolver: ({ threadId }) => this.groupSettings.getPrefix(threadId),
