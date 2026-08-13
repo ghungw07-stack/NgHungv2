@@ -117,15 +117,17 @@ export function registerOperationCommands(registry, { settings, adminStore, botI
 
   registry.register({
     name: "privatebot", permission: Permission.LEADER, cooldownMs: 1_000, description: "Bật hoặc tắt lệnh bot trong tin nhắn riêng",
-    async execute({ args, reply }) {
-      const scope = "__global__"; const action = args[0]?.toLowerCase();
-      if (!action || action === "status") {
-        const value = await settings.get(scope);
-        await reply(`Bot trong tin nhắn riêng: ${value.privateBotEnabled === false ? "tắt" : "bật"}.`); return;
-      }
-      if (!["on", "off"].includes(action)) { await reply("Dùng: !privatebot on|off|status"); return; }
-      await settings.patch(scope, { privateBotEnabled: action === "on", updatedAt: new Date() });
-      await reply(`Đã ${action === "on" ? "bật" : "tắt"} bot trong tin nhắn riêng.`);
+    async execute({ args, message, senderId, type, reply }) {
+      const scope = "__global__"; const action = args[0]?.toLowerCase(); const current = await settings.get(scope);
+      const accepted = new Set((current.acceptedPrivateUsers || []).map(String));
+      if (action === "list") { await reply(`Danh sách ưu tiên phản hồi riêng (${accepted.size}):\n${[...accepted].join("\n") || "Trống"}`); return; }
+      if (!["add", "remove"].includes(action)) { await reply("Dùng: !privatebot add|remove [@mention] hoặc !privatebot list"); return; }
+      const mentioned = (message?.data?.mentions || []).map((item) => String(item.uid || item.id)).filter(Boolean);
+      const targets = type === 1 ? mentioned : [String(senderId)];
+      if (!targets.length) { await reply("Vui lòng đề cập người dùng cần thêm/xóa trong danh sách phản hồi tin nhắn riêng."); return; }
+      for (const id of targets) action === "add" ? accepted.add(id) : accepted.delete(id);
+      await settings.patch(scope, { acceptedPrivateUsers: [...accepted], updatedAt: new Date() });
+      await reply(`Đã ${action === "add" ? "thêm" : "xóa"} ${targets.length} người ${action === "add" ? "vào" : "khỏi"} danh sách ưu tiên phản hồi riêng.`);
     },
   });
 }

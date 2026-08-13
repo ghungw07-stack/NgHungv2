@@ -34,7 +34,7 @@ export class CommandDispatcher {
       return true;
     }
     try {
-      await command.execute({ ...context, args: parsed.args, command, prefix });
+      await command.execute({ ...context, args: parsed.args, command, invokedName: parsed.name, prefix });
     } catch (error) {
       this.logger.error("Command thất bại", { command: command.name, error: error.stack || error.message });
       await context.reply("Lệnh gặp lỗi trong lúc xử lý.");

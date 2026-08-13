@@ -2,26 +2,27 @@ import { Permission } from "../../core/permissions.js";
 
 export function registerAutoReplyCommands(registry, { repository, settings }) {
   registry.register({
-    name: "learn", permission: Permission.ADMIN, description: "Dạy bot câu trả lời tự động trong nhóm",
-    async execute({ args, threadId, type, senderId, reply }) {
+    name: "learn", permission: Permission.ADMIN, description: "Bật học, thêm, xóa và xem dữ liệu trả lời của bot",
+    async execute({ args, content, prefix, invokedName, threadId, type, senderId, reply }) {
       if (type !== 1) { await reply("Lệnh learn chỉ dùng trong nhóm."); return; }
-      const action = args[0]?.toLowerCase();
-      if (action === "list") { const rows = await repository.list(threadId); await reply(["CÂU TRẢ LỜI ĐÃ HỌC", ...rows.map((row, index) => `${index + 1}. ${row.trigger} → ${row.response}`)].join("\n")); return; }
-      if (action === "remove") { const trigger = args.slice(1).join(" "); await reply(await repository.remove(threadId, trigger) ? "Đã xóa câu trả lời." : "Không tìm thấy trigger."); return; }
-      const raw = args.join(" "); const separator = raw.indexOf("=>");
-      if (separator < 1) { await reply("Dùng: !learn <trigger> => <câu trả lời>; list; remove <trigger>"); return; }
-      await repository.set(threadId, raw.slice(0, separator), raw.slice(separator + 2), senderId);
-      await reply("Bot đã học câu trả lời mới trong nhóm này.");
+      const invoked = String(invokedName || "learn").toLowerCase(); const action = args[0]?.toLowerCase();
+      if (invoked === "learnlist" || action === "list") {
+        const rows = await repository.list(threadId); await reply(["CÂU TRẢ LỜI ĐÃ HỌC", ...rows.map((row, index) => `${index + 1}. ${row.trigger} → ${row.response}`)].join("\n")); return;
+      }
+      if (invoked === "unlearn" || ["delete", "remove", "unlearn"].includes(action)) {
+        const trigger = args.slice(invoked === "unlearn" ? 0 : 1).join(" "); await reply(await repository.remove(threadId, trigger) ? "Đã xóa câu trả lời." : "Không tìm thấy trigger."); return;
+      }
+      if (invoked === "learnnow" || String(content).startsWith(`${prefix}learnnow_`)) {
+        const raw = String(content).slice(`${prefix}${invoked}`.length).replace(/^_/u, ""); const parts = raw.split("_");
+        if (parts.length < 2 || !parts[0] || !parts.slice(1).join("_")) { await reply("Cú pháp: !learnnow_[Câu Hỏi]_[Câu Trả Lời]"); return; }
+        const answer = parts.slice(1).join("_"); await repository.set(threadId, parts[0], answer, senderId);
+        await reply(`Đã thêm câu trả lời mới thành công. Khi người dùng nhắc đến "${parts[0]}", tôi có thể trả lời: "${answer}"`); return;
+      }
+      if (!args.length || ["on", "off"].includes(action)) {
+        const current = await settings.get(threadId); const enabled = action === "on" ? true : action === "off" ? false : !current.learnEnabled;
+        await settings.patch(threadId, { learnEnabled: enabled, updatedAt: new Date() }); await reply(`Chế độ học tập đã được ${enabled ? "bật" : "tắt"}!`); return;
+      }
+      await reply("Cú pháp không hợp lệ. Sử dụng !learn on/off, !learnnow_[Câu Hỏi]_[Câu Trả Lời], !learn list hoặc !unlearn <câu hỏi>.");
     },
   });
-  const toggle = {
-    name: "autoreply", permission: Permission.ADMIN, description: "Bật hoặc tắt trả lời tự động trong nhóm",
-    async execute({ args, threadId, type, reply }) {
-      if (type !== 1) { await reply("Lệnh này chỉ dùng trong nhóm."); return; }
-      const action = args[0]?.toLowerCase(); if (!['on', 'off'].includes(action)) { const current = await settings.get(threadId); await reply(`Auto reply: ${current.autoReplyEnabled ? "bật" : "tắt"}. Dùng on|off.`); return; }
-      await settings.patch(threadId, { autoReplyEnabled: action === "on", updatedAt: new Date() }); await reply(`Đã ${action === "on" ? "bật" : "tắt"} auto reply.`);
-    },
-  };
-  registry.register(toggle);
-  registry.register({ name: "zautoreply", permission: Permission.ADMIN, description: toggle.description, execute: (context) => toggle.execute(context) });
 }

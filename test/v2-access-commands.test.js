@@ -35,9 +35,9 @@ test("ban and blockbot use separate group and global scopes", async () => {
   assert.deepEqual(data.get("__global__").blockedUsers, ["789012"]);
 });
 
-test("privatebot persists direct-message availability globally", async () => {
+test("privatebot persists legacy direct-message allow list globally", async () => {
   const { registry, data } = fixture(); let output;
-  await registry.resolve("privatebot").execute({ args: ["off"], reply: async (value) => { output = value; } });
-  assert.equal(data.get("__global__").privateBotEnabled, false);
-  assert.match(output, /Đã tắt/);
+  await registry.resolve("privatebot").execute({ args: ["add"], senderId: "123456", type: 0, message: { data: {} }, reply: async (value) => { output = value; } });
+  assert.deepEqual(data.get("__global__").acceptedPrivateUsers, ["123456"]);
+  assert.match(output, /Đã thêm/);
 });
