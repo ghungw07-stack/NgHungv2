@@ -23,6 +23,7 @@ import { BigGameEngine } from "../modules/game/big-game/engine.js";
 import { registerBigGameCommands } from "../modules/game/big-game/commands.js";
 import { GameSessionRepository } from "../modules/game/mini-game/session-repository.js";
 import { registerMiniGameCommands } from "../modules/game/mini-game/commands.js";
+import { XiDachGame, registerXiDachCommand } from "../modules/game/card-game/xidach.js";
 
 export class BotRuntime {
   constructor({ client, config, scheduler, logger, identity = {}, services = {} }) {
@@ -75,6 +76,8 @@ export class BotRuntime {
     await this.bigGames.start();
     this.gameSessions = new GameSessionRepository({ database: this.services.database, botId });
     await this.gameSessions.start();
+    this.xiDach = new XiDachGame({ sessions: this.gameSessions, players: this.players, scheduler: this.scheduler, botId });
+    this.xiDach.start();
     registerSystemCommands(registry, { startedAt: this.startedAt, scheduler: this.scheduler });
     registerBotManagerCommands(registry, { fleet: this.services.fleet, identity: this.identity });
     registerGroupSettingsCommands(registry, { repository: this.groupSettings });
@@ -86,6 +89,7 @@ export class BotRuntime {
     registerEconomyCommands(registry, { players: this.players });
     registerBigGameCommands(registry, { engine: this.bigGames, players: this.players });
     registerMiniGameCommands(registry, { sessions: this.gameSessions, players: this.players });
+    registerXiDachCommand(registry, { game: this.xiDach, sessions: this.gameSessions, players: this.players });
     this.dispatcher = new CommandDispatcher({
       prefix: this.config.prefix,
       prefixResolver: ({ threadId }) => this.groupSettings.getPrefix(threadId),
@@ -129,6 +133,7 @@ export class BotRuntime {
     this.groups?.clear();
     this.moderation?.clear();
     this.bigGames?.stop();
+    this.xiDach?.stop();
     await this.client.stop();
   }
 }

@@ -13,12 +13,15 @@ export class GameSessionRepository {
     ]);
   }
   async get(threadId, game) {
-    return this.collection.findOne({ botId: this.botId, threadId: String(threadId), game, status: "active" });
+    return this.collection.findOne({
+      botId: this.botId, threadId: String(threadId), game, status: "active", deadline: { $gt: new Date() },
+    });
   }
   async create(threadId, game, data, ttlMs = 10 * 60_000) {
     const document = {
       botId: this.botId, threadId: String(threadId), game, status: "active", data,
-      version: 0, createdAt: new Date(), updatedAt: new Date(), expiresAt: new Date(Date.now() + ttlMs),
+      version: 0, createdAt: new Date(), updatedAt: new Date(),
+      deadline: new Date(Date.now() + ttlMs), expiresAt: new Date(Date.now() + ttlMs + 7 * 86_400_000),
     };
     try { const result = await this.collection.insertOne(document); return { ...document, _id: result.insertedId }; }
     catch (error) { if (error.code === 11000) throw new Error("Nhóm đang có ván chơi này"); throw error; }
@@ -26,7 +29,10 @@ export class GameSessionRepository {
   async update(session, data, ttlMs = 10 * 60_000) {
     const result = await this.collection.findOneAndUpdate(
       { _id: session._id, status: "active", version: session.version },
-      { $set: { data, updatedAt: new Date(), expiresAt: new Date(Date.now() + ttlMs) }, $inc: { version: 1 } },
+      { $set: {
+        data, updatedAt: new Date(), deadline: new Date(Date.now() + ttlMs),
+        expiresAt: new Date(Date.now() + ttlMs + 7 * 86_400_000),
+      }, $inc: { version: 1 } },
       { returnDocument: "after" }
     );
     if (!result) throw new Error("Ván đã được người khác cập nhật, hãy thử lại");
@@ -38,5 +44,8 @@ export class GameSessionRepository {
       { $set: { status, ...extra, finishedAt: new Date(), expiresAt: new Date(Date.now() + 7 * 86_400_000) }, $inc: { version: 1 } }
     );
     return Boolean(result.modifiedCount);
+  }
+  async expired(game, now = new Date()) {
+    return this.collection.find({ botId: this.botId, game, status: "active", deadline: { $lte: now } }).toArray();
   }
 }
