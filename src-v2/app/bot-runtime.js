@@ -27,6 +27,7 @@ import { registerRuntimeCommands } from "./register-commands.js";
 import { BankAccountRepository } from "../modules/banking/repository.js";
 import { AutoReplyRepository } from "../modules/auto-reply/repository.js";
 import { registerAutoReplyEvents } from "../modules/auto-reply/events.js";
+import { registerPmReplyEvents } from "../modules/pm-reply/events.js";
 
 export class BotRuntime {
   constructor({ client, config, scheduler, logger, identity = {}, services = {} }) {
@@ -176,6 +177,7 @@ export class BotRuntime {
     registerMessageArchiveEvents(this.events, { archive: this.messageArchive });
     registerModerationEvents(this.events, this.moderation, { archive: this.messageArchive });
     this.disposeAutoReply = registerAutoReplyEvents(this.events, { repository: this.autoReplies, settings: this.groupSettings, client: this.client });
+    registerPmReplyEvents(this.events, { settings: this.groupSettings, client: this.client });
 
     this.client.on("error", (error) => this.logger.error("Listener Zalo gặp lỗi", { error: error.message }));
     this.client.on("message", (message) => {

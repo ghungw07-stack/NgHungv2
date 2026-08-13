@@ -14,12 +14,3 @@ test("event.sendmsg broadcasts once per running child and builds local owner tag
   assert.deepEqual(payloads[0].mentions, [{ uid: "123456", pos: 8, len: 5 }]);
   assert.match(output, /1\/1/);
 });
-
-test("pmreply updates live relay and persisted child setting", async () => {
-  const relay = { enabled: true }; let patch;
-  const fleet = { getByOwner() { return { runtime: { parentRelay: relay } }; }, botStore: { async patch(...args) { patch = args; } } };
-  const registry = new CommandRegistry(); registerBotManagerCommands(registry, { fleet, identity: { isMain: false, ownerId: "owner" } });
-  await registry.resolve("pmreply").execute({ args: ["off"], reply: async () => {} });
-  assert.equal(relay.enabled, false);
-  assert.deepEqual(patch, ["owner", { notifyParentPM: false }]);
-});

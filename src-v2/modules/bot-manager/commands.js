@@ -108,22 +108,6 @@ export function registerBotManagerCommands(registry, { fleet, identity }) {
   });
 
   registry.register({
-    name: "pmreply", permission: Permission.LEADER, cooldownMs: 1_000, description: "Bật hoặc tắt relay inbox bot con về bot mẹ",
-    async execute({ args, reply }) {
-      if (identity.isMain) { await reply("Lệnh này dùng trên bot con cần cấu hình relay."); return; }
-      const action = args[0]?.toLowerCase();
-      const running = fleet.getByOwner(identity.ownerId);
-      const service = running?.runtime?.parentRelay;
-      if (!action || action === "status") { await reply(`Relay inbox về bot mẹ: ${service?.enabled !== false ? "bật" : "tắt"}.`); return; }
-      if (!["on", "off"].includes(action)) { await reply("Dùng: !pmreply on|off|status"); return; }
-      const enabled = action === "on";
-      if (service) service.enabled = enabled;
-      await fleet.botStore.patch(identity.ownerId, { notifyParentPM: enabled });
-      await reply(`Đã ${enabled ? "bật" : "tắt"} relay inbox về bot mẹ.`);
-    },
-  });
-
-  registry.register({
     name: "event.sendmsg", permission: Permission.LEADER, cooldownMs: 0,
     description: "Yêu cầu mọi bot con đang chạy gửi tin vào nhóm hiện tại",
     async execute({ args, message, threadId, type, reply }) {
