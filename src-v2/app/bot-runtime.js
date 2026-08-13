@@ -152,8 +152,10 @@ export class BotRuntime {
     registerParentRelayEvents(this.events, this.parentRelay);
     if (process.env.V2_LEGACY_COMMANDS === "1") {
       this.legacyCommands = new LegacyCommandCompatibility({ client: this.client, botConfig: this.client.config, logger: this.logger });
-      await this.legacyCommands.start();
       this.disposeLegacyCommands = this.legacyCommands.register(this.events);
+      void this.legacyCommands.start().catch((error) => {
+        this.logger.error("Không thể nạp lớp tương thích legacy", { error: error?.message || String(error) });
+      });
     }
     this.disposeMessageEvents = registerMessageEvents(this.events, {
       dispatcher: this.dispatcher,

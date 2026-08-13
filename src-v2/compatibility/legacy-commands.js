@@ -35,9 +35,9 @@ export class LegacyCommandCompatibility {
   register(eventBus) {
     const disposers = [
       eventBus.on("message", "legacy-message", async ({ message }) => { if (await this.handle(message)) return { stop: true }; }, { priority: 950 }),
-      eventBus.on("reaction", "legacy-reaction", async ({ reaction }) => { await this.reactionEvents(this.client.api, reaction); return { stop: true }; }, { priority: 950 }),
-      eventBus.on("group_event", "legacy-group", async ({ group_event }) => { await this.groupEvents(this.client.api, group_event); return { stop: true }; }, { priority: 950 }),
-      eventBus.on("undo", "legacy-undo", async ({ undo }) => { await this.undoEvents(this.client.api, undo); return { stop: true }; }, { priority: 950 }),
+      eventBus.on("reaction", "legacy-reaction", async ({ reaction }) => { if (!this.ready) return; await this.reactionEvents(this.client.api, reaction); return { stop: true }; }, { priority: 950 }),
+      eventBus.on("group_event", "legacy-group", async ({ group_event }) => { if (!this.ready) return; await this.groupEvents(this.client.api, group_event); return { stop: true }; }, { priority: 950 }),
+      eventBus.on("undo", "legacy-undo", async ({ undo }) => { if (!this.ready) return; await this.undoEvents(this.client.api, undo); return { stop: true }; }, { priority: 950 }),
     ];
     return () => disposers.forEach((dispose) => dispose());
   }
