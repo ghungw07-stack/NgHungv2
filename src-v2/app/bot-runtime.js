@@ -40,6 +40,9 @@ import { registerPaymentCommands } from "../modules/payments/commands.js";
 import { registerQrCommands } from "../modules/qr/commands.js";
 import { MessageArchiveRepository } from "../modules/message-archive/repository.js";
 import { registerMessageArchiveEvents } from "../modules/message-archive/events.js";
+import { ReminderService } from "../modules/reminders/service.js";
+import { registerReminderCommands } from "../modules/reminders/commands.js";
+import { registerBasicToolCommands } from "../modules/basic-tools/commands.js";
 
 export class BotRuntime {
   constructor({ client, config, scheduler, logger, identity = {}, services = {} }) {
@@ -96,6 +99,8 @@ export class BotRuntime {
     await this.aiConversations.start();
     this.messageArchive = new MessageArchiveRepository({ database: this.services.database, botId });
     await this.messageArchive.start();
+    this.reminders = new ReminderService({ database: this.services.database, client: this.client, scheduler: this.scheduler, botId, logger: this.logger });
+    await this.reminders.start();
     this.xiDach = new XiDachGame({ sessions: this.gameSessions, players: this.players, scheduler: this.scheduler, botId });
     this.xiDach.start();
     registerSystemCommands(registry, {
@@ -122,6 +127,8 @@ export class BotRuntime {
     registerMessageActionCommands(registry, { client: this.client, groups: this.groups });
     registerPaymentCommands(registry, { qr: this.services.paymentQr, client: this.client, identity: this.identity });
     registerQrCommands(registry, { qr: this.services.qr, client: this.client });
+    registerReminderCommands(registry, { reminders: this.reminders });
+    registerBasicToolCommands(registry);
     this.dispatcher = new CommandDispatcher({
       prefix: this.config.prefix,
       prefixResolver: ({ threadId }) => this.groupSettings.getPrefix(threadId),
@@ -191,6 +198,7 @@ export class BotRuntime {
     this.bigGames?.stop();
     this.xiDach?.stop();
     this.autoJoin?.stop();
+    this.reminders?.stop();
     await this.client.stop();
     this.events?.clear();
   }
