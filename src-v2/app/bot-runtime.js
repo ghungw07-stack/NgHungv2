@@ -32,6 +32,7 @@ import { registerAutoJoinCommands } from "../modules/autojoin/commands.js";
 import { registerGroupEventCommands } from "../modules/group-events/commands.js";
 import { registerGroupEvents } from "../modules/group-events/events.js";
 import { registerSourceUpdateCommand } from "../modules/source-update/commands.js";
+import { registerCommandManagerCommands } from "../modules/command-manager/commands.js";
 
 export class BotRuntime {
   constructor({ client, config, scheduler, logger, identity = {}, services = {} }) {
@@ -104,9 +105,14 @@ export class BotRuntime {
     registerAutoJoinCommands(registry, { settings: this.groupSettings });
     registerGroupEventCommands(registry, { settings: this.groupSettings });
     registerSourceUpdateCommand(registry, { updater: this.services.sourceUpdater, identity: this.identity });
+    registerCommandManagerCommands(registry, { settings: this.groupSettings });
     this.dispatcher = new CommandDispatcher({
       prefix: this.config.prefix,
       prefixResolver: ({ threadId }) => this.groupSettings.getPrefix(threadId),
+      commandEnabledResolver: async (commandName, { threadId }) => {
+        const settings = await this.groupSettings.get(threadId);
+        return !(settings.disabledCommands || []).includes(commandName);
+      },
       registry,
       permissions,
       logger: this.logger,

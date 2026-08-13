@@ -27,9 +27,16 @@ export function registerSystemCommands(registry, { startedAt, scheduler }) {
   registry.register({
     name: "help",
     aliases: ["menu"],
-    async execute({ reply }) {
-      const lines = registry.list().map((cmd) => `• !${cmd.name} — ${cmd.description || "Không có mô tả"}`);
-      await reply(["NGH BOT V2 — DANH SÁCH LỆNH", ...lines].join("\n"));
+    cooldownMs: 3_000,
+    async execute({ reply, prefix }) {
+      const commands = registry.list();
+      await reply([
+        "NGH BOT V2",
+        `Hiện có ${commands.length} lệnh đang được nạp.`,
+        `• ${prefix}command — xem danh sách theo trang`,
+        `• ${prefix}command <tên> — xem chi tiết lệnh`,
+        `• ${prefix}game — mở menu trò chơi`,
+      ].join("\n"));
     },
   });
 }
