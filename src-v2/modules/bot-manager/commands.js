@@ -106,4 +106,44 @@ export function registerBotManagerCommands(registry, { fleet, identity }) {
       await reply(result.started ? `Đã khởi động lại bot #${args[1]}.` : `Khởi động lại thất bại: ${result.reason}`);
     },
   });
+
+  registry.register({
+    name: "pmreply", permission: Permission.LEADER, description: "Bật hoặc tắt relay inbox bot con về bot mẹ",
+    async execute({ args, reply }) {
+      if (identity.isMain) { await reply("Lệnh này dùng trên bot con cần cấu hình relay."); return; }
+      const action = args[0]?.toLowerCase();
+      const running = fleet.getByOwner(identity.ownerId);
+      const service = running?.runtime?.parentRelay;
+      if (!action || action === "status") { await reply(`Relay inbox về bot mẹ: ${service?.enabled !== false ? "bật" : "tắt"}.`); return; }
+      if (!["on", "off"].includes(action)) { await reply("Dùng: !pmreply on|off|status"); return; }
+      const enabled = action === "on";
+      if (service) service.enabled = enabled;
+      await fleet.botStore.patch(identity.ownerId, { notifyParentPM: enabled });
+      await reply(`Đã ${enabled ? "bật" : "tắt"} relay inbox về bot mẹ.`);
+    },
+  });
+
+  registry.register({
+    name: "event.sendmsg", permission: Permission.LEADER, cooldownMs: 5_000,
+    description: "Yêu cầu mọi bot con đang chạy gửi tin vào nhóm hiện tại",
+    async execute({ args, message, threadId, type, reply }) {
+      if (!identity.isMain) { await reply("Lệnh này chỉ chạy trên bot mẹ."); return; }
+      if (type !== 1) { await reply("Lệnh này chỉ dùng trong nhóm."); return; }
+      const shouldTag = args.at(-1)?.toLowerCase() === "tag";
+      const text = args.slice(0, shouldTag ? -1 : undefined).join(" ").trim().slice(0, 1_800);
+      if (!text) { await reply("Dùng: !event.sendmsg <nội dung> [tag]"); return; }
+      const children = fleet.list().filter((item) => !item.identity.isMain);
+      const senderName = message?.data?.dName || "Bot Leader";
+      const results = await Promise.allSettled(children.map(({ client, identity: childIdentity }) => {
+        let msg = text; let mentions;
+        if (shouldTag && childIdentity.ownerId) {
+          const label = `@${senderName}`; msg += ` ${label}`;
+          mentions = [{ uid: String(childIdentity.ownerId), pos: text.length + 1, len: label.length }];
+        }
+        return client.api.sendMessage({ msg, mentions }, threadId, 1);
+      }));
+      const success = results.filter((item) => item.status === "fulfilled").length;
+      await reply(`event.sendmsg: ${success}/${children.length} bot con đã gửi tin; thất bại ${children.length - success}.`);
+    },
+  });
 }
