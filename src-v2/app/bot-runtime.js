@@ -153,12 +153,12 @@ export class BotRuntime {
     if (process.env.V2_LEGACY_COMMANDS === "1") {
       this.legacyCommands = new LegacyCommandCompatibility({ client: this.client, botConfig: this.client.config, logger: this.logger });
       await this.legacyCommands.start();
+      this.disposeLegacyCommands = this.legacyCommands.register(this.events);
     }
     this.disposeMessageEvents = registerMessageEvents(this.events, {
       dispatcher: this.dispatcher,
       client: this.client,
       logger: this.logger,
-      legacyCommands: this.legacyCommands,
     });
     this.autoJoin = new AutoJoinService({
       database: this.services.database,
@@ -204,6 +204,7 @@ export class BotRuntime {
     const discarded = this.queue.close();
     if (discarded) this.logger.info("Đã bỏ tác vụ đang chờ khi tắt bot", { discarded });
     this.disposeMessageEvents?.();
+    this.disposeLegacyCommands?.();
     this.legacyCommands?.stop();
     this.disposeAutoReply?.();
     this.groupSettings?.clear();
