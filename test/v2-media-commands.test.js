@@ -17,3 +17,11 @@ test("getvoice accepts a nested URL from quoted media", async () => {
   assert.match(replies[0], /Đang tách/);
 });
 
+test("convertfile only accepts bounded local conversion profiles", async () => {
+  let input;
+  const registry = new CommandRegistry();
+  registerMediaCommands(registry, { client: {}, media: { async convert(value) { input = value; } } });
+  await registry.resolve("convertfile").execute({ args: ["mp3", "https://cdn.example/a.mp4"], message: {}, threadId: "g", type: 1, reply: async () => {} });
+  assert.equal(input.format, "mp3");
+  assert.equal(input.url, "https://cdn.example/a.mp4");
+});

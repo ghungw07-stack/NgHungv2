@@ -56,6 +56,25 @@ export class MediaService {
     });
   }
 
+  async convert({ client, threadId, type, url, format }) {
+    const profiles = {
+      mp3: ["-vn", "-map_metadata", "-1", "-b:a", "128k"],
+      mp4: ["-map_metadata", "-1", "-c:v", "libx264", "-preset", "veryfast", "-crf", "28", "-c:a", "aac", "-movflags", "+faststart"],
+      webm: ["-map_metadata", "-1", "-c:v", "libvpx-vp9", "-deadline", "realtime", "-crf", "38", "-b:v", "0", "-c:a", "libopus"],
+    };
+    if (!profiles[format]) throw new Error("Định dạng đầu ra không được hỗ trợ");
+    return this.semaphore.run(async () => {
+      const input = this.tempFiles.path(".input"); const output = this.tempFiles.path(`.${format}`);
+      try {
+        await this.http.download(url, input, { maxBytes: 25 * 1024 * 1024, timeoutMs: 25_000 });
+        await this.runFfmpeg(["-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-i", input, ...profiles[format], output], { timeoutMs: 60_000 });
+        return await client.api.sendMessage({ msg: `Đã chuyển đổi sang ${format.toUpperCase()}.`, attachments: [output] }, threadId, type);
+      } finally {
+        await Promise.all([this.tempFiles.remove(input).catch(() => {}), this.tempFiles.remove(output).catch(() => {})]);
+      }
+    });
+  }
+
   runFfmpeg(args, { timeoutMs = 45_000 } = {}) {
     return new Promise((resolve, reject) => {
       const process = spawn("ffmpeg", args, { stdio: ["ignore", "ignore", "pipe"] });

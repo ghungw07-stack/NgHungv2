@@ -26,4 +26,17 @@ export function registerMediaCommands(registry, { media, client }) {
       await media.extractAudio({ client, threadId, type, url });
     },
   });
+
+  registry.register({
+    name: "convertfile", cooldownMs: 20_000, description: "Chuyển đổi media sang MP3, MP4 hoặc WebM",
+    async execute({ args, message, threadId, type, reply }) {
+      const format = String(args[0] || "").toLowerCase().replace(/^\./u, "");
+      const direct = args.find((value, index) => index > 0 && /^https?:\/\//iu.test(value));
+      const quote = message?.data?.quote;
+      const url = direct || [...collectLinks([quote?.content, quote?.msg, parsedAttachment(quote)])][0];
+      if (!["mp3", "mp4", "webm"].includes(format) || !url) { await reply("Dùng: !convertfile <mp3|mp4|webm> <URL>, hoặc reply media."); return; }
+      await reply(`Đang chuyển đổi sang ${format.toUpperCase()}...`);
+      await media.convert({ client, threadId, type, url, format });
+    },
+  });
 }
