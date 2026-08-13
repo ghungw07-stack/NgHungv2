@@ -38,6 +38,7 @@ export class BotRuntime {
   }
   async start() {
     const botId = String(this.client.botId);
+    this.logger.info("Runtime bắt đầu khởi tạo", { botId });
     const basePermissions = createPermissionService({
       botId,
       mainBotId: this.identity.mainBotId || botId,
@@ -96,6 +97,7 @@ export class BotRuntime {
     await this.bankAccounts.start();
     this.autoReplies = new AutoReplyRepository({ database: this.services.database, botId });
     await this.autoReplies.start();
+    this.logger.info("Runtime đã nạp kho dữ liệu", { botId });
     this.xiDach = new XiDachGame({ sessions: this.gameSessions, players: this.players, scheduler: this.scheduler, botId });
     this.xiDach.start();
     registerRuntimeCommands(registry, {
@@ -150,6 +152,7 @@ export class BotRuntime {
       logger: this.logger,
     });
     registerParentRelayEvents(this.events, this.parentRelay);
+    this.logger.info("Runtime chuẩn bị nạp tương thích legacy", { botId });
     if (process.env.V2_LEGACY_COMMANDS === "1") {
       this.legacyCommands = new LegacyCommandCompatibility({ client: this.client, botConfig: this.client.config, logger: this.logger });
       this.disposeLegacyCommands = this.legacyCommands.register(this.events);
@@ -170,6 +173,7 @@ export class BotRuntime {
       logger: this.logger,
     });
     await this.autoJoin.start();
+    this.logger.info("Runtime đã nạp autojoin", { botId });
     registerAutoJoinEvents(this.events, { service: this.autoJoin, settings: this.groupSettings });
     registerGroupEvents(this.events, { client: this.client, settings: this.groupSettings });
     this.moderation = new ModerationService({
