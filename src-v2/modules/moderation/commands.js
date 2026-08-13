@@ -1,6 +1,24 @@
 import { Permission } from "../../core/permissions.js";
 
-const FEATURES = Object.freeze({ spam: "antiSpam", link: "removeLinks", badword: "filterBadWords" });
+const FEATURES = Object.freeze({
+  spam: "antiSpam", link: "removeLinks", badword: "filterBadWords",
+  file: "antiFile", photo: "antiPhoto", image: "antiPhoto", video: "antiVideo",
+  voice: "antiVoice", sticker: "antiSticker", gif: "antiGif", forward: "antiForward",
+  phone: "antiPhoneNumber", tag: "antiTag", undo: "antiUndo",
+});
+
+const DIRECT_COMMANDS = Object.freeze({
+  antispam: "spam", antilink: "link", antibadword: "badword", antifile: "file",
+  antiphoto: "photo", antimedia: "video", antivoice: "voice", antisticker: "sticker",
+  antigif: "gif", antiforward: "forward", antiphonenumber: "phone", antitag: "tag", antiundo: "undo",
+});
+
+async function toggle(repository, threadId, feature, action) {
+  const key = FEATURES[feature];
+  if (!["on", "off"].includes(action)) return null;
+  await repository.patch(threadId, { [key]: action === "on", updatedAt: new Date() });
+  return action === "on";
+}
 
 export function registerModerationCommands(registry, { repository }) {
   registry.register({
@@ -19,7 +37,9 @@ export function registerModerationCommands(registry, { repository }) {
           `Spam: ${settings.antiSpam ? "bật" : "tắt"}`,
           `Link: ${settings.removeLinks ? "bật" : "tắt"}`,
           `Từ cấm: ${settings.filterBadWords ? "bật" : "tắt"}`,
-          "Dùng: !anti <spam|link|badword> <on|off>",
+          `Media: ${["antiFile", "antiPhoto", "antiVideo", "antiVoice", "antiSticker", "antiGif"].filter((key) => settings[key]).length}/6 đang bật`,
+          `Forward/SĐT/Tag/Undo: ${[settings.antiForward, settings.antiPhoneNumber, settings.antiTag, settings.antiUndo].filter(Boolean).length}/4`,
+          "Dùng: !anti <spam|link|badword|file|photo|video|voice|sticker|gif|forward|phone|tag|undo> <on|off>",
         ].join("\n"));
         return;
       }
@@ -38,8 +58,34 @@ export function registerModerationCommands(registry, { repository }) {
         await reply(`Dùng: !anti ${feature} <on|off>`);
         return;
       }
-      await repository.patch(threadId, { [key]: action === "on", updatedAt: new Date() });
+      await toggle(repository, threadId, feature, action);
       await reply(`Đã ${action === "on" ? "bật" : "tắt"} chống ${feature}.`);
+    },
+  });
+
+  for (const [name, feature] of Object.entries(DIRECT_COMMANDS)) {
+    registry.register({
+      name, permission: Permission.ADMIN, description: `Bật hoặc tắt bảo vệ ${feature}`,
+      async execute({ args, threadId, type, reply }) {
+        if (type !== 1) { await reply("Lệnh anti chỉ dùng trong nhóm."); return; }
+        const action = args[0]?.toLowerCase();
+        if (await toggle(repository, threadId, feature, action) == null) {
+          await reply(`Dùng: !${name} on|off`); return;
+        }
+        await reply(`Đã ${action === "on" ? "bật" : "tắt"} ${name}.`);
+      },
+    });
+  }
+
+  registry.register({
+    name: "antiall", permission: Permission.ADMIN, description: "Bật hoặc tắt toàn bộ lớp bảo vệ nhóm",
+    async execute({ args, threadId, type, reply }) {
+      if (type !== 1) { await reply("Lệnh anti chỉ dùng trong nhóm."); return; }
+      const action = args[0]?.toLowerCase();
+      if (!["on", "off"].includes(action)) { await reply("Dùng: !antiall on|off"); return; }
+      const enabled = action === "on";
+      await repository.patch(threadId, Object.fromEntries([...new Set(Object.values(FEATURES))].map((key) => [key, enabled])));
+      await reply(`Đã ${enabled ? "bật" : "tắt"} toàn bộ bảo vệ nhóm.`);
     },
   });
 }
