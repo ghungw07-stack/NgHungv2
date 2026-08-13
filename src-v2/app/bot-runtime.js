@@ -39,15 +39,14 @@ export class BotRuntime {
       mainBotId: this.identity.mainBotId || botId,
       ownerIds: [
         ...(this.config.leaders[botId] || []),
-        ...(this.config.admins[this.identity.mainBotId || botId] || []),
         ...(this.identity.ownerIds || []),
       ],
-      adminIds: this.config.admins[botId] || [],
+      adminIds: [],
     });
     this.groups = new GroupService(this.client);
     const permissions = {
       allows: async (permission, userId, context) => {
-        if (basePermissions.allows(permission, userId)) return true;
+        if (basePermissions.allows(permission, userId) || this.services.adminStore?.isAdmin(botId, userId)) return true;
         return permission === Permission.ADMIN && context?.type === 1
           ? this.groups.isAdmin(context.threadId, userId).catch(() => false)
           : false;
@@ -103,12 +102,17 @@ export class BotRuntime {
       qr: this.services.qr, reminders: this.reminders,
       messageArchive: this.messageArchive,
       bankAccounts: this.bankAccounts,
+      adminStore: this.services.adminStore,
     });
     this.dispatcher = new CommandDispatcher({
       prefix: this.config.prefix,
       prefixResolver: ({ threadId }) => this.groupSettings.getPrefix(threadId),
       commandEnabledResolver: async (commandName, { threadId }) => {
         const settings = await this.groupSettings.get(threadId);
+        const protectedCommands = ["bot", "settinggroup", "adminbot", "mybot", "thuebot"];
+        if (settings.botEnabled === false && !protectedCommands.includes(commandName)) return false;
+        const resolved = registry.resolve(commandName);
+        if (settings.gamesEnabled === false && resolved?.category === "game") return false;
         if ((settings.disabledCommands || []).includes(commandName)) return false;
         if (!this.identity.isMain && this.identity.ownerId) {
           const botConfig = this.services.botStore?.get(this.identity.ownerId) || {};

@@ -59,6 +59,7 @@ function showHand(hand) { return hand.join(" "); }
 export function registerXiDachCommand(registry, { game, sessions, players }) {
   registry.register({
     name: "xidach",
+    category: "game",
     aliases: ["blackjack"],
     description: "Chơi Xì Dách với bot",
     async execute({ args, threadId, senderId, message, reply }) {

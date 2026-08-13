@@ -11,7 +11,7 @@ registerRuntimeCommands(registry, {
   identity: { isMain: true }, groupSettings: noop, groups: noop, client: noop, media: noop,
   content: noop, players: noop, bigGames: noop, gameSessions: noop, xiDach: noop,
   ai: noop, aiConversations: noop, botId: "audit", sourceUpdater: noop, paymentQr: noop,
-  qr: noop, reminders: noop, messageArchive: noop, bankAccounts: noop,
+  qr: noop, reminders: noop, messageArchive: noop, bankAccounts: noop, adminStore: noop,
 });
 const report = compareCommandParity(data.commands, registry);
 console.log(`Legacy: ${report.legacyTotal}`);

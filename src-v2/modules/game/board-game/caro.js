@@ -33,7 +33,7 @@ export function renderCaro(data) {
 
 export function registerCaroCommand(registry, { sessions }) {
   registry.register({
-    name: "caro", cooldownMs: 1_000, description: "Caro 15×15 cho hai người",
+    name: "caro", category: "game", cooldownMs: 1_000, description: "Caro 15×15 cho hai người",
     async execute({ args, senderId, threadId, reply }) {
       const action = args[0]?.toLowerCase();
       if (action === "start") {

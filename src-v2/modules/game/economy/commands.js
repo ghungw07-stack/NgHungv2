@@ -24,6 +24,7 @@ function target(message, args) {
 export function registerEconomyCommands(registry, { players }) {
   registry.register({
     name: "game",
+    category: "game",
     description: "Menu trò chơi và tài khoản game",
     async execute({ args, message, senderId, reply }) {
       const action = String(args[0] || "menu").toLowerCase();
@@ -62,14 +63,15 @@ export function registerEconomyCommands(registry, { players }) {
       await reply(MENU);
     },
   });
-  registry.register({ name: "bank", description: "Xem số dư game", execute: (context) => registry.resolve("game").execute({ ...context, args: ["bank"] }) });
-  registry.register({ name: "daily", description: "Nhận thưởng hằng ngày", execute: (context) => registry.resolve("game").execute({ ...context, args: ["daily"] }) });
-  registry.register({ name: "rank", description: "Xem bảng xếp hạng tài sản game", execute: (context) => registry.resolve("game").execute({ ...context, args: ["top"] }) });
-  registry.register({ name: "saoke", description: "Xem biến động số dư game", execute: (context) => registry.resolve("game").execute({ ...context, args: ["history"] }) });
-  registry.register({ name: "nap", description: "Lấy hướng dẫn nạp/gia hạn", async execute({ reply }) { await reply("Dùng !donate để ủng hộ game hoặc !thuebot để thanh toán thuê bot. Tiền game không quy đổi thành tiền thật."); } });
-  registry.register({ name: "rut", description: "Thông tin rút tiền game", async execute({ reply }) { await reply("Tiền game là tiền ảo miễn phí, không hỗ trợ rút hoặc quy đổi thành tiền thật."); } });
+  registry.register({ name: "bank", category: "game", description: "Xem số dư game", execute: (context) => registry.resolve("game").execute({ ...context, args: ["bank"] }) });
+  registry.register({ name: "daily", category: "game", description: "Nhận thưởng hằng ngày", execute: (context) => registry.resolve("game").execute({ ...context, args: ["daily"] }) });
+  registry.register({ name: "rank", category: "game", description: "Xem bảng xếp hạng tài sản game", execute: (context) => registry.resolve("game").execute({ ...context, args: ["top"] }) });
+  registry.register({ name: "saoke", category: "game", description: "Xem biến động số dư game", execute: (context) => registry.resolve("game").execute({ ...context, args: ["history"] }) });
+  registry.register({ name: "nap", category: "game", description: "Lấy hướng dẫn nạp/gia hạn", async execute({ reply }) { await reply("Dùng !donate để ủng hộ game hoặc !thuebot để thanh toán thuê bot. Tiền game không quy đổi thành tiền thật."); } });
+  registry.register({ name: "rut", category: "game", description: "Thông tin rút tiền game", async execute({ reply }) { await reply("Tiền game là tiền ảo miễn phí, không hỗ trợ rút hoặc quy đổi thành tiền thật."); } });
   registry.register({
     name: "tier", aliases: ["hanggame", "gametier"], description: "Xem hạng tài sản game",
+    category: "game",
     async execute({ senderId, message, reply }) {
       const balance = await players.balance(senderId, message?.data?.dName);
       const amount = BigInt(balance);

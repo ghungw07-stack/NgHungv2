@@ -5,6 +5,7 @@ export function registerBigGameCommands(registry, { engine, players }) {
   for (const [name, definition] of Object.entries(BIG_GAMES)) {
     registry.register({
       name,
+      category: "game",
       aliases: definition.aliases,
       description: `Đặt cược ${name}`,
       async execute({ args, senderId, message, reply }) {

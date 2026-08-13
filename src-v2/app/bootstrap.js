@@ -17,6 +17,7 @@ import { AiGateway } from "../modules/ai/gateway.js";
 import { SourceUpdateService } from "../modules/source-update/service.js";
 import { PaymentQrService } from "../modules/payments/qr-service.js";
 import { QrService } from "../modules/qr/service.js";
+import { AdminStore } from "../modules/admins/store.js";
 
 export async function bootstrap() {
   const logger = createLogger({ context: { app: "ngh-bot-v2" } });
@@ -41,8 +42,9 @@ export async function bootstrap() {
   const paymentQr = new PaymentQrService({ rootDir: config.rootDir, http, tempFiles, price: 80_000 });
   const qr = new QrService({ http, tempFiles });
   const botStore = new BotConfigStore({ rootDir: config.rootDir, data: config.childBots });
+  const adminStore = new AdminStore({ rootDir: config.rootDir, data: config.admins });
 
-  const fleet = new BotFleet({ config, scheduler, database, media, content, ai, sourceUpdater, paymentQr, qr, botStore, logger: logger.child({ component: "fleet" }) });
+  const fleet = new BotFleet({ config, scheduler, database, media, content, ai, sourceUpdater, paymentQr, qr, botStore, adminStore, logger: logger.child({ component: "fleet" }) });
   await fleet.start();
   lifecycle.add("fleet", () => fleet.stop());
 

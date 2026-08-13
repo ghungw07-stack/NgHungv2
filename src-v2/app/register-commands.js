@@ -27,6 +27,8 @@ import { registerStickerCommands } from "../modules/stickers/commands.js";
 import { registerEngagementCommands } from "../modules/engagement/commands.js";
 import { registerBankingCommands } from "../modules/banking/commands.js";
 import { registerAccountCommands } from "../modules/account/commands.js";
+import { registerAdminCommands } from "../modules/admins/commands.js";
+import { registerOperationCommands } from "../modules/operations/commands.js";
 
 export function registerRuntimeCommands(registry, dependencies) {
   const d = dependencies;
@@ -59,5 +61,7 @@ export function registerRuntimeCommands(registry, dependencies) {
   registerEngagementCommands(registry, { archive: d.messageArchive });
   registerBankingCommands(registry, { accounts: d.bankAccounts, client: d.client, paymentQr: d.paymentQr });
   registerAccountCommands(registry, { client: d.client });
+  registerAdminCommands(registry, { store: d.adminStore, botId: d.botId });
+  registerOperationCommands(registry, { settings: d.groupSettings, adminStore: d.adminStore, botId: d.botId });
   return registry;
 }

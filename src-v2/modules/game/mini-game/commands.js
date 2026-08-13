@@ -23,6 +23,7 @@ function scramble(value) {
 export function registerMiniGameCommands(registry, { sessions, players }) {
   registry.register({
     name: "doanso",
+    category: "game",
     aliases: ["guess"],
     description: "Đoán số từ 1 đến 100",
     async execute({ args, threadId, senderId, message, reply }) {
@@ -50,6 +51,7 @@ export function registerMiniGameCommands(registry, { sessions, players }) {
 
   registry.register({
     name: "noitu",
+    category: "game",
     aliases: ["wordchain"],
     description: "Trò chơi nối từ",
     async execute({ args, threadId, senderId, reply }) {
@@ -75,6 +77,7 @@ export function registerMiniGameCommands(registry, { sessions, players }) {
 
   registry.register({
     name: "vuatiengviet",
+    category: "game",
     aliases: ["vtv"],
     description: "Sắp xếp chữ thành cụm từ tiếng Việt",
     async execute({ args, threadId, senderId, message, reply }) {
@@ -97,6 +100,7 @@ export function registerMiniGameCommands(registry, { sessions, players }) {
 
   registry.register({
     name: "kbb",
+    category: "game",
     aliases: ["keobuabao"],
     description: "Kéo búa bao có cược",
     async execute({ args, senderId, message, reply }) {
