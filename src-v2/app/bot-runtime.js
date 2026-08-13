@@ -110,12 +110,13 @@ export class BotRuntime {
       commandEnabledResolver: async (commandName, { threadId, senderId, type }) => {
         const settings = await this.groupSettings.get(threadId);
         const globalSettings = await this.groupSettings.get("__global__");
-        const protectedCommands = ["bot", "settinggroup", "adminbot", "mybot", "thuebot", "ban", "blockbot"];
+        const protectedCommands = ["bot", "settinggroup", "adminbot", "mybot", "thuebot", "ban", "blockbot", "privatebot"];
         const privileged = basePermissions.isAdmin(senderId)
           || this.services.adminStore?.isAdmin(botId, senderId)
           || (type === 1 && await this.groups.isAdmin(threadId, senderId).catch(() => false));
         if (!privileged && (globalSettings.blockedUsers || []).map(String).includes(String(senderId))) return false;
         if (!privileged && (settings.bannedUsers || []).map(String).includes(String(senderId))) return false;
+        if (type === 0 && globalSettings.privateBotEnabled === false && !protectedCommands.includes(commandName)) return false;
         if (settings.botEnabled === false && !protectedCommands.includes(commandName)) return false;
         const resolved = registry.resolve(commandName);
         if (settings.gamesEnabled === false && resolved?.category === "game") return false;

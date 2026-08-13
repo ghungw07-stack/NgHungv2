@@ -114,6 +114,20 @@ export function registerOperationCommands(registry, { settings, adminStore, botI
       await reply(`Đã cập nhật blockbot. Hiện có ${values.length} người.`);
     },
   });
+
+  registry.register({
+    name: "privatebot", permission: Permission.LEADER, description: "Bật hoặc tắt lệnh bot trong tin nhắn riêng",
+    async execute({ args, reply }) {
+      const scope = "__global__"; const action = args[0]?.toLowerCase();
+      if (!action || action === "status") {
+        const value = await settings.get(scope);
+        await reply(`Bot trong tin nhắn riêng: ${value.privateBotEnabled === false ? "tắt" : "bật"}.`); return;
+      }
+      if (!["on", "off"].includes(action)) { await reply("Dùng: !privatebot on|off|status"); return; }
+      await settings.patch(scope, { privateBotEnabled: action === "on", updatedAt: new Date() });
+      await reply(`Đã ${action === "on" ? "bật" : "tắt"} bot trong tin nhắn riêng.`);
+    },
+  });
 }
 
 export { targetIds, editUserList };
