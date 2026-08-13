@@ -25,6 +25,8 @@ import { ReminderService } from "../modules/reminders/service.js";
 import { LegacyMigration } from "../modules/migrations/legacy-migration.js";
 import { registerRuntimeCommands } from "./register-commands.js";
 import { BankAccountRepository } from "../modules/banking/repository.js";
+import { AutoReplyRepository } from "../modules/auto-reply/repository.js";
+import { registerAutoReplyEvents } from "../modules/auto-reply/events.js";
 
 export class BotRuntime {
   constructor({ client, config, scheduler, logger, identity = {}, services = {} }) {
@@ -90,6 +92,8 @@ export class BotRuntime {
     await this.reminders.start();
     this.bankAccounts = new BankAccountRepository({ database: this.services.database, botId });
     await this.bankAccounts.start();
+    this.autoReplies = new AutoReplyRepository({ database: this.services.database, botId });
+    await this.autoReplies.start();
     this.xiDach = new XiDachGame({ sessions: this.gameSessions, players: this.players, scheduler: this.scheduler, botId });
     this.xiDach.start();
     registerRuntimeCommands(registry, {
@@ -105,6 +109,7 @@ export class BotRuntime {
       adminStore: this.services.adminStore,
       diagnostics: this.services.diagnostics,
       accessControl: permissions,
+      autoReplies: this.autoReplies,
     });
     this.dispatcher = new CommandDispatcher({
       prefix: this.config.prefix,
@@ -170,6 +175,7 @@ export class BotRuntime {
     });
     registerMessageArchiveEvents(this.events, { archive: this.messageArchive });
     registerModerationEvents(this.events, this.moderation, { archive: this.messageArchive });
+    this.disposeAutoReply = registerAutoReplyEvents(this.events, { repository: this.autoReplies, settings: this.groupSettings, client: this.client });
 
     this.client.on("error", (error) => this.logger.error("Listener Zalo gặp lỗi", { error: error.message }));
     this.client.on("message", (message) => {
@@ -189,6 +195,7 @@ export class BotRuntime {
     const discarded = this.queue.close();
     if (discarded) this.logger.info("Đã bỏ tác vụ đang chờ khi tắt bot", { discarded });
     this.disposeMessageEvents?.();
+    this.disposeAutoReply?.();
     this.groupSettings?.clear();
     this.groups?.clear();
     this.moderation?.clear();
