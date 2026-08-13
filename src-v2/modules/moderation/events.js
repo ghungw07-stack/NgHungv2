@@ -1,4 +1,6 @@
-export function registerModerationEvents(eventBus, service) {
+import { undoMessageId } from "../message-archive/events.js";
+
+export function registerModerationEvents(eventBus, service, { archive } = {}) {
   eventBus.on("message", "moderation", async ({ message }) => {
     const violation = await service.inspect(message);
     if (!violation) return;
@@ -12,6 +14,10 @@ export function registerModerationEvents(eventBus, service) {
     if (!settings.antiUndo) return;
     const userId = String(undo.data?.uidFrom || "");
     if (await service.isPrivileged(userId, threadId)) return;
-    await service.client.sendText(threadId, 1, `Thành viên ${undo.data?.dName || userId} vừa thu hồi một tin nhắn.`);
+    const original = await archive?.find(threadId, undoMessageId(undo));
+    const detail = original?.text
+      ? `\nNội dung: ${original.text}`
+      : original?.mediaUrl ? `\nMedia: ${original.mediaUrl}` : "";
+    await service.client.sendText(threadId, 1, `Thành viên ${original?.senderName || undo.data?.dName || userId} vừa thu hồi một tin nhắn.${detail}`);
   }, { priority: 800 });
 }

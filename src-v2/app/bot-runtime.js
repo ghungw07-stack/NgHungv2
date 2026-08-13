@@ -38,6 +38,8 @@ import { ParentRelayService } from "../modules/parent-relay/service.js";
 import { registerParentRelayEvents } from "../modules/parent-relay/events.js";
 import { registerPaymentCommands } from "../modules/payments/commands.js";
 import { registerQrCommands } from "../modules/qr/commands.js";
+import { MessageArchiveRepository } from "../modules/message-archive/repository.js";
+import { registerMessageArchiveEvents } from "../modules/message-archive/events.js";
 
 export class BotRuntime {
   constructor({ client, config, scheduler, logger, identity = {}, services = {} }) {
@@ -92,6 +94,8 @@ export class BotRuntime {
     await this.gameSessions.start();
     this.aiConversations = new ConversationRepository({ database: this.services.database });
     await this.aiConversations.start();
+    this.messageArchive = new MessageArchiveRepository({ database: this.services.database, botId });
+    await this.messageArchive.start();
     this.xiDach = new XiDachGame({ sessions: this.gameSessions, players: this.players, scheduler: this.scheduler, botId });
     this.xiDach.start();
     registerSystemCommands(registry, {
@@ -160,7 +164,8 @@ export class BotRuntime {
       isPrivileged: async (userId, threadId) =>
         basePermissions.isAdmin(userId) || this.groups.isAdmin(threadId, userId).catch(() => false),
     });
-    registerModerationEvents(this.events, this.moderation);
+    registerMessageArchiveEvents(this.events, { archive: this.messageArchive });
+    registerModerationEvents(this.events, this.moderation, { archive: this.messageArchive });
 
     this.client.on("error", (error) => this.logger.error("Listener Zalo gặp lỗi", { error: error.message }));
     this.client.on("message", (message) => {
