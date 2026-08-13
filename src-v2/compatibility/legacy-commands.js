@@ -15,8 +15,13 @@ export class LegacyCommandCompatibility {
       this.undoEvents = undos.undoMessageEvents;
       this.client.api.apiInstance = { api: this.client.api, config: this.botConfig, schedule: {} };
       this.client.api.apiManager = await legacy.initApiManager(this.client.botId, this.client.api, this.botConfig);
-      try { await legacy.initializeLegacyCompatibility(this.client.api); }
-      catch (error) { this.cancelSchedules(); throw error; }
+      // Một vài service legacy giữ Promise sống suốt vòng đời (scheduler/monitor).
+      // Không để chúng chặn listener và toàn bộ fleet; các phần khởi tạo độc lập
+      // vẫn tiếp tục chạy nền như trên runtime cũ.
+      this.initialization = legacy.initializeLegacyCompatibility(this.client.api);
+      void this.initialization.catch((error) => {
+        this.logger?.error?.("Khởi tạo dịch vụ tương thích legacy thất bại", { error: error?.message || String(error) });
+      });
       this.ready = true;
     } finally {
       if (previous === undefined) delete process.env.NGH_LEGACY_LIBRARY; else process.env.NGH_LEGACY_LIBRARY = previous;
