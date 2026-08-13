@@ -7,6 +7,8 @@ import { BotFleet } from "./bot-fleet.js";
 import { TempFiles } from "../infrastructure/files/temp-files.js";
 import { SafeHttpClient } from "../infrastructure/http/safe-http-client.js";
 import { MediaService } from "../modules/media/service.js";
+import { WeatherProvider } from "../modules/content/weather-provider.js";
+import { TranslateProvider } from "../modules/content/translate-provider.js";
 
 export async function bootstrap() {
   const logger = createLogger({ context: { app: "ngh-bot-v2" } });
@@ -25,8 +27,9 @@ export async function bootstrap() {
   scheduler.every("temp-files:cleanup", 10 * 60_000, () => tempFiles.cleanup());
   const http = new SafeHttpClient();
   const media = new MediaService({ http, tempFiles, concurrency: 2 });
+  const content = { weather: new WeatherProvider(http), translator: new TranslateProvider(http) };
 
-  const fleet = new BotFleet({ config, scheduler, database, media, logger: logger.child({ component: "fleet" }) });
+  const fleet = new BotFleet({ config, scheduler, database, media, content, logger: logger.child({ component: "fleet" }) });
   await fleet.start();
   lifecycle.add("fleet", () => fleet.stop());
 
