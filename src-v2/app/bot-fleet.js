@@ -45,7 +45,9 @@ export class BotFleet {
     }
     const main = await this.#startBot(this.config.bot, { isMain: true });
     const mainBotId = String(main.client.botId);
-    const children = Object.entries(this.config.childBots).filter(([, bot]) => canRunChild(bot));
+    const children = process.env.V2_MAIN_ONLY === "1"
+      ? []
+      : Object.entries(this.config.childBots).filter(([, bot]) => canRunChild(bot));
     const failures = [];
 
     // Khởi động tuần tự để không tạo đỉnh RAM/CPU do nhiều phiên Zalo login cùng lúc.
