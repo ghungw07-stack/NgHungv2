@@ -1,6 +1,6 @@
 {
   "name": "zlbotdqt",
-  "version": "1.5.5",
+  "version": "2.0.4",
   "engines": {
     "node": ">=24 <25"
   },
@@ -12,7 +12,7 @@
   },
   "author": "NGH",
   "license": "ISC",
-  "description": "A Project ChatBot Zalo Code by DQT",
+  "description": "Dự án chatbot Zalo đa chức năng được phát triển bởi NGH",
   "dependencies": {
     "@ffprobe-installer/ffprobe": "^2.1.2",
     "@google/genai": "^1.16.0",
