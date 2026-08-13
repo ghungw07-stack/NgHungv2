@@ -43,6 +43,7 @@ import { registerMessageArchiveEvents } from "../modules/message-archive/events.
 import { ReminderService } from "../modules/reminders/service.js";
 import { registerReminderCommands } from "../modules/reminders/commands.js";
 import { registerBasicToolCommands } from "../modules/basic-tools/commands.js";
+import { LegacyMigration } from "../modules/migrations/legacy-migration.js";
 
 export class BotRuntime {
   constructor({ client, config, scheduler, logger, identity = {}, services = {} }) {
@@ -72,6 +73,12 @@ export class BotRuntime {
       },
     };
     const registry = new CommandRegistry();
+    this.migration = new LegacyMigration({
+      database: this.services.database, botId,
+      groupSettings: this.config.groupSettings,
+      logger: this.logger,
+    });
+    await this.migration.run();
     this.groupSettings = new GroupSettingsRepository({
       database: this.services.database,
       botId,

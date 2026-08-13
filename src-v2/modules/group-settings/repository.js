@@ -3,7 +3,11 @@ export class GroupSettingsRepository {
   constructor({ database, botId, legacySettings = {}, defaultPrefix = "!" }) {
     this.collection = database.collection("v2_group_settings");
     this.botId = String(botId);
-    this.legacySettings = legacySettings[this.botId] || {};
+    const scoped = legacySettings[this.botId];
+    // File cũ phổ biến được key trực tiếp theo threadId; một số bản lại lồng theo botId.
+    this.legacySettings = scoped && !Object.hasOwn(scoped, "activeBot") && !Object.hasOwn(scoped, "antiSpam")
+      ? scoped
+      : legacySettings;
     this.defaultPrefix = defaultPrefix;
   }
   async start() {
