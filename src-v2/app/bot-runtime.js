@@ -17,6 +17,8 @@ import { registerModerationCommands } from "../modules/moderation/commands.js";
 import { registerMediaCommands } from "../modules/media/commands.js";
 import { registerUtilityCommands } from "../modules/utilities/commands.js";
 import { registerContentCommands } from "../modules/content/commands.js";
+import { PlayerRepository } from "../modules/game/economy/player-repository.js";
+import { registerEconomyCommands } from "../modules/game/economy/commands.js";
 
 export class BotRuntime {
   constructor({ client, config, scheduler, logger, identity = {}, services = {} }) {
@@ -53,6 +55,12 @@ export class BotRuntime {
       defaultPrefix: this.config.prefix,
     });
     await this.groupSettings.start();
+    this.players = new PlayerRepository({
+      database: this.services.database,
+      botId,
+      dailyReward: this.config.game?.dailyReward || "100000000",
+    });
+    await this.players.start();
     registerSystemCommands(registry, { startedAt: this.startedAt, scheduler: this.scheduler });
     registerBotManagerCommands(registry, { fleet: this.services.fleet, identity: this.identity });
     registerGroupSettingsCommands(registry, { repository: this.groupSettings });
@@ -61,6 +69,7 @@ export class BotRuntime {
     registerMediaCommands(registry, { media: this.services.media, client: this.client });
     registerUtilityCommands(registry, { client: this.client });
     registerContentCommands(registry, this.services.content);
+    registerEconomyCommands(registry, { players: this.players });
     this.dispatcher = new CommandDispatcher({
       prefix: this.config.prefix,
       prefixResolver: ({ threadId }) => this.groupSettings.getPrefix(threadId),

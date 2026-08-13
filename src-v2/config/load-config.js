@@ -30,5 +30,6 @@ export async function loadConfig(rootDir = process.cwd()) {
       uri: process.env.MONGODB_URI || database.uri || "mongodb://127.0.0.1:27017",
       name: process.env.MONGODB_DATABASE || database.database || "bot-zalo-ngh",
     }),
+    game: Object.freeze({ dailyReward: String(database.dailyReward || "100000000") }),
   });
 }
