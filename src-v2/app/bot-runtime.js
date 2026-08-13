@@ -31,6 +31,7 @@ import { registerAutoJoinEvents } from "../modules/autojoin/events.js";
 import { registerAutoJoinCommands } from "../modules/autojoin/commands.js";
 import { registerGroupEventCommands } from "../modules/group-events/commands.js";
 import { registerGroupEvents } from "../modules/group-events/events.js";
+import { registerSourceUpdateCommand } from "../modules/source-update/commands.js";
 
 export class BotRuntime {
   constructor({ client, config, scheduler, logger, identity = {}, services = {} }) {
@@ -102,6 +103,7 @@ export class BotRuntime {
     registerAiCommands(registry, { gateway: this.services.ai, conversations: this.aiConversations, botId });
     registerAutoJoinCommands(registry, { settings: this.groupSettings });
     registerGroupEventCommands(registry, { settings: this.groupSettings });
+    registerSourceUpdateCommand(registry, { updater: this.services.sourceUpdater, identity: this.identity });
     this.dispatcher = new CommandDispatcher({
       prefix: this.config.prefix,
       prefixResolver: ({ threadId }) => this.groupSettings.getPrefix(threadId),

@@ -14,6 +14,7 @@ import { PaymentService } from "../modules/payments/service.js";
 import { WebServer } from "../web/server.js";
 import { GeminiProvider } from "../modules/ai/gemini-provider.js";
 import { AiGateway } from "../modules/ai/gateway.js";
+import { SourceUpdateService } from "../modules/source-update/service.js";
 
 export async function bootstrap() {
   const logger = createLogger({ context: { app: "ngh-bot-v2" } });
@@ -34,9 +35,10 @@ export async function bootstrap() {
   const media = new MediaService({ http, tempFiles, concurrency: 2 });
   const content = { weather: new WeatherProvider(http), translator: new TranslateProvider(http) };
   const ai = new AiGateway({ provider: new GeminiProvider(), concurrency: 2, maxQueue: 20 });
+  const sourceUpdater = new SourceUpdateService({ rootDir: config.rootDir, logger: logger.child({ component: "source-update" }) });
   const botStore = new BotConfigStore({ rootDir: config.rootDir, data: config.childBots });
 
-  const fleet = new BotFleet({ config, scheduler, database, media, content, ai, logger: logger.child({ component: "fleet" }) });
+  const fleet = new BotFleet({ config, scheduler, database, media, content, ai, sourceUpdater, logger: logger.child({ component: "fleet" }) });
   await fleet.start();
   lifecycle.add("fleet", () => fleet.stop());
 
