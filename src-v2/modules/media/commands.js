@@ -28,7 +28,7 @@ export function registerMediaCommands(registry, { media, client }) {
   });
 
   registry.register({
-    name: "convertfile", cooldownMs: 20_000, description: "Chuyển đổi media sang MP3, MP4 hoặc WebM",
+    name: "convertfile", aliases: ["cfile"], permission: "leader", cooldownMs: 5_000, description: "Chuyển đổi định dạng file",
     async execute({ args, message, threadId, type, reply }) {
       const format = String(args[0] || "").toLowerCase().replace(/^\./u, "");
       const direct = args.find((value, index) => index > 0 && /^https?:\/\//iu.test(value));

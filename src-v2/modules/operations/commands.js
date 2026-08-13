@@ -69,7 +69,7 @@ export function registerOperationCommands(registry, { settings, adminStore, botI
   });
 
   registry.register({
-    name: "whitelist", permission: Permission.ADMIN, description: "Miễn kiểm duyệt cho người dùng trong nhóm",
+    name: "whitelist", aliases: ["wl"], permission: Permission.LEADER, cooldownMs: 1_000, description: "Miễn kiểm duyệt cho người dùng trong nhóm",
     async execute({ args, message, threadId, type, reply }) {
       if (type !== 1) { await reply("Lệnh này chỉ dùng trong nhóm."); return; }
       const action = args[0]?.toLowerCase();
@@ -87,7 +87,7 @@ export function registerOperationCommands(registry, { settings, adminStore, botI
   });
 
   registry.register({
-    name: "ban", permission: Permission.ADMIN, description: "Chặn người dùng sử dụng bot trong nhóm",
+    name: "ban", aliases: ["unban"], permission: Permission.LEADER, cooldownMs: 1_000, description: "Chặn người dùng sử dụng bot trong nhóm",
     async execute({ args, message, threadId, type, reply }) {
       if (type !== 1) { await reply("Lệnh này chỉ dùng trong nhóm."); return; }
       const action = args[0]?.toLowerCase(); const ids = targetIds(message, args.slice(1));
@@ -102,7 +102,7 @@ export function registerOperationCommands(registry, { settings, adminStore, botI
   });
 
   registry.register({
-    name: "blockbot", permission: Permission.LEADER, description: "Chặn người dùng sử dụng tài khoản bot ở mọi nơi",
+    name: "blockbot", aliases: ["listblockbot", "unblockbot"], permission: Permission.LEADER, cooldownMs: 1_000, description: "Chặn người dùng sử dụng tài khoản bot ở mọi nơi",
     async execute({ args, message, reply }) {
       const action = args[0]?.toLowerCase(); const ids = targetIds(message, args.slice(1)); const scope = "__global__";
       if (!action || action === "list") {
@@ -116,7 +116,7 @@ export function registerOperationCommands(registry, { settings, adminStore, botI
   });
 
   registry.register({
-    name: "privatebot", permission: Permission.LEADER, description: "Bật hoặc tắt lệnh bot trong tin nhắn riêng",
+    name: "privatebot", permission: Permission.LEADER, cooldownMs: 1_000, description: "Bật hoặc tắt lệnh bot trong tin nhắn riêng",
     async execute({ args, reply }) {
       const scope = "__global__"; const action = args[0]?.toLowerCase();
       if (!action || action === "status") {

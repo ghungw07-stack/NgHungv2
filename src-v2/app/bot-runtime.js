@@ -110,6 +110,7 @@ export class BotRuntime {
       diagnostics: this.services.diagnostics,
       accessControl: permissions,
       autoReplies: this.autoReplies,
+      commandContracts: this.config.commandContracts,
     });
     this.dispatcher = new CommandDispatcher({
       prefix: this.config.prefix,

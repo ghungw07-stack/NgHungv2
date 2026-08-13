@@ -17,7 +17,7 @@ async function save(settings, threadId, supportGame) {
 
 export function registerSupportGameCommand(registry, { settings, media, client, accessControl }) {
   registry.register({
-    name: "supportgame", category: "game", description: "Code, web và file tải game được cấu hình theo nhóm",
+    name: "supportgame", aliases: ["spgame", "spg"], category: "game", permission: Permission.LEADER, cooldownMs: 5_000, active: false, description: "Code, web và file tải game được cấu hình theo nhóm",
     async execute(context) {
       const { args, threadId, type, reply } = context;
       if (type !== 1) { await reply("Lệnh supportgame chỉ dùng trong nhóm."); return; }

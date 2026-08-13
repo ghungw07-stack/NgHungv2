@@ -6,7 +6,7 @@ export class CommandRegistry {
   register(command) {
     if (!command?.name || typeof command.execute !== "function") throw new TypeError("Command không hợp lệ");
     const names = [command.name, ...(command.aliases || [])].map((value) => value.toLowerCase());
-    const normalized = { permission: Permission.EVERYONE, cooldownMs: 0, ...command, aliases: command.aliases || [] };
+    const normalized = { permission: Permission.EVERYONE, cooldownMs: 0, active: true, ...command, aliases: command.aliases || [] };
     for (const name of names) {
       if (this.#commands.has(name)) throw new Error(`Trùng command: ${name}`);
       this.#commands.set(name, normalized);
@@ -16,4 +16,11 @@ export class CommandRegistry {
   }
   resolve(name) { return this.#commands.get(String(name).toLowerCase()); }
   list() { return [...this.#canonical.values()]; }
+  addAlias(command, alias) {
+    alias = String(alias).toLowerCase();
+    const previous = this.#commands.get(alias);
+    if (previous && previous !== command) previous.aliases = previous.aliases.filter((value) => String(value).toLowerCase() !== alias);
+    this.#commands.set(alias, command);
+    if (!command.aliases.map((value) => String(value).toLowerCase()).includes(alias)) command.aliases.push(alias);
+  }
 }

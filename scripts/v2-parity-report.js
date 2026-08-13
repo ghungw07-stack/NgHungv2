@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import { CommandRegistry } from "../src-v2/core/commands/registry.js";
 import { registerRuntimeCommands } from "../src-v2/app/register-commands.js";
 import { compareCommandParity } from "../src-v2/tools/parity.js";
+import { auditCommandContracts } from "../src-v2/tools/contract-audit.js";
 
 const data = JSON.parse(await fs.readFile(new URL("../assets/data/command.json", import.meta.url), "utf8"));
 const noop = {};
@@ -15,6 +16,7 @@ registerRuntimeCommands(registry, {
   diagnostics: noop,
   accessControl: noop,
   autoReplies: noop,
+  commandContracts: data.commands,
 });
 const report = compareCommandParity(data.commands, registry);
 console.log(`Legacy: ${report.legacyTotal}`);
@@ -22,3 +24,6 @@ console.log(`Đã chuyển đúng tên: ${report.canonical}`);
 console.log(`Được bao phủ bằng alias: ${report.alias}`);
 console.log(`Còn thiếu: ${report.missing.length}`);
 console.log(report.missing.join("\n"));
+const contracts = auditCommandContracts(data.commands, registry);
+console.error(`Sai metadata contract: ${contracts.length}`);
+for (const item of contracts.slice(0, 100)) console.error(`${item.name}.${item.field}: ${item.actual} -> ${item.expected}`);

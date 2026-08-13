@@ -71,7 +71,7 @@ export function registerEconomyCommands(registry, { players }) {
   registry.register({ name: "nap", category: "game", description: "Lấy hướng dẫn nạp/gia hạn", async execute({ reply }) { await reply("Dùng !donate để ủng hộ game hoặc !thuebot để thanh toán thuê bot. Tiền game không quy đổi thành tiền thật."); } });
   registry.register({ name: "rut", category: "game", description: "Thông tin rút tiền game", async execute({ reply }) { await reply("Tiền game là tiền ảo miễn phí, không hỗ trợ rút hoặc quy đổi thành tiền thật."); } });
   registry.register({
-    name: "resetdaily", category: "game", permission: Permission.LEADER, description: "Cho phép nhận lại daily",
+    name: "resetdaily", aliases: ["dailyreset"], category: "game", permission: Permission.LEADER, cooldownMs: 3_000, description: "Cho phép nhận lại daily",
     async execute({ args, message, reply }) {
       const userId = String(message?.data?.mentions?.[0]?.uid || args.find((value) => /^\d{6,}$/.test(value)) || "");
       const result = await players.resetDaily(userId || null);

@@ -34,6 +34,7 @@ import { registerFunCommands } from "../modules/fun/commands.js";
 import { registerDiagnosticCommands } from "../modules/diagnostics/commands.js";
 import { registerSupportGameCommand } from "../modules/game/support/commands.js";
 import { registerAutoReplyCommands } from "../modules/auto-reply/commands.js";
+import { applyCommandContracts } from "../tools/contract-audit.js";
 
 export function registerRuntimeCommands(registry, dependencies) {
   const d = dependencies;
@@ -73,5 +74,6 @@ export function registerRuntimeCommands(registry, dependencies) {
   registerDiagnosticCommands(registry, { diagnostics: d.diagnostics });
   registerSupportGameCommand(registry, { settings: d.groupSettings, media: d.media, client: d.client, accessControl: d.accessControl });
   registerAutoReplyCommands(registry, { repository: d.autoReplies, settings: d.groupSettings });
+  applyCommandContracts(d.commandContracts, registry);
   return registry;
 }
