@@ -79,6 +79,18 @@ export function registerEconomyCommands(registry, { players }) {
     },
   });
   registry.register({
+    name: "ban", aliases: ["unban"], category: "game", permission: Permission.LEADER, cooldownMs: 1_000, description: "Khóa hoặc mở khóa tài khoản người chơi",
+    async execute({ args, invokedName, message, reply }) {
+      const action = invokedName === "unban" || ["remove", "unban", "unlock", "del"].includes(args[0]?.toLowerCase()) ? "remove" : "add";
+      const targets = [...new Set((message?.data?.mentions || []).map((item) => String(item.uid || item.id)).filter(Boolean))];
+      if (!targets.length) { await reply(`Vui lòng đề cập người dùng cần ${action === "add" ? "ban" : "mở khóa"}.`); return; }
+      for (const id of targets) {
+        const exists = await players.setBanned(id, action === "add");
+        await reply(exists ? (action === "add" ? `Đã khóa tài khoản ${id} khỏi hệ thống game.` : `Đã unban ${id}, người chơi có thể tham gia lại các trò chơi.`) : `${id} chưa có dữ liệu game.`);
+      }
+    },
+  });
+  registry.register({
     name: "tier", aliases: ["hanggame", "gametier"], description: "Xem hạng tài sản game",
     category: "game",
     async execute({ senderId, message, reply }) {

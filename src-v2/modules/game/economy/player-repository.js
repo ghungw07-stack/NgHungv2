@@ -89,6 +89,11 @@ export class PlayerRepository {
     const result = await this.players.updateMany(filter, { $unset: { dailyDate: "" }, $set: { updatedAt: new Date() } });
     return { matched: result.matchedCount, modified: result.modifiedCount };
   }
+  async isBanned(userId) { return Boolean((await this.players.findOne({ botId: this.botId, userId: String(userId) }, { projection: { banned: 1 } }))?.banned); }
+  async setBanned(userId, banned) {
+    const result = await this.players.updateOne({ botId: this.botId, userId: String(userId) }, { $set: { banned: Boolean(banned), updatedAt: new Date() } });
+    return result.matchedCount > 0;
+  }
   async debit(userId, amount, metadata = {}) {
     const value = new Big(amount).round(0, Big.roundDown);
     if (value.lte(0)) throw new Error("Số tiền phải lớn hơn 0");

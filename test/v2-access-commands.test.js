@@ -26,12 +26,10 @@ test("whitelist adds mentioned users without duplicates", async () => {
   assert.match(reply, /1 người/);
 });
 
-test("ban and blockbot use separate group and global scopes", async () => {
+test("blockbot uses global scope", async () => {
   const { registry, data } = fixture();
   const context = { message: { data: {} }, reply: async () => {} };
-  await registry.resolve("ban").execute({ ...context, args: ["add", "123456"], threadId: "g", type: 1 });
   await registry.resolve("blockbot").execute({ ...context, args: ["add", "789012"] });
-  assert.deepEqual(data.get("g").bannedUsers, ["123456"]);
   assert.deepEqual(data.get("__global__").blockedUsers, ["789012"]);
 });
 

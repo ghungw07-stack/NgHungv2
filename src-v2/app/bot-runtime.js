@@ -127,6 +127,7 @@ export class BotRuntime {
         if (!privileged && (settings.bannedUsers || []).map(String).includes(String(senderId))) return false;
         if (settings.botEnabled === false && !protectedCommands.includes(commandName)) return false;
         const resolved = registry.resolve(commandName);
+        if (resolved?.category === "game" && await this.players.isBanned(senderId)) return false;
         if (settings.gamesEnabled === false && resolved?.category === "game") return false;
         if ((settings.disabledCommands || []).includes(commandName)) return false;
         if (!this.identity.isMain && this.identity.ownerId) {

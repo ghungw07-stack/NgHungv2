@@ -16,7 +16,7 @@ export class CommandDispatcher {
     if (!parsed) return false;
     const command = this.registry.resolve(parsed.name);
     if (!command) return false;
-    if (command.active === false) return false;
+    if (command.active === false && !(await this.permissions.allows("leader", context.senderId, context))) return false;
     if (this.commandEnabledResolver && !(await this.commandEnabledResolver(command.name, context))) {
       await context.reply("Lệnh này đang bị tắt trong nhóm.");
       return true;

@@ -87,21 +87,6 @@ export function registerOperationCommands(registry, { settings, adminStore, botI
   });
 
   registry.register({
-    name: "ban", aliases: ["unban"], permission: Permission.LEADER, cooldownMs: 1_000, description: "Chặn người dùng sử dụng bot trong nhóm",
-    async execute({ args, message, threadId, type, reply }) {
-      if (type !== 1) { await reply("Lệnh này chỉ dùng trong nhóm."); return; }
-      const action = args[0]?.toLowerCase(); const ids = targetIds(message, args.slice(1));
-      if (!action || action === "list") {
-        const value = await settings.get(threadId);
-        await reply(`Danh sách bị chặn trong nhóm (${(value.bannedUsers || []).length}):\n${(value.bannedUsers || []).join("\n") || "Trống"}`); return;
-      }
-      if (!["add", "remove", "clear"].includes(action) || (action !== "clear" && !ids.length)) { await reply("Dùng: !ban add|remove @tag|UID; list; clear"); return; }
-      const values = await editUserList(settings, threadId, "bannedUsers", action, ids);
-      await reply(`Đã cập nhật danh sách chặn nhóm. Hiện có ${values.length} người.`);
-    },
-  });
-
-  registry.register({
     name: "blockbot", aliases: ["listblockbot", "unblockbot"], permission: Permission.LEADER, cooldownMs: 1_000, description: "Chặn người dùng sử dụng tài khoản bot ở mọi nơi",
     async execute({ args, message, reply }) {
       const action = args[0]?.toLowerCase(); const ids = targetIds(message, args.slice(1)); const scope = "__global__";
