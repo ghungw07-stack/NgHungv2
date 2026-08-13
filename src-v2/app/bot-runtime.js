@@ -44,6 +44,7 @@ import { ReminderService } from "../modules/reminders/service.js";
 import { registerReminderCommands } from "../modules/reminders/commands.js";
 import { registerBasicToolCommands } from "../modules/basic-tools/commands.js";
 import { LegacyMigration } from "../modules/migrations/legacy-migration.js";
+import { registerCaroCommand } from "../modules/game/board-game/caro.js";
 
 export class BotRuntime {
   constructor({ client, config, scheduler, logger, identity = {}, services = {} }) {
@@ -126,6 +127,7 @@ export class BotRuntime {
     registerBigGameCommands(registry, { engine: this.bigGames, players: this.players });
     registerMiniGameCommands(registry, { sessions: this.gameSessions, players: this.players });
     registerXiDachCommand(registry, { game: this.xiDach, sessions: this.gameSessions, players: this.players });
+    registerCaroCommand(registry, { sessions: this.gameSessions });
     registerAiCommands(registry, { gateway: this.services.ai, conversations: this.aiConversations, botId });
     registerAutoJoinCommands(registry, { settings: this.groupSettings });
     registerGroupEventCommands(registry, { settings: this.groupSettings });
