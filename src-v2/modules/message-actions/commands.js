@@ -8,6 +8,32 @@ function quoteMessage(data, threadId, type) {
   return data ? { data, threadId, type } : null;
 }
 
+function parsedAttachment(quote) {
+  if (!quote?.attach) return null;
+  if (typeof quote.attach === "object") return quote.attach;
+  try { return JSON.parse(quote.attach); } catch { return quote.attach; }
+}
+
+function collectLinks(value, output = new Set(), depth = 0) {
+  if (depth > 5 || output.size >= 20 || value == null) return output;
+  if (typeof value === "string") {
+    for (const match of value.matchAll(/https?:\/\/[^\s"'<>]+/giu)) output.add(match[0]);
+    if ((value.startsWith("{") || value.startsWith("[")) && value.length <= 100_000) {
+      try { collectLinks(JSON.parse(value), output, depth + 1); } catch {}
+    }
+    return output;
+  }
+  if (Array.isArray(value)) for (const item of value) collectLinks(item, output, depth + 1);
+  else if (typeof value === "object") for (const item of Object.values(value)) collectLinks(item, output, depth + 1);
+  return output;
+}
+
+function clippedJson(value, limit = 3_000) {
+  if (value == null) return "Không có đính kèm";
+  const text = typeof value === "string" ? value : JSON.stringify(value, null, 2);
+  return text.length > limit ? `${text.slice(0, limit)}\n… (đã rút gọn)` : text;
+}
+
 function mentionForPart(message, part, output, minimumPosition = 0) {
   const requested = part.replace(/^tag\s+/i, "").trim();
   if (!requested) return null;
@@ -69,6 +95,36 @@ export function registerMessageActionCommands(registry, { client, groups }) {
   });
 
   registry.register({
+    name: "getlink", aliases: ["gl"], cooldownMs: 3_000,
+    description: "Lấy các liên kết từ tin nhắn đang reply",
+    async execute({ message, reply }) {
+      const quote = message?.data?.quote;
+      if (!quote) { await reply("Hãy reply tin nhắn cần lấy liên kết."); return; }
+      const links = [...collectLinks([quote.content, quote.msg, parsedAttachment(quote)])];
+      await reply(links.length ? [`Tìm thấy ${links.length} liên kết:`, ...links.map((url) => `• ${url}`)].join("\n") : "Không tìm thấy liên kết trong tin nhắn được reply.");
+    },
+  });
+
+  registry.register({
+    name: "getmessage", aliases: ["gmsg"], cooldownMs: 3_000,
+    description: "Xem thông tin an toàn của tin nhắn đang reply",
+    async execute({ message, reply }) {
+      const quote = message?.data?.quote;
+      if (!quote) { await reply("Hãy reply tin nhắn cần xem thông tin."); return; }
+      await reply([
+        "THÔNG TIN TIN NHẮN",
+        `Người gửi: ${quote.fromD || quote.dName || "Không rõ"}`,
+        `UID: ${quote.ownerId || quote.uidFrom || "Không rõ"}`,
+        `Message ID: ${quote.msgId || quote.cliMsgId || "Không rõ"}`,
+        `Loại: ${quote.cliMsgType ?? quote.msgType ?? "Không rõ"}`,
+        `TTL: ${quote.ttl ?? 0}`,
+        `Nội dung: ${String(quote.msg ?? quote.content ?? "").slice(0, 1_000) || "(trống)"}`,
+        `Đính kèm:\n${clippedJson(parsedAttachment(quote))}`,
+      ].join("\n"));
+    },
+  });
+
+  registry.register({
     name: "tagall", aliases: ["all"], permission: Permission.ADMIN, cooldownMs: 10_000,
     description: "Tag toàn bộ thành viên nhóm",
     async execute({ args, threadId, type, reply }) {
@@ -111,4 +167,4 @@ export function registerMessageActionCommands(registry, { client, groups }) {
   });
 }
 
-export { rawAfterCommand, mentionForPart };
+export { rawAfterCommand, mentionForPart, parsedAttachment, collectLinks, clippedJson };
