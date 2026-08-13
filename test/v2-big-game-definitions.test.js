@@ -12,9 +12,14 @@ test("big game definitions produce deterministic valid outcomes", () => {
   assert.equal(chanle.outcome, "le");
   assert.equal(BIG_GAMES.chanle.multiplier("le", chanle), 2);
   assert.equal(BIG_GAMES.baucua.roll(bytes).faces.length, 3);
+  assert.match(BIG_GAMES.duangua.roll(bytes).horse, /^[1-6]$/);
+  assert.ok(["do", "den", "xanh"].includes(BIG_GAMES.roulette.roll(bytes).color));
+  assert.ok(["chan", "le"].includes(BIG_GAMES.xocdia.roll(bytes).outcome));
+  assert.ok(["player", "banker", "tie"].includes(BIG_GAMES.baccarat.roll(bytes).outcome));
 });
 
 test("big game aliases resolve to canonical names", () => {
   assert.equal(resolveBigGame("tx")[0], "taixiu");
   assert.equal(resolveBigGame("bc")[0], "baucua");
+  assert.equal(resolveBigGame("bcr")[0], "baccarat");
 });
