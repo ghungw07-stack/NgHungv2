@@ -33,6 +33,7 @@ import { registerGroupEventCommands } from "../modules/group-events/commands.js"
 import { registerGroupEvents } from "../modules/group-events/events.js";
 import { registerSourceUpdateCommand } from "../modules/source-update/commands.js";
 import { registerCommandManagerCommands } from "../modules/command-manager/commands.js";
+import { registerMessageActionCommands } from "../modules/message-actions/commands.js";
 
 export class BotRuntime {
   constructor({ client, config, scheduler, logger, identity = {}, services = {} }) {
@@ -106,6 +107,7 @@ export class BotRuntime {
     registerGroupEventCommands(registry, { settings: this.groupSettings });
     registerSourceUpdateCommand(registry, { updater: this.services.sourceUpdater, identity: this.identity });
     registerCommandManagerCommands(registry, { settings: this.groupSettings });
+    registerMessageActionCommands(registry, { client: this.client, groups: this.groups });
     this.dispatcher = new CommandDispatcher({
       prefix: this.config.prefix,
       prefixResolver: ({ threadId }) => this.groupSettings.getPrefix(threadId),
