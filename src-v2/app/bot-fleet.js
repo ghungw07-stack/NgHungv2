@@ -8,8 +8,8 @@ function canRunChild(bot) {
 export class BotFleet {
   #bots = new Map();
   #owners = new Map();
-  constructor({ config, scheduler, logger }) {
-    Object.assign(this, { config, scheduler, logger });
+  constructor({ config, scheduler, database, logger }) {
+    Object.assign(this, { config, scheduler, database, logger });
   }
 
   async #startBot(botConfig, identity) {
@@ -23,7 +23,7 @@ export class BotFleet {
       scheduler: this.scheduler,
       logger,
       identity,
-      services: { fleet: this },
+      services: { fleet: this, database: this.database },
     });
     await runtime.start();
     this.#bots.set(String(client.botId), { client, runtime, identity });

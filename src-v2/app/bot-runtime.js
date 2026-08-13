@@ -6,6 +6,8 @@ import { registerSystemCommands } from "../modules/system/commands.js";
 import { registerBotManagerCommands } from "../modules/bot-manager/commands.js";
 import { EventBus } from "../core/events/event-bus.js";
 import { registerMessageEvents } from "../modules/messages/events.js";
+import { GroupSettingsRepository } from "../modules/group-settings/repository.js";
+import { registerGroupSettingsCommands } from "../modules/group-settings/commands.js";
 
 export class BotRuntime {
   constructor({ client, config, scheduler, logger, identity = {}, services = {} }) {
@@ -26,9 +28,23 @@ export class BotRuntime {
       adminIds: this.config.admins[botId] || [],
     });
     const registry = new CommandRegistry();
+    this.groupSettings = new GroupSettingsRepository({
+      database: this.services.database,
+      botId,
+      legacySettings: this.config.groupSettings,
+      defaultPrefix: this.config.prefix,
+    });
+    await this.groupSettings.start();
     registerSystemCommands(registry, { startedAt: this.startedAt, scheduler: this.scheduler });
     registerBotManagerCommands(registry, { fleet: this.services.fleet, identity: this.identity });
-    this.dispatcher = new CommandDispatcher({ prefix: this.config.prefix, registry, permissions, logger: this.logger });
+    registerGroupSettingsCommands(registry, { repository: this.groupSettings });
+    this.dispatcher = new CommandDispatcher({
+      prefix: this.config.prefix,
+      prefixResolver: ({ threadId }) => this.groupSettings.getPrefix(threadId),
+      registry,
+      permissions,
+      logger: this.logger,
+    });
     this.events = new EventBus(this.logger);
     this.disposeMessageEvents = registerMessageEvents(this.events, {
       dispatcher: this.dispatcher,
@@ -50,5 +66,5 @@ export class BotRuntime {
     this.client.listen();
     this.logger.info("NGH Bot v2 đã sẵn sàng", { botId, commands: registry.list().length });
   }
-  async stop() { this.disposeMessageEvents?.(); await this.client.stop(); }
+  async stop() { this.disposeMessageEvents?.(); this.groupSettings?.clear(); await this.client.stop(); }
 }

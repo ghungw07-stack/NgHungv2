@@ -12,6 +12,7 @@ export async function loadConfig(rootDir = process.cwd()) {
   const database = await readJson(path.join(rootDir, "assets", "json-data", "database-config.json"));
   const admins = await readJson(path.join(rootDir, "assets", "data", "list_admin.json"));
   const childBots = await readJson(path.join(rootDir, "assets", "data", "manager-bots.json"));
+  const groupSettings = await readJson(path.join(rootDir, "assets", "data", "group_settings.json"));
   let leaders = {};
   try { leaders = await readJson(path.join(rootDir, "assets", "data", "bot_leader.json")); } catch {}
   if (!bot.cookie || !bot.imei || !bot.userAgent) {
@@ -24,6 +25,7 @@ export async function loadConfig(rootDir = process.cwd()) {
     admins,
     leaders,
     childBots,
+    groupSettings,
     database: Object.freeze({
       uri: process.env.MONGODB_URI || database.uri || "mongodb://127.0.0.1:27017",
       name: process.env.MONGODB_DATABASE || database.database || "bot-zalo-ngh",

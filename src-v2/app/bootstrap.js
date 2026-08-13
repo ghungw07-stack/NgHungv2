@@ -16,7 +16,7 @@ export async function bootstrap() {
   await database.start();
   lifecycle.add("mongodb", () => database.stop());
 
-  const fleet = new BotFleet({ config, scheduler, logger: logger.child({ component: "fleet" }) });
+  const fleet = new BotFleet({ config, scheduler, database, logger: logger.child({ component: "fleet" }) });
   await fleet.start();
   lifecycle.add("fleet", () => fleet.stop());
 

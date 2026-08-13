@@ -1,15 +1,16 @@
 export class CommandDispatcher {
-  constructor({ prefix, registry, permissions, logger }) {
-    Object.assign(this, { prefix, registry, permissions, logger });
+  constructor({ prefix, prefixResolver, registry, permissions, logger }) {
+    Object.assign(this, { prefix, prefixResolver, registry, permissions, logger });
   }
-  parse(content) {
-    if (typeof content !== "string" || !content.startsWith(this.prefix)) return null;
-    const tokens = content.slice(this.prefix.length).trim().split(/\s+/).filter(Boolean);
+  parse(content, prefix = this.prefix) {
+    if (typeof content !== "string" || !content.startsWith(prefix)) return null;
+    const tokens = content.slice(prefix.length).trim().split(/\s+/).filter(Boolean);
     if (!tokens.length) return null;
     return { name: tokens[0].toLowerCase(), args: tokens.slice(1) };
   }
   async dispatch(context) {
-    const parsed = this.parse(context.content);
+    const prefix = this.prefixResolver ? await this.prefixResolver(context) : this.prefix;
+    const parsed = this.parse(context.content, prefix);
     if (!parsed) return false;
     const command = this.registry.resolve(parsed.name);
     if (!command) return false;

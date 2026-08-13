@@ -17,3 +17,17 @@ test("dispatcher checks permission before execute", async () => {
   assert.equal(executed, false);
   assert.match(reply, /không có quyền/i);
 });
+test("dispatcher resolves a prefix per group without shared mutation", async () => {
+  let executed = false;
+  const registry = new CommandRegistry().register({ name: "ping", execute() { executed = true; } });
+  const dispatcher = new CommandDispatcher({
+    prefix: "!",
+    prefixResolver: async ({ threadId }) => threadId === "custom" ? "." : "!",
+    registry,
+    permissions: { allows: () => true },
+    logger,
+  });
+  await dispatcher.dispatch({ content: ".ping", threadId: "custom" });
+  assert.equal(executed, true);
+  assert.equal(dispatcher.parse("!ping").name, "ping");
+});
