@@ -9,6 +9,9 @@ import { SafeHttpClient } from "../infrastructure/http/safe-http-client.js";
 import { MediaService } from "../modules/media/service.js";
 import { WeatherProvider } from "../modules/content/weather-provider.js";
 import { TranslateProvider } from "../modules/content/translate-provider.js";
+import { BotConfigStore } from "../modules/bot-manager/config-store.js";
+import { PaymentService } from "../modules/payments/service.js";
+import { WebServer } from "../web/server.js";
 
 export async function bootstrap() {
   const logger = createLogger({ context: { app: "ngh-bot-v2" } });
@@ -28,10 +31,17 @@ export async function bootstrap() {
   const http = new SafeHttpClient();
   const media = new MediaService({ http, tempFiles, concurrency: 2 });
   const content = { weather: new WeatherProvider(http), translator: new TranslateProvider(http) };
+  const botStore = new BotConfigStore({ rootDir: config.rootDir, data: config.childBots });
 
   const fleet = new BotFleet({ config, scheduler, database, media, content, logger: logger.child({ component: "fleet" }) });
   await fleet.start();
   lifecycle.add("fleet", () => fleet.stop());
 
-  return { config, database, scheduler, fleet, media, lifecycle, logger };
+  const payments = new PaymentService({ database, botStore, fleet, logger: logger.child({ component: "payments" }) });
+  await payments.start();
+  const web = new WebServer({ fleet, scheduler, payments, logger: logger.child({ component: "web" }) });
+  await web.start();
+  lifecycle.add("web", () => web.stop());
+
+  return { config, database, scheduler, fleet, media, payments, web, lifecycle, logger };
 }
