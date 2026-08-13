@@ -11,6 +11,9 @@ import { registerGroupSettingsCommands } from "../modules/group-settings/command
 import { GroupService } from "../modules/groups/service.js";
 import { registerGroupCommands } from "../modules/groups/commands.js";
 import { Permission } from "../core/permissions.js";
+import { ModerationService } from "../modules/moderation/service.js";
+import { registerModerationEvents } from "../modules/moderation/events.js";
+import { registerModerationCommands } from "../modules/moderation/commands.js";
 
 export class BotRuntime {
   constructor({ client, config, scheduler, logger, identity = {}, services = {} }) {
@@ -51,6 +54,7 @@ export class BotRuntime {
     registerBotManagerCommands(registry, { fleet: this.services.fleet, identity: this.identity });
     registerGroupSettingsCommands(registry, { repository: this.groupSettings });
     registerGroupCommands(registry, { groups: this.groups, client: this.client });
+    registerModerationCommands(registry, { repository: this.groupSettings });
     this.dispatcher = new CommandDispatcher({
       prefix: this.config.prefix,
       prefixResolver: ({ threadId }) => this.groupSettings.getPrefix(threadId),
@@ -64,6 +68,15 @@ export class BotRuntime {
       client: this.client,
       logger: this.logger,
     });
+    this.moderation = new ModerationService({
+      repository: this.groupSettings,
+      client: this.client,
+      groups: this.groups,
+      logger: this.logger,
+      isPrivileged: async (userId, threadId) =>
+        basePermissions.isAdmin(userId) || this.groups.isAdmin(threadId, userId).catch(() => false),
+    });
+    registerModerationEvents(this.events, this.moderation);
 
     this.client.on("error", (error) => this.logger.error("Listener Zalo gặp lỗi", { error: error.message }));
     this.client.on("message", (message) => {
@@ -83,6 +96,7 @@ export class BotRuntime {
     this.disposeMessageEvents?.();
     this.groupSettings?.clear();
     this.groups?.clear();
+    this.moderation?.clear();
     await this.client.stop();
   }
 }
