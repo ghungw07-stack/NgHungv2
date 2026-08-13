@@ -3,7 +3,7 @@ module.exports = {
     {
       name: "nghung-bot",
       cwd: "/root/NgHung",
-      script: "src/index.js",
+      script: "src-v2/index.js",
       interpreter: "/usr/local/bin/node",
       node_args: ["--env-file=.env", "--env-file=.env.scavio"],
       instances: 1,
@@ -14,6 +14,7 @@ module.exports = {
       env: {
         NODE_ENV: "production",
         FORCE_CONSOLE: "0",
+        V2_LEGACY_COMMANDS: "1",
       },
     },
   ],
