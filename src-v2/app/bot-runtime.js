@@ -24,6 +24,8 @@ import { registerBigGameCommands } from "../modules/game/big-game/commands.js";
 import { GameSessionRepository } from "../modules/game/mini-game/session-repository.js";
 import { registerMiniGameCommands } from "../modules/game/mini-game/commands.js";
 import { XiDachGame, registerXiDachCommand } from "../modules/game/card-game/xidach.js";
+import { ConversationRepository } from "../modules/ai/conversation-repository.js";
+import { registerAiCommands } from "../modules/ai/commands.js";
 
 export class BotRuntime {
   constructor({ client, config, scheduler, logger, identity = {}, services = {} }) {
@@ -76,6 +78,8 @@ export class BotRuntime {
     await this.bigGames.start();
     this.gameSessions = new GameSessionRepository({ database: this.services.database, botId });
     await this.gameSessions.start();
+    this.aiConversations = new ConversationRepository({ database: this.services.database });
+    await this.aiConversations.start();
     this.xiDach = new XiDachGame({ sessions: this.gameSessions, players: this.players, scheduler: this.scheduler, botId });
     this.xiDach.start();
     registerSystemCommands(registry, { startedAt: this.startedAt, scheduler: this.scheduler });
@@ -90,6 +94,7 @@ export class BotRuntime {
     registerBigGameCommands(registry, { engine: this.bigGames, players: this.players });
     registerMiniGameCommands(registry, { sessions: this.gameSessions, players: this.players });
     registerXiDachCommand(registry, { game: this.xiDach, sessions: this.gameSessions, players: this.players });
+    registerAiCommands(registry, { gateway: this.services.ai, conversations: this.aiConversations, botId });
     this.dispatcher = new CommandDispatcher({
       prefix: this.config.prefix,
       prefixResolver: ({ threadId }) => this.groupSettings.getPrefix(threadId),
