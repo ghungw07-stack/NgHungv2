@@ -31,12 +31,12 @@ function startBot() {
   } else {
     console.warn("printBanner is not defined, skipping banner output.");
   }
-  const runtimeEntry = process.env.NGH_RUNTIME_ENTRY || "src-v2/index.js";
+  const runtimeEntry = process.env.NGH_RUNTIME_ENTRY || "src/index.js";
   botProcess = spawn(process.execPath, [runtimeEntry], {
     cwd: process.cwd(),
     stdio: "inherit",
     detached: !isWindows,
-    env: { ...process.env, V2_LEGACY_COMMANDS: runtimeEntry === "src-v2/index.js" ? "1" : process.env.V2_LEGACY_COMMANDS },
+    env: process.env,
   });
   childStartedAt = Date.now();
   attachBotEvents(botProcess);
