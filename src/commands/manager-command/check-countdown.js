@@ -7,11 +7,12 @@ export async function sendReactionWaitingCountdown(api, message, count, commandN
   const messageId = message.data.cliMsgId || Date.now().toString();
   const senderId = message.data.uidFrom;
 
-  const jobKey = `${senderId}_${commandName}`;
+  const jobKey = `${api.getBotId()}_${message.threadId}_${senderId}_${commandName}`;
 
   for (const [key, value] of countdownJobs.entries()) {
     if (value.jobKeyCommand === jobKey) {
       value.job.shouldStop = true;
+      value.job.cancel();
       countdownJobs.delete(key);
     }
   }
@@ -20,7 +21,6 @@ export async function sendReactionWaitingCountdown(api, message, count, commandN
 
   const job = schedule.scheduleJob(date, async () => {
     try {
-      job.shouldStop = false;
       while (messages.length > 0 && !job.shouldStop) {
         try {
           await api.addReaction("CLOCK", messages);
@@ -41,8 +41,9 @@ export async function sendReactionWaitingCountdown(api, message, count, commandN
       countdownJobs.delete(jobKey);
     }
   });
+  job.shouldStop = false;
 
-  countdownJobs.set(jobKey + Date.now().toString(), {
+  countdownJobs.set(jobKey, {
     job: job,
     jobKeyCommand: jobKey,
   });
@@ -66,6 +67,7 @@ class JobSendClock {
     for (const [key, value] of this.jobs.entries()) {
       if (value.jobKeyCommand === jobKey) {
         value.job.shouldStop = true;
+        value.job.cancel();
         this.jobs.delete(key);
       }
     }
@@ -74,7 +76,6 @@ class JobSendClock {
 
     const job = schedule.scheduleJob(startDate, async () => {
       try {
-        job.shouldStop = false;
         while (messages.length > 0 && !job.shouldStop) {
           try {
             await api.addReaction("CLOCK", messages);
@@ -97,8 +98,9 @@ class JobSendClock {
         this.jobs.delete(jobKey);
       }
     });
+    job.shouldStop = false;
 
-    this.jobs.set(jobKey + "_" + Date.now().toString(), {
+    this.jobs.set(jobKey, {
       job: job,
       jobKeyCommand: jobKey,
     });
@@ -114,6 +116,7 @@ class JobSendClock {
     for (const [key, value] of this.jobs.entries()) {
       if (value.jobKeyCommand === jobKey) {
         value.job.shouldStop = true;
+        value.job.cancel();
         this.jobs.delete(key);
       }
     }
@@ -133,6 +136,7 @@ class JobSendClock {
       for (const [key, value] of this.jobs.entries()) {
         if (value.jobKeyCommand === jobKey) {
           value.job.shouldStop = true;
+          value.job.cancel();
           this.jobs.delete(key);
           return;
         }

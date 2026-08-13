@@ -1,8 +1,8 @@
 # Zalo ChatBot Project
 
-This Zalo ChatBot project is developed using JavaScript with the **zlbotdqt** library. The creator of this project is **NDQ x LQT**. You can find more information at [NDQ x LQT](https://github.com/Ndqitisme).
+This Zalo ChatBot project is developed using JavaScript with the **zlbotdqt** library. The creator of this project is **NGH**.
 
-## Version Features ( v2.0.3 )
+## Version Features ( v1.5.5 )
 
 The following features are available in this version:
 

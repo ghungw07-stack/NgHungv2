@@ -19,19 +19,19 @@ import {
   sendMessageWarningRequest,
 } from "../../chat-zalo/chat-style/chat-style.js";
 import { sendVoiceMusic } from "../../chat-zalo/chat-special/send-voice/send-voice.js";
-import { setSelectionsMapData } from "../index.js";
+import { parseQuickSelection, setSelectionsMapData } from "../index.js";
 import { getCachedMedia, setCacheData } from "../../../utils/link-platform-cache.js";
 import { readSettingConfig, tempDir } from "../../../utils/io-json.js";
 import { createSearchResultImage } from "../../../utils/canvas/search-canvas.js";
 import { isAdmin } from "../../../index.js";
-import { uploadAudioFile } from "../../chat-zalo/chat-special/send-voice/process-audio.js";
+import { uploadAudioFile, downloadAndConvertAudio } from "../../chat-zalo/chat-special/send-voice/process-audio.js";
 import { asyncTaskManager } from "../../../utils/async-task.js";
 import { createCircleWebp } from "../../chat-zalo/chat-special/send-sticker/create-webp.js";
 import { getClientAxios } from "../../utilities/browser-launch.js";
 import { getVideoMetadata } from "../../../api-zalo/utils.js";
 
-// Author: ndqitvn
-// Description: Code get data youtube by N D Q (ndqitvn)
+// Author: NGH
+// Description: Code maintained by NGH
 
 const CONFIG = {
   baseUrl: "https://www.youtube.com",
@@ -47,7 +47,7 @@ const CONFIG = {
   limitMinute: 90,
 };
 const PLATFORM_YOUTUBE = "youtube";
-export const audioFormat = "bestaudio[ext=aac]/bestaudio[ext=m4a]/bestaudio";
+export const audioFormat = "bestaudio[filesize<80M]/bestaudio[filesize_approx<80M]/worstaudio[ext=m4a]/worstaudio";
 const videoFormat360 = "bestvideo[height<=360][vcodec^=avc1]+bestaudio/best[height<=360][vcodec^=avc1]";
 const videoFormat720 =
   "bestvideo[height<=720][fps<=60][vcodec^=avc1]+bestaudio/best[height<=720][fps<=60][vcodec^=avc1]";
@@ -236,6 +236,35 @@ export const downloadYoutubeVideo = (videoUrl, videoId, format, platform = PLATF
   });
 };
 
+async function getYoutubeDirectAudioUrl(videoUrl) {
+  try {
+    const playerInfo = await getYoutubeVideoInfo(videoUrl);
+    if (playerInfo.directAudioUrl) return playerInfo.directAudioUrl;
+  } catch {
+    // Một số video ẩn URL trong signatureCipher, tiếp tục dùng yt-dlp để giải mã.
+  }
+
+  const settingConfig = readSettingConfig();
+  const output = await youtubedl(videoUrl, {
+    getUrl: true,
+    format: audioFormat,
+    noPlaylist: true,
+    noCheckCertificates: true,
+    noWarnings: true,
+    proxy: settingConfig["PROXY_HTTP"] || undefined,
+    addHeader: [
+      "referer:youtube.com",
+      "user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/127 Safari/537.36",
+    ],
+  });
+  const directUrl = String(output || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => /^https?:\/\//i.test(line));
+  if (!directUrl) throw new Error("YouTube không trả về URL audio trực tiếp");
+  return directUrl;
+}
+
 const convertDurationToMs = (duration) => {
   try {
     const parts = duration.split(":").reverse();
@@ -307,6 +336,7 @@ export async function handleYoutubeCommand(api, message, aliasCommand, isAdminLe
 
   try {
     const keyword = content.replace(`${prefix}${aliasCommand}`, "").trim();
+    const quickSelection = parseQuickSelection(keyword);
 
     if (!keyword) {
       const object = {
@@ -315,7 +345,7 @@ export async function handleYoutubeCommand(api, message, aliasCommand, isAdminLe
       return await sendMessageCompleteRequest(api, message, object, 30000);
     }
 
-    const [query, typeVideo = "normal"] = keyword.split(" ");
+    const [query, typeVideo = "normal"] = quickSelection.query.split(" ");
 
     const url = extractYoutubeUrl(query);
     if (url) {
@@ -341,7 +371,7 @@ export async function handleYoutubeCommand(api, message, aliasCommand, isAdminLe
       return;
     }
 
-    const [searchQuery, numberVideo = 10] = keyword.split("&&");
+    const [searchQuery, numberVideo = 10] = quickSelection.query.split("&&");
 
     let videos = await searchYouTube(searchQuery);
 
@@ -355,6 +385,24 @@ export async function handleYoutubeCommand(api, message, aliasCommand, isAdminLe
       return await sendMessageWarningRequest(api, message, object, 30000);
     }
 
+    if (quickSelection.selectedIndex !== null) {
+      const video = videos[quickSelection.selectedIndex];
+      if (!video) {
+        return await sendMessageWarningRequest(api, message, {
+          caption: `Không có kết quả số ${quickSelection.selectedIndex + 1}.`,
+        }, 30000);
+      }
+      await api.addReaction("CLOCK", message);
+      return await handleSendMediaYoutube(
+        api,
+        message,
+        video,
+        quickSelection.option || "default",
+        null,
+        isAdminLevelHighest
+      );
+    }
+
     let videoListText = "Đây là danh sách video tôi tìm thấy từ Youtube:\n";
     videoListText += "Hãy trả lời tin nhắn này với số thứ tự video bạn muốn xem!\n";
     videoListText += "\nVD: Chat 1 hoặc 1 audio|low|high|max";
@@ -366,7 +414,8 @@ export async function handleYoutubeCommand(api, message, aliasCommand, isAdminLe
         thumbnailM: video.thumbnail,
         view: video.viewCount,
         publishedTime: video.publishedTime,
-      }))
+      })),
+      api.getBotId()
     );
 
     const object = {
@@ -699,6 +748,17 @@ export const getYoutubeVideoInfo = async (videoUrl) => {
 
     let thumbnails = ytInitialPlayerResponseStr.videoDetails.thumbnail.thumbnails || [];
     let largestThumbnail = thumbnails.reduce((max, thumb) => (thumb.width > (max?.width || 0) ? thumb : max), null);
+    const lengthSeconds = parseInt(ytInitialPlayerResponseStr.videoDetails.lengthSeconds) || 0;
+    const directAudio = (ytInitialPlayerResponseStr.streamingData?.adaptiveFormats || [])
+      .filter((item) => item.url && item.mimeType?.startsWith("audio/"))
+      .sort((a, b) => {
+        if (lengthSeconds > 1800) {
+          // Video > 30 phút: Ưu tiên bitrate thấp nhất để file nhỏ (<100MB) và up nhanh
+          return Number(a.bitrate || 0) - Number(b.bitrate || 0);
+        }
+        // Video ngắn: Ưu tiên bitrate cao nhất
+        return Number(b.bitrate || 0) - Number(a.bitrate || 0);
+      })[0];
 
     return {
       videoId: ytInitialPlayerResponseStr.videoDetails.videoId,
@@ -716,6 +776,7 @@ export const getYoutubeVideoInfo = async (videoUrl) => {
       categories: ytInitialPlayerResponseStr.microformat.playerMicroformatRenderer.category,
       isLive: ytInitialPlayerResponseStr.videoDetails.isLiveContent,
       url: videoUrl,
+      directAudioUrl: directAudio?.url || null,
     };
   } catch (error) {
     console.error("Lỗi khi lấy thông tin video:", error);
@@ -734,8 +795,9 @@ export async function handleSendMediaYoutube(api, message, video, qualityParam, 
   } else {
     durationMs = Number(video.duration);
   }
-  if (!isAdminLevelHigh && durationMs > CONFIG.limitMinute * 60 * 1000) {
-    return await sendVideoDurationLimitWarning(api, message, video, CONFIG.limitMinute);
+  const maxLimit = format === audioFormat ? 240 : CONFIG.limitMinute; // 4 tiếng cho audio, 90 phút cho video
+  if (!isAdminLevelHigh && durationMs > maxLimit * 60 * 1000) {
+    return await sendVideoDurationLimitWarning(api, message, video, maxLimit);
   }
 
   // asyncTaskManager.runAsync(video.thumbnail, () => createCircleWebp(api, message, video.thumbnail, video.videoId));
@@ -752,26 +814,39 @@ export async function handleSendMediaYoutube(api, message, video, qualityParam, 
     };
     await sendMessageProcessingRequest(api, message, object, timeNotify);
 
-    videoPath = await downloadYoutubeVideo(video.url, video.videoId, format);
-    if (!fs.existsSync(videoPath)) {
-      await api.addReaction("UNDO", message);
-      await api.addReaction("TIEUTAN", message);
-      throw new Error(`Không thể tải video : ${videoPath}`);
-    }
-
     if (format === audioFormat) {
-      videoUrl = await uploadAudioFile(videoPath, api, message);
-    } else {
-      const uploadVideo = await api.uploadAttachment([videoPath], message.threadId, message.type);
-      videoUrl = uploadVideo[0].fileUrl;
+      try {
+        const directAudioUrl = await getYoutubeDirectAudioUrl(video.url);
+        videoUrl = await downloadAndConvertAudio(directAudioUrl, api, message, true);
+        duration = Math.round(durationMs / 1000);
+      } catch (directError) {
+        console.warn(`Không lấy được audio trực tiếp, fallback tải file: ${directError.message}`);
+      }
     }
 
-    const { duration: getDurationVideo } = await getVideoMetadata(videoPath);
-    duration = getDurationVideo;
+    if (!videoUrl) {
+      videoPath = await downloadYoutubeVideo(video.url, video.videoId, format);
+      if (!fs.existsSync(videoPath)) {
+        await api.addReaction("UNDO", message);
+        await api.addReaction("TIEUTAN", message);
+        throw new Error(`Không thể tải video : ${videoPath}`);
+      }
+
+      if (format === audioFormat) {
+        videoUrl = await uploadAudioFile(videoPath, api, message);
+      } else {
+        const uploadVideo = await api.uploadAttachment([videoPath], message.threadId, message.type);
+        videoUrl = uploadVideo[0].fileUrl;
+      }
+
+      const { duration: getDurationVideo } = await getVideoMetadata(videoPath);
+      duration = getDurationVideo;
+      await deleteFile(videoPath);
+    } else {
+      duration ||= Math.round(durationMs / 1000);
+    }
 
     setCacheData(PLATFORM_YOUTUBE, video.videoId, { fileUrl: videoUrl, title: video.title, duration }, qualityText);
-
-    await deleteFile(videoPath);
   }
 
   if (format === audioFormat) {
@@ -785,6 +860,7 @@ export async function handleSendMediaYoutube(api, message, video, qualityParam, 
       voiceUrl: videoUrl,
       viewCount: video.viewCount,
       publishedTime: convertPublishedTimeToVietnamese(video.publishedTime),
+      fastMode: true,
     };
     await sendVoiceMusic(api, message, object);
   } else {

@@ -10,7 +10,7 @@ import {
 import { downloadAndConvertAudio } from "../../../chat-zalo/chat-special/send-voice/process-audio.js";
 import { removeMention } from "../../../../utils/format-util.js";
 import { sendVoiceMusic } from "../../../chat-zalo/chat-special/send-voice/send-voice.js";
-import { setSelectionsMapData } from "../../index.js";
+import { parseQuickSelection, setSelectionsMapData } from "../../index.js";
 import { getCachedMedia, setCacheData } from "../../../../utils/link-platform-cache.js";
 import { checkContentIsLink, deleteFile, downloadFile } from "../../../../utils/util.js";
 import { createSearchResultImage } from "../../../../utils/canvas/search-canvas.js";
@@ -38,7 +38,8 @@ export async function handleMusicSpotifyCommand(api, message, aliasCommand) {
     const senderId = message.data.uidFrom;
     const prefix = getGlobalPrefix(api.getBotId());
     const commandContent = content.replace(`${prefix}${aliasCommand}`, "").trim();
-    const [question, numberMusic] = commandContent.split("&&");
+    const quickSelection = parseQuickSelection(commandContent);
+    const [question, numberMusic] = quickSelection.query.split("&&");
 
     if (checkContentIsLink(question)) {
       return handleDownloadSpotifyLink(api, message, aliasCommand);
@@ -61,17 +62,29 @@ export async function handleMusicSpotifyCommand(api, message, aliasCommand) {
       return;
     }
 
+    const limitedMusicList = musicList.slice(0, parseInt(numberMusic) || 10);
+    if (quickSelection.selectedIndex !== null) {
+      const track = limitedMusicList[quickSelection.selectedIndex];
+      if (!track) {
+        return await sendMessageWarningRequest(api, message, {
+          caption: `Không có kết quả số ${quickSelection.selectedIndex + 1}.`,
+        }, 30000);
+      }
+      await api.addReaction("CLOCK", message);
+      return await handleSendTrackSpotify(api, message, track);
+    }
+
     let musicListTxt = "Đây là danh sách bài hát trên Spotify mà tôi tìm thấy:\n";
     musicListTxt += "Hãy trả lời tin nhắn này với số index của bài hát bạn muốn tìm!";
 
-    const songs = musicList.map((track) => ({
+    const songs = limitedMusicList.map((track) => ({
       title: track.title,
       artistsNames: track.artist,
       thumbnailM: track.thumbnail,
       publishedTime: track.duration,
     }));
 
-    imagePath = await createSearchResultImage(songs);
+    imagePath = await createSearchResultImage(songs, api.getBotId());
 
     const object = {
       caption: musicListTxt,
@@ -82,12 +95,12 @@ export async function handleMusicSpotifyCommand(api, message, aliasCommand) {
     const quotedMsgId = musicListMessage?.message?.msgId || musicListMessage?.attachment[0]?.msgId;
     musicSelectionsMap.set(quotedMsgId.toString(), {
       userRequest: senderId,
-      collection: musicList,
+      collection: limitedMusicList,
       timestamp: Date.now(),
     });
     setSelectionsMapData(senderId, {
       quotedMsgId: quotedMsgId.toString(),
-      collection: musicList,
+      collection: limitedMusicList,
       timestamp: Date.now(),
       platform: PLATFORM,
     });
@@ -175,7 +188,8 @@ export async function handleSendTrackSpotify(api, message, track) {
   let voiceUrl;
 
   const thumbnailUrl = track.thumbnail;
-  // asyncTaskManager.runAsync(thumbnailUrl, () => createCircleWebp(api, message, thumbnailUrl, track.id));
+  const trackInfoPromise = spotifyScrapper.getTrackInfo(track.uri).catch(() => null);
+
   if (cachedMusic) {
     voiceUrl = cachedMusic.fileUrl;
   } else {
@@ -185,8 +199,7 @@ export async function handleSendTrackSpotify(api, message, track) {
         caption: `Xin lỗi, không thể lấy được bài hát này về. Vui lòng thử lại bài khác.`,
       };
       await sendMessageWarningRequest(api, message, object, 30000);
-      await api.addReaction("UNDO", message);
-      await api.addReaction("TIEUTAN", message);
+      await Promise.allSettled([api.addReaction("UNDO", message), api.addReaction("TIEUTAN", message)]);
       return true;
     }
     const object = {
@@ -206,7 +219,7 @@ export async function handleSendTrackSpotify(api, message, track) {
     );
   }
 
-  const musicInfo = await spotifyScrapper.getTrackInfo(track.uri);
+  const musicInfo = await trackInfoPromise;
   const caption = `> From Spotify <\nNhạc Bạn Chọn Đây!!!`;
 
   const objectMusic = {
@@ -218,7 +231,7 @@ export async function handleSendTrackSpotify(api, message, track) {
     imageUrl: thumbnailUrl,
     voiceUrl: voiceUrl,
     quality: quality,
-    listen: musicInfo.data.trackUnion.playcount,
+    listen: musicInfo?.data?.trackUnion?.playcount,
   };
   await sendVoiceMusic(api, message, objectMusic);
   return true;
@@ -245,6 +258,7 @@ export async function handleDownloadSpotifyLink(api, message, aliasCommand) {
 
   const track = metaData;
 
+  const trackInfoPromise = spotifyScrapper.getTrackInfo(track.uri).catch(() => null);
   const cachedMusic = await getCachedMedia(PLATFORM, track.id, quality, track.name);
   let voiceUrl;
 
@@ -284,7 +298,7 @@ export async function handleDownloadSpotifyLink(api, message, aliasCommand) {
     );
   }
 
-  const musicInfo = await spotifyScrapper.getTrackInfo(track.uri);
+  const musicInfo = await trackInfoPromise;
   const caption = `> From Spotify <\nNhạc Bạn Chọn Đây!!!`;
 
   const objectMusic = {
@@ -296,7 +310,7 @@ export async function handleDownloadSpotifyLink(api, message, aliasCommand) {
     imageUrl: thumbnailUrl,
     voiceUrl: voiceUrl,
     quality: quality,
-    listen: musicInfo.data.trackUnion.playcount,
+    listen: musicInfo?.data?.trackUnion?.playcount,
   };
   await sendVoiceMusic(api, message, objectMusic);
   return true;

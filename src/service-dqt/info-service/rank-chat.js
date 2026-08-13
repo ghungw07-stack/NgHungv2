@@ -20,6 +20,7 @@ let lastDailyStatsPruneAt = {};
 const TIME_TO_LIVE = 86400000;
 const TOP_USERS_LIMIT = 10;
 const DAILY_STATS_KEEP_DAYS = 45;
+const LOW_INTERACTION_RESET_MS = 15 * 24 * 60 * 60 * 1000;
 const VN_TIME_ZONE = "Asia/Ho_Chi_Minh";
 const RANK_MESSAGES = {
   NO_DATA: "Chưa có dữ liệu xếp hạng cho nhóm này.",
@@ -195,6 +196,47 @@ export function getStatsForDateKeys(idBot, groupId, dateKeys) {
   }
 
   return Object.values(aggregate);
+}
+
+/**
+ * Lấy số tin nhắn trong chu kỳ lọc ít tương tác (tự xoay vòng mỗi 15 ngày).
+ */
+export function getLowInteractionStats(idBot, groupId) {
+  const rankInfo = getRankInfoCache(idBot);
+  const groupData = rankInfo.groups[groupId] || (rankInfo.groups[groupId] = { users: [] });
+  const now = Date.now();
+  let resetAt = Number(groupData.lowInteractionResetAt);
+  if (!resetAt) {
+    resetAt = now - LOW_INTERACTION_RESET_MS;
+    groupData.lowInteractionResetAt = resetAt;
+    setHasChange(idBot);
+  }
+
+  if (now - resetAt >= LOW_INTERACTION_RESET_MS) {
+    resetAt = now;
+    groupData.lowInteractionResetAt = resetAt;
+    setHasChange(idBot);
+  }
+
+  const resetDateStr = new Date(resetAt).toLocaleDateString("en-CA", { timeZone: VN_TIME_ZONE });
+
+  const counts = {};
+  for (const [dateKey, dayBucket] of Object.entries(groupData.dailyStats || {})) {
+    if (dateKey < resetDateStr) continue;
+    for (const [uid, info] of Object.entries(dayBucket || {})) {
+      counts[uid] = (counts[uid] || 0) + (Number(info.count) || 0);
+    }
+  }
+  return { resetAt, counts };
+}
+
+/** Reset thủ công chu kỳ lọc ít tương tác cho một nhóm. */
+export function resetLowInteractionStats(idBot, groupId) {
+  const rankInfo = getRankInfoCache(idBot);
+  if (!rankInfo.groups[groupId]) rankInfo.groups[groupId] = { users: [] };
+  rankInfo.groups[groupId].lowInteractionResetAt = Date.now();
+  setHasChange(idBot);
+  return rankInfo.groups[groupId].lowInteractionResetAt;
 }
 
 export const getRankInfoCache = (idBot) =>

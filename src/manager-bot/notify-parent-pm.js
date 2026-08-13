@@ -2,6 +2,112 @@ import { MessageType } from "../api-zalo/index.js";
 import { getGlobalApi } from "../index.js";
 import { getTimeToString } from "../utils/format-util.js";
 
+const parentReplyTargets = new Map();
+const PARENT_REPLY_TTL = 7 * 24 * 60 * 60 * 1000;
+
+function normalizeId(id) {
+  if (!id) return "";
+  return String(id).replace(/_0$/, "").split("_")[0];
+}
+
+function rememberParentReplyTarget(botId, ids, senderId) {
+  const expiresAt = Date.now() + PARENT_REPLY_TTL;
+  for (const id of ids) {
+    if (id != null && String(id)) {
+      parentReplyTargets.set(`${normalizeId(botId)}:${String(id)}`, { senderId: String(senderId), expiresAt });
+    }
+  }
+
+  if (parentReplyTargets.size > 1000) {
+    const now = Date.now();
+    for (const [key, value] of parentReplyTargets) {
+      if (value.expiresAt <= now) parentReplyTargets.delete(key);
+    }
+  }
+}
+
+function findIds(value, result = new Set(), depth = 0) {
+  if (!value || typeof value !== "object" || depth > 4) return result;
+  for (const [key, child] of Object.entries(value)) {
+    if (["msgId", "globalMsgId", "cliMsgId", "clientId"].includes(key) && child != null) {
+      result.add(String(child));
+    } else if (child && typeof child === "object") {
+      findIds(child, result, depth + 1);
+    }
+  }
+  return result;
+}
+
+function getQuotedText(quote) {
+  if (typeof quote?.msg === "string") return quote.msg;
+  if (typeof quote?.content === "string") return quote.content;
+  return String(quote?.content?.title || quote?.content?.caption || "");
+}
+
+function getReplyText(message) {
+  const content = message?.data?.content;
+  if (typeof content === "string") return content.trim();
+  return String(content?.title || content?.caption || "").trim();
+}
+
+/**
+ * Bot mẹ reply đúng thông báo PM thì bot con chuyển câu trả lời tới người gửi gốc.
+ * Trả về true khi tin nhắn đã được xử lý để listener không chạy tiếp như lệnh thường.
+ */
+export async function handleParentReplyToPM(api, message) {
+  if (api.apiManager.isMainBot || message.type !== MessageType.DirectMessage) return false;
+
+  const mainBotId = api.apiManager.idBotMainWithBot || getGlobalApi()?.getBotId();
+  if (!mainBotId || normalizeId(message.data?.uidFrom) !== normalizeId(mainBotId)) return false;
+
+  const quote = message.data?.quote;
+  if (!quote) return false;
+
+  const botKey = normalizeId(api.getBotId());
+  let targetId = "";
+  for (const id of [quote.globalMsgId, quote.cliMsgId]) {
+    const saved = id == null ? null : parentReplyTargets.get(`${botKey}:${String(id)}`);
+    if (saved?.expiresAt > Date.now()) {
+      targetId = saved.senderId;
+      break;
+    }
+  }
+
+  // Dòng ID trong thông báo giúp reply vẫn hoạt động sau khi tiến trình bot restart.
+  if (!targetId) {
+    const match = getQuotedText(quote).match(/^🆔 ID người gửi:\s*([^\s]+)$/m);
+    if (match) targetId = match[1];
+  }
+  if (!targetId) return false;
+
+  const replyText = getReplyText(message);
+  if (!replyText) {
+    await api.sendMessage(
+      { msg: "⚠️ Hiện tại hãy nhập nội dung chữ khi reply thông báo này.", quote: message, ttl: 120000 },
+      mainBotId,
+      MessageType.DirectMessage
+    );
+    return true;
+  }
+
+  try {
+    await api.sendMessage({ msg: replyText }, targetId, MessageType.DirectMessage);
+    await api.sendMessage(
+      { msg: "✅ Đã gửi trả lời tới người nhắn.", quote: message, ttl: 120000 },
+      mainBotId,
+      MessageType.DirectMessage
+    );
+  } catch (error) {
+    console.error(`[notify-parent-pm] Không gửi được phản hồi tới ${targetId}:`, error?.message || error);
+    await api.sendMessage(
+      { msg: "❌ Không gửi được câu trả lời. Có thể người nhận chưa kết bạn hoặc đã chặn bot.", quote: message, ttl: 120000 },
+      mainBotId,
+      MessageType.DirectMessage
+    );
+  }
+  return true;
+}
+
 export async function handleNotifyParentOnPM(api, message) {
   const botId = api.getBotId();
   const isMainBot = api.apiManager.isMainBot;
@@ -28,12 +134,6 @@ export async function handleNotifyParentOnPM(api, message) {
   const mainBotId = mainBotApi.getBotId();
   const idBotMainWithBot = api.apiManager.idBotMainWithBot;
   
-  const normalizeId = (id) => {
-    if (!id) return "";
-    const idStr = String(id).replace(/_0$/, "").split("_")[0];
-    return idStr;
-  };
-
   const normalizedSenderId = normalizeId(senderId);
   const normalizedIdTo = normalizeId(idTo);
   const normalizedMainBotId = normalizeId(mainBotId);
@@ -182,18 +282,25 @@ export async function handleNotifyParentOnPM(api, message) {
       `🔔 Có người đã nhắn tin riêng 🔔\n` +
       `🤖 Bot: ${botNameChild}\n` +
       `👤 Người gửi: ${senderName}\n` +
+      `🆔 ID người gửi: ${senderId}\n` +
       `⏰ Thời gian: ${timeStr}\n` +
-      (contentText ? `💬 Nội dung: ${contentText}` : "");
+      (contentText ? `💬 Nội dung: ${contentText}\n` : "") +
+      `↩️ Reply tin nhắn này để trả lời trực tiếp.`;
 
-    await api.sendMessageForward(
+    const notificationClientId = Date.now();
+    // Lưu clientId trước lúc gửi để cả sự kiện reply đến rất nhanh cũng tra được đích.
+    rememberParentReplyTarget(botIdChild, [notificationClientId], senderId);
+    const notificationResult = await api.sendMessageForward(
       {
         msg: notificationMessage,
         antiDelete: false,
+        clientId: notificationClientId,
       },
       targetMainBotId,
       MessageType.DirectMessage,
       0
     );
+    rememberParentReplyTarget(botIdChild, findIds(notificationResult), senderId);
 
     await new Promise(resolve => setTimeout(resolve, 300));
 
@@ -490,4 +597,3 @@ export async function handleNotifyParentOnPM(api, message) {
   } catch (error) {
   }
 }
-

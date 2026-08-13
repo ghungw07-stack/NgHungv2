@@ -16,6 +16,9 @@ import * as cv from "../../utils/canvas/index.js";
 import { deleteFile } from "../../utils/util.js";
 
 export async function handleWhiteList(api, message, groupSettings, groupAdmins) {
+  // White-list là cấu hình cấp bot, chỉ admin cấp cao; không dùng quyền admin nhóm.
+  if (!isAdmin(api.getBotId(), message.data.uidFrom)) return false;
+
   const threadId = message.threadId;
   const content = removeMention(message);
   const prefix = getGlobalPrefix(api.getBotId());

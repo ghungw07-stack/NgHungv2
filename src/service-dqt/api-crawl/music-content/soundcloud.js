@@ -7,13 +7,13 @@ import {
   sendMessageFromSQL,
   sendMessageWarningRequest,
 } from "../../chat-zalo/chat-style/chat-style.js";
-import { downloadAndConvertAudio, downloadMixcloudWithYtDlp } from "../../chat-zalo/chat-special/send-voice/process-audio.js";
+import { downloadAndConvertAudio, downloadMixcloudWithYtDlp, ensureVoiceUrlExtension } from "../../chat-zalo/chat-special/send-voice/process-audio.js";
 import { searchYouTube, getYoutubeVideoInfo } from "../youtube/youtube-service.js";
 import { removeMention } from "../../../utils/format-util.js";
 import { sendVoiceMusic } from "../../chat-zalo/chat-special/send-voice/send-voice.js";
-import { setSelectionsMapData } from "../index.js";
+import { parseQuickSelection, setSelectionsMapData } from "../index.js";
 import { getCachedMedia, setCacheData } from "../../../utils/link-platform-cache.js";
-import { deleteFile } from "../../../utils/util.js";
+import { checkUrlStatus, deleteFile } from "../../../utils/util.js";
 import { createSearchResultImage } from "../../../utils/canvas/search-canvas.js";
 import { getApiKeys, setApiKeysMedia } from "../../../utils/api-key-manager.js";
 import { asyncTaskManager } from "../../../utils/async-task.js";
@@ -127,24 +127,38 @@ async function getMusicStreamUrl(link) {
     const response = await axios.get(apiUrl, { headers });
     const data = response.data;
 
-    const progressiveUrl = data?.media?.transcodings?.find((t) => t.format.protocol === "progressive");
+    const transcodings = data?.media?.transcodings || [];
+    const progressive = transcodings.find((item) => item.format?.protocol === "progressive");
+    const hls = transcodings.find(
+      (item) => item.format?.protocol === "hls" && item.format?.mime_type?.includes("mp4a")
+    ) || transcodings.find((item) => item.format?.protocol === "hls");
 
-    if (!progressiveUrl) {
-      console.error("Không tìm thấy URL hoàn thiện của đoạn âm thanh này");
-      return null;
+    // Ưu tiên HLS AAC để có thể ghép/copy trực tiếp, không phải mã hóa lại toàn
+    // bộ MP3 bằng FFmpeg. Progressive MP3 vẫn là đường dự phòng nếu HLS lỗi.
+    for (const transcoding of [hls, progressive].filter(Boolean)) {
+      try {
+        const streamResponse = await axios.get(transcoding.url, {
+          params: {
+            client_id: clientId,
+            ...(data.track_authorization && { track_authorization: data.track_authorization }),
+          },
+          headers,
+          timeout: 15_000,
+        });
+        if (streamResponse.data?.url) {
+          return {
+            url: streamResponse.data.url,
+            progressiveUrl: progressive || transcoding,
+            protocol: transcoding.format?.protocol,
+          };
+        }
+      } catch (error) {
+        console.warn(`[SoundCloud] Lỗi stream ${transcoding.format?.protocol}: ${error.message}`);
+      }
     }
 
-    const streamResponse = await axios.get(
-      `${progressiveUrl.url}?client_id=${clientId}&track_authorization=${data.track_authorization}`,
-      {
-        headers,
-      }
-    );
-
-    return {
-      url: streamResponse.data.url,
-      progressiveUrl,
-    };
+    console.error("Không tìm thấy stream SoundCloud dùng được");
+    return null;
   } catch (error) {
     console.error("Error getting music stream URL:", error);
     return null;
@@ -164,7 +178,8 @@ export async function handleMusicCommand(api, message, aliasCommand) {
     const senderId = message.data.uidFrom;
     const prefix = getGlobalPrefix(api.getBotId());
     const commandContent = content.replace(`${prefix}${aliasCommand}`, "").trim();
-    const [question, numberMusic] = commandContent.split("&&");
+    const quickSelection = parseQuickSelection(commandContent);
+    const [question, numberMusic] = quickSelection.query.split("&&");
 
     if (!question) {
       const object = {
@@ -195,6 +210,18 @@ export async function handleMusicCommand(api, message, aliasCommand) {
       return;
     }
 
+    if (quickSelection.selectedIndex !== null) {
+      const track = musicInfo.collection[quickSelection.selectedIndex];
+      if (!track) {
+        await sendMessageWarningRequest(api, message, {
+          caption: `Không có kết quả số ${quickSelection.selectedIndex + 1}.`,
+        }, 30000);
+        return;
+      }
+      await api.addReaction("CLOCK", message);
+      return await handleSendTrackSoundCloud(api, message, track);
+    }
+
     // musicListTxt += musicInfo.collection
     //   .map((music, index) => {
     //     const stats = [
@@ -217,7 +244,7 @@ export async function handleMusicCommand(api, message, aliasCommand) {
       comment: track.comment_count,
     }));
 
-    imagePath = await createSearchResultImage(songs);
+    imagePath = await createSearchResultImage(songs, api.getBotId());
 
     const object = {
       caption: musicListTxt,
@@ -322,6 +349,7 @@ export async function handleMusicReply(api, message, isAdminLevelHighest) {
 }
 
 export async function handleSendTrackSoundCloud(api, message, track) {
+  const startedAt = performance.now();
   const streamData = await getMusicStreamUrl(track.permalink_url);
   if (!streamData) {
     const object = {
@@ -334,8 +362,10 @@ export async function handleSendTrackSoundCloud(api, message, track) {
   }
 
   const cachedMusic = await getCachedMedia(PLATFORM, track.id, streamData.progressiveUrl.quality, track.title);
+  const resolvedAt = performance.now();
   let voiceUrl;
   let progressiveUrl;
+  let servedFromCache = false;
 
   const object = {
     caption: `Chờ lấy nhạc một chút, xong sẽ gọi cho hay.` + `\n\n⏳ ${track.title}`,
@@ -343,27 +373,44 @@ export async function handleSendTrackSoundCloud(api, message, track) {
 
   const thumbnailUrl = track.artwork_url?.replace("-large", "-t500x500");
   // asyncTaskManager.runAsync(thumbnailUrl, () => createCircleWebp(api, message, thumbnailUrl, track.id));
-  if (cachedMusic) {
-    voiceUrl = cachedMusic.fileUrl;
+  // Cache trước bản AAC v1 có thể chứa MP3 được gắn làm voice: gửi thành công
+  // nhưng người nhận không nghe được. Không tái sử dụng các entry cũ đó.
+  if (cachedMusic?.voiceCodec === "aac-v1") {
+    // Repair cloud URLs written by the old uploader before reusing the cache.
+    voiceUrl = ensureVoiceUrlExtension(cachedMusic.fileUrl);
     progressiveUrl = cachedMusic.progressiveUrl;
-  } else {
+    if (voiceUrl !== cachedMusic.fileUrl) {
+      setCacheData(
+        PLATFORM,
+        track.id,
+        { ...cachedMusic, fileUrl: voiceUrl },
+        progressiveUrl?.quality || "sq"
+      );
+    }
+    // Link Zalo CDN có thể hết hạn khi cache vẫn còn mới. Khi đó bỏ qua cache
+    // và upload lại từ stream SoundCloud thay vì để sendVoiceMusic báo lỗi.
+    if (!(await checkUrlStatus(voiceUrl))) {
+      console.warn(`[SoundCloud] Link cache đã hết hạn, upload lại track ${track.id}`);
+      voiceUrl = null;
+    }
+    servedFromCache = Boolean(voiceUrl);
+  }
+
+  if (!voiceUrl) {
     await sendMessageCompleteRequest(api, message, object, 10000);
     progressiveUrl = streamData.progressiveUrl;
 
-    const hlsM4a = track.media?.transcodings?.find(t => t.format.protocol === "hls" && t.format.mime_type.includes("mp4a"));
-    let m3u8Url = null;
-    if (hlsM4a) {
-      try {
-        const streamResponse = await axios.get(`${hlsM4a.url}?client_id=${track.client_id || "TwElDfIgW9RpAzLMUSy9g1VvI2Kao7my"}&track_authorization=${track.track_authorization}`);
-        m3u8Url = streamResponse.data.url;
-      } catch (e) {
-        console.warn("Lỗi lấy HLS url:", e.message);
-      }
-    }
-    
-    // Luôn ưu tiên dùng HLS M3U8 để lấy chuẩn AAC mà không cần chuyển đổi
-    const finalDownloadUrl = m3u8Url || streamData.url;
-    voiceUrl = await downloadAndConvertAudio(finalDownloadUrl, api, message, true);
+    voiceUrl = await downloadAndConvertAudio(streamData.url, api, message, true);
+    console.log(
+      `[SoundCloud:timing] track=${track.id} protocol=${streamData.protocol} ` +
+      `resolve=${((resolvedAt - startedAt) / 1000).toFixed(2)}s ` +
+      `download-convert-upload=${((performance.now() - resolvedAt) / 1000).toFixed(2)}s cache=miss`
+    );
+
+    // URL cloud của Zalo có đường dẫn voice tổng hợp nên kiểm tra HEAD/GET từ
+    // ngoài có thể trả false dù api.sendVoice vẫn dùng được. Chỉ kiểm tra việc
+    // upload có thật sự trả URL; chính Zalo sẽ xác nhận URL lúc gửi.
+    if (!voiceUrl) throw new Error(`SoundCloud upload không trả về link voice cho track ${track.id}`);
     
     setCacheData(
       PLATFORM,
@@ -373,8 +420,16 @@ export async function handleSendTrackSoundCloud(api, message, track) {
         artist: track.user?.username || "Unknown Artist",
         fileUrl: voiceUrl,
         progressiveUrl: streamData.progressiveUrl,
+        voiceCodec: "aac-v1",
       },
       progressiveUrl.quality
+    );
+  }
+
+  if (servedFromCache) {
+    console.log(
+      `[SoundCloud:timing] track=${track.id} protocol=${streamData.protocol} ` +
+      `resolve=${((resolvedAt - startedAt) / 1000).toFixed(2)}s cache=hit`
     );
   }
 
@@ -399,7 +454,9 @@ export async function handleSendTrackSoundCloud(api, message, track) {
     voiceUrl: voiceUrl,
     stats: stats,
     quality: progressiveUrl.quality,
+    directStream: true,
   };
   await sendVoiceMusic(api, message, objectMusic);
+  console.log(`[SoundCloud:timing] track=${track.id} total=${((performance.now() - startedAt) / 1000).toFixed(2)}s`);
   return true;
 }

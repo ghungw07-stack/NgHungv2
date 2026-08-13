@@ -2,6 +2,7 @@ import FormData from "form-data";
 import fs from "fs";
 import sharp from "sharp";
 import { ZaloApiError, MessageType, ANTI_DELETE_MESSAGE, ANTI_DELETE_ATTACHMENT } from "../index.js";
+import { MessageStyle, MultiMsgStyle } from "../models/Message.js";
 import {
   analyzeLinks,
   apiFactory,
@@ -19,6 +20,66 @@ const attachmentUrlType = {
   video: "asyncfile/msg?",
   others: "asyncfile/msg?",
 };
+
+const DEFAULT_TEXT_STYLE = {
+  color: "1f2937",
+  size: "18",
+  bold: false,
+  italic: false,
+  underline: false,
+  strike: false,
+};
+const STYLE_SIZES = new Set(["10", "11", "12", "13", "14", "15", "16", "17", "18", "20", "22", "24"]);
+const STYLE_COLORS = new Set(["db342e", "f7b503", "15a85f", "1f2937"]);
+const LEGACY_COLORS = {
+  ff0000: "db342e",
+  ef4444: "db342e",
+  "00ff00": "15a85f",
+  "10b981": "15a85f",
+  ffff00: "f7b503",
+  f59e0b: "f7b503",
+  "000000": "1f2937",
+};
+
+function getDefaultMessageStyle(api) {
+  const custom = api.apiManager?.getDataManager?.()?.chatStyle;
+  if (!custom) return DEFAULT_TEXT_STYLE;
+
+  const text = custom.text || {};
+  const colorValue = String(custom.textColor || "").replace(/^#/, "").toLowerCase();
+  const color = STYLE_COLORS.has(colorValue) ? colorValue : LEGACY_COLORS[colorValue] || DEFAULT_TEXT_STYLE.color;
+  const sizeValue = String(custom.textSize || "");
+
+  return {
+    color,
+    size: STYLE_SIZES.has(sizeValue) ? sizeValue : DEFAULT_TEXT_STYLE.size,
+    bold: text.bold === true,
+    italic: text.italic === true,
+    underline: text.underline === true,
+    strike: text.strike === true,
+  };
+}
+
+function applyDefaultMessageStyle(api, message) {
+  if (message.style || typeof message.msg !== "string" || message.msg.length === 0) return message;
+
+  const textStyle = getDefaultMessageStyle(api);
+  return {
+    ...message,
+    style: MultiMsgStyle([
+      MessageStyle(
+        0,
+        message.msg.length,
+        textStyle.color,
+        textStyle.size,
+        textStyle.bold,
+        textStyle.italic,
+        textStyle.underline,
+        textStyle.strike
+      ),
+    ]),
+  };
+}
 
 function prepareQMSGAttach(quote) {
   const quoteData = quote.data;
@@ -135,11 +196,13 @@ export const sendMessageFactory = apiFactory()((api, appContext, utils) => {
             // .filter((m) => m.pos >= 0 && m.uid && m.len > 0)
             .map((m) => {
               totalMentionLen += m.len;
+              const uid = String(m.uid ?? m.id);
               return {
                 pos: m.pos,
-                uid: m.uid,
+                uid,
+                ...(m.id !== undefined ? { id: String(m.id) } : {}),
                 len: m.len,
-                type: m.uid == "-1" ? 1 : 0,
+                type: uid === "-1" ? 1 : 0,
               };
             })
         : [];
@@ -392,6 +455,9 @@ export const sendMessageFactory = apiFactory()((api, appContext, utils) => {
         ),
         body: data.body,
         headers: data.fileType == "gif" ? data.headers : {},
+        // Giữ lại clientId tự tạo để sendMessage() có thể trả cliMsgId cho bên gọi.
+        // API Zalo chỉ trả msgId của ảnh; thiếu cặp này thì undoMessage không thu hồi được.
+        clientId: data.params?.clientId,
       });
     }
     return responses;
@@ -412,6 +478,9 @@ export const sendMessageFactory = apiFactory()((api, appContext, utils) => {
     if (!message) throw new ZaloApiError("Missing message content");
     if (!threadId) throw new ZaloApiError("Missing threadId");
     if (typeof message == "string") message = { msg: message };
+    // Áp style text mặc định cho mọi tin nhắn chưa chỉ định style riêng.
+    // Vì nằm ở lớp gửi chung, các lệnh mới chỉ cần dùng api.sendMessage là tự nhận mybot style.
+    message = applyDefaultMessageStyle(api, message);
     let { msg, quote, attachments, mentions, ttl, linkOn = true, isUseProphylactic = false } = message;
     ttl = ttl || appContext.timeMessage || 0;
     if (!msg && (!attachments || (attachments && attachments.length == 0)))

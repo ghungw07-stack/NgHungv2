@@ -13,6 +13,7 @@ import { initializeGameDataManager } from "./game-service/game-manager.js";
 import { handleYoutubeReply } from "./api-crawl/youtube/youtube-service.js";
 import { handleTikTokReply } from "./api-crawl/tiktok/tiktok-service.js";
 import { initPRService } from "./scheduler/pr-zalo.js";
+import { initAutoRaiLinkService } from "./scheduler/auto-rai-link.js";
 import { handleNhacCuaTuiReply } from "./api-crawl/music-content/nhaccuatui.js";
 import { handleActionGroupReply } from "../commands/bot-manager/remote-action-group.js";
 import { handleDownloadReply } from "./api-crawl/api-download/aio-downlink.js";
@@ -41,6 +42,7 @@ import { handleTenorStickerReply } from "./api-crawl/image-content/tenor.js";
 import { handleTruyenHentaiReply } from "./api-crawl/image-content/hentai.js";
 import { handleTruyenSexVLReply } from "../commands/send-all/truyensex.js";
 import { checkMenuPageReply } from "../commands/instructions/help.js";
+import { handleAddUserToGroupReply } from "../commands/bot-manager/add-user-to-group.js";
 
 let globalPrefix = {};
 
@@ -50,6 +52,13 @@ export function getGlobalPrefix(idBot) {
 
 export function setGlobalPrefix(idBot, newPrefix) {
   globalPrefix[idBot] = newPrefix;
+}
+
+// Nạp lại các thiết lập dùng trực tiếp trong service mà không cần restart bot.
+export function reloadServiceConfig() {
+  const commandConfig = reloadCommandConfig();
+  globalPrefix = commandConfig.prefix || {};
+  return commandConfig;
 }
 
 export async function initService(api) {
@@ -70,24 +79,29 @@ export async function initService(api) {
   }
 
   await initFolderBot(api);
-  await startAntiConfigCheck(api),
-    await Promise.all([
-      loadDataSpamSmsFromFile(api),
-      initializeCacheMessageService(api),
-      initializeFarmService(api),
-      initializeGameDataManager(api),
-      initializeScheduler(api),
-      initializeManagerService(api),
-      initPRService(api),
-      startMuteCheck(api),
-      startBadWordViolationCheck(api),
-      startMediaViolationCheck(api),
-      startNudeViolationCheck(api),
-      initRankSystem(api),
-      initTrainingSystem(api),
-      notifyResetCompleteInGroup(api),
-      initCheckTargetService(api),
-    ]);
+  await Promise.all([
+    startAntiConfigCheck(api),
+    loadDataSpamSmsFromFile(api),
+    initializeCacheMessageService(api),
+    initializeFarmService(api),
+    initializeGameDataManager(api),
+    initializeScheduler(api),
+    initializeManagerService(api),
+    initPRService(api),
+    initAutoRaiLinkService(api),
+    startMuteCheck(api),
+    startBadWordViolationCheck(api),
+    startMediaViolationCheck(api),
+    startNudeViolationCheck(api),
+    initRankSystem(api),
+    initTrainingSystem(api),
+    initCheckTargetService(api),
+  ]);
+
+  // Thông báo reset không cần chặn bot nhận message sau khi đăng nhập.
+  void notifyResetCompleteInGroup(api).catch((error) => {
+    console.error("Lỗi gửi thông báo reset sau khi khởi động:", error?.message || error);
+  });
 }
 
 export async function handleOnChatUser(api, message, isCallGame, groupSettings, groupInfo) {
@@ -109,6 +123,7 @@ export async function handleOnReplyFromUser(
 
   if (await checkReplySelectionsMapData(api, message, isAdminLevelHighest)) isHandled = true;
   if (!isHandled && (await checkMenuPageReply(api, message))) isHandled = true;
+  if (!isHandled && (await handleAddUserToGroupReply(api, message, isAdminLevelHighest))) isHandled = true;
   if (await handleDetectContentDownload(api, message, isAdminLevelHighest, groupSettings)) isHandled = true;
   if (!isHandled) {
     const results = await Promise.all([

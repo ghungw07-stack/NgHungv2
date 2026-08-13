@@ -18,6 +18,7 @@ import {
   buildSpeedFilter,
   buildVideoEffectFilters,
   createTextStickerWebp,
+  createAnimatedTextStickerWebp,
   parseExtraStickerArgs,
 } from "./sticker-effects.js";
 import {
@@ -107,6 +108,17 @@ export async function processAndSendSticker(
   let speedFactor = valueObject.speedFactor || null;
   let pixelSize = valueObject.pixelSize || null;
   let isCat = !!valueObject.isCat;
+  const isAi = !!valueObject.isAi;
+  if (isAi) {
+    isXoaPhong = true;
+    isCat = true;
+  }
+  let rotation = valueObject.rotation || null;
+  let flipHorizontal = !!valueObject.flipHorizontal;
+  let flipVertical = !!valueObject.flipVertical;
+  if (isSpindisk && speedFactor && speedFactor !== 1) {
+    timeCircleSeconds = Math.max(0.5, Math.min(15, timeCircleSeconds / speedFactor));
+  }
   // if (
   //   decodedUrl.includes("media-ten.z-cdn.me") ||
   //   (decodedUrl.includes("zfcloud") && mediaCheck.type.ext === "webp")
@@ -141,12 +153,16 @@ export async function processAndSendSticker(
 
   let keyType = mediaCheck.type.ext;
   if (isXoaPhong) keyType += "xp";
+  if (isAi) keyType += "ai";
   if (roundedCorners) keyType += roundedCorners;
   if (isSpindisk) keyType += `sd${timeCircleSeconds}`;
   if (zoomFactor) keyType += `z${zoomFactor}`;
   if (pixelSize) keyType += `px${pixelSize}`;
   if (isCat) keyType += `cat`;
   if (speedFactor) keyType += `sp${speedFactor}`;
+  if (rotation) keyType += `rot${rotation}`;
+  if (flipHorizontal) keyType += "fh";
+  if (flipVertical) keyType += "fv";
   const resultFileHash = await calculateFileHashFromURLByBuffer(mediaSource);
 
   if (resultFileHash.status !== "success") {
@@ -160,7 +176,8 @@ export async function processAndSendSticker(
 
   let subText = "";
   subText += isXoaPhong ? `\nĐã áp dụng xóa phông!` : "";
-  subText += isSpindisk ? `\nThời lượng vòng quay: ${timeCircleSeconds}s` : "";
+  subText += isSpindisk ? `\nThời lượng vòng quay: ${Number(timeCircleSeconds.toFixed(2))}s` : "";
+  subText += isSpindisk && speedFactor ? `\nTốc độ quay: x${speedFactor}` : "";
 
   try {
     if (!cachedSticker) {
@@ -217,17 +234,20 @@ export async function processAndSendSticker(
         ext = path.extname(pathSticker).toLowerCase().substring(1);
       }
 
-      const hasExtraVisualEffects = !!(zoomFactor || pixelSize || isCat);
+      const hasExtraVisualEffects = !!(zoomFactor || pixelSize || isCat || rotation || flipHorizontal || flipVertical);
 
       if (isVideo && (hasExtraVisualEffects || speedFactor)) {
         // Video: xử lý zoom/pixel/cat/speed bằng chuỗi filter ffmpeg riêng
-        const videoFilters = buildVideoEffectFilters({ zoomFactor, pixelSize, isCat });
+        const videoFilters = buildVideoEffectFilters({ zoomFactor, pixelSize, isCat, rotation, flipHorizontal, flipVertical });
         const speedFilter = buildSpeedFilter(speedFactor);
         await convertToWebpWithEffects(pathSticker, pathWebp, { videoFilters, speedFilter });
         if (zoomFactor) subText += `\nZoom: x${zoomFactor}`;
         if (pixelSize) subText += `\nHiệu ứng pixel: ${pixelSize}`;
         if (isCat) subText += `\nĐã ép khung 512x512`;
         if (speedFactor) subText += `\nTốc độ: x${speedFactor}`;
+        if (rotation) subText += `\nXoay: ${rotation}°`;
+        if (flipHorizontal) subText += `\nLật ngang`;
+        if (flipVertical) subText += `\nLật dọc`;
       } else {
         if (!isVideo && speedFactor) {
           // sp chỉ có tác dụng với video, bỏ qua với ảnh tĩnh
@@ -236,7 +256,7 @@ export async function processAndSendSticker(
 
         if (!isVideo && hasExtraVisualEffects) {
           // Ảnh: áp dụng zoom/pixel/cat bằng sharp rồi trả về PNG để tiếp tục pipeline bo góc + webp như cũ
-          const effectBuffer = await applyImageEffects(pathSticker, { zoomFactor, pixelSize, isCat });
+          const effectBuffer = await applyImageEffects(pathSticker, { zoomFactor, pixelSize, isCat, rotation, flipHorizontal, flipVertical });
           const effectPngPath = path.join(tempDir, `sticker_effect_${randomIDTemp()}.png`);
           fs.writeFileSync(effectPngPath, effectBuffer);
           const preEffectPath = pathSticker;
@@ -249,6 +269,9 @@ export async function processAndSendSticker(
           if (zoomFactor) subText += `\nZoom: x${zoomFactor}`;
           if (pixelSize) subText += `\nHiệu ứng pixel: ${pixelSize}`;
           if (isCat) subText += `\nĐã ép khung 512x512`;
+          if (rotation) subText += `\nXoay: ${rotation}°`;
+          if (flipHorizontal) subText += `\nLật ngang`;
+          if (flipVertical) subText += `\nLật dọc`;
         }
 
         if (ext === "webp" && roundedCorners > 0) {
@@ -338,18 +361,23 @@ const STICKER_HELP_CAPTION =
   `Hãy reply vào tin nhắn chứa ảnh hoặc video hoặc cung cấp link content hợp lệ để tạo sticker.\n` +
   ` Đối số đặc biệt: \n` +
   `   text <nội dung>: Tạo sticker chữ\n` +
+  `   textvd <màu> <nội dung>: Tạo sticker chữ chạy\n` +
+  `      Màu: rainbow | đỏ | xanh | vàng | hồng | cam | tím | trắng\n` +
+  `   ai: Tách nền thông minh và căn khung sticker\n` +
   `   xp: Xóa Phông\n` +
   `   -r(%): Bo cong sticker (Max 50%)\n` +
   `   z(x): Zoom in/out (vd: z1.5, z0.7)\n` +
-  `   sp(x): Tăng/giảm tốc độ video (vd: sp2, sp0.5)\n` +
+  `   sp(x): Tăng/giảm tốc độ video hoặc spin (vd: sp2, sp0.5)\n` +
   `   pixel(size): Tạo hiệu ứng pixel (vd: pixel8)\n` +
   `   spin hoặc sd(s): Tạo sticker xoay tròn (Min 0.5s, Max 15s)\n` +
-  `   cat: Ép sticker về đúng khung 512x512\n`;
+  `   cat: Ép sticker về đúng khung 512x512\n` +
+  `   rot(số): Xoay theo góc độ (vd: rot90, rot-45, rot10.5)\n` +
+  `   fh: Lật ngang | fv: Lật dọc\n`;
 
 /**
  * Xử lý lệnh tạo sticker chữ: !stk text <nội dung>
  */
-async function handleTextStickerCommand(api, message, textContent) {
+async function handleTextStickerCommand(api, message, textContent, animatedColor = null) {
   if (!textContent || !textContent.trim()) {
     await sendMessageWarning(api, message, `Vui lòng nhập nội dung chữ cần tạo sticker!\nVí dụ: !stk text Chào bạn`, false);
     return;
@@ -358,7 +386,9 @@ async function handleTextStickerCommand(api, message, textContent) {
   let pathWebp = null;
   try {
     await sendMessageComplete(api, message, `Đang tạo sticker chữ, vui lòng chờ một chút.`, true, 6000);
-    pathWebp = await createTextStickerWebp(textContent.trim().slice(0, 120));
+    pathWebp = animatedColor
+      ? await createAnimatedTextStickerWebp(textContent.trim().slice(0, 120), animatedColor)
+      : await createTextStickerWebp(textContent.trim().slice(0, 120));
 
     const [linkUploadZalo, stickerData] = await Promise.all([
       api.uploadAttachment([pathWebp], message.threadId, message.type, { uploadCloud: true }),
@@ -390,6 +420,12 @@ export async function handleConvertStickerCommand(api, message, aliasCommand) {
   const content = removeMention(message);
   let keyword = content.replace(`${prefix}${aliasCommand}`, "").trim();
 
+  if (/^textvd(\s|$)/i.test(keyword)) {
+    const [, color = "rainbow", ...textParts] = keyword.split(/\s+/);
+    await handleTextStickerCommand(api, message, textParts.join(" "), color);
+    return;
+  }
+
   // Đối số "text <nội dung>": tạo sticker chữ, không cần ảnh/video/link nguồn
   if (/^text(\s|$)/i.test(keyword)) {
     const textContent = keyword.replace(/^text\s*/i, "");
@@ -397,17 +433,8 @@ export async function handleConvertStickerCommand(api, message, aliasCommand) {
     return;
   }
 
-  // "ai" (zSticker AI) chưa được hỗ trợ ở bản này — báo cho người dùng biết thay vì im lặng bỏ qua
   const args = keyword.trim().split(/\s+/).filter(Boolean);
-  if (args.some((arg) => arg.toLowerCase() === "ai")) {
-    await sendMessageWarning(
-      api,
-      message,
-      `Đối số "ai" (tạo sticker bằng AI) chưa được hỗ trợ ở bot này.\nBạn có thể dùng "xp" để xóa phông thay thế, hoặc tự tích hợp API AI ảnh riêng vào sticker-effects.js.`,
-      false
-    );
-    return;
-  }
+  const isAi = args.some((arg) => arg.toLowerCase() === "ai");
 
   let linkContent = "";
   const detectedLinkInContent = analyzeLinks(keyword);
@@ -469,7 +496,7 @@ export async function handleConvertStickerCommand(api, message, aliasCommand) {
     });
 
     // z(x) / sp(x) / pixel(size) / cat
-    const { zoomFactor, speedFactor, pixelSize, isCat } = parseExtraStickerArgs(args);
+    const { zoomFactor, speedFactor, pixelSize, isCat, rotation, flipHorizontal, flipVertical } = parseExtraStickerArgs(args);
 
     await processAndSendSticker(api, message, decodedUrl, {
       roundedCorners,
@@ -480,6 +507,10 @@ export async function handleConvertStickerCommand(api, message, aliasCommand) {
       speedFactor,
       pixelSize,
       isCat,
+      rotation,
+      flipHorizontal,
+      flipVertical,
+      isAi,
     });
   } catch (error) {
     console.error("Lỗi khi xử lý lệnh sticker:", error);

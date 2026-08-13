@@ -1,7 +1,8 @@
 import { createCanvas, loadImage } from "canvas";
 import fs from "fs";
 import path from "path";
-import * as cv from "./index.js";
+import { FONT_MAIN, randomIDTemp } from "../format-util.js";
+import { tempDir } from "../io-json.js";
 
 // Helper function to calculate optimal dimensions
 function calculateOptimalDimensions(helpContent, isAdminBox) {
@@ -139,15 +140,162 @@ function wrapTextLines(ctx, text, maxWidth, maxLines) {
   return lines;
 }
 
-// Tạo hình ảnh Menu dạng lưới thẻ (card grid), có phân trang, số lượng lệnh cập nhật động
+function truncateText(ctx, text, maxWidth) {
+  const source = String(text || "");
+  if (ctx.measureText(source).width <= maxWidth) return source;
+  let value = source;
+  while (value.length > 1 && ctx.measureText(`${value}…`).width > maxWidth) value = value.slice(0, -1);
+  return `${value.trimEnd()}…`;
+}
+
+function saveHelpCanvas(canvas, prefix) {
+  if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+  const filePath = path.join(tempDir, `${prefix}_${randomIDTemp()}.png`);
+  const out = fs.createWriteStream(filePath);
+  canvas.createPNGStream().pipe(out);
+  return new Promise((resolve, reject) => {
+    out.on("finish", () => resolve(filePath));
+    out.on("error", reject);
+  });
+}
+
+/** Canvas riêng cho `game help`, bố cục dashboard 2 cột để dễ đọc trên điện thoại. */
+export async function createGameHelpImage(helpContent, isAdminBox) {
+  const memberCommands = Object.entries(helpContent.allMembers || {}).map(([key, value]) => ({ key, ...value }));
+  const adminCommands = isAdminBox
+    ? Object.entries(helpContent.admin || {}).map(([key, value]) => ({ key, ...value }))
+    : [];
+  const categoryOf = (key) => {
+    if (["daily", "giveaway", "mycard", "rank", "tier", "donenat", "donate"].includes(key)) return "HỒ SƠ & XẾP HẠNG";
+    if (["bank", "saoke"].includes(key)) return "NGÂN HÀNG GAME";
+    return "TRÒ CHƠI GIẢI TRÍ";
+  };
+
+  const sections = [];
+  for (const title of ["HỒ SƠ & XẾP HẠNG", "TRÒ CHƠI GIẢI TRÍ", "NGÂN HÀNG GAME"]) {
+    const commands = memberCommands.filter((item) => categoryOf(item.key) === title);
+    if (commands.length) sections.push({ title, commands, admin: false });
+  }
+  if (adminCommands.length) sections.push({ title: "QUẢN TRỊ VIÊN", commands: adminCommands, admin: true });
+
+  const width = 1400;
+  const margin = 54;
+  const headerH = 205;
+  const sectionHeaderH = 58;
+  const cardH = 126;
+  const gap = 20;
+  const sectionGap = 28;
+  const footerH = 96;
+  const contentHeight = sections.reduce(
+    (sum, section) => sum + sectionHeaderH + Math.ceil(section.commands.length / 2) * (cardH + gap) + sectionGap,
+    0
+  );
+  const height = headerH + contentHeight + footerH;
+  const canvas = createCanvas(width, height);
+  const ctx = canvas.getContext("2d");
+
+  const bg = ctx.createRadialGradient(width / 2, 220, 40, width / 2, height / 2, width);
+  bg.addColorStop(0, "#173b62");
+  bg.addColorStop(0.48, "#0b203b");
+  bg.addColorStop(1, "#040b18");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, width, height);
+
+  ctx.save();
+  ctx.globalAlpha = 0.055;
+  ctx.strokeStyle = "#9bd4ff";
+  for (let x = -height; x < width + height; x += 46) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x + height, height);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  drawRoundedBox(ctx, 18, 18, width - 36, height - 36, 32, null, "#4b84b9", 6);
+  drawRoundedBox(ctx, 25, 25, width - 50, height - 50, 27, null, "#d6b45c", 2);
+
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#f6cf67";
+  ctx.font = `bold 50px ${FONT_MAIN}`;
+  ctx.fillText("GAME CENTER", width / 2, 78);
+  ctx.fillStyle = "#e8f4ff";
+  ctx.font = `bold 27px ${FONT_MAIN}`;
+  ctx.fillText("DANH SÁCH LỆNH & HƯỚNG DẪN NHANH", width / 2, 122);
+  ctx.fillStyle = "#8eb2d0";
+  ctx.font = `20px ${FONT_MAIN}`;
+  ctx.fillText(`${memberCommands.length} tính năng dành cho người chơi${adminCommands.length ? `  ·  ${adminCommands.length} lệnh quản trị` : ""}`, width / 2, 158);
+  ctx.fillStyle = "#d6b45c";
+  ctx.fillRect(width / 2 - 190, 180, 380, 2);
+  ctx.beginPath();
+  ctx.arc(width / 2, 181, 6, 0, Math.PI * 2);
+  ctx.fill();
+
+  const colGap = 24;
+  const cardW = (width - margin * 2 - colGap) / 2;
+  let y = headerH;
+  let globalIndex = 1;
+
+  for (const section of sections) {
+    const accent = section.admin ? "#efb85b" : section.title === "TRÒ CHƠI GIẢI TRÍ" ? "#57d4a2" : "#67b8ff";
+    ctx.textAlign = "left";
+    ctx.fillStyle = accent;
+    ctx.font = `bold 24px ${FONT_MAIN}`;
+    ctx.fillText(section.title, margin + 16, y + 35);
+    ctx.fillStyle = `${accent}55`;
+    ctx.fillRect(margin, y + 50, width - margin * 2, 2);
+    y += sectionHeaderH;
+
+    for (let i = 0; i < section.commands.length; i++) {
+      const command = section.commands[i];
+      const col = i % 2;
+      const row = Math.floor(i / 2);
+      const x = margin + col * (cardW + colGap);
+      const cardY = y + row * (cardH + gap);
+
+      ctx.save();
+      ctx.shadowColor = "rgba(0,0,0,.42)";
+      ctx.shadowBlur = 14;
+      ctx.shadowOffsetY = 6;
+      drawRoundedBox(ctx, x, cardY, cardW, cardH, 18, "rgba(11,31,54,.9)", `${accent}88`, 2);
+      ctx.restore();
+
+      ctx.fillStyle = accent;
+      drawRoundedBox(ctx, x + 18, cardY + 20, 58, 58, 15, `${accent}22`, `${accent}99`, 2);
+      ctx.textAlign = "center";
+      ctx.font = `bold 23px ${FONT_MAIN}`;
+      ctx.fillText(String(globalIndex).padStart(2, "0"), x + 47, cardY + 58);
+
+      const textX = x + 94;
+      ctx.textAlign = "left";
+      ctx.fillStyle = "#f8fbff";
+      ctx.font = `bold 22px ${FONT_MAIN}`;
+      ctx.fillText(truncateText(ctx, command.command, cardW - 120), textX, cardY + 39);
+      ctx.fillStyle = "#a9c0d5";
+      ctx.font = `18px ${FONT_MAIN}`;
+      const lines = wrapTextLines(ctx, command.description, cardW - 122, 2);
+      lines.forEach((line, lineIndex) => ctx.fillText(line, textX, cardY + 72 + lineIndex * 25));
+      globalIndex++;
+    }
+    y += Math.ceil(section.commands.length / 2) * (cardH + gap) + sectionGap;
+  }
+
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#8faac1";
+  ctx.font = `19px ${FONT_MAIN}`;
+  ctx.fillText("Tiền và vật phẩm trong game chỉ mang tính giải trí, không quy đổi thành tiền thật.", width / 2, height - 47);
+
+  return saveHelpCanvas(canvas, "game_help");
+}
+
 export async function createMenuGridImage({ botName, commands, page, totalPages, totalCommands }) {
   const COLUMNS = 4;
-  const CARD_WIDTH = 380;
-  const CARD_HEIGHT = 190;
-  const GAP = 26;
-  const PADDING = 44;
-  const HEADER_HEIGHT = 170;
-  const FOOTER_HEIGHT = 90;
+  const CARD_WIDTH = 340;
+  const CARD_HEIGHT = 170;
+  const GAP = 25;
+  const PADDING = 40;
+  const HEADER_HEIGHT = 140;
+  const FOOTER_HEIGHT = 70;
 
   const rows = Math.max(1, Math.ceil(commands.length / COLUMNS));
   const width = PADDING * 2 + COLUMNS * CARD_WIDTH + (COLUMNS - 1) * GAP;
@@ -156,32 +304,67 @@ export async function createMenuGridImage({ botName, commands, page, totalPages,
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext("2d");
 
-  // Nền gradient dịu mắt (xanh lam nhạt -> tím nhạt), không chói không tối
-  const bgGradient = ctx.createLinearGradient(0, 0, width, height);
-  bgGradient.addColorStop(0, "#E6ECFB");
-  bgGradient.addColorStop(0.5, "#ECE7FB");
-  bgGradient.addColorStop(1, "#F3E8F7");
-  ctx.fillStyle = bgGradient;
+  // Nền menu V2 pha loang, không còn tải ảnh background cũ.
+  const background = ctx.createLinearGradient(0, 0, width, height);
+  background.addColorStop(0, "#4b267e");
+  background.addColorStop(0.46, "#283d7a");
+  background.addColorStop(1, "#08766f");
+  ctx.fillStyle = background;
   ctx.fillRect(0, 0, width, height);
 
-  // Thanh tiêu đề
+  const colorClouds = [
+    [width * 0.1, height * 0.08, width * 0.5, "rgba(255,92,190,.32)"],
+    [width * 0.88, height * 0.15, width * 0.42, "rgba(104,126,255,.35)"],
+    [width * 0.64, height * 0.94, width * 0.56, "rgba(34,235,178,.25)"],
+  ];
+  for (const [x, y, radius, color] of colorClouds) {
+    const cloud = ctx.createRadialGradient(x, y, 0, x, y, radius);
+    cloud.addColorStop(0, color);
+    cloud.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = cloud;
+    ctx.fillRect(0, 0, width, height);
+  }
+
+  function drawRoundedBox(ctx, x, y, w, h, radius, fill, stroke, strokeWidth = 1) {
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.lineTo(x + w - radius, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+    ctx.lineTo(x + w, y + h - radius);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+    ctx.lineTo(x + radius, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+    ctx.lineTo(x, y + radius);
+    ctx.quadraticCurveTo(x, y, x + radius, y);
+    ctx.closePath();
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = strokeWidth; ctx.stroke(); }
+  }
+
+  const mainFont = "'Segoe UI', Tahoma, Verdana, sans-serif";
+
+  // Header
   const headerX = PADDING;
   const headerY = PADDING;
   const headerWidth = width - PADDING * 2;
   const headerHeightBox = HEADER_HEIGHT - 20;
-  drawRoundedBox(ctx, headerX, headerY, headerWidth, headerHeightBox, 22, "rgba(255,255,255,0.85)");
+
+  // Khung kính tối để vẫn nhìn thấy background phía sau.
+  ctx.shadowColor = "rgba(0, 0, 0, 0.28)";
+  ctx.shadowBlur = 10;
+  ctx.shadowOffsetY = 4;
+  drawRoundedBox(ctx, headerX, headerY, headerWidth, headerHeightBox, 16, "rgba(8, 12, 30, 0.62)", "rgba(255,255,255,.22)", 1);
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
 
   ctx.textAlign = "center";
-  ctx.font = "bold 44px Tahoma";
-  const titleGradient = ctx.createLinearGradient(width / 2 - 200, 0, width / 2 + 200, 0);
-  titleGradient.addColorStop(0, "#4338CA");
-  titleGradient.addColorStop(1, "#7C3AED");
-  ctx.fillStyle = titleGradient;
-  ctx.fillText("✨ DANH SÁCH LỆNH ✨", width / 2, headerY + 60);
+  ctx.font = `bold 42px ${mainFont}`;
+  ctx.fillStyle = "#FFFFFF";
+  ctx.fillText("Danh Sách Lệnh", width / 2, headerY + 68);
 
-  ctx.font = "28px Tahoma";
-  ctx.fillStyle = "#475569";
-  ctx.fillText(`Bot: ${botName || "Bot"} - ${totalCommands} lệnh`, width / 2, headerY + 105);
+  ctx.font = `600 24px ${mainFont}`;
+  ctx.fillStyle = "#D7E5FF";
+  ctx.fillText(`Mạng lưới: ${botName || "Bot"}   •   Đang chạy ${totalCommands} lệnh`, width / 2, headerY + 105);
 
   // Vẽ các thẻ lệnh
   const gridStartY = HEADER_HEIGHT + PADDING;
@@ -191,49 +374,60 @@ export async function createMenuGridImage({ botName, commands, page, totalPages,
     const cardX = PADDING + col * (CARD_WIDTH + GAP);
     const cardY = gridStartY + row * (CARD_HEIGHT + GAP);
 
-    drawRoundedBox(ctx, cardX, cardY, CARD_WIDTH, CARD_HEIGHT, 18, "#FFFFFF", "rgba(99, 102, 241, 0.18)", 1.5);
+    // Card kính mờ để lớp màu pha loang vẫn hiện nhẹ phía sau.
+    ctx.shadowColor = "rgba(0, 0, 0, 0.28)";
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetY = 3;
+    drawRoundedBox(ctx, cardX, cardY, CARD_WIDTH, CARD_HEIGHT, 12, "rgba(8, 12, 30, 0.64)", "rgba(255,255,255,.20)", 1);
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
 
-    // Pill tên lệnh
-    const pillX = cardX + 20;
-    const pillY = cardY + 20;
-    const pillWidth = CARD_WIDTH - 40;
-    const pillHeight = 62;
-    drawRoundedBox(ctx, pillX, pillY, pillWidth, pillHeight, 12, "#EEF2FF");
-
+    // Tên lệnh (Centered, Bigger)
     ctx.textAlign = "center";
-    ctx.font = "bold 38px Tahoma";
-    ctx.fillStyle = "#4338CA";
-    // Chỉ lấy phần tên lệnh gốc, bỏ tham số [..]/<..>/{..} và bỏ prefix (., !, /, ...) phía trước
+    ctx.font = `bold 30px ${mainFont}`;
+    ctx.fillStyle = "#8DE9FF";
     let commandLabel = String(cmd.name).split(/[\s\[<{|]/)[0].replace(/^[^a-zA-Z0-9À-ỹ]+/, "");
-    while (ctx.measureText(commandLabel).width > pillWidth - 24 && commandLabel.length > 0) {
-      commandLabel = commandLabel.slice(0, -1);
-    }
-    ctx.fillText(commandLabel, pillX + pillWidth / 2, pillY + 43);
+    ctx.fillText(commandLabel, cardX + CARD_WIDTH / 2, cardY + 45);
 
-    ctx.textAlign = "left";
+    // Decorative tiny line (Centered)
+    ctx.fillStyle = "rgba(141, 233, 255, .42)";
+    ctx.fillRect(cardX + CARD_WIDTH / 2 - 30, cardY + 58, 60, 4);
+
     // Mô tả lệnh
-    ctx.font = "22px Tahoma";
-    ctx.fillStyle = "#475569";
-    const descLines = wrapTextLines(ctx, cmd.description, CARD_WIDTH - 40, 3);
-    let lineY = pillY + pillHeight + 34;
+    ctx.textAlign = "left";
+    ctx.font = `20px ${mainFont}`;
+    ctx.fillStyle = "#E6EEFF";
+    const descLines = wrapTextLines(ctx, cmd.description, CARD_WIDTH - 48, 3);
+    let lineY = cardY + 95;
     for (const line of descLines) {
-      ctx.fillText(line, cardX + 20, lineY);
+      ctx.fillText(line, cardX + 24, lineY);
       lineY += 28;
     }
+
+    // Badge "Sử dụng" ở góc dưới
+    const badgeText = "Xem chi tiết ➔";
+    ctx.font = `600 15px ${mainFont}`;
+    const badgeWidth = ctx.measureText(badgeText).width + 24;
+    const badgeHeight = 28;
+    const badgeX = cardX + CARD_WIDTH - badgeWidth - 16;
+    const badgeY = cardY + CARD_HEIGHT - badgeHeight - 12;
+
+    drawRoundedBox(ctx, badgeX, badgeY, badgeWidth, badgeHeight, 8, "rgba(141, 233, 255, .14)", "rgba(141, 233, 255, .22)", 1);
+    ctx.fillStyle = "#8DE9FF";
+    ctx.textAlign = "center";
+    ctx.fillText(badgeText, badgeX + badgeWidth / 2, badgeY + 19);
   });
 
-  // Thanh chân trang
-  const footerY = gridStartY + rows * CARD_HEIGHT + (rows - 1) * GAP + 24;
+  // Thanh chân trang (Phân trang)
+  const footerY = gridStartY + rows * CARD_HEIGHT + (rows - 1) * GAP + 25;
   const footerWidth = width - PADDING * 2;
-  drawRoundedBox(ctx, PADDING, footerY, footerWidth, FOOTER_HEIGHT - 24, 18, "rgba(255,255,255,0.85)");
+
+  drawRoundedBox(ctx, PADDING, footerY, footerWidth, FOOTER_HEIGHT - 10, 16, "rgba(8, 12, 30, 0.62)", "rgba(255,255,255,.20)", 1);
 
   ctx.textAlign = "center";
-  ctx.font = "bold 24px Tahoma";
-  ctx.fillStyle = "#4338CA";
-  ctx.fillText(`📄 Trang ${page}/${totalPages}`, width / 2, footerY + 32);
-  ctx.font = "20px Tahoma";
-  ctx.fillStyle = "#64748B";
-  ctx.fillText(`Nhắn số trang bạn muốn xem (ví dụ: 2) để chuyển trang`, width / 2, footerY + 58);
+  ctx.font = `600 22px ${mainFont}`;
+  ctx.fillStyle = "#E6EEFF";
+  ctx.fillText(`Trang ${page} / ${totalPages}   •   Reply menu và nhập số trang`, width / 2, footerY + 38);
 
   const filePath = path.resolve(`./assets/menu_${Date.now()}.png`);
   const out = fs.createWriteStream(filePath);

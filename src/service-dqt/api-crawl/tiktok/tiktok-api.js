@@ -28,6 +28,7 @@ const linkTiktokGetPosts = (params) => `${tiktokurl}/api/post/item_list/?${param
 const linkSubHatDe = "https://subhatde.id.vn";
 const linkSearchTiktokSubHatDe = (keywords) => `${linkSubHatDe}/tiktok/searchvideo?keywords=${encodeURI(keywords)}`;
 const linkDownloadTiktokSubHatDe = (url) => `${linkSubHatDe}/tiktok/downloadvideo?url=${url}`;
+const scavioTiktokSearchUrl = "https://api.scavio.dev/api/v1/tiktok/search/videos";
 
 const randomChar = (chars, length) => {
   let result = "";
@@ -350,6 +351,101 @@ export async function searchTiktokSubHatDe(keywords) {
   }
 }
 
+const normalizeScavioVideo = (data) => {
+  data = data?.aweme_info || data;
+  if (data?.aweme_id) {
+    try {
+      const parsed = parseVideoData(data);
+      return {
+        id: parsed.uid,
+        desc: parsed.desc,
+        createTime: data.create_time,
+        stat: parsed.stat,
+        video: parsed.video,
+        author: {
+          ...parsed.author,
+          uniqueId: parsed.author.username,
+        },
+        music: parsed.music,
+      };
+    } catch (error) {
+      console.error("Cannot parse a Scavio TikTok result:", error.message);
+      return null;
+    }
+  }
+
+  const video = data?.video || {};
+  const author = data?.author || {};
+  const music = data?.music || {};
+  const stat = data?.stat || data?.stats || {};
+
+  const videoUrl = video.url || video.playAddr || video.play_addr?.url_list?.at(-1);
+  if (!data?.id || !videoUrl) return null;
+
+  return {
+    id: data.id,
+    desc: data.desc || data.description || "",
+    createTime: data.createTime || data.create_time,
+    stat: {
+      playCount: stat.playCount || stat.play_count || 0,
+      diggCount: stat.diggCount || stat.digg_count || 0,
+      commentCount: stat.commentCount || stat.comment_count || 0,
+      downloadCount: stat.downloadCount || stat.download_count || 0,
+      shareCount: stat.shareCount || stat.share_count || 0,
+      collectCount: stat.collectCount || stat.collect_count || 0,
+    },
+    video: {
+      url: videoUrl,
+      cover: video.cover || video.originCover || video.dynamicCover || "",
+      duration: (video.duration || data.duration || 1) *
+        ((video.duration || data.duration || 1) < 1000 ? 1000 : 1),
+      type: video.format || video.type || "mp4",
+      quality: video.ratio || video.quality || "540p",
+    },
+    author: {
+      ...author,
+      uniqueId: author.uniqueId || author.unique_id || author.username || "unknown",
+      nickname: author.nickname || author.nickName || author.uniqueId || author.username || "TikTok",
+    },
+    music: {
+      title: music.title || "TikTok audio",
+      url: music.playUrl || music.play || music.url || "",
+      cover: music.coverLarge || music.cover || "",
+      author: music.authorName || music.author || "",
+      quality: "audio",
+      type: "mp3",
+    },
+  };
+};
+
+export async function searchTiktokScavio(keywords, limit = 10) {
+  const apiKey = process.env.SCAVIO_API_KEY?.trim();
+  if (!apiKey) return [];
+
+  try {
+    const response = await axios.post(
+      scavioTiktokSearchUrl,
+      { keyword: keywords, count: Math.min(Math.max(limit, 1), 20), cursor: "0" },
+      {
+        timeout: 15000,
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    const payload = response.data?.data || response.data || {};
+    const videos = [payload.videos, payload.aweme_list, payload.search_item_list]
+      .find((items) => Array.isArray(items) && items.length > 0) || [];
+    return videos.map(normalizeScavioVideo).filter(Boolean).slice(0, limit);
+  } catch (error) {
+    const status = error.response?.status;
+    console.error(`Scavio TikTok search failed${status ? ` (${status})` : ""}:`, error.message);
+    return [];
+  }
+}
+
 export async function searchTiktokGeneral(keywords, limit = 10) {
   try {
     const response = await axios.get(linkTiktokSearch(keywords), {
@@ -397,7 +493,8 @@ export async function searchTiktokGeneral(keywords, limit = 10) {
 
 export const searchTiktok = async (keywords, limit = 10) => {
   let result = [];
-  result = await searchTiktokSubHatDe(keywords, limit);
+  result = await searchTiktokScavio(keywords, limit);
+  result = result.length === 0 ? await searchTiktokSubHatDe(keywords, limit) : result;
   result = result.length === 0 ? await searchTiktokGeneral(keywords, limit) : result;
   return result;
 };

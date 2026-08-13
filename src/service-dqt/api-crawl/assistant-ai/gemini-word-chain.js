@@ -1,9 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
-import { getApiKeysMedia } from "../../../utils/api-key-manager.js";
+import { getNextApiKeyMedia } from "../../../utils/api-key-manager.js";
 
-const genAINew = new GoogleGenAI({ apiKey: getApiKeysMedia("GEMINI")[0] });
-
-const modelUsed = "gemini-2.5-flash";
+const modelUsed = "gemini-3.6-flash";
 const systemInstruction = `Bạn là trợ lý chuyên về trò chơi Nối Từ Tiếng Việt. Nhiệm vụ của bạn:
 1. Khi người chơi đưa ra một từ/cụm từ, vui lòng:
 - Kiểm tra tính hợp lệ của từ/cụm từ (có nghĩa trong tiếng Việt)
@@ -26,6 +24,7 @@ const systemInstruction = `Bạn là trợ lý chuyên về trò chơi Nối T�
 
 export async function validateAndGetNextWord(phrase, usedWords = []) {
   try {
+    const genAINew = new GoogleGenAI({ apiKey: getNextApiKeyMedia("GEMINI") });
     const prompt =
       `Phân tích cụm từ "${phrase}",` +
       ` và đưa ra hai chữ tiếp theo hợp lệ bắt đầu bằng chữ "${phrase.split(/\s+/).pop()}".
@@ -35,7 +34,7 @@ Chỉ trả về JSON theo format đã định nghĩa.`;
     const response = await genAINew.models.generateContent({
       model: modelUsed,
       contents: prompt,
-      config: { systemInstruction, temperature: 0.1, topP: 0.1, topK: 5 },
+      config: { systemInstruction },
     });
 
     const txtResponse = response.text;

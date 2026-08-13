@@ -11,7 +11,7 @@ import {
 } from "../../chat-zalo/chat-style/chat-style.js";
 import { removeMention } from "../../../utils/format-util.js";
 import { sendVoiceMusic, sendVoiceMusicNotQuote } from "../../chat-zalo/chat-special/send-voice/send-voice.js";
-import { deleteSelectionsMapData, setSelectionsMapData } from "../index.js";
+import { deleteSelectionsMapData, parseQuickSelection, setSelectionsMapData } from "../index.js";
 import { getCachedMedia, setCacheData } from "../../../utils/link-platform-cache.js";
 import { createSearchResultImage } from "../../../utils/canvas/search-canvas.js";
 import { deleteFile, downloadFile } from "../../../utils/util.js";
@@ -20,7 +20,7 @@ import { processLrcFile } from "../../../utils/support-read.js";
 import { asyncTaskManager } from "../../../utils/async-task.js";
 import { createCircleWebp } from "../../chat-zalo/chat-special/send-sticker/create-webp.js";
 
-// Author: ndqitvn
+// Author: NGH
 // Description: ZingMP3 API rebuild by N D Q
 
 const PLATFORM = "zingmp3";
@@ -110,15 +110,25 @@ function getSig(path, params) {
   return getHmac512(path + getHash256(stringParams), SECRET_KEY);
 }
 
+let _cachedCookie = null;
+let _cookieExpiry = 0;
+const COOKIE_TTL = 10 * 60 * 1000; // Cache cookie 10 phút
+
 async function getCookie() {
+  if (_cachedCookie && Date.now() < _cookieExpiry) {
+    return _cachedCookie;
+  }
   try {
-    const res = await axios.get(URL);
+    const res = await axios.get(URL, { timeout: 8000 });
     if (res.headers["set-cookie"]) {
-      return res.headers["set-cookie"][1];
+      _cachedCookie = res.headers["set-cookie"][1];
+      _cookieExpiry = Date.now() + COOKIE_TTL;
+      return _cachedCookie;
     }
     return null;
   } catch (error) {
     console.error("Lỗi khi lấy cookie:", error);
+    if (_cachedCookie) return _cachedCookie;
     throw error;
   }
 }
@@ -359,7 +369,8 @@ export async function handleZingMp3Command(api, message, aliasCommand) {
     const content = removeMention(message);
     const prefix = getGlobalPrefix(api.getBotId());
     const commandContent = content.replace(`${prefix}${aliasCommand}`, "").trim();
-    const [keyword, numberMusic] = commandContent.split("&&");
+    const quickSelection = parseQuickSelection(commandContent);
+    const [keyword, numberMusic] = quickSelection.query.split("&&");
 
     if (!keyword) {
       const object = {
@@ -426,6 +437,17 @@ export async function handleZingMp3Command(api, message, aliasCommand) {
       })
     );
 
+    if (quickSelection.selectedIndex !== null) {
+      const song = songsWithInfo[quickSelection.selectedIndex];
+      if (!song) {
+        return await sendMessageWarningRequest(api, message, {
+          caption: `Không có kết quả số ${quickSelection.selectedIndex + 1}.`,
+        }, 30000);
+      }
+      await api.addReaction("CLOCK", message);
+      return await handleSendTrackZingMp3(api, message, song, quickSelection.option || "");
+    }
+
     let musicListTxt = "Đây là danh sách bài hát trên ZingMP3 mà tôi tìm thấy:\n";
     musicListTxt += "Hãy trả lời tin nhắn này với số index của bài hát bạn muốn nghe!\n";
     musicListTxt += "VD: 1 hoặc 1 lyric|lossless|timelyric...";
@@ -441,7 +463,7 @@ export async function handleZingMp3Command(api, message, aliasCommand) {
       isPremium: song.streamingStatus == 2,
     }));
 
-    imagePath = await createSearchResultImage(formattedSongs);
+    imagePath = await createSearchResultImage(formattedSongs, api.getBotId());
 
     const object = {
       caption: musicListTxt,
@@ -516,7 +538,7 @@ export async function handleTopChartZingMp3(api, message, aliasCommand) {
       score: song.score,
     }));
 
-    imagePath = await createSearchResultImage(formattedSongs);
+    imagePath = await createSearchResultImage(formattedSongs, api.getBotId());
 
     const object = {
       caption: musicListTxt,
@@ -669,57 +691,53 @@ export async function handleSendTrackZingMp3(api, message, track, subCommandInpu
 export async function handleRandomChartZingMp3(api, message, caption, timeToLive = 1800000) {
   try {
     const result = await chartHomeZingMp3();
-    const songsWithRank = await Promise.all(
-      result.data.RTChart.items.map(async (song, index) => {
-        const songInfo = await getSong(song.encodeId);
-        return {
-          ...song,
-          ...songInfo.data,
-          rankChart: index + 1,
-          score: song.score,
-        };
-      })
-    );
-    const randomIndex = Math.floor(Math.random() * 20);
-    const randomSong = songsWithRank[randomIndex];
+    const chartItems = result.data.RTChart.items;
+    // Chỉ lấy random 1 bài từ top 20, không cần fetch info cho tất cả
+    const randomIndex = Math.floor(Math.random() * Math.min(20, chartItems.length));
+    const randomSong = chartItems[randomIndex];
+
+    // Chỉ fetch info cho bài được chọn
+    const songInfo = await getSong(randomSong.encodeId);
+    const songData = { ...randomSong, ...songInfo.data, rankChart: randomIndex + 1 };
+
     let captionFinal = caption || `[ Zing MP3 Chart ]\nChào buổi sáng!\n\n`;
-    const streamingInfo = await getStreamingSong(randomSong.encodeId);
+    const streamingInfo = await getStreamingSong(songData.encodeId);
     if (!streamingInfo.data) {
       throw new Error(streamingInfo.msg);
     }
 
     let linkMusic = streamingInfo.data["320"];
-    if (!linkMusic || !linkMusic.toUpperCase().includes("vip")) {
+    if (!linkMusic || linkMusic.toLowerCase().includes("vip")) {
       linkMusic = streamingInfo.data["128"];
     }
-    const thumbnailUrl = randomSong.thumbnailM.replace(/w\d+_/i, "w1200_");
+    const thumbnailUrl = songData.thumbnailM.replace(/w\d+_/i, "w1200_");
     const voiceUrl = await downloadAndConvertAudio(linkMusic, api, message);
 
-    captionFinal += `🎵 Music: ${randomSong.title}\n👤 Artist: ${randomSong.artistsNames}\n#Top${
+    captionFinal += `🎵 Music: ${songData.title}\n👤 Artist: ${songData.artistsNames}\n#Top${
       randomIndex + 1
     }_ZingMP3\n\n`;
     captionFinal += `Cùng thưởng thức bài hát hiện tại đang hot thứ ${randomIndex + 1} trên nền tảng ZingMP3 nào!!!`;
 
     const stats = [
-      randomSong.listen && `${randomSong.listen.toLocaleString()} 👂`,
-      randomSong.like && `${randomSong.like.toLocaleString()} ❤️`,
-      randomSong.rank && `🏆 Top ${randomSong.rank} BXH`,
+      songData.listen && `${songData.listen.toLocaleString()} 👂`,
+      songData.like && `${songData.like.toLocaleString()} ❤️`,
+      songData.rank && `🏆 Top ${songData.rank} BXH`,
     ].filter(Boolean);
 
     const object = {
-      trackId: randomSong.encodeId,
-      title: randomSong.title,
-      artists: randomSong.artistsNames,
-      like: randomSong.like,
-      listen: randomSong.listen,
-      comment: randomSong.comment,
+      trackId: songData.encodeId,
+      title: songData.title,
+      artists: songData.artistsNames,
+      like: songData.like,
+      listen: songData.listen,
+      comment: songData.comment,
       source: "ZingMP3",
       caption: captionFinal,
       imageUrl: thumbnailUrl,
       voiceUrl: voiceUrl,
       stats: stats,
-      rank: randomSong.rankChart || randomSong.rank,
-      score: randomSong.score || 0,
+      rank: songData.rankChart || songData.rank,
+      score: songData.score || 0,
     };
 
     await sendVoiceMusicNotQuote(api, message, object, timeToLive);

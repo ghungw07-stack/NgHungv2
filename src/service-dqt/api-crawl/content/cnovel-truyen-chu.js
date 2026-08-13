@@ -142,7 +142,7 @@ export async function handleCNovelTruyenChuCommand(api, message, aliasCommand) {
         headers: cnClient.headers,
       }));
 
-      imagePath = await createSearchResultImage(formattedDataFilm);
+      imagePath = await createSearchResultImage(formattedDataFilm, api.getBotId());
 
       let responseText = `🔎 Kết quả tìm kiếm truyện chữ:\n`;
       responseText += `Hãy trả lời tin nhắn này với số thứ tự truyện bạn muốn xem!`;

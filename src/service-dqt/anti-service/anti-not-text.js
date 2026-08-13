@@ -29,12 +29,18 @@ export async function handleOnlyText(api, message, groupSettings) {
 
 export async function antiNotText(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf) {
   const threadId = message.threadId;
+  const senderName = message.data.dName;
   const isPlainText = typeof message.data.content === "string";
   if (!botIsAdminBox || isAdminBox || isPlainText || isSelf) return false;
 
   if (groupSettings[threadId]?.onlyText && message.data.msgType !== "webchat") {
     try {
       await deleteMessageCustomer(api, message);
+      await api.sendMessage(
+        { msg: `⚠️ Cảnh cáo ${senderName}!\nNhóm này chỉ cho phép gửi tin nhắn văn bản.`, ttl: 300000 },
+        threadId,
+        message.type
+      );
       return true;
     } catch (error) {
       console.error("Lỗi khi xóa tin nhắn không phải văn bản:", error);

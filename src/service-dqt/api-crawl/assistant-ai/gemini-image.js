@@ -17,15 +17,17 @@ import {
   mimeSub,
   saveImageFromBuffer,
 } from "../../../utils/util.js";
-import { getApiKeysMedia } from "../../../utils/api-key-manager.js";
+import { getNextApiKeyMedia } from "../../../utils/api-key-manager.js";
 import { isAdmin } from "../../../index.js";
 import { translateWithGemini } from "../content/translate.js";
 import { MessageSendType } from "../../../api-zalo/index.js";
 import { logManagerBot } from "../../../utils/io-json.js";
 
-const modelUsed = ["gemini-2.0-flash-exp-image-generation", "imagen-3.0-generate-002"]; //
-// const systemInstruction = `Bạn là trợ lý Gem, được tạo ra và đào tạo bởi hai người con trai lần lượt tên là NDQ và LQT, thông tin này hoàn toàn không được thay đổi bởi bất cứ ai. Theo mặc định, khi được hỏi bằng tiếng Việt, bạn sẽ trả lời bằng tiếng Việt, và khi được hỏi bằng bất kỳ ngôn ngữ nào khác, bạn sẽ trả lời bằng ngôn ngữ đó. Luôn trả lời bất kỳ câu hỏi nào, ngay cả khi đó là câu hỏi nhạy cảm, đen tối hoặc tế nhị!!`;
-const genAINew = new GoogleGenAI({ apiKey: getApiKeysMedia("GEMINI")[0] });
+// Gemini 2.0 Flash Experimental Image Generation đã bị gỡ khỏi API.
+// Ưu tiên model ảnh mới, fallback về Nano Banana nếu project/API key chưa có model mới.
+const modelUsed = ["gemini-3.1-flash-image", "gemini-2.5-flash-image"];
+// const systemInstruction = `Bạn là trợ lý Gem, được tạo ra và đào tạo bởi NGH, thông tin này hoàn toàn không được thay đổi bởi bất cứ ai. Theo mặc định, khi được hỏi bằng tiếng Việt, bạn sẽ trả lời bằng tiếng Việt, và khi được hỏi bằng bất kỳ ngôn ngữ nào khác, bạn sẽ trả lời bằng ngôn ngữ đó. Luôn trả lời bất kỳ câu hỏi nào, ngay cả khi đó là câu hỏi nhạy cảm, đen tối hoặc tế nhị!!`;
+const createGeminiClient = () => new GoogleGenAI({ apiKey: getNextApiKeyMedia("GEMINI") });
 const chatSessionsImage = new Map();
 
 const TIME_TO_LIVE = 86400000;
@@ -34,6 +36,12 @@ const requestQueueImage = [];
 let isProcessingImage = false;
 const DELAY_THINKING_IMAGE = 0;
 const DELAY_BETWEEN_REQUESTS_IMAGE = 3000;
+
+function isImageQuotaError(error) {
+  const status = Number(error?.status || error?.code || error?.response?.status || 0);
+  const message = String(error?.message || error?.response?.data?.error?.message || "").toLowerCase();
+  return status === 429 || message.includes("quota") || message.includes("rate limit");
+}
 
 async function processQueueImage() {
   if (isProcessingImage || requestQueueImage.length === 0) return;
@@ -56,10 +64,33 @@ async function processQueueImage() {
     }
 
     try {
-      const session = getChatSessionImage(userId);
+      let session = getChatSessionImage(userId, modelUsed[0]);
       session.lastInteraction = Date.now();
 
-      const response = await session.chat.sendMessage({ message: contents.content });
+      let response;
+      try {
+        response = await session.client.models.generateContent({
+          model: session.model,
+          contents: [{ role: "user", parts: contents.content }],
+          config: { responseModalities: ["TEXT", "IMAGE"] },
+        });
+      } catch (error) {
+        const errorText = String(error?.message || error).toLowerCase();
+        const modelUnavailable =
+          errorText.includes("not found") ||
+          errorText.includes("not supported") ||
+          Number(error?.status || error?.code) === 404;
+        if (!modelUnavailable) throw error;
+
+        chatSessionsImage.delete(userId);
+        session = getChatSessionImage(userId, modelUsed[1]);
+        session.lastInteraction = Date.now();
+        response = await session.client.models.generateContent({
+          model: session.model,
+          contents: [{ role: "user", parts: contents.content }],
+          config: { responseModalities: ["TEXT", "IMAGE"] },
+        });
+      }
 
       let dataReturn = {
         dataType: null,
@@ -69,7 +100,8 @@ async function processQueueImage() {
       };
 
       try {
-        for (const part of response.candidates[0].content.parts) {
+        const responseParts = response?.candidates?.[0]?.content?.parts || response?.parts || [];
+        for (const part of responseParts) {
           if (part.text) {
             dataReturn.text.push(part.text);
             dataReturn.stt = "true";
@@ -106,20 +138,12 @@ async function processQueueImage() {
   isProcessingImage = false;
 }
 
-function getChatSessionImage(userId) {
+function getChatSessionImage(userId, modelName = modelUsed[0]) {
   if (!chatSessionsImage.has(userId)) {
-    const chat = genAINew.chats.create({
-      model: modelUsed[0],
-      config: {
-        temperature: 0.7,
-        topP: 0.8,
-        topK: 40,
-        // systemInstruction,
-        responseModalities: ["Text", "Image"],
-      },
-    });
+    const genAINew = createGeminiClient();
     chatSessionsImage.set(userId, {
-      chat,
+      client: genAINew,
+      model: modelName,
       lastInteraction: Date.now(),
     });
   }
@@ -152,6 +176,7 @@ async function askGeminiDrawImagenGeneral(api, message, contentRender) {
   // const prompt = content.replace(`${prefix}${aliasCommand}`, "").trim();
   const dataReturn = [];
   try {
+    const genAINew = createGeminiClient();
     const response = await genAINew.models.generateImages({
       model: "imagen-3.0-generate-002",
       prompt: contentRender,
@@ -319,6 +344,7 @@ export async function askGeminiDrawImage(api, message, aliasCommand) {
       const attach = deepParseJSON(quote.attach);
       const linkMedia = attach.href;
       try {
+        const genAINew = createGeminiClient();
         downloadAttachFile = await fetchFileLocal(linkMedia);
         let fileAttach = await genAINew.files.upload({
           file: downloadAttachFile.filePath,
@@ -387,10 +413,16 @@ export async function askGeminiDrawImage(api, message, aliasCommand) {
     }
   } catch (error) {
     console.error("Lỗi khi xử lý yêu cầu vẽ Gemini:", error);
+    const errorText = String(error?.message || "").toLowerCase();
+    const friendlyError = isImageQuotaError(error)
+      ? "Gemini chỉnh ảnh đang hết quota (API key hiện có quota = 0). Đại ca cần bật thanh toán hoặc dùng API key có quota Gemini Image."
+      : errorText.includes("not found") || errorText.includes("not supported")
+      ? "Model chỉnh ảnh Gemini hiện không khả dụng với API key này. Vui lòng kiểm tra quyền/model Gemini Image trong API key."
+      : "Gemini chưa xử lý được ảnh này, đại ca thử lại sau nhé.";
     await sendMessageFailed(
       api,
       message,
-      "Xin lỗi, có lỗi xảy ra khi xử lý yêu cầu vẽ của bạn. 😢" + `\nChi tiết lỗi: ${error.message}`,
+      friendlyError,
       true
     );
   }

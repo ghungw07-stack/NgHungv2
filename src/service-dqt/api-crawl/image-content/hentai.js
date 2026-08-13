@@ -253,7 +253,7 @@ export async function handleTruyenHentaiCommand(api, message, aliasCommand) {
         thumbnailM: result.thumbnail,
       }));
 
-      imagePath = await createSearchResultImage(formattedDataFilm);
+      imagePath = await createSearchResultImage(formattedDataFilm, api.getBotId());
 
       let responseText = `🔎 Kết quả tìm kiếm truyện Hentai:\n`;
       responseText += `Hãy trả lời tin nhắn này với số thứ tự truyện bạn muốn xem!`;

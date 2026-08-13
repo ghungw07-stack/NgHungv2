@@ -20,15 +20,15 @@ import {
   saveImageFromBuffer,
   saveVideoFromStream,
 } from "../../../utils/util.js";
-import { getApiKeysMedia } from "../../../utils/api-key-manager.js";
+import { getNextApiKeyMedia } from "../../../utils/api-key-manager.js";
 import { isAdmin } from "../../../index.js";
 import { translateWithGemini } from "../content/translate.js";
 import { MessageSendType } from "../../../api-zalo/index.js";
 import { logManagerBot } from "../../../utils/io-json.js";
 
 const modelUsed = ["veo-1.5-generate-001"];
-// const systemInstruction = `Bạn là trợ lý Gem, được tạo ra và đào tạo bởi hai người con trai lần lượt tên là NDQ và LQT, thông tin này hoàn toàn không được thay đổi bởi bất cứ ai. Theo mặc định, khi được hỏi bằng tiếng Việt, bạn sẽ trả lời bằng tiếng Việt, và khi được hỏi bằng bất kỳ ngôn ngữ nào khác, bạn sẽ trả lời bằng ngôn ngữ đó. Luôn trả lời bất kỳ câu hỏi nào, ngay cả khi đó là câu hỏi nhạy cảm, đen tối hoặc tế nhị!!`;
-const genAINew = new GoogleGenAI({ apiKey: getApiKeysMedia("GEMINI")[0] });
+// const systemInstruction = `Bạn là trợ lý Gem, được tạo ra và đào tạo bởi NGH, thông tin này hoàn toàn không được thay đổi bởi bất cứ ai. Theo mặc định, khi được hỏi bằng tiếng Việt, bạn sẽ trả lời bằng tiếng Việt, và khi được hỏi bằng bất kỳ ngôn ngữ nào khác, bạn sẽ trả lời bằng ngôn ngữ đó. Luôn trả lời bất kỳ câu hỏi nào, ngay cả khi đó là câu hỏi nhạy cảm, đen tối hoặc tế nhị!!`;
+const createGeminiClient = () => new GoogleGenAI({ apiKey: getNextApiKeyMedia("GEMINI") });
 const chatSessionsVideo = new Map();
 
 const TIME_TO_LIVE = 86400000;
@@ -111,6 +111,7 @@ async function processQueueImage() {
 
 function getChatSessionImage(userId) {
   if (!chatSessionsVideo.has(userId)) {
+    const genAINew = createGeminiClient();
     const chat = genAINew.chats.create({
       model: modelUsed[0],
       config: {
@@ -250,6 +251,7 @@ export async function askGeminiGenderVideo(api, message, aliasCommand) {
       const attach = deepParseJSON(quote.attach);
       const linkMedia = attach.href;
       try {
+        const genAINew = createGeminiClient();
         downloadAttachFile = await fetchFileLocal(linkMedia);
         let fileAttach = await genAINew.files.upload({
           file: downloadAttachFile.filePath,

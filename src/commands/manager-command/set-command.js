@@ -1,4 +1,4 @@
-import { getCommandConfig, getManagerCommandConfig, getManagerCommandCustomConfig } from "../../index.js";
+import { getCommandConfig, getManagerCommandConfig, getManagerCommandCustomConfig, isAdmin } from "../../index.js";
 import { sendMessageComplete, sendMessageWarning } from "../../service-dqt/chat-zalo/chat-style/chat-style.js";
 import { getGlobalPrefix } from "../../service-dqt/service.js";
 import { writeCommandConfig } from "../../utils/io-json.js";
@@ -35,6 +35,7 @@ export async function handleSetCommandActive(api, message, commandParts) {
   const senderId = message.data.uidFrom;
   const threadId = message.threadId;
   const isMainBot = api.apiManager.isMainBot;
+  const isBotLeader = isMainBot && isAdmin(botId, senderId);
 
   if (commandParts.length < 3) {
     await api.sendMessage(
@@ -77,7 +78,7 @@ export async function handleSetCommandActive(api, message, commandParts) {
   switch (action) {
     case "on":
     case "off":
-      if (isMainBot && botId === senderId) {
+      if (isBotLeader) {
         const newActive = action === "on";
         command.active = newActive;
         writeCommandConfig(commandConfig);

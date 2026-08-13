@@ -113,21 +113,25 @@ export async function notifyResetCompleteInGroup(api) {
   const msgRequestReset = managerData.msgRequestReset;
 
   if (msgRequestReset && msgRequestReset.threadId) {
+    const resetInfo = { threadId: msgRequestReset.threadId, type: msgRequestReset.type };
+
+    // Claim trạng thái trước khi await gửi tin. initService() và
+    // activeBotChildren() có thể gọi hàm này gần như đồng thời; nếu xoá sau
+    // await thì cả hai luồng đều đọc được msgRequestReset và báo hoàn tất 2 lần.
+    managerData.msgRequestReset = {};
+    managerData.lastRestartNotify = resetInfo;
+    managerDataCache.setChanged(idBot);
+    managerDataCache.save(idBot);
+
     await sendMessageResultRequest(
       api,
-      msgRequestReset.type,
-      msgRequestReset.threadId,
+      resetInfo.type,
+      resetInfo.threadId,
       "Khởi động lại hoàn tất!\nBot đã hoạt động trở lại!",
       true,
       300000
     );
 
-    const resetInfo = { threadId: msgRequestReset.threadId, type: msgRequestReset.type };
-    managerData.msgRequestReset = {};
-    // Lưu tạm lại để lần gọi kế tiếp (vd: activeBotChildren dùng để gửi thống kê bot con)
-    // vẫn lấy được threadId/type dù msgRequestReset đã bị xoá ở trên.
-    managerData.lastRestartNotify = resetInfo;
-    managerDataCache.setChanged(idBot);
     return resetInfo;
   }
 
@@ -374,7 +378,7 @@ export async function handleActiveBotUser(api, message, aliasCommand, groupSetti
         textStyleInfo +
         `\n\nCú pháp nameServer: ${prefix}${aliasCommand} style color:r;size:16;italic:true;bold:true` +
         `\nCú pháp text body: ${prefix}${aliasCommand} style textsize:14;textbold:true;textitalic:false` +
-        `\nMàu hỗ trợ: r/do, y/vang, g/xanhla, b/xanhduong, p/tim, o/cam, w/trang, k/den, hex (vd ff9800)` +
+        `\nMàu hỗ trợ: đỏ, xanh lá, vàng, đen` +
         `\nSize hỗ trợ: ${ALLOWED_STYLE_SIZES.join(", ")}` +
         `\nDùng "${prefix}${aliasCommand} style reset" để về mặc định.`;
       await sendMessageComplete(api, message, caption, false, 180000);

@@ -11,7 +11,7 @@ import {
   sendMessageWarningRequest,
 } from "../../chat-zalo/chat-style/chat-style.js";
 import { randomIDTemp, removeMention } from "../../../utils/format-util.js";
-import { setSelectionsMapData } from "../index.js";
+import { parseQuickSelection, setSelectionsMapData } from "../index.js";
 import { getCachedMedia, setCacheData } from "../../../utils/link-platform-cache.js";
 import { deleteFile, downloadFile, getLocalImageInfo, uploadTempFile } from "../../../utils/util.js";
 import { createSearchResultImage } from "../../../utils/canvas/search-canvas.js";
@@ -457,6 +457,7 @@ export async function handleTikTokCommand(api, message, command) {
 
   try {
     const keyword = content.replace(`${prefix}${command}`, "").trim();
+    const quickSelection = parseQuickSelection(keyword);
 
     if (!keyword) {
       const object = {
@@ -466,7 +467,7 @@ export async function handleTikTokCommand(api, message, command) {
       return;
     }
 
-    const [query, typeVideo = "normal"] = keyword.split(" ");
+    const [query, typeVideo = "normal"] = quickSelection.query.split(" ");
 
     const tiktokUrl = extractTikTokUrl(query);
     if (tiktokUrl) {
@@ -486,9 +487,23 @@ export async function handleTikTokCommand(api, message, command) {
       return;
     }
 
-    const videos = await searchTiktok(keyword);
+    const videos = await searchTiktok(quickSelection.query);
 
     if (videos && videos.length > 0) {
+      if (quickSelection.selectedIndex !== null) {
+        const selectedVideo = videos[quickSelection.selectedIndex];
+        if (!selectedVideo) {
+          return await sendMessageWarningRequest(api, message, {
+            caption: `Không có kết quả số ${quickSelection.selectedIndex + 1}.`,
+          }, 30000);
+        }
+        const qualityType = quickSelection.option === "audio"
+          ? "audio"
+          : selectedVideo.video.quality;
+        await api.addReaction("CLOCK", message);
+        await sendTikTokVideo(api, message, selectedVideo, false, qualityType);
+        return true;
+      }
       let videoListText = "Đây là danh sách video tôi tìm thấy trên Tiktok:\n";
       videoListText += `Hãy trả lời tin nhắn này với số thứ tự video bạn muốn xem!`;
       videoListText += `\nVD: 1 hoặc 1 audio`;
@@ -501,7 +516,8 @@ export async function handleTikTokCommand(api, message, command) {
           listen: video.stat.playCount || 0,
           like: video.stat.diggCount || 0,
           comment: video.stat.commentCount || 0,
-        }))
+        })),
+        api.getBotId()
       );
 
       const object = {

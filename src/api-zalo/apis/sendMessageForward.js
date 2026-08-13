@@ -26,7 +26,7 @@ export const sendMessageForwardFactory = apiFactory()((api, appContext, utils) =
         try {
           src = new URL(message.link).hostname;
         } catch (error) {
-          src = message.src || "HHH Bot Zalo";
+          src = message.src || "NGH Bot Zalo";
         }
       }
       params = {
@@ -45,7 +45,7 @@ export const sendMessageForwardFactory = apiFactory()((api, appContext, utils) =
           linkDesc:
             message.desc ||
             linkData?.data?.desc ||
-            "HHH Developer: Bot > " + api.apiManager.getDataConfig()?.infoOwner?.nameServer ||
+            "NGH Developer: Bot > " + api.apiManager.getDataConfig()?.infoOwner?.nameServer ||
             "Not Name Server",
           linkThumb: message.thumb || linkData?.data?.thumb || linkThumbDefault || "",
           linkType: "",

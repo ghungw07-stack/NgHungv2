@@ -13,6 +13,8 @@ import { handleActiveBotUser, handleActiveGameUser, handleActivePrivateBot } fro
 import { helpCommand, adminCommand, gameInfoCommand, gameMenuCommand } from "./instructions/help.js";
 import { askGPTCommand } from "../service-dqt/api-crawl/assistant-ai/gpt.js";
 import { askGeminiCommand } from "../service-dqt/api-crawl/assistant-ai/gemini.js";
+import { askNovaCommand, isNovaAwaitingMusic, isNovaSessionActive } from "../service-dqt/api-crawl/assistant-ai/nova.js";
+import { isNovaEnabled, isNovaGroupBot, setNovaEnabled } from "../utils/nova-store.js";
 import { translateCommand } from "../service-dqt/api-crawl/content/translate.js";
 import { weatherCommand } from "../service-dqt/api-crawl/content/weather.js";
 import { handlePhatNguoiCommand } from "../service-dqt/api-crawl/content/phatnguoi.js";
@@ -44,11 +46,15 @@ import { searchImageGoogle } from "../service-dqt/api-crawl/google/google-image.
 import { handleGoogleCommand } from "../service-dqt/api-crawl/google/google-search.js";
 import { handleGoogleAISearchCommand } from "../service-dqt/api-crawl/google/google-ai-search.js";
 import { handleGoogleNewsCommand } from "../service-dqt/api-crawl/google/google-news.js";
+import { handleTvplCommand } from "../service-dqt/api-crawl/content/thuvien-phap-luat.js";
+import { handleHorseRaceCommand } from "../service-dqt/game-service/dua-ngua/dua-ngua.js";
 import { handleFacebookProfileCommand } from "../service-dqt/api-crawl/facebook/facebook-profile.js";
 import { askGeminiDrawImage } from "../service-dqt/api-crawl/assistant-ai/gemini-image.js";
 import { handleDataCommand } from "../service-dqt/utilities/data-manager.js";
 import { groupInfoCommand } from "../service-dqt/info-service/group-info.js";
 import { userInfoCommand } from "../service-dqt/info-service/user-info.js";
+import { handleI4ImageCommand } from "../service-dqt/info-service/i4image.js";
+import { handleUidCommand } from "../service-dqt/info-service/uid.js";
 import { handleRankCommand } from "../service-dqt/info-service/rank-chat.js";
 import { handleAutoJoinCommand } from "../service-dqt/anti-service/auto-join.js";
 import { chatAll } from "../service-dqt/chat-zalo/chat-general/chat-all.js";
@@ -65,6 +71,9 @@ import { chatWithSimsimi } from "../service-dqt/chat-bot/simsimi/simsimi-api.js"
 import { handleLearnCommand, handleReplyCommand } from "../service-dqt/chat-bot/bot-learning/dqt-bot.js";
 import { handleOnlyText } from "../service-dqt/anti-service/anti-not-text.js";
 import { scoldUser } from "../service-dqt/chat-bot/scold-user/scold-user.js";
+import { handleFakeMessageCommand } from "./fake-message.js";
+import { getBotStyle, setBotStyle } from "../utils/bot-style.js";
+import { botText, getBotLanguage, getBotLanguageName, setBotLanguage } from "../utils/bot-language.js";
 import { getBotDetails } from "../service-dqt/info-service/bot-info.js";
 import {
   handleBanCommand,
@@ -75,11 +84,17 @@ import {
   handleNapCommand,
   handleRutCommand,
   handleSetVNDCommand,
+  handleStatementCommand,
   handleTopPlayers,
   handleUnbanCommand,
+  handleDonateRankCommand,
+  handleDonateCommand,
+  handleGameTierCommand,
+  handleResetDailyCommand,
+  handleResetJackpotCommand,
 } from "../service-dqt/game-service/index.js";
 import { handleAntiLinkCommand } from "../service-dqt/anti-service/anti-link.js";
-import { getCommandConfig, getManagerCommandConfig, getManagerCommandCustomConfig, isAdmin } from "../index.js";
+import { apiManager, getCommandConfig, getManagerCommandConfig, getManagerCommandCustomConfig, isAdmin, isBotLeader, reloadCommandConfig } from "../index.js";
 import {
   sendMessageFromSQL,
   sendMessageInsufficientAuthority,
@@ -87,12 +102,14 @@ import {
 } from "../service-dqt/chat-zalo/chat-style/chat-style.js";
 import { handleAdminHighLevelCommands, handleListAdmin } from "./bot-manager/admin-manager.js";
 import { handleAntiSpamCommand } from "../service-dqt/anti-service/anti-spam.js";
-import { handleKeyCommands, handleBlockBot, handleUnblockBot, handleListBlockBot, handleCreateGroup, handleTarget } from "./bot-manager/group-manage.js";
+import { handleBlockBot, handleUnblockBot, handleListBlockBot, handleCreateGroup, handleTarget } from "./bot-manager/group-manage.js";
 import { listCommands } from "./instructions/help.js";
 import { handleTaiXiuCommand } from "../service-dqt/game-service/tai-xiu/tai-xiu.js";
 import { handleXiDachCommand, handleXiDachPrivateAction } from "../service-dqt/game-service/xi-dach/xi-dach.js";
+import { handleCardTableCommand } from "../service-dqt/game-service/card-tables/card-tables.js";
+import { handleWerewolfCommand, handleWerewolfPrivateAction } from "../service-dqt/game-service/ma-soi/index.js";
 import { handlePrefixCommand } from "./bot-manager/prefix.js";
-import { getGlobalPrefix } from "../service-dqt/service.js";
+import { getGlobalPrefix, reloadServiceConfig } from "../service-dqt/service.js";
 import { handleNongTraiCommand } from "../service-dqt/game-service/nong-trai/nong-trai.js";
 import { userBussinessCardCommand } from "../service-dqt/info-service/bussiness-card.js";
 import { handleConvertStickerCommand } from "../service-dqt/chat-zalo/chat-special/send-sticker/convert-sticker.js";
@@ -122,7 +139,7 @@ import {
   handleVoiceCommand,
 } from "../service-dqt/chat-zalo/chat-special/send-voice/send-voice.js";
 import { antiNude, handleAntiNudeCommand } from "../service-dqt/anti-service/anti-nude/anti-nude.js";
-import { handleSettingGroupCommand, handleListKey } from "./bot-manager/group-manage.js";
+import { handleSettingGroupCommand } from "./bot-manager/group-manage.js";
 import { handleVietlott655Command } from "../service-dqt/game-service/vietlott/vietlott655.js";
 import { handleMiniGameCommand } from "../service-dqt/game-service/mini-game/index.js";
 import { handleJoinGroup, handleLeaveGroup, handleShowGroupsList, handleLeaveLockedGroups, handleLeaveAllGroup } from "./bot-manager/remote-action-group.js";
@@ -131,6 +148,7 @@ import { handleWhiteList } from "../service-dqt/anti-service/white-list.js";
 import { handleAntiUndoCommand } from "../service-dqt/anti-service/anti-undo.js";
 import { handleBankInfoCommand, handleMyBankCommand } from "../service-dqt/info-service/bank-info.js";
 import { sendReactionWaitingCountdown } from "./manager-command/check-countdown.js";
+import { handleBaccaratBet } from "../service-dqt/game-service/baccarat/baccarat.js";
 import { getPermissionCommandName, handleSetCommandActive } from "./manager-command/set-command.js";
 import { scanGroupsWithAction } from "./bot-manager/scan-group.js";
 import { handleDeleteMessage } from "./bot-manager/recent-message.js";
@@ -153,6 +171,7 @@ import { handleChatBiThuatPhaNhom, handleChatSpamLink } from "../service-dqt/cha
 import { groupSettingsAll } from "../automations/event-send-msg.js";
 import { handleManagerBot } from "../manager-bot/index.js";
 import { handleConfigPRCommand } from "../service-dqt/scheduler/pr-command.js";
+import { handleAutoRaiLinkCommand } from "../service-dqt/scheduler/auto-rai-link.js";
 import { gameTypeDoanSo } from "../service-dqt/game-service/mini-game/guessNumber.js";
 import { gameTypeNoiTu } from "../service-dqt/game-service/mini-game/wordChain.js";
 import { gameTypeVuaTiengViet } from "../service-dqt/game-service/mini-game/vuatiengviet.js";
@@ -205,6 +224,8 @@ import { handleAntiPhotoVideo } from "../service-dqt/anti-service/anti-photo.js"
 import { userBussinessCardQrCommand } from "../service-dqt/info-service/business-card-qr.js";
 import { handleCheckquocgia } from "./send-all/quocgia.js";
 import { handleInviteAllFriendsCommand } from "./send-all/invite-all-friends.js";
+import { handleAddUserToGroupCommand } from "./bot-manager/add-user-to-group.js";
+import { handleGiveawayCommand } from "../service-dqt/game-service/giveaway/giveaway.js";
 import { handleHungCommand } from "./send-all/hung.js";
 import { handleAutoReplyPMCommand } from "./bot-manager/welcome-bye.js";
 import { handleI4tiktokCommand } from "../service-dqt/info-service/i4tiktok.js";
@@ -218,10 +239,489 @@ import { handleCreateAutoReplyCommand,
   handleDeleteChatCommand 
 } from "./bot-manager/summary.js";
 import { handleCheckGiaVangCommand } from "./send-all/check-gia-vang.js";
+import { handleCheckGiaXangCommand } from "./send-all/check-gia-xang.js";
 import { handleAntiInvite } from "../service-dqt/anti-service/anti-invite.js";
 import { handleHeartReactionDeleteCommand } from "../automations/reaction-delete.js";
+import { resolveReactionInput } from "../api-zalo/models/Reaction.js";
+import { handleEventSendMessage } from "./bot-manager/event-sendmsg.js";
+import { canUseBarePrefix } from "../utils/bare-prefix-cooldown.js";
+import { getCommandCooldownSeconds } from "../utils/command-cooldown.js";
 
 const lastCommandUsage = {};
+const COMMAND_USAGE_RETENTION_MS = 24 * 60 * 60 * 1000;
+let cachedCommandList = null;
+let cachedCommandLookup = new Map();
+
+// Tránh quét toàn bộ danh sách command cho mỗi lần kiểm tra cooldown, quyền,
+// alias và dispatch. Cache tự dựng lại khi mảng cấu hình được reload/thay thế.
+function getCommandLookup() {
+  const commands = getCommandConfig().commands || [];
+  if (commands === cachedCommandList) return cachedCommandLookup;
+
+  const lookup = new Map();
+  for (const command of commands) {
+    lookup.set(command.name, command);
+    for (const alias of command.alias || []) lookup.set(alias, command);
+  }
+  cachedCommandList = commands;
+  cachedCommandLookup = lookup;
+  return lookup;
+}
+
+export function cleanupLastCommandUsage(now = Date.now()) {
+  for (const [userId, usages] of Object.entries(lastCommandUsage)) {
+    for (const [commandName, timestamp] of Object.entries(usages || {})) {
+      if (!Number.isFinite(timestamp) || now - timestamp > COMMAND_USAGE_RETENTION_MS) {
+        delete usages[commandName];
+      }
+    }
+    if (Object.keys(usages || {}).length === 0) delete lastCommandUsage[userId];
+  }
+}
+
+const commandUsageCleanupTimer = setInterval(cleanupLastCommandUsage, 60 * 60 * 1000);
+commandUsageCleanupTimer.unref?.();
+
+function getCommandPayload(message, prefix, aliasCommand) {
+  const content = typeof message.data?.content === "string" ? message.data.content : "";
+  const commandText = `${prefix}${aliasCommand}`;
+  return content.toLowerCase().startsWith(commandText.toLowerCase())
+    ? content.slice(commandText.length).trim()
+    : "";
+}
+
+function createRoutedCommandMessage(message, content) {
+  const originalContent = typeof message.data?.content === "string" ? message.data.content : "";
+  const mentions = (message.data?.mentions || []).map((mention) => {
+    const mentionText = originalContent.substring(mention.pos, mention.pos + mention.len);
+    const nextPos = content.indexOf(mentionText);
+    return { ...mention, pos: nextPos >= 0 ? nextPos : mention.pos };
+  });
+
+  return {
+    ...message,
+    data: {
+      ...message.data,
+      content,
+      mentions,
+    },
+  };
+}
+
+const antiCommandAliases = {
+  anti: "antiall",
+  antiall: "antiall",
+  all: "antiall",
+  antibadword: "antibadword",
+  badword: "antibadword",
+  atbw: "antibadword",
+  antimedia: "antimedia",
+  media: "antimedia",
+  atmda: "antimedia",
+  antifile: "antifile",
+  file: "antifile",
+  antiforward: "antiforward",
+  forward: "antiforward",
+  antichuyentiep: "antiforward",
+  antiinvite: "antiinvite",
+  invite: "antiinvite",
+  antimoi: "antiinvite",
+  antibot: "antibot",
+  bot: "antibot",
+  antilink: "antilink",
+  link: "antilink",
+  atl: "antilink",
+  antigif: "antigif",
+  gif: "antigif",
+  antispam: "antispam",
+  spam: "antispam",
+  antinude: "antinude",
+  nude: "antinude",
+  antiundo: "antiundo",
+  undo: "antiundo",
+  antistickereffect: "antistickereffect",
+  stickereffect: "antistickereffect",
+  antistickerlag: "antistickereffect",
+  antistklag: "antistickereffect",
+  onlytext: "onlytext",
+  text: "onlytext",
+  antivoice: "antivoice",
+  voice: "antivoice",
+  antitag: "antitag",
+  tag: "antitag",
+  antiphonenumber: "antiphonenumber",
+  phonenumber: "antiphonenumber",
+  phone: "antiphonenumber",
+  antisdt: "antiphonenumber",
+  antisticker: "antisticker",
+  sticker: "antisticker",
+  antistk: "antisticker",
+  antiphoto: "antiphoto",
+  photo: "antiphoto",
+};
+
+async function handleBotStyleSubcommand(api, message, commandParts, prefix) {
+  if (commandParts[1]?.toLowerCase() !== "style") return false;
+
+  const currentBotId = api.getBotId();
+  const requestedStyle = commandParts[2]?.toLowerCase();
+  if (!requestedStyle) {
+    await sendMessageCompleteRequest(api, message, {
+      caption: `Style bot ${currentBotId}: ${getBotStyle(currentBotId).toUpperCase()}\nV2 là style mặc định duy nhất.`,
+    }, 15000);
+    return true;
+  }
+  if (!(await setBotStyle(currentBotId, requestedStyle))) {
+    await sendMessageFailed(api, message, `Style V1 đã được xoá. Dùng: ${prefix}bot style v2.`, false, 15000);
+    return true;
+  }
+  await sendMessageCompleteRequest(api, message, {
+    caption: `Đã lưu style ${requestedStyle.toUpperCase()} riêng cho bot ${currentBotId}.`,
+  }, 15000);
+  return true;
+}
+
+async function handleBotLanguageSubcommand(api, message, commandParts, prefix) {
+  const subcommand = commandParts[1]?.toLowerCase();
+  if (subcommand !== "language" && subcommand !== "lang") return false;
+
+  const botId = api.getBotId();
+  const requestedLanguage = commandParts.slice(2).join(" ");
+  if (!requestedLanguage) {
+    const current = getBotLanguage(botId);
+    await sendMessageCompleteRequest(api, message, {
+      caption: botText(botId, {
+        vi: `Ngôn ngữ bot ${botId}: ${getBotLanguageName(current)} (${current})\nDùng: ${prefix}bot lang <vi|en>`,
+        en: `Bot ${botId} language: ${getBotLanguageName(current)} (${current})\nUsage: ${prefix}bot lang <vi|en>`,
+      }),
+    }, 15000);
+    return true;
+  }
+
+  if (!(await setBotLanguage(botId, requestedLanguage))) {
+    await sendMessageFailed(api, message, botText(botId, {
+      vi: `Ngôn ngữ không hợp lệ. Hiện hỗ trợ: vi, en.\nDùng: ${prefix}bot lang <vi|en>`,
+      en: `Invalid language. Supported languages: vi, en.\nUsage: ${prefix}bot lang <vi|en>`,
+    }), false, 15000);
+    return true;
+  }
+
+  await sendMessageCompleteRequest(api, message, {
+    caption: botText(botId, {
+      vi: `Đã đổi ngôn ngữ riêng của bot ${botId} sang Tiếng Việt.`,
+      en: `Bot ${botId} language has been changed to English.`,
+    }),
+  }, 15000);
+  return true;
+}
+
+async function handleBotSubcommand(api, message, commandParts, prefix) {
+  if (await handleBotStyleSubcommand(api, message, commandParts, prefix)) return true;
+  return await handleBotLanguageSubcommand(api, message, commandParts, prefix);
+}
+
+async function handleAntiCommandFamily(api, message, aliasCommand, groupSettings) {
+  const prefix = getGlobalPrefix(api.getBotId());
+  let payload = getCommandPayload(message, prefix, aliasCommand);
+  let antiCommand = antiCommandAliases[String(aliasCommand).toLowerCase()];
+
+  if (String(aliasCommand).toLowerCase() === "anti") {
+    const [feature = "", ...rest] = payload.split(/\s+/).filter(Boolean);
+    antiCommand = antiCommandAliases[feature.toLowerCase()];
+    payload = rest.join(" ");
+  }
+
+  if (!antiCommand) {
+    await sendMessageFailed(
+      api,
+      message,
+      `Dùng: ${prefix}anti <all|badword|media|file|forward|invite|bot|link|gif|spam|nude|undo|stickereffect|text|voice|tag|phone|sticker|photo> <on|off>`,
+      false
+    );
+    return false;
+  }
+
+  const routedMessage = createRoutedCommandMessage(
+    message,
+    `${prefix}${antiCommand}${payload ? ` ${payload}` : ""}`
+  );
+
+  switch (antiCommand) {
+    case "antiall": return await handleAntiAll(api, routedMessage, groupSettings);
+    case "antibadword": return await handleAntiBadWordCommand(api, routedMessage, groupSettings);
+    case "antimedia": return await handleAntiMediaCommand(api, routedMessage, antiCommand, groupSettings);
+    case "antifile": return await handleAntiFile(api, routedMessage, groupSettings);
+    case "antiforward": return await handleAntiForwardCommand(api, routedMessage, groupSettings);
+    case "antiinvite": return await handleAntiInvite(api, routedMessage);
+    case "antibot": return await handleAntiBotCommand(api, routedMessage, groupSettings);
+    case "antilink": return await handleAntiLinkCommand(api, routedMessage, groupSettings);
+    case "antigif": return await handleAntiAllEffectGifCommand(api, routedMessage, groupSettings);
+    case "antispam": return await handleAntiSpamCommand(api, routedMessage, groupSettings);
+    case "antinude": return await handleAntiNudeCommand(api, routedMessage, groupSettings);
+    case "antiundo": return await handleAntiUndoCommand(api, routedMessage, groupSettings);
+    case "antistickereffect": return await handleAntiSendStickerEffectCommand(api, routedMessage, antiCommand, groupSettings);
+    case "onlytext": return await handleOnlyText(api, routedMessage, groupSettings);
+    case "antivoice": return await handleAntiVoiceCommand(api, routedMessage, groupSettings);
+    case "antitag": return await handleAntiTagCommand(api, routedMessage, groupSettings);
+    case "antiphonenumber": return await handleAntiPhoneNumber(api, routedMessage, groupSettings);
+    case "antisticker": return await handleAntiAllEffectStickerCommand(api, routedMessage, groupSettings);
+    case "antiphoto": return await handleAntiPhotoVideo(api, routedMessage, groupSettings, antiCommand);
+    default: return false;
+  }
+}
+
+async function handleBlockBotFamily(api, message, aliasCommand, groupSettings) {
+  const prefix = getGlobalPrefix(api.getBotId());
+  const alias = String(aliasCommand).toLowerCase();
+  let payload = getCommandPayload(message, prefix, aliasCommand);
+  let action = alias === "unblockbot" ? "remove" : alias === "listblockbot" ? "list" : "add";
+
+  if (alias === "blockbot") {
+    const [possibleAction = "", ...rest] = payload.split(/\s+/).filter(Boolean);
+    if (["add", "block"].includes(possibleAction.toLowerCase())) {
+      action = "add";
+      payload = rest.join(" ");
+    } else if (["remove", "unblock", "del"].includes(possibleAction.toLowerCase())) {
+      action = "remove";
+      payload = rest.join(" ");
+    } else if (["list", "show"].includes(possibleAction.toLowerCase())) {
+      action = "list";
+      payload = rest.join(" ");
+    }
+  }
+
+  if (action === "list") return await handleListBlockBot(api, message);
+  if (action === "remove") {
+    const routedMessage = createRoutedCommandMessage(
+      message,
+      `${prefix}unblockbot${payload ? ` ${payload}` : ""}`
+    );
+    return await handleUnblockBot(api, routedMessage, groupSettings);
+  }
+  return await handleBlockBot(api, message, groupSettings);
+}
+
+async function handleResourceFamily(api, message, aliasCommand) {
+  const prefix = getGlobalPrefix(api.getBotId());
+  const alias = String(aliasCommand).toLowerCase();
+  let payload = getCommandPayload(message, prefix, aliasCommand);
+  let action = alias.includes("delete") || alias === "delrsrc"
+    ? "delete"
+    : alias.includes("show")
+      ? "show"
+      : alias === "resource"
+        ? ""
+        : "download";
+
+  if (alias === "resource") {
+    const [possibleAction = "", ...rest] = payload.split(/\s+/).filter(Boolean);
+    const normalizedAction = possibleAction.toLowerCase();
+    action = ["download", "dl", "add"].includes(normalizedAction)
+      ? "download"
+      : ["delete", "del", "remove"].includes(normalizedAction)
+        ? "delete"
+        : ["show", "list"].includes(normalizedAction)
+          ? "show"
+          : "";
+    payload = rest.join(" ");
+  }
+
+  if (!action) {
+    await sendMessageFailed(api, message, `Dùng: ${prefix}resource <download|delete|show> ...`, false);
+    return;
+  }
+
+  const commandName = action === "download" ? "downloadresource" : action === "delete" ? "deleteresource" : "showresource";
+  const routedMessage = createRoutedCommandMessage(
+    message,
+    `${prefix}${commandName}${payload ? ` ${payload}` : ""}`
+  );
+  if (action === "download") return await handleDownloadResource(api, routedMessage, commandName);
+  if (action === "delete") return await handleDeleteResource(api, routedMessage, commandName);
+  return await handleShowResource(api, routedMessage, commandName);
+}
+
+async function handleZaloAutoReplyFamily(api, message, aliasCommand) {
+  const prefix = getGlobalPrefix(api.getBotId());
+  const alias = String(aliasCommand).toLowerCase();
+  let payload = getCommandPayload(message, prefix, aliasCommand);
+  let action = alias === "setautoreply" ? "set" : alias === "delautoreply" ? "delete" : alias === "listautoreply" ? "list" : "";
+
+  if (alias === "zautoreply") {
+    const [possibleAction = "", ...rest] = payload.split(/\s+/).filter(Boolean);
+    const normalizedAction = possibleAction.toLowerCase();
+    action = ["set", "add", "create"].includes(normalizedAction)
+      ? "set"
+      : ["delete", "del", "remove"].includes(normalizedAction)
+        ? "delete"
+        : ["list", "show"].includes(normalizedAction)
+          ? "list"
+          : "";
+    payload = rest.join(" ");
+  }
+
+  if (!action) {
+    await sendMessageFailed(api, message, `Dùng: ${prefix}zautoreply <set|delete|list> ...`, false);
+    return;
+  }
+
+  const commandName = action === "set" ? "setautoreply" : action === "delete" ? "delautoreply" : "listautoreply";
+  const routedMessage = createRoutedCommandMessage(
+    message,
+    `${prefix}${commandName}${payload ? ` ${payload}` : ""}`
+  );
+  if (action === "set") return await handleCreateAutoReplyCommand(api, routedMessage, commandName);
+  if (action === "delete") return await handleDeleteAutoReplyCommand(api, routedMessage, commandName);
+  return await handleGetAutoReplyListCommand(api, routedMessage, commandName);
+}
+
+async function handleMuteCommandFamily(api, message, aliasCommand, groupSettings, groupAdmins) {
+  const prefix = getGlobalPrefix(api.getBotId());
+  const alias = String(aliasCommand).toLowerCase();
+  let payload = getCommandPayload(message, prefix, aliasCommand);
+  let action = alias === "unmute" || alias === "nói" ? "remove" : alias === "listmute" ? "list" : "add";
+
+  if (alias === "mute") {
+    const [possibleAction = "", ...rest] = payload.split(/\s+/).filter(Boolean);
+    const normalizedAction = possibleAction.toLowerCase();
+    if (["add", "on"].includes(normalizedAction)) {
+      action = "add";
+      payload = rest.join(" ");
+    } else if (["remove", "unmute", "off", "del"].includes(normalizedAction)) {
+      action = "remove";
+      payload = rest.join(" ");
+    } else if (["list", "show"].includes(normalizedAction)) {
+      action = "list";
+      payload = rest.join(" ");
+    }
+  }
+
+  if (action === "list") return await handleMuteList(api, message, groupSettings);
+  const commandName = action === "remove" ? "unmute" : "mute";
+  const routedMessage = createRoutedCommandMessage(
+    message,
+    `${prefix}${commandName}${payload ? ` ${payload}` : ""}`
+  );
+  if (action === "remove") return await handleUnmuteUser(api, routedMessage, groupSettings);
+  return await handleMuteUser(api, routedMessage, groupSettings, groupAdmins);
+}
+
+async function handleBanCommandFamily(api, message, aliasCommand, groupSettings) {
+  const prefix = getGlobalPrefix(api.getBotId());
+  const alias = String(aliasCommand).toLowerCase();
+  let payload = getCommandPayload(message, prefix, aliasCommand);
+  let action = alias === "unban" ? "remove" : "add";
+
+  if (alias === "ban") {
+    const [possibleAction = "", ...rest] = payload.split(/\s+/).filter(Boolean);
+    const normalizedAction = possibleAction.toLowerCase();
+    if (["add", "lock"].includes(normalizedAction)) {
+      action = "add";
+      payload = rest.join(" ");
+    } else if (["remove", "unban", "unlock", "del"].includes(normalizedAction)) {
+      action = "remove";
+      payload = rest.join(" ");
+    }
+  }
+
+  const commandName = action === "remove" ? "unban" : "ban";
+  const routedMessage = createRoutedCommandMessage(
+    message,
+    `${prefix}${commandName}${payload ? ` ${payload}` : ""}`
+  );
+  if (action === "remove") return await handleUnbanCommand(api, routedMessage, groupSettings);
+  return await handleBanCommand(api, routedMessage, groupSettings);
+}
+
+async function handleWelcomeCommandFamily(api, message, aliasCommand, groupSettings) {
+  const prefix = getGlobalPrefix(api.getBotId());
+  const alias = String(aliasCommand).toLowerCase();
+  let payload = getCommandPayload(message, prefix, aliasCommand);
+  let action = alias === "bye" ? "bye" : "welcome";
+
+  if (alias === "welcome") {
+    const [possibleAction = "", ...rest] = payload.split(/\s+/).filter(Boolean);
+    if (["welcome", "bye"].includes(possibleAction.toLowerCase())) {
+      action = possibleAction.toLowerCase();
+      payload = rest.join(" ");
+    }
+  }
+
+  const routedMessage = createRoutedCommandMessage(
+    message,
+    `${prefix}${action}${payload ? ` ${payload}` : ""}`
+  );
+  return await handleWelcomeBye(api, routedMessage, groupSettings);
+}
+
+async function handleLearnCommandFamily(api, message, aliasCommand, groupSettings) {
+  const prefix = getGlobalPrefix(api.getBotId());
+  const alias = String(aliasCommand).toLowerCase();
+  let payload = getCommandPayload(message, prefix, aliasCommand);
+  let commandName = alias;
+
+  if (alias === "learn") {
+    const normalizedPayload = payload.toLowerCase();
+    if (normalizedPayload === "list" || normalizedPayload === "show") {
+      commandName = "learnlist";
+      payload = "";
+    } else if (/^(delete|remove|unlearn)(\s+|$)/i.test(payload)) {
+      commandName = "unlearn";
+      payload = payload.replace(/^(delete|remove|unlearn)\s*/i, "");
+    } else if (/^now(_|\s+|$)/i.test(payload)) {
+      commandName = "learnnow";
+      payload = payload.replace(/^now\s*/i, "");
+      if (payload && !payload.startsWith("_")) payload = `_${payload}`;
+    }
+  }
+
+  const routedContent = commandName === "learnnow"
+    ? `${prefix}${commandName}${payload ? (payload.startsWith("_") ? payload : `_${payload}`) : ""}`
+    : `${prefix}${commandName}${payload ? ` ${payload}` : ""}`;
+  const routedMessage = createRoutedCommandMessage(
+    message,
+    routedContent
+  );
+  return await handleLearnCommand(api, routedMessage, groupSettings);
+}
+
+async function handleAdminBotCommandFamily(
+  api,
+  message,
+  aliasCommand,
+  groupAdmins,
+  groupSettings,
+  isAdminLevelHighest
+) {
+  const prefix = getGlobalPrefix(api.getBotId());
+  const alias = String(aliasCommand).toLowerCase();
+  let payload = getCommandPayload(message, prefix, aliasCommand);
+  let action = alias === "listadmin" || alias === "ladm" ? "list" : alias;
+
+  if (alias === "adminbot") {
+    const [possibleAction = "", ...rest] = payload.split(/\s+/).filter(Boolean);
+    action = possibleAction.toLowerCase();
+    payload = rest.join(" ");
+  }
+
+  if (["list", "show"].includes(action)) return await handleListAdmin(api, message, groupSettings);
+  if (!["add", "remove"].includes(action)) {
+    await sendMessageFailed(api, message, `Dùng: ${prefix}adminbot <add|remove|list> [@người_tag]`, false);
+    return false;
+  }
+
+  const routedMessage = createRoutedCommandMessage(
+    message,
+    `${prefix}${action}${payload ? ` ${payload}` : ""}`
+  );
+  return await handleAdminHighLevelCommands(
+    api,
+    routedMessage,
+    groupAdmins,
+    groupSettings,
+    isAdminLevelHighest
+  );
+}
 export function getLastCommandUsage() {
   return lastCommandUsage;
 }
@@ -261,6 +761,80 @@ function buildGameSubMessage(message, prefix) {
   }
 }
 
+async function handleCoreGameCommand(api, message, command, groupSettings, aliasCommand = command) {
+  switch (command) {
+    case "nap":
+      await handleNapCommand(api, message, groupSettings);
+      return true;
+    case "rut":
+      await handleRutCommand(api, message, groupSettings);
+      return true;
+    case "bank":
+      await handleBankCommand(api, message, groupSettings);
+      return true;
+    case "saoke":
+      await handleStatementCommand(api, message, groupSettings);
+      return true;
+    case "donenat":
+      await handleDonateRankCommand(api, message, groupSettings);
+      return true;
+    case "donate":
+      await handleDonateCommand(api, message, groupSettings);
+      return true;
+    case "tier":
+      await handleGameTierCommand(api, message, groupSettings);
+      return true;
+    case "mycard":
+      await handleMyCard(api, message, groupSettings);
+      return true;
+    case "daily":
+      await handleClaimDailyReward(api, message, groupSettings);
+      return true;
+    case "giveaway":
+      await handleGiveawayCommand(api, message);
+      return true;
+    case "resetdaily":
+      await handleResetDailyCommand(api, message);
+      return true;
+    case "resethu":
+      await handleResetJackpotCommand(api, message);
+      return true;
+    case "rank":
+      await handleTopPlayers(api, message, groupSettings);
+      return true;
+    case "baucua":
+      await handleBauCua(api, message, groupSettings);
+      return true;
+    case "taixiu":
+      await handleTaiXiuCommand(api, message, groupSettings);
+      return true;
+    case "bcr":
+      await handleBaccaratBet(api, message, groupSettings);
+      return true;
+    case "xidach":
+      await handleXiDachCommand(api, message, groupSettings);
+      return true;
+    case "baicao":
+    case "tienlen":
+      await handleCardTableCommand(api, message, groupSettings, command);
+      return true;
+    case "chanle":
+      await handleChanLe(api, message, groupSettings);
+      return true;
+    case "keobuabao":
+      await handleKBBCommand(api, message, groupSettings);
+      return true;
+    case "nongtrai":
+      await handleNongTraiCommand(api, message, groupSettings);
+      return true;
+    case "vietlott655":
+      await handleVietlott655Command(api, message, groupSettings, aliasCommand);
+      return true;
+    default:
+      return false;
+  }
+}
+
 export const permissionLevels = {
   all: 0,
   adminBox: 1,
@@ -269,8 +843,8 @@ export const permissionLevels = {
 };
 
 export function getCommand(botId, command) {
-  let commandConfigFinal = getCommandConfig().commands;
-  let cmdFind = commandConfigFinal.find((cmd) => cmd.name === command || (cmd.alias && cmd.alias.includes(command)));
+  const commandConfigFinal = getCommandConfig().commands || [];
+  let cmdFind = getCommandLookup().get(command);
   if (!cmdFind) {
     let commandConfigCustom = getManagerCommandConfig(botId);
     const cmdFindEntry = Object.entries(commandConfigCustom.customerCommand || {}).find(
@@ -287,13 +861,10 @@ export function getCommand(botId, command) {
 async function checkPermission(api, message, commandName, userPermissionLevel, isNotify = true) {
   const botId = api.getBotId();
   const command = getCommand(botId, commandName);
-  const threadId = message.threadId;
 
   if (!command) return true;
 
   const customerCommand = getManagerCommandCustomConfig(botId, command.name);
-
-  if (customerCommand?.activegroup?.includes(threadId)) return true;
 
   const requiredPermission = permissionLevels[customerCommand.permission || command.permission];
   const userPermission = permissionLevels[userPermissionLevel];
@@ -334,7 +905,7 @@ export async function checkCommandCountdown(
   const currentTime = Date.now();
   const lastUsage = commandUsage[userId]?.[command.name] || 0;
   const customerCommand = getManagerCommandCustomConfig(botId, command.name);
-  const countdown = (customerCommand.countdown || command.countdown) * 1000;
+  const countdown = getCommandCooldownSeconds(command, customerCommand) * 1000;
 
   if (currentTime - lastUsage < countdown) {
     const remainingTime = Math.ceil((countdown - (currentTime - lastUsage)) / 1000);
@@ -349,8 +920,24 @@ export async function checkCommandCountdown(
 }
 
 export async function sendReactionConfirmReceive(api, message, numHandleCommand) {
-  if (numHandleCommand === 1 || numHandleCommand === 5) {
-    await api.addReaction("FLAG", message);
+  if (Number.isFinite(numHandleCommand) && numHandleCommand > 0 && numHandleCommand !== 99) {
+    const managerData = api.apiManager?.getDataManager?.();
+    const fallbackReaction = "SMILE";
+    const configured = managerData?.chatIcon || fallbackReaction;
+    const reaction = resolveReactionInput(configured) || fallbackReaction;
+    try {
+      await api.addReaction(reaction, message);
+    } catch (error) {
+      // Reaction không được làm gián đoạn việc xử lý lệnh.
+      console.warn(`[reaction] Icon ${String(configured)} thất bại: ${error?.message || error}`);
+      if (reaction !== fallbackReaction) {
+        try {
+          await api.addReaction(fallbackReaction, message);
+        } catch (fallbackError) {
+          console.warn(`[reaction] Icon mặc định :d (${fallbackReaction}) cũng thất bại: ${fallbackError?.message || fallbackError}`);
+        }
+      }
+    }
   }
 }
 
@@ -366,7 +953,9 @@ export function initGroupSettings(groupSettings, threadId, nameGroup) {
     antiStickerEffect: false,
     filterBadWords: false,
     welcomeGroup: false,
+    welcomeMessage: "",
     byeGroup: false,
+    leaveMessage: "",
     learnEnabled: false,
     replyEnabled: false,
     onlyText: false,
@@ -389,7 +978,8 @@ export function initGroupSettings(groupSettings, threadId, nameGroup) {
     antiBot: false,
     antigif: false,
     antiforward: false,
-    antiFile: false
+    antiFile: false,
+    lockChatSchedule: null
   };
 
   if (!groupSettings[threadId]) groupSettings[threadId] = {};
@@ -462,6 +1052,9 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
   const prefix = getGlobalPrefix(botId);
   const managerBot = api.apiManager.getDataManager();
 
+  // Ma Sói dùng toàn bộ thao tác bí mật và mã vào phòng qua tin nhắn riêng, không cần prefix.
+  if (await handleWerewolfPrivateAction(api, message)) return 0;
+
   // Xì Dách: cho phép người chơi gõ "rút"/"dằn" (không cần prefix) khi đang tới lượt trong ván.
   if (await handleXiDachPrivateAction(api, message)) return 0;
 
@@ -470,6 +1063,9 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
     let commandParts;
 
     if (content.trim().startsWith(`${prefix} `)) return 1;
+
+    if (prefix && content.trim() === prefix && !canUseBarePrefix(botId, senderId)) return 1;
+
 
     if (content.startsWith(`${prefix}prefix`) || content.startsWith(`prefix`)) {
       if (!managerBot.onBotPrivate && !isAdminLevelHighest) {
@@ -520,9 +1116,14 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
     const commandInfo = getCommand(botId, commandLowerCase);
     command = commandInfo?.name || command;
     let numHandleCommand = commandInfo?.type || 99;
+    const activeCommand = commandInfo ? commandInfo.active !== false : true;
+    const canBypassDisabledCommand = isBotLeader(botId, senderId);
+    if (aliasCommand !== "" && !activeCommand && !canBypassDisabledCommand) return numHandleCommand;
 
     const managerCommand = getManagerCommandConfig(botId);
     if (managerCommand.notAllowedCommand.includes(command)) return numHandleCommand;
+
+    await sendReactionConfirmReceive(api, message, numHandleCommand);
     const managerData = api.apiManager.getDataManager();
     if (!managerData.listAcceptUseCommandPrivate) managerData.listAcceptUseCommandPrivate = [];
     let isAcceptCommandPrivate = managerData.listAcceptUseCommandPrivate.includes(senderId);
@@ -535,7 +1136,6 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
 
     if (numHandleCommand === 1) {
       if (managerBot.onBotPrivate || isAdminLevelHighest || isAcceptCommandPrivate) {
-        await sendReactionConfirmReceive(api, message, numHandleCommand);
         switch (command) {
           case "mybot":
             await handleManagerBot(api, message, aliasCommand, isAdminLevelHighest);
@@ -557,6 +1157,12 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
             return 0;
           case "info":
             await userInfoCommand(api, message, aliasCommand);
+            return 0;
+          case "i4image":
+            await handleI4ImageCommand(api, message, aliasCommand);
+            return 0;
+          case "uid":
+            await handleUidCommand(api, message);
             return 0;
           case "matchmaking":
             await matchmakingCommand(api, message, aliasCommand);
@@ -582,8 +1188,14 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
           case "inviteall":
             await handleInviteAllFriendsCommand(api, message, aliasCommand);
             return 0;
+          case "addusertogroup":
+            await handleAddUserToGroupCommand(api, message, aliasCommand);
+            return 0;
           case "gemini":
             await askGeminiCommand(api, message, aliasCommand);
+            return 0;
+          case "nova":
+            await askNovaCommand(api, message, aliasCommand);
             return 0;
           case "geminiimage":
             await askGeminiDrawImage(api, message, aliasCommand);
@@ -641,6 +1253,9 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
             return 0;
           case "googlenews":
             await handleGoogleNewsCommand(api, message, aliasCommand);
+            return 0;
+          case "tvpl":
+            await handleTvplCommand(api, message, aliasCommand);
             return 0;
           case "facebookprofile":
             await handleFacebookProfileCommand(api, message, aliasCommand);
@@ -812,7 +1427,10 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
             return 0;
           case "giavang":
             await handleCheckGiaVangCommand(api, message, aliasCommand);
-            return 0;           
+            return 0;
+          case "giaxang":
+            await handleCheckGiaXangCommand(api, message);
+            return 0;
           case "getlogin":
             await handleGetCookieImeiByQR(api, message);
             return 0;
@@ -838,7 +1456,7 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
             await handleSendGifCommand(api, message, aliasCommand);
             return 0;
           case "sendfile":
-            await handleSendFileCommand(api, message, aliasCommand);
+            await handleSendFileCommand(api, message, aliasCommand, isAdminLevelHighest);
             return 0;
           case "stickerzalo":
             await handleStickerCommand(api, message, aliasCommand);
@@ -887,10 +1505,18 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
     if (numHandleCommand === 3) {
       switch (command) {
         case "bot":
+          if (await handleBotSubcommand(api, message, commandParts, prefix)) return 0;
           await handleActiveBotUser(api, message, aliasCommand, undefined, isAdminLevelHighest);
           return 0;
-        case "listadmin":
-          await handleListAdmin(api, message);
+        case "adminbot":
+          await handleAdminBotCommandFamily(
+            api,
+            message,
+            aliasCommand,
+            [],
+            groupSettings,
+            isAdminLevelHighest
+          );
           return 0;
         case "buff":
           await handleBuffCommand(api, message);
@@ -905,10 +1531,7 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
           await handleSendToDo(api, message, isAdminLevelHighest);
           return 0;
         case "blockbot":
-          await handleBlockBot(api, message);
-          return 0;
-        case "unblockbot":
-          await handleUnblockBot(api, message);
+          await handleBlockBotFamily(api, message, aliasCommand);
           return 0;
         case "alias":
           await handleAliasCommand(api, message, commandParts);
@@ -919,14 +1542,8 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
         case "deletemessage":
           await handleDeleteMessage(api, message, aliasCommand);
           return 0;
-        case "downloadresource":
-          await handleDownloadResource(api, message, aliasCommand);
-          return 0;
-        case "deleteresource":
-          await handleDeleteResource(api, message, aliasCommand);
-          return 0;
-        case "showresource":
-          await handleShowResource(api, message, aliasCommand);
+        case "resource":
+          await handleResourceFamily(api, message, aliasCommand);
           return 0;
         case "track":
           await handleTargetBot(api, message, aliasCommand);
@@ -964,14 +1581,8 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
         case "blockfeed":
           await handleBlockViewFeedCommand(api, message, aliasCommand);
           return 0;
-        case "setautoreply":
-          await handleCreateAutoReplyCommand(api, message, aliasCommand);
-          return 0;
-        case "delautoreply":
-          await handleDeleteAutoReplyCommand(api, message, aliasCommand);
-          return 0;
-        case "listautoreply":
-          await handleGetAutoReplyListCommand(api, message, aliasCommand);
+        case "zautoreply":
+          await handleZaloAutoReplyFamily(api, message, aliasCommand);
           return 0;
         case "reminder": 
           await handleCreateReminderCommand(api, message, aliasCommand);
@@ -985,6 +1596,9 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
     if (numHandleCommand === 5) {
       if (managerBot.onGamePrivate || isAdminLevelHighest) {
         switch (command) {
+          case "duangua":
+            await handleHorseRaceCommand(api, message, aliasCommand);
+            return 0;
           case "game": {
             const subCommand = (commandParts[1] || "").toLowerCase();
             if (!subCommand) {
@@ -996,34 +1610,34 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
               return 0;
             }
             const subMessage = buildGameSubMessage(message, prefix) || message;
-            switch (subCommand) {
-              case "nap":
-                await handleNapCommand(api, subMessage);
-                return 0;
-              case "rut":
-                await handleRutCommand(api, subMessage);
-                return 0;
-              case "mycard":
-                await handleMyCard(api, subMessage);
-                return 0;
-              case "daily":
-                await handleClaimDailyReward(api, subMessage);
-                return 0;
-              case "rank":
-                await handleTopPlayers(api, subMessage);
-                return 0;
-              case "taixiu":
-                if (commandParts[2] === "kq") {
-                  await handleTaiXiuCommand(api, subMessage);
-                  return 0;
-                }
-                break;
-              case "nongtrai":
-                await handleNongTraiCommand(api, subMessage);
-                return 0;
-            }
+            await handleCoreGameCommand(api, subMessage, subCommand);
             return 0;
           }
+          case "nap":
+          case "rut":
+          case "bank":
+          case "saoke":
+          case "donenat":
+          case "donate":
+          case "tier":
+          case "mycard":
+          case "daily":
+          case "giveaway":
+          case "resetdaily":
+          case "resethu":
+          case "rank":
+          case "baucua":
+          case "bcr":
+          case "taixiu":
+          case "xidach":
+          case "baicao":
+          case "tienlen":
+          case "chanle":
+          case "keobuabao":
+          case "nongtrai":
+          case "vietlott655":
+            await handleCoreGameCommand(api, message, command, undefined, aliasCommand);
+            return 0;
         }
       } else {
         await sendMessageInsufficientAuthority(
@@ -1071,19 +1685,64 @@ export async function handleCommand(
   let content = removeMention(message);
   const prefix = getGlobalPrefix(botId);
   let numHandleCommand = -1;
+  const mentions = Array.isArray(message.data?.mentions) ? message.data.mentions : [];
+  const normalizeNovaId = (value) => String(value ?? "").replace(/_0$/u, "").split("_")[0];
+  const knownBotIds = new Set();
+  for (const manager of Object.values(apiManager.apiManagerObject || {})) {
+    for (const value of [manager?.id, manager?.idBotMainWithBot, manager?.idBotWithBotMain]) {
+      const normalized = normalizeNovaId(value);
+      if (normalized) knownBotIds.add(normalized);
+    }
+  }
+  knownBotIds.add(normalizeNovaId(botId));
+  const novaSenderIsBotAccount = knownBotIds.has(normalizeNovaId(senderId));
+  const novaSenderIsCurrentBot = normalizeNovaId(senderId) === normalizeNovaId(botId);
+  // Tài khoản main cũng có thể được chủ bot dùng để gõ tin nhắn thủ công trên
+  // bot con. Zalo gửi tin thủ công dạng string, còn phần lớn output tự động của
+  // bot là object/caption. Chỉ chặn output tự động để tránh bot-to-bot loop.
+  const novaSenderIsAutomatedBot = (novaSenderIsCurrentBot || novaSenderIsBotAccount) &&
+    typeof message.data?.content !== "string";
+  const botMentioned = mentions.some((mention) =>
+    normalizeNovaId(mention?.uid || mention?.userId || mention?.id) === normalizeNovaId(botId)
+  );
+  const explicitNovaName = !novaSenderIsAutomatedBot &&
+    /^(?:(?:hey|hi|hello)\s+nova|nova(?:\s+ơi)?|assistant)(?:\s|$)/iu.test(content.trim());
+  const novaGroupRoute = isNovaGroupBot(botId, threadId);
+  const canHandleUntaggedNova = novaGroupRoute === true ||
+    (novaGroupRoute === null && (isNovaEnabled(botId, threadId) || api.apiManager?.isMainBot));
+  if (explicitNovaName && !botMentioned && !canHandleUntaggedNova) {
+    return numHandleCommand;
+  }
+  // Tin nhắn thường trong phiên được tiếp tục không cần tag. Riêng mọi tin
+  // reply đều phải gọi/tag Nova rõ ràng, kể cả khi reply chính tin của Nova.
+  const canContinueFromMessage = !message.data?.quote;
+  const continuingNova = !novaSenderIsAutomatedBot && canHandleUntaggedNova &&
+    canContinueFromMessage && !content.startsWith(prefix) && isNovaSessionActive(api, message);
+  const naturalNova = !novaSenderIsAutomatedBot && (botMentioned || continuingNova || explicitNovaName);
 
-  if (content.trim().startsWith(`${prefix} `)) return numHandleCommand;
+  if (!naturalNova && content.trim().startsWith(`${prefix} `)) return numHandleCommand;
 
-  if ((content.startsWith(`${prefix}prefix`) || content.startsWith(`prefix`)) && isAdminBot) {
+  if (!naturalNova && prefix && content.trim() === prefix && !canUseBarePrefix(botId, senderId)) {
+    return numHandleCommand;
+  }
+
+  if (
+    (content.startsWith(`${prefix}prefix`) || content.startsWith(`prefix`)) &&
+    isAdminBot &&
+    (groupSettings[threadId]?.activeBot === true || isAdminLevelHighest)
+  ) {
     return await handlePrefixCommand(api, message, threadId, isAdminLevelHighest);
   }
 
-  if (!content.startsWith(prefix)) return numHandleCommand;
+  if (!naturalNova && !content.startsWith(prefix)) return numHandleCommand;
 
   let commandParts;
   let command;
 
-  if (checkSpecialCommand(content, prefix)) {
+  if (botMentioned || continuingNova || explicitNovaName) {
+    commandParts = ["nova", ...content.trim().split(/\s+/u).filter(Boolean)];
+    command = "nova";
+  } else if (checkSpecialCommand(content, prefix)) {
     commandParts = content.split("_");
     command = commandParts[0].slice(prefix.length);
   } else {
@@ -1094,6 +1753,17 @@ export async function handleCommand(
   let commandLowerCase = command.toLowerCase();
 
   if (!handleChat) return;
+
+  // Nova đã tắt phải dừng trước kiểm tra cooldown. Nếu để sau cooldown,
+  // bộ đếm vẫn thả CLOCK/UNDO dù Nova không còn xử lý hay trả lời.
+  if (
+    commandLowerCase === "nova" &&
+    !isNovaEnabled(botId, threadId) &&
+    !/(?:^|\s)on$/iu.test(content.trim())
+  ) {
+    return numHandleCommand;
+  }
+
   const commandConfig = getCommandConfig().commands;
   let isChangeSetting = false;
   numHandleCommand = 99;
@@ -1101,6 +1771,11 @@ export async function handleCommand(
   if (typeof content === "string") {
     const isGroupActiveBot = groupSettings[threadId]?.activeBot === true;
     const isGroupActiveGame = groupSettings[threadId]?.activeGame === true;
+    // Khi bot nhóm OFF, chỉ admin cấp cao của bot được tiếp tục dùng lệnh.
+    // Admin nhóm/admin bot thông thường và thành viên đều phải im lặng.
+    if (!isGroupActiveBot && !isAdminLevelHighest) {
+      return numHandleCommand;
+    }
     const fnAfterCountdown = async () =>
       await handleCommand(
         api,
@@ -1114,7 +1789,12 @@ export async function handleCommand(
         handleChat
       );
 
+    const isNovaCancel = naturalNova && /^cancel$/iu.test(content.trim());
+    const isNovaToggle = naturalNova && /(?:^|\s)(?:on|off)$/iu.test(content.trim());
+    const isNovaMusicChoice = naturalNova && isNovaAwaitingMusic(api, message) &&
+      /^(?:[1-5]|soundcloud|scl|spotify|sptf|zing|zingmp3|zmp3|nct|nhaccuatui|youtube|yt|ytb)$/iu.test(content.trim());
     if (
+      !isNovaCancel && !isNovaToggle && !isNovaMusicChoice &&
       !isAdminLevelHighest &&
       !(await checkCommandCountdown(
         api,
@@ -1141,26 +1821,75 @@ export async function handleCommand(
 
     const aliasCommand = command;
     const commandInfo = getCommand(botId, commandLowerCase);
-    const activeCommand = commandInfo ? commandInfo.active : true;
-    if (!isAdminLevelHighest && aliasCommand != "" && !activeCommand) return numHandleCommand;
+    const activeCommand = commandInfo ? commandInfo.active !== false : true;
+    const canBypassDisabledCommand = isBotLeader(botId, senderId);
+    if (aliasCommand !== "" && !activeCommand && !canBypassDisabledCommand) return numHandleCommand;
     numHandleCommand = commandInfo?.type || 99;
     command = commandInfo?.name || command;
+
+    if (command === "nova" && novaSenderIsAutomatedBot) return numHandleCommand;
+    const adminCanUseWhileBotOff = isAdminLevelHighest || isAdminBot || isAdminBox;
+    // Khi nhóm tắt bot, thành viên không được gọi Nova; quản trị viên vẫn được
+    // dùng để kiểm tra, quản lý và bật lại chức năng trong nhóm.
+    if (command === "nova" && !isGroupActiveBot && !adminCanUseWhileBotOff) return numHandleCommand;
+    if (command === "nova" && !isNovaEnabled(botId, threadId) && !/(?:^|\s)on$/iu.test(content.trim())) {
+      return numHandleCommand;
+    }
+
+    // Lệnh game chỉ chạy khi bật cả bot lẫn game. Riêng admin cấp cao được phép
+    // kiểm tra/vận hành khi đang tắt; admin bot/admin nhóm không được bỏ qua.
+    if (numHandleCommand === 5 && (!isGroupActiveBot || !isGroupActiveGame) && !isAdminLevelHighest) {
+      if (isAdminBot) {
+        const requiredCommands = [];
+        if (!isGroupActiveBot) requiredCommands.push(`${prefix}bot on`);
+        if (!isGroupActiveGame) requiredCommands.push(`${prefix}gameactive on`);
+
+        await sendMessageFromSQL(
+          api,
+          message,
+          {
+            success: false,
+            message:
+              "Tương tác game đang bị tắt trong nhóm này.\n\n" +
+              `Hãy bật trước bằng: ${requiredCommands.join(" và ")}`,
+          },
+          true,
+          10000
+        );
+      }
+      return numHandleCommand;
+    }
 
     const managerCommand = getManagerCommandConfig(botId);
     if (managerCommand.notAllowedCommand.includes(command)) return numHandleCommand;
 
+    // Ma Sói chỉ hoạt động khi Bot đã được bật trong nhóm. Không cho quyền admin
+    // vô tình vượt qua trạng thái này vì cả timer và tin nhắn game đều chạy dài hạn.
+    if (command === "masoi" && groupSettings[threadId]?.activeBot !== true) return numHandleCommand;
+
+    // Lệnh đã vượt qua kiểm tra quyền và trạng thái ở phía trên thì luôn xác
+    // nhận bằng reaction. Trước đây admin chạy lệnh khi bot group đang OFF vẫn
+    // nhận được kết quả, nhưng reaction bị bỏ qua vì phụ thuộc activeBot.
+    await sendReactionConfirmReceive(api, message, numHandleCommand);
+
     switch (command) {
+      case "event.sendmsg":
+        await handleEventSendMessage(api, message, aliasCommand);
+        break;
+
       case "test":
         await testFutureUser(api, message, aliasCommand);
         break;
 
-      case "add":
-      case "remove":
-        await handleAdminHighLevelCommands(api, message, groupAdmins, groupSettings, isAdminLevelHighest);
-        break;
-
-      case "listadmin":
-        await handleListAdmin(api, message, groupSettings);
+      case "adminbot":
+        await handleAdminBotCommandFamily(
+          api,
+          message,
+          aliasCommand,
+          groupAdmins,
+          groupSettings,
+          isAdminLevelHighest
+        );
         break;
 
       case "report":
@@ -1188,6 +1917,7 @@ export async function handleCommand(
         break;
 
       case "bot":
+        if (await handleBotSubcommand(api, message, commandParts, prefix)) break;
         isChangeSetting = await handleActiveBotUser(api, message, aliasCommand, groupSettings, isAdminLevelHighest);
         break;
 
@@ -1216,15 +1946,7 @@ export async function handleCommand(
         break;
 
       case "mute":
-        isChangeSetting = await handleMuteUser(api, message, groupSettings, groupAdmins);
-        break;
-
-      case "unmute":
-        isChangeSetting = await handleUnmuteUser(api, message, groupSettings);
-        break;
-
-      case "listmute":
-        await handleMuteList(api, message, groupSettings);
+        isChangeSetting = await handleMuteCommandFamily(api, message, aliasCommand, groupSettings, groupAdmins);
         break;
 
       case "quickmessage":
@@ -1239,16 +1961,8 @@ export async function handleCommand(
         await handleBlockViewFeedCommand(api, message, aliasCommand);
         break;
 
-      case "setautoreply":
-        await handleCreateAutoReplyCommand(api, message, aliasCommand);
-        break;
-
-      case "delautoreply":
-        await handleDeleteAutoReplyCommand(api, message, aliasCommand);
-        break;
-
-      case "listautoreply":
-        await handleGetAutoReplyListCommand(api, message, aliasCommand);
+      case "zautoreply":
+        await handleZaloAutoReplyFamily(api, message, aliasCommand);
         break;
 
       case "reminder":
@@ -1272,8 +1986,7 @@ export async function handleCommand(
         break;
 
       case "welcome":
-      case "bye":
-        isChangeSetting = await handleWelcomeBye(api, message, groupSettings);
+        isChangeSetting = await handleWelcomeCommandFamily(api, message, aliasCommand, groupSettings);
         break;
 
       case "tagreaction":
@@ -1300,6 +2013,7 @@ export async function handleCommand(
         await adminCommand(api, message);
         break;
 
+      case "all":
       case "tagall":
         await chatAll(api, message, groupInfo, aliasCommand);
         break;
@@ -1313,10 +2027,7 @@ export async function handleCommand(
         break;
 
       case "learn":
-      case "learnnow":
-      case "unlearn":
-      case "learnlist":
-        isChangeSetting = await handleLearnCommand(api, message, groupSettings);
+        isChangeSetting = await handleLearnCommandFamily(api, message, aliasCommand, groupSettings);
         break;
 
       case "reply":
@@ -1327,13 +2038,21 @@ export async function handleCommand(
         isChangeSetting = await handleAutoReplyCommand(api, message, aliasCommand, groupSettings);
         break;
 
-      case "onlytext":
-        isChangeSetting = await handleOnlyText(api, message, groupSettings);
-        break;
-
       case "scold":
         await scoldUser(api, message);
         break;
+
+      case "fakemsg":
+        await handleFakeMessageCommand(api, message);
+        break;
+
+      case "reloadconfig": {
+        const config = reloadServiceConfig();
+        await sendMessageCompleteRequest(api, message, {
+          caption: `Đã reload config thành công.\n✅ ${config.commands?.length || 0} lệnh đã được nạp lại.`,
+        }, 15000);
+        break;
+      }
 
       case "spamgroup":
         await spamgroup(api, message, aliasCommand);
@@ -1343,56 +2062,12 @@ export async function handleCommand(
         isChangeSetting = await handleAutoJoinCommand(api, message, groupSettings, aliasCommand);
         break;
 
-      case "antiall":
-        isChangeSetting = await handleAntiAll(api, message, groupSettings);
+      case "autorailink":
+        await handleAutoRaiLinkCommand(api, message, aliasCommand);
         break;
 
-      case "antiforward":
-        isChangeSetting = await handleAntiForwardCommand(api, message, groupSettings);
-        break;
-
-      case "antivoice":
-        isChangeSetting = await handleAntiVoiceCommand(api, message, groupSettings);
-        break;
-
-      case "antisticker":
-        isChangeSetting = await handleAntiAllEffectStickerCommand(api, message, groupSettings);
-        break;
-
-      case "antiphonenumber":
-        isChangeSetting = await handleAntiPhoneNumber(api, message, groupSettings);
-        break;
-
-      case "antiphoto":
-        isChangeSetting = await handleAntiPhotoVideo(api, message, groupSettings);
-        break;
-
-      case "antitag":
-        isChangeSetting = await handleAntiTagCommand(api, message, groupSettings);
-        break;
-
-      case "antifile":
-        isChangeSetting = await handleAntiFile(api, message, groupSettings);
-        break;
-
-      case "antiinvite":
-        isChangeSetting = await handleAntiInvite(api, message);
-        break;
-
-      case "antibot":
-        isChangeSetting = await handleAntiBotCommand(api, message, groupSettings);
-        break;
-
-      case "antigif":
-        isChangeSetting = await handleAntiAllEffectGifCommand(api, message, groupSettings);
-        break;
-
-      case "antilink":
-        isChangeSetting = await handleAntiLinkCommand(api, message, groupSettings);
-        break;
-
-      case "antistickereffect":
-        isChangeSetting = await handleAntiSendStickerEffectCommand(api, message, aliasCommand, groupSettings);
+      case "anti":
+        isChangeSetting = await handleAntiCommandFamily(api, message, aliasCommand, groupSettings);
         break;
 
       case "autodownload":
@@ -1403,20 +2078,8 @@ export async function handleCommand(
         await handleActivePrivateBot(api, message, aliasCommand);
         break;
 
-      case "antispam":
-        isChangeSetting = await handleAntiSpamCommand(api, message, groupSettings);
-        break;
-
       case "heartdelete":
         isChangeSetting = await handleHeartReactionDeleteCommand(api, message, aliasCommand);
-        break;
-
-      case "antibadword":
-        isChangeSetting = await handleAntiBadWordCommand(api, message, groupSettings);
-        break;
-
-      case "antimedia":
-        isChangeSetting = await handleAntiMediaCommand(api, message, aliasCommand, groupSettings);
         break;
 
       case "approve":
@@ -1425,12 +2088,6 @@ export async function handleCommand(
 
       case "updategroup":
         isChangeSetting = await handleUpdateGroup(api, message, groupSettings, aliasCommand);
-        break;
-
-      case "keygold":
-      case "keysilver":
-      case "unkey":
-        isChangeSetting = await handleKeyCommands(api, message, groupSettings, isAdminLevelHighest);
         break;
 
       case "kickimg":
@@ -1462,35 +2119,15 @@ export async function handleCommand(
         break;
 
       case "ban":
-        await handleBanCommand(api, message, groupSettings);
-        break;
-
-      case "unban":
-        await handleUnbanCommand(api, message, groupSettings);
+        await handleBanCommandFamily(api, message, aliasCommand, groupSettings);
         break;
 
       case "blockbot":
-        await handleBlockBot(api, message, groupSettings);
-        break;
-
-      case "unblockbot":
-        await handleUnblockBot(api, message, groupSettings);
-        break;
-
-      case "listblockbot":
-        await handleListBlockBot(api, message);
+        await handleBlockBotFamily(api, message, aliasCommand, groupSettings);
         break;
 
       case "alias":
         await handleAliasCommand(api, message, commandParts);
-        break;
-
-      case "antinude":
-        isChangeSetting = await handleAntiNudeCommand(api, message, groupSettings);
-        break;
-
-      case "antiundo":
-        isChangeSetting = await handleAntiUndoCommand(api, message, groupSettings);
         break;
 
       case "settinggroup":
@@ -1513,16 +2150,8 @@ export async function handleCommand(
         await handleDeleteMessage(api, message, aliasCommand);
         break;
 
-      case "downloadresource":
-        await handleDownloadResource(api, message, aliasCommand);
-        break;
-
-      case "deleteresource":
-        await handleDeleteResource(api, message, aliasCommand);
-        break;
-
-      case "showresource":
-        await handleShowResource(api, message, aliasCommand);
+      case "resource":
+        await handleResourceFamily(api, message, aliasCommand);
         break;
 
       case "track":
@@ -1531,7 +2160,6 @@ export async function handleCommand(
 
       default:
         if (numHandleCommand === 7) {
-          await sendReactionConfirmReceive(api, message, numHandleCommand);
           switch (command) {
             case "supportgame":
               await handleSupportGameCommand(api, message, aliasCommand, isAdminBot);
@@ -1540,8 +2168,7 @@ export async function handleCommand(
         }
 
         if (numHandleCommand === 1) {
-          if (isAdminBot || groupSettings[threadId].activeBot === true) {
-            await sendReactionConfirmReceive(api, message, numHandleCommand);
+          if (isAdminLevelHighest || isAdminBot || isAdminBox || groupSettings[threadId].activeBot === true) {
             switch (command) {
               case "mybot":
                 await handleManagerBot(api, message, aliasCommand, isAdminLevelHighest);
@@ -1571,6 +2198,14 @@ export async function handleCommand(
                 await userInfoCommand(api, message, aliasCommand);
                 break;
 
+              case "i4image":
+                await handleI4ImageCommand(api, message, aliasCommand);
+                break;
+
+              case "uid":
+                await handleUidCommand(api, message);
+                break;
+
               case "matchmaking":
                 await matchmakingCommand(api, message, aliasCommand);
                 break;
@@ -1585,10 +2220,6 @@ export async function handleCommand(
 
               case "danhsachden":
                 await handleBlockUIDByCommand(api, message, aliasCommand);
-                break;
-
-              case "listkey":
-                await handleListKey(api, message, aliasCommand);
                 break;
 
               case "help":
@@ -1610,9 +2241,44 @@ export async function handleCommand(
               case "inviteall":
                 await handleInviteAllFriendsCommand(api, message, aliasCommand);
                 break;
+              case "addusertogroup":
+                await handleAddUserToGroupCommand(api, message, aliasCommand);
+                break;
 
               case "gemini":
                 await askGeminiCommand(api, message, aliasCommand);
+                break;
+              case "nova":
+                isChangeSetting = await askNovaCommand(api, message, aliasCommand, {
+                  canManage: isAdminBot || isAdminLevelHighest,
+                  canCancelOthers: isAdminLevelHighest,
+                  setEnabled: (enabled) => {
+                    setNovaEnabled(botId, threadId, enabled);
+                  },
+                  toolCatalog: commandConfig
+                    .filter((item) => item.active !== false && item.name !== "nova")
+                    .map((item) => ({
+                      name: item.name,
+                      aliases: Array.isArray(item.alias) ? item.alias : [],
+                      description: item.description,
+                      syntax: item.syntax,
+                      permission: item.permission,
+                    })),
+                  commandCount: commandConfig.filter((item) => item.active !== false).length,
+                  executeBotCommand: async (toolName, args = "") => {
+                    const toolMessage = {
+                      ...message,
+                      data: {
+                        ...message.data,
+                        content: `${prefix}${toolName}${args ? ` ${args}` : ""}`,
+                      },
+                    };
+                    await handleCommand(
+                      api, toolMessage, groupInfo, groupAdmins, groupSettings,
+                      isAdminLevelHighest, isAdminBot, isAdminBox, handleChat
+                    );
+                  },
+                });
                 break;
 
               case "geminiimage":
@@ -1717,6 +2383,9 @@ export async function handleCommand(
 
               case "googlenews":
                 await handleGoogleNewsCommand(api, message, aliasCommand);
+                break;
+              case "tvpl":
+                await handleTvplCommand(api, message, aliasCommand);
                 break;
 
               case "facebookprofile":
@@ -1935,6 +2604,10 @@ export async function handleCommand(
                 await handleCheckGiaVangCommand(api, message, aliasCommand);
                 break;
 
+              case "giaxang":
+                await handleCheckGiaXangCommand(api, message);
+                break;
+
               case "getlogin":
                 await handleGetCookieImeiByQR(api, message);
                 break;
@@ -1968,7 +2641,7 @@ export async function handleCommand(
                 break;
 
               case "sendfile":
-                await handleSendFileCommand(api, message, aliasCommand);
+                await handleSendFileCommand(api, message, aliasCommand, isAdminLevelHighest);
                 break;
 
               case "stickerzalo":
@@ -2031,6 +2704,9 @@ export async function handleCommand(
 
         if (numHandleCommand === 5) {
           switch (command) {
+            case "duangua":
+              await handleHorseRaceCommand(api, message, aliasCommand);
+              break;
             case "game": {
               const subCommand = (commandParts[1] || "").toLowerCase();
               if (!subCommand) {
@@ -2042,47 +2718,33 @@ export async function handleCommand(
                 break;
               }
               const subMessage = buildGameSubMessage(message, prefix) || message;
-              switch (subCommand) {
-                case "nap":
-                  await handleNapCommand(api, subMessage, groupSettings);
-                  break;
-                case "rut":
-                  await handleRutCommand(api, subMessage, groupSettings);
-                  break;
-                case "bank":
-                  await handleBankCommand(api, subMessage, groupSettings);
-                  break;
-                case "mycard":
-                  await handleMyCard(api, subMessage, groupSettings);
-                  break;
-                case "daily":
-                  await handleClaimDailyReward(api, subMessage, groupSettings);
-                  break;
-                case "rank":
-                  await handleTopPlayers(api, subMessage, groupSettings);
-                  break;
-                case "baucua":
-                  await handleBauCua(api, subMessage, groupSettings);
-                  break;
-                case "taixiu":
-                  await handleTaiXiuCommand(api, subMessage, groupSettings);
-                  break;
-                case "xidach":
-                case "xd":
-                  await handleXiDachCommand(api, subMessage, groupSettings);
-                  break;
-                case "chanle":
-                  await handleChanLe(api, subMessage, groupSettings);
-                  break;
-                case "keobuabao":
-                  await handleKBBCommand(api, subMessage, groupSettings);
-                  break;
-                case "nongtrai":
-                  await handleNongTraiCommand(api, subMessage, groupSettings);
-                  break;
-              }
+              await handleCoreGameCommand(api, subMessage, subCommand, groupSettings, subCommand);
               break;
             }
+
+            case "rank":
+            case "mycard":
+            case "daily":
+            case "giveaway":
+            case "resetdaily":
+            case "resethu":
+            case "nap":
+            case "rut":
+            case "bank":
+            case "saoke":
+            case "donenat":
+            case "tier":
+            case "nongtrai":
+            case "baucua":
+            case "bcr":
+            case "taixiu":
+            case "xidach":
+            case "baicao":
+            case "tienlen":
+            case "chanle":
+            case "keobuabao":
+              await handleCoreGameCommand(api, message, command, groupSettings, aliasCommand);
+              break;
 
             case "doanso":
               await handleMiniGameCommand(api, message, groupSettings, gameTypeDoanSo, aliasCommand);
@@ -2121,7 +2783,11 @@ export async function handleCommand(
               break;
 
             case "vietlott655":
-              await handleVietlott655Command(api, message, groupSettings, aliasCommand);
+              await handleCoreGameCommand(api, message, command, groupSettings, aliasCommand);
+              break;
+
+            case "masoi":
+              await handleWerewolfCommand(api, message, isAdminLevelHighest || isAdminBot || isAdminBox, groupInfo);
               break;
           }
         }

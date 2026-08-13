@@ -10,6 +10,72 @@ import { analyzeGroupInteractionsByThreadId } from "../info-service/rank-chat.js
 import { generateLunarCalendarImage } from "../api-crawl/image-content/lichamlich.js";
 import { getSendtaskOverallWeather } from "../api-crawl/content/weather.js";
 import { deleteFile } from "../../utils/util.js";
+import { getGroupInfoData } from "../info-service/group-info.js";
+
+const LOCK_CHAT_TIME_ZONE = "Asia/Ho_Chi_Minh";
+
+function getLockChatClock() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: LOCK_CHAT_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return {
+    time: `${values.hour}:${values.minute}`,
+    date: `${values.year}-${values.month}-${values.day}`,
+  };
+}
+
+async function processLockChatSchedules(api) {
+  const groupSettings = groupSettingsAll.getByID(api.getBotId());
+  const clock = getLockChatClock();
+
+  for (const [threadId, settings] of Object.entries(groupSettings)) {
+    const config = settings?.lockChatSchedule;
+    if (!config?.enabled) continue;
+
+    const action = clock.time === config.lockTime
+      ? "lock"
+      : clock.time === config.unlockTime
+        ? "unlock"
+        : null;
+    if (!action) continue;
+
+    const actionKey = `${clock.date}:${clock.time}:${action}`;
+    if (config.lastActionKey === actionKey) continue;
+
+    const previousActionKey = config.lastActionKey;
+    config.lastActionKey = actionKey;
+    try {
+      const groupInfo = await getGroupInfoData(api, threadId);
+      const nextValue = action === "lock" ? 1 : 0;
+      const currentSettings = { ...(groupInfo.setting || {}), lockSendMsg: nextValue };
+      await api.changeGroupSetting(threadId, currentSettings);
+
+      config.lastRunAt = Date.now();
+      groupSettingsAll.setChanged();
+
+      await api.sendMessage(
+        {
+          msg: action === "lock"
+            ? `🔒 Đã tự động khóa chat theo lịch lúc ${config.lockTime}.`
+            : `🔓 Đã tự động mở chat theo lịch lúc ${config.unlockTime}.`,
+          ttl: 60000,
+        },
+        threadId,
+        MessageType.GroupMessage
+      ).catch(() => {});
+    } catch (error) {
+      if (config.lastActionKey === actionKey) config.lastActionKey = previousActionKey;
+      console.error(`Lỗi chạy lịch lockchat nhóm ${threadId}:`, error);
+    }
+  }
+}
 
 const scheduledTasks = [
   {
@@ -94,6 +160,12 @@ const scheduledTasks = [
         `\n\nCung cấp vitamin gái cực sexy cho anh em đây!!!`;
       const timeToLive = 1000 * 60 * 60 * 1;
       await sendTaskGirlVideo(api, caption, timeToLive, "sexy");
+    },
+  },
+  {
+    cronExpression: "30 7 * * *",
+    task: async (api) => {
+      await sendTaskMarketPrice(api, "gold", "-> SendTask 07:30 <-\nCập nhật bảng giá vàng tổng hợp hôm nay.", 60 * 60 * 1000);
     },
   },
   {
@@ -197,6 +269,12 @@ const scheduledTasks = [
         `\n\nGiải trí với nữ cosplay cho anh em đây!!!`;
       const timeToLive = 1000 * 60 * 60 * 1;
       await sendTaskGirlVideo(api, caption, timeToLive, "cosplay");
+    },
+  },
+  {
+    cronExpression: "30 17 * * *",
+    task: async (api) => {
+      await sendTaskMarketPrice(api, "fuel", "-> SendTask 17:30 <-\nCập nhật bảng giá xăng dầu mới nhất.", 60 * 60 * 1000);
     },
   },
   {
@@ -393,6 +471,45 @@ async function sendTaskOverallWeather(api, caption, timeToLive) {
   await Promise.allSettled(promises);
 }
 
+async function sendTaskMarketPrice(api, kind, caption, timeToLive) {
+  const groupSettings = groupSettingsAll.getByID(api.getBotId());
+  const enabledThreadIds = Object.keys(groupSettings).filter((threadId) => groupSettings[threadId].sendTask);
+  if (!enabledThreadIds.length) return;
+
+  let imagePath;
+  try {
+    if (kind === "gold") {
+      const { createGoldImage, fetchGoldOverview } = await import("../../commands/send-all/check-gia-vang.js");
+      const prices = await fetchGoldOverview();
+      imagePath = await createGoldImage("Vàng tổng hợp thị trường", prices);
+    } else {
+      const { createFuelPriceImage, fetchFuelPrices } = await import("../../commands/send-all/check-gia-xang.js");
+      const { prices, source } = await fetchFuelPrices();
+      imagePath = await createFuelPriceImage(prices, source);
+    }
+
+    await Promise.allSettled(enabledThreadIds.map(async (threadId) => {
+      const message = { threadId, type: MessageType.GroupMessage };
+      try {
+        const uploaded = await api.uploadAttachment([imagePath], threadId, MessageType.GroupMessage);
+        const imageUrl = uploaded?.[0]?.fileUrl || uploaded?.[0]?.normalUrl;
+        if (!imageUrl) throw new Error("Upload canvas không trả về URL");
+        await api.sendImage(imageUrl, message, caption, timeToLive);
+      } catch (error) {
+        console.error(`Lỗi gửi sendtask ${kind} vào nhóm ${threadId}:`, error);
+        if (error.message?.includes("không tồn tại")) {
+          groupSettings[threadId].sendTask = false;
+          groupSettingsAll.setChanged();
+        }
+      }
+    }));
+  } catch (error) {
+    console.error(`Lỗi tạo sendtask ${kind}:`, error);
+  } finally {
+    if (imagePath) await deleteFile(imagePath).catch(() => {});
+  }
+}
+
 async function analyzeGroupInteractions(api, caption, timeToLive) {
   const idBot = api.getBotId();
   const groupSettings = groupSettingsAll.getByID(idBot);
@@ -416,10 +533,20 @@ async function analyzeGroupInteractions(api, caption, timeToLive) {
 
 export async function initializeScheduler(api) {
   scheduledTasks.forEach((taskConfig) => {
+    if (api.apiInstance.schedule[taskConfig.cronExpression]) return;
     api.apiInstance.schedule[taskConfig.cronExpression] = schedule.scheduleJob(taskConfig.cronExpression, () => {
       taskConfig.task(api).catch((error) => {
         console.error("Lỗi khi thực thi tác vụ định kỳ:", error);
       });
     });
   });
+
+  const lockChatJobKey = "lockChatDailySchedule";
+  if (!api.apiInstance.schedule[lockChatJobKey]) {
+    api.apiInstance.schedule[lockChatJobKey] = schedule.scheduleJob("*/10 * * * * *", () => {
+      processLockChatSchedules(api).catch((error) => {
+        console.error("Lỗi kiểm tra lịch khóa/mở chat:", error);
+      });
+    });
+  }
 }

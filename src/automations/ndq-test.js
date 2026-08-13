@@ -3,6 +3,7 @@ import path from "path";
 import { MessageMention, MessageType, Zalo, ZaloApiError } from "../api-zalo/index.js";
 import { encodeAES, handleZaloResponse, makeURL, decodeAES } from "../api-zalo/utils.js";
 import { getUserInfoData } from "../service-dqt/info-service/user-info.js";
+import { getGroupInfoData } from "../service-dqt/info-service/group-info.js";
 import * as cv from "../utils/canvas/index.js";
 import { deleteFile } from "../utils/util.js";
 import { getGlobalPrefix } from "../service-dqt/service.js";
@@ -83,6 +84,38 @@ export async function testFutureGroup(api, message, groupInfo) {
 export async function testFutureUser(api, message, aliasCommand) {
   const threadId = message.threadId;
   try {
+    const prefix = getGlobalPrefix(api.getBotId());
+    const rawContent = typeof message.data.content === "string" ? message.data.content : "";
+    const testType = rawContent.replace(prefix + aliasCommand, "").trim().toLowerCase();
+    if (testType === "welcome" || testType === "bye" || testType === "goodbye") {
+      if (message.type !== MessageType.GroupMessage) {
+        await api.sendMessage({ msg: "❌ Lệnh test welcome/bye chỉ dùng trong nhóm.", quote: message }, threadId, message.type);
+        return true;
+      }
+      let imagePath;
+      try {
+        const senderId = message.data.uidFrom;
+        const [userInfo, groupInfo] = await Promise.all([
+          getUserInfoData(api, senderId),
+          getGroupInfoData(api, threadId),
+        ]);
+        const groupName = groupInfo?.name || "Nhóm Zalo";
+        const groupType = groupInfo?.type || groupInfo?.groupType || 1;
+        imagePath = testType === "welcome"
+          ? await cv.createWelcomeImage(userInfo, groupName, groupType, message.data.dName || userInfo.name, false, api.getBotId())
+          : await cv.createGoodbyeImage(userInfo, groupName, groupType, false, api.getBotId());
+        await api.sendMessage({
+          msg: testType === "welcome" ? "🧪 Test ảnh welcome" : "🧪 Test ảnh bye",
+          attachments: [imagePath],
+          quote: message,
+          ttl: 600000,
+          isUseProphylactic: true,
+        }, threadId, message.type);
+      } finally {
+        if (imagePath) await deleteFile(imagePath);
+      }
+      return true;
+    }
     try {
       await handleEncryptedMessage(api, message, threadId, aliasCommand);
     } catch {}
@@ -158,7 +191,7 @@ export async function canvasTest(api, message, senderId, senderName, nameGroup, 
   const userInfo = await getUserInfoData(api, senderId);
   const userActionName = senderName;
   let imagePath;
-  imagePath = await cv.createWelcomeImage(userInfo, nameGroup, groupInfo.type, userActionName, false);
+  imagePath = await cv.createWelcomeImage(userInfo, nameGroup, groupInfo.type, userActionName, false, api.getBotId());
   await api.sendMessage(
     {
       msg: ``,

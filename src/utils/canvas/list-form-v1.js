@@ -1,4 +1,4 @@
-import { createCanvas, loadImage } from "canvas";
+import { Canvas, loadImage } from "skia-canvas";
 import fs from "fs";
 import path from "path";
 import * as cv from "./index.js";
@@ -74,15 +74,29 @@ async function createListImage(options = {}, items = [], titleConfig = {}) {
   const height = mergedOptions.headerHeight + itemsPerColumn * mergedOptions.itemHeight + 40;
 
   // Tạo canvas
-  const canvas = createCanvas(width, height);
+  const canvas = new Canvas(width, height);
   const ctx = canvas.getContext("2d");
 
-  // Vẽ background với gradient
-  const gradient = ctx.createLinearGradient(0, 0, 0, height);
-  gradient.addColorStop(0, mergedOptions.backgroundColor.start);
-  gradient.addColorStop(1, mergedOptions.backgroundColor.end);
+  // Nền V2 pha loang được vẽ trực tiếp, không phụ thuộc ảnh nền.
+  const gradient = ctx.createLinearGradient(0, 0, width, height);
+  gradient.addColorStop(0, "#4b267e");
+  gradient.addColorStop(0.48, "#243b78");
+  gradient.addColorStop(1, "#08766f");
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, width, height);
+
+  const blobs = [
+    [width * 0.12, height * 0.08, width * 0.52, "rgba(255,88,190,.30)"],
+    [width * 0.88, height * 0.16, width * 0.45, "rgba(96,122,255,.34)"],
+    [width * 0.65, height * 0.92, width * 0.55, "rgba(35,230,176,.25)"],
+  ];
+  for (const [x, y, radius, color] of blobs) {
+    const glow = ctx.createRadialGradient(x, y, 0, x, y, radius);
+    glow.addColorStop(0, color);
+    glow.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, width, height);
+  }
 
   // Vẽ tiêu đề
   let yPos = mergedOptions.padding * 2;
@@ -138,14 +152,8 @@ async function createListImage(options = {}, items = [], titleConfig = {}) {
 
   // Lưu và trả về đường dẫn ảnh
   const outputPath = path.join(tempDir, `list_${randomIDTemp()}.png`);
-  const out = fs.createWriteStream(outputPath);
-  const stream = canvas.createPNGStream();
-  stream.pipe(out);
-
-  return new Promise((resolve, reject) => {
-    out.on("finish", () => resolve(outputPath));
-    out.on("error", reject);
-  });
+  await fs.promises.writeFile(outputPath, await canvas.toBuffer("png"));
+  return outputPath;
 }
 
 /**

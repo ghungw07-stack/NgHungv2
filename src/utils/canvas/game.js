@@ -1,409 +1,276 @@
 import path from "path";
 import { createCanvas, loadImage } from "canvas";
 import { FONT_MAIN, formatCurrency } from "../format-util.js";
-import { nameServer } from "../../database/index.js";
 import { writeFilePromise } from "../util.js";
 
-export async function createTaiXiuResultImage(result, taiTotal, xiuTotal, jackpotInfo) {
-  const width = 800;
-  let height = 300;
-  if (jackpotInfo?.isJackpot) {
-    height = 360;
-  }
-  const widthCenter = width / 2;
-  const heightCenter = height / 2;
-  const leftCenter = width * 0.25;
-  const rightCenter = width * 0.75;
+const GAME_WIDTH = 960;
+const GAME_HEIGHT = 540;
+const DICE_ASSET_DIR = path.join(process.cwd(), "assets", "resources", "game", "taixiu");
 
-  const canvas = createCanvas(width, height);
-  const ctx = canvas.getContext("2d");
-
-  const gradient = ctx.createRadialGradient(widthCenter, heightCenter, 0, widthCenter, heightCenter, width / 2);
-  if (jackpotInfo?.isJackpot) {
-    // Gradient vàng tối hơn và sang trọng hơn
-    gradient.addColorStop(0, "#B8860B"); // Vàng đậm ở tâm
-    gradient.addColorStop(0.7, "#8B6914"); // Vàng nâu ở giữa
-    gradient.addColorStop(1, "#654321"); // Nâu đậm ở ngoài
-  } else {
-    gradient.addColorStop(0, "#4c0000"); // Đỏ xậm ở tâm
-    gradient.addColorStop(0.7, "#2a0000"); // Đỏ xậm đen ở giữa
-    gradient.addColorStop(1, "#320202"); // Gần như đen ở ngoài
-  }
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, width, height);
-
-  // Điều chỉnh hiệu ứng ánh sáng cho jackpot
-  const lightGradient = ctx.createRadialGradient(widthCenter, heightCenter, 0, widthCenter, heightCenter, width / 2);
-  if (jackpotInfo?.isJackpot) {
-    lightGradient.addColorStop(0, "rgba(255, 215, 0, 0.3)"); // Ánh sáng vàng
-    lightGradient.addColorStop(0.5, "rgba(255, 215, 0, 0.1)");
-    lightGradient.addColorStop(1, "rgba(255, 215, 0, 0.05)");
-  } else {
-    lightGradient.addColorStop(0, "rgba(255, 255, 255, 0.15)");
-    lightGradient.addColorStop(0.5, "rgba(255, 255, 255, 0.05)");
-    lightGradient.addColorStop(1, "rgba(255, 255, 255, 0)");
-  }
-  ctx.fillStyle = lightGradient;
-  ctx.fillRect(0, 0, width, height);
-
-  // Thêm hiệu ứng lấp lánh
-  for (let i = 0; i < 70; i++) {
-    const x = Math.random() * width;
-    const y = Math.random() * height;
-    const radius = Math.random() * 1.5;
-    ctx.beginPath();
-    ctx.arc(x, y, radius, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(255, 255, 255, ${Math.random() * 0.7})`;
-    ctx.fill();
-  }
-
-  // Vẽ dĩa tròn ở giữa
-  const centerX = widthCenter;
-  const centerY = heightCenter;
-  const radius = 100;
+function roundedRect(ctx, x, y, width, height, radius) {
+  const r = Math.min(radius, width / 2, height / 2);
   ctx.beginPath();
-  ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
-  ctx.fillStyle = "rgba(255, 255, 255, 0.2)";
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + width, y, x + width, y + height, r);
+  ctx.arcTo(x + width, y + height, x, y + height, r);
+  ctx.arcTo(x, y + height, x, y, r);
+  ctx.arcTo(x, y, x + width, y, r);
+  ctx.closePath();
+}
+
+function drawGameBackground(ctx, accent = "#f4c95d") {
+  const gradient = ctx.createLinearGradient(0, 0, GAME_WIDTH, GAME_HEIGHT);
+  gradient.addColorStop(0, "#071611");
+  gradient.addColorStop(0.52, "#10281e");
+  gradient.addColorStop(1, "#090e0c");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+  const glow = ctx.createRadialGradient(GAME_WIDTH / 2, 255, 15, GAME_WIDTH / 2, 255, 430);
+  glow.addColorStop(0, `${accent}2b`);
+  glow.addColorStop(0.55, `${accent}0d`);
+  glow.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+  ctx.save();
+  ctx.globalAlpha = 0.075;
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 1;
+  for (let x = -GAME_HEIGHT; x < GAME_WIDTH; x += 36) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x + GAME_HEIGHT, GAME_HEIGHT);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  const edge = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT);
+  edge.addColorStop(0, "rgba(255,255,255,0.08)");
+  edge.addColorStop(0.5, "rgba(255,255,255,0)");
+  edge.addColorStop(1, "rgba(0,0,0,0.35)");
+  ctx.fillStyle = edge;
+  ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+}
+
+function drawPanel(ctx, x, y, width, height, accent, active = false) {
+  ctx.save();
+  ctx.shadowColor = active ? `${accent}66` : "rgba(0,0,0,0.45)";
+  ctx.shadowBlur = active ? 22 : 14;
+  ctx.shadowOffsetY = 8;
+  roundedRect(ctx, x, y, width, height, 24);
+  const gradient = ctx.createLinearGradient(x, y, x, y + height);
+  gradient.addColorStop(0, active ? `${accent}26` : "rgba(255,255,255,0.10)");
+  gradient.addColorStop(1, "rgba(2,7,5,0.78)");
+  ctx.fillStyle = gradient;
   ctx.fill();
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
-  ctx.lineWidth = 3;
+  ctx.shadowColor = "transparent";
+  ctx.strokeStyle = active ? `${accent}d9` : "rgba(255,255,255,0.16)";
+  ctx.lineWidth = active ? 2.5 : 1.5;
   ctx.stroke();
+  ctx.restore();
+}
 
-  // Kích thước xúc xắc
-  const diceSize = 40;
-  const minDistance = diceSize * 1.5;
+function drawHeader(ctx, subtitle, accent = "#f4c95d") {
+  ctx.textBaseline = "middle";
+  ctx.textAlign = "left";
+  ctx.fillStyle = accent;
+  ctx.font = `bold 16px ${FONT_MAIN}`;
+  ctx.fillText("CASINO LIVE", 44, 40);
+  ctx.fillStyle = "#ffffff";
+  ctx.font = `bold 38px ${FONT_MAIN}`;
+  ctx.fillText("TÀI XỈU", 44, 76);
+  ctx.fillStyle = "rgba(255,255,255,0.62)";
+  ctx.font = `bold 15px ${FONT_MAIN}`;
+  ctx.fillText(subtitle, 44, 110);
 
-  // Mảng lưu vị trí các xúc xắc
-  const dicePositions = [];
+  roundedRect(ctx, 804, 36, 112, 36, 18);
+  ctx.fillStyle = "rgba(0,0,0,0.28)";
+  ctx.fill();
+  ctx.fillStyle = "#42e89c";
+  ctx.beginPath();
+  ctx.arc(828, 54, 5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#e9fff5";
+  ctx.font = `bold 14px ${FONT_MAIN}`;
+  ctx.fillText("TRỰC TIẾP", 842, 55);
+}
 
-  // Hàm kiểm tra xúc sắc mới có đè lên xúc sắc cũ không
-  const isOverlapping = (x, y, positions) => {
-    const minDistance = diceSize * 1.2; // Khoảng cách tối thiểu giữa các xúc sắc
-    return positions.some((pos) => {
-      const distance = Math.sqrt(Math.pow(pos.x - x, 2) + Math.pow(pos.y - y, 2));
-      return distance < minDistance;
-    });
-  };
+function fitText(ctx, text, maxWidth, startSize, minSize = 20) {
+  let size = startSize;
+  while (size > minSize) {
+    ctx.font = `bold ${size}px ${FONT_MAIN}`;
+    if (ctx.measureText(text).width <= maxWidth) break;
+    size -= 2;
+  }
+  return size;
+}
 
-  // Vẽ 3 xúc xắc 3D với vị trí ngẫu nhiên không chồng lên nhau
-  for (let i = 0; i < result.dice.length; i++) {
-    const diceValue = result.dice[i];
-    let x, y;
-    let attempts = 0;
-    const maxAttempts = 1000;
+function drawBetPanel(ctx, { x, label, subtitle, total, accent, active = false }) {
+  drawPanel(ctx, x, 154, 248, 302, accent, active);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = active ? accent : "rgba(255,255,255,0.88)";
+  ctx.font = `bold 54px ${FONT_MAIN}`;
+  ctx.fillText(label, x + 124, 225);
+  ctx.fillStyle = "rgba(255,255,255,0.48)";
+  ctx.font = `bold 14px ${FONT_MAIN}`;
+  ctx.fillText(subtitle, x + 124, 269);
 
-    do {
-      const angle = Math.random() * 2 * Math.PI;
-      const distance = Math.random() * (radius - diceSize);
-      x = centerX + distance * Math.cos(angle);
-      y = centerY + distance * Math.sin(angle);
-      attempts++;
-    } while (isOverlapping(x, y, dicePositions) && attempts < maxAttempts);
+  roundedRect(ctx, x + 24, 309, 200, 94, 18);
+  ctx.fillStyle = "rgba(0,0,0,0.30)";
+  ctx.fill();
+  ctx.fillStyle = "rgba(255,255,255,0.54)";
+  ctx.font = `bold 13px ${FONT_MAIN}`;
+  ctx.fillText("TỔNG TIỀN CƯỢC", x + 124, 334);
+  const money = formatCurrency(total, 1_000_000_000_000);
+  ctx.fillStyle = active ? accent : "#ffffff";
+  ctx.font = `bold ${fitText(ctx, money, 174, 29, 19)}px ${FONT_MAIN}`;
+  ctx.fillText(money, x + 124, 370);
+  ctx.fillStyle = "rgba(255,255,255,0.42)";
+  ctx.font = `bold 12px ${FONT_MAIN}`;
+  ctx.fillText("VNĐ", x + 124, 394);
 
-    dicePositions.push({ x, y });
+  if (active) {
+    roundedRect(ctx, x + 69, 423, 110, 25, 12);
+    ctx.fillStyle = accent;
+    ctx.fill();
+    ctx.fillStyle = "#07110d";
+    ctx.font = `bold 12px ${FONT_MAIN}`;
+    ctx.fillText("CỬA THẮNG", x + 124, 436);
+  }
+}
 
-    const imagePath = path.join(process.cwd(), "assets", "resources", "game", "taixiu", `dice_${diceValue}.png`);
-
+async function drawDiceRow(ctx, dice, centerX, centerY, diceSize = 84) {
+  const gap = diceSize + 18;
+  const startX = centerX - gap;
+  for (let index = 0; index < dice.length; index++) {
+    const x = startX + index * gap;
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,0.72)";
+    ctx.shadowBlur = 18;
+    ctx.shadowOffsetY = 10;
     try {
-      const img = await loadImage(imagePath);
-      ctx.save();
-
-      // Di chuyển gốc tọa độ đến tâm của xúc xắc
-      ctx.translate(x, y);
-
-      // Xoay ngẫu nhiên
-      const rotation = Math.random() * 2 * Math.PI;
-      ctx.rotate(rotation);
-
-      // Vẽ xúc xắc
-      ctx.drawImage(img, -diceSize / 2, -diceSize / 2, diceSize, diceSize);
-
-      // Khôi phục trạng thái canvas
-      ctx.restore();
+      const image = await loadImage(path.join(DICE_ASSET_DIR, `dice_${dice[index]}.png`));
+      ctx.drawImage(image, x - diceSize / 2, centerY - diceSize / 2, diceSize, diceSize);
     } catch (error) {
-      console.error(`Không tìm thấy hình ảnh cho xúc xắc ${diceValue}`);
+      console.error(`Không tìm thấy hình ảnh cho xúc xắc ${dice[index]}`);
     }
+    ctx.restore();
   }
+}
 
-  const gradientWin = ["#FFFF00", "#FFD700", "#FFA500"];
-  const gradientLose = ["#A9A9A9", "#808080", "#696969"];
+export async function createTaiXiuResultImage(result, taiTotal, xiuTotal, jackpotInfo) {
+  const canvas = createCanvas(GAME_WIDTH, GAME_HEIGHT);
+  const ctx = canvas.getContext("2d");
+  const isTai = result.result === "tai";
+  const accent = jackpotInfo?.isJackpot ? "#ffd665" : isTai ? "#ff6577" : "#55dbea";
 
-  // Vẽ kết quả (Tài hoặc Xỉu)
-  const resultText = result.result === "tai" ? "TÀI" : "XỈU";
-  const resultGradient = result.result === "tai" ? ["#FF0000", "#EB1542", "#FF0000"] : ["#00FFFF", "#00CED1", "#00FFFF"];
-  drawTextWithEffects(ctx, resultText, width / 2, centerY - radius, 35, "bold", resultGradient, "#000000", 4, "rgba(0,0,0,0.5)", 10);
+  drawGameBackground(ctx, accent);
+  drawHeader(ctx, jackpotInfo?.isJackpot ? "PHIÊN ĐẶC BIỆT • HŨ ĐÃ NỔ" : "KẾT QUẢ PHIÊN VỪA MỞ", accent);
+  drawBetPanel(ctx, { x: 32, label: "TÀI", subtitle: "TỔNG TỪ 11 ĐẾN 17", total: taiTotal, accent: "#ff6577", active: isTai });
+  drawBetPanel(ctx, { x: 680, label: "XỈU", subtitle: "TỔNG TỪ 4 ĐẾN 10", total: xiuTotal, accent: "#55dbea", active: !isTai });
 
-  let taiTotalText = formatCurrency(taiTotal, 1000000000000);
-  let xiuTotalText = formatCurrency(xiuTotal, 1000000000000);
+  drawPanel(ctx, 300, 154, 360, 302, accent, true);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "rgba(255,255,255,0.55)";
+  ctx.font = `bold 14px ${FONT_MAIN}`;
+  ctx.fillText("KẾT QUẢ", 480, 180);
+  ctx.fillStyle = accent;
+  ctx.font = `bold 52px ${FONT_MAIN}`;
+  ctx.shadowColor = `${accent}66`;
+  ctx.shadowBlur = 18;
+  ctx.fillText(isTai ? "TÀI" : "XỈU", 480, 224);
+  ctx.shadowColor = "transparent";
+  await drawDiceRow(ctx, result.dice, 480, 314, 82);
 
-  // Vẽ chữ "Tài" và số tiền đặt cược
-  drawTextWithEffects(
-    ctx,
-    "Tài",
-    leftCenter - radius / 2,
-    centerY - 20,
-    30,
-    "bold",
-    resultText === "TÀI" ? gradientWin : gradientLose,
-    "#000000",
-    3,
-    "rgba(0,0,0,0.3)",
-    5
-  );
-  drawTextWithEffects(
-    ctx,
-    taiTotalText,
-    leftCenter - radius / 2,
-    centerY + 20,
-    28,
-    "normal",
-    resultText === "TÀI" ? gradientWin : gradientLose,
-    "#000000",
-    2,
-    "rgba(0,0,0,0.3)",
-    3
-  );
+  roundedRect(ctx, 400, 377, 160, 54, 27);
+  ctx.fillStyle = accent;
+  ctx.fill();
+  ctx.fillStyle = "#07110d";
+  ctx.font = `bold 17px ${FONT_MAIN}`;
+  ctx.fillText(`TỔNG  ${result.total}`, 480, 404);
 
-  // Vẽ chữ "Xỉu" và số tiền đặt cược
-  drawTextWithEffects(
-    ctx,
-    "Xỉu",
-    rightCenter + radius / 2,
-    centerY - 20,
-    30,
-    "bold",
-    resultText === "XỈU" ? gradientWin : gradientLose,
-    "#000000",
-    3,
-    "rgba(0,0,0,0.3)",
-    5
-  );
-  drawTextWithEffects(
-    ctx,
-    xiuTotalText,
-    rightCenter + radius / 2,
-    centerY + 20,
-    28,
-    "normal",
-    resultText === "XỈU" ? gradientWin : gradientLose,
-    "#000000",
-    2,
-    "rgba(0,0,0,0.3)",
-    3
-  );
-
-  const gradientPink = ["#FF69B4", "#FF1493", "#C71585"];
-  // Vẽ tổng điểm
-  drawTextWithEffects(
-    ctx,
-    result.total.toString(),
-    centerX,
-    centerY + radius / 2 + 45,
-    30,
-    "bold",
-    resultGradient,
-    "#000000",
-    4,
-    "rgba(0,0,0,0.5)",
-    10
-  );
-
-  // Nếu có jackpot, vẽ thêm thông tin số tiền trúng
   if (jackpotInfo?.isJackpot) {
-    // Tạo gradient cho text tiền hũ
-    const textGradient = ctx.createLinearGradient(0, height - 40, 0, height);
-    textGradient.addColorStop(0, "#FFD700"); // Vàng sáng
-    textGradient.addColorStop(0.5, "#FFF8DC"); // Vàng nhạt
-    textGradient.addColorStop(1, "#FFD700"); // Vàng sáng
-
-    ctx.font = "bold 28px Arial";
-    ctx.textAlign = "center";
-    ctx.strokeStyle = "#000000";
-    ctx.lineWidth = 3;
-    const jackpotText = `NỔ HŨ: ${formatCurrency(jackpotInfo.jackpotAmount)} VNĐ 💰`;
-
-    // Vẽ viền đen
-    ctx.strokeText(jackpotText, width / 2, height - 20);
-
-    // Vẽ text với gradient
-    ctx.fillStyle = textGradient;
-    ctx.fillText(jackpotText, width / 2, height - 20);
+    roundedRect(ctx, 224, 478, 512, 42, 21);
+    const jackpotGradient = ctx.createLinearGradient(224, 0, 736, 0);
+    jackpotGradient.addColorStop(0, "#b88721");
+    jackpotGradient.addColorStop(0.5, "#ffe89c");
+    jackpotGradient.addColorStop(1, "#b88721");
+    ctx.fillStyle = jackpotGradient;
+    ctx.fill();
+    ctx.fillStyle = "#231704";
+    const jackpotText = `NỔ HŨ  •  ${formatCurrency(jackpotInfo.jackpotAmount)} VNĐ`;
+    ctx.font = `bold ${fitText(ctx, jackpotText, 458, 20, 15)}px ${FONT_MAIN}`;
+    ctx.fillText(jackpotText, 480, 499);
+  } else {
+    ctx.fillStyle = "rgba(255,255,255,0.43)";
+    ctx.font = `bold 14px ${FONT_MAIN}`;
+    ctx.fillText("PHIÊN ĐÃ KẾT THÚC  •  CHỜ PHIÊN MỚI", 480, 500);
   }
 
-  // Lưu canvas thành file ảnh
   const filePath = path.resolve(`./assets/temp/taixiu_result_${Date.now()}.png`);
   await writeFilePromise(filePath, canvas.toBuffer());
-
   return filePath;
 }
 
 export async function createWaitingImage(remainingSeconds, taiTotal, xiuTotal) {
-  const width = 800;
-  const height = 300;
-  const widthCenter = width / 2;
-  const heightCenter = height / 2;
-  const leftCenter = width * 0.25;
-  const rightCenter = width * 0.75;
-
-  const canvas = createCanvas(width, height);
+  const canvas = createCanvas(GAME_WIDTH, GAME_HEIGHT);
   const ctx = canvas.getContext("2d");
 
-  // Vẽ background gradient từ tâm ra ngoài
-  const gradient = ctx.createRadialGradient(widthCenter, heightCenter, 0, widthCenter, heightCenter, width / 2);
-  gradient.addColorStop(0, "#4c0000");
-  gradient.addColorStop(0.7, "#2a0000");
-  gradient.addColorStop(1, "#320202");
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, width, height);
+  drawGameBackground(ctx, "#f4c95d");
+  drawHeader(ctx, "ĐANG NHẬN CƯỢC • CHỌN CỬA CỦA BẠN", "#f4c95d");
+  drawBetPanel(ctx, { x: 32, label: "TÀI", subtitle: "TỔNG TỪ 11 ĐẾN 17", total: taiTotal, accent: "#ff6577" });
+  drawBetPanel(ctx, { x: 680, label: "XỈU", subtitle: "TỔNG TỪ 4 ĐẾN 10", total: xiuTotal, accent: "#55dbea" });
 
-  // Thêm hiệu ứng ánh sáng nhẹ
-  const lightGradient = ctx.createRadialGradient(widthCenter, heightCenter, 0, widthCenter, heightCenter, width / 2);
-  lightGradient.addColorStop(0, "rgba(255, 255, 255, 0.15)");
-  lightGradient.addColorStop(0.5, "rgba(255, 255, 255, 0.05)");
-  lightGradient.addColorStop(1, "rgba(255, 255, 255, 0)");
-  ctx.fillStyle = lightGradient;
-  ctx.fillRect(0, 0, width, height);
+  drawPanel(ctx, 300, 154, 360, 302, "#f4c95d", true);
+  const centerX = 480;
+  const centerY = 294;
+  const seconds = Math.max(0, Math.ceil(Number(remainingSeconds) || 0));
+  const progress = Math.min(1, seconds / 60);
 
-  // Thêm hiệu ứng lấp lánh
-  for (let i = 0; i < 70; i++) {
-    const x = Math.random() * width;
-    const y = Math.random() * height;
-    const radius = Math.random() * 1.5;
-    ctx.beginPath();
-    ctx.arc(x, y, radius, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(255, 255, 255, ${Math.random() * 0.7})`;
-    ctx.fill();
-  }
-
-  // Vẽ dĩa tròn úp ở giữa
-  const centerX = widthCenter;
-  const centerY = heightCenter;
-  const radius = 100;
   ctx.beginPath();
-  ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
-  ctx.fillStyle = "rgba(100, 100, 100, 0.7)";
-  ctx.fill();
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
-  ctx.lineWidth = 3;
+  ctx.arc(centerX, centerY, 94, 0, Math.PI * 2);
+  ctx.strokeStyle = "rgba(255,255,255,0.11)";
+  ctx.lineWidth = 12;
   ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, 94, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress);
+  ctx.strokeStyle = "#f4c95d";
+  ctx.lineWidth = 12;
+  ctx.lineCap = "round";
+  ctx.shadowColor = "rgba(244,201,93,0.55)";
+  ctx.shadowBlur = 14;
+  ctx.stroke();
+  ctx.shadowColor = "transparent";
 
-  // Vẽ số giây còn lại
-  drawTextWithEffects(
-    ctx,
-    remainingSeconds.toString(),
-    centerX,
-    centerY,
-    60,
-    "bold",
-    ["#FFFFFF", "#DDDDDD", "#FFFFFF"],
-    "#000000",
-    4,
-    "rgba(0,0,0,0.5)",
-    10
-  );
-
-  // const gradiantTai = ["#FF1493", "#FF0000", "#8B0000"];
-  const gradiantTai = ["#FF9999", "#FF6666", "#FF3333"];
-  const gradiantXiu = ["#E0FFFF", "#AFEEEE", "#87CEEB"];
-  const fontSize1 = 38;
-  const fontSize2 = 32;
-
-  // Vẽ chữ "Tài" và số tiền đặt cược
-  let taiTotalText = formatCurrency(taiTotal, 1000000000000);
-  drawTextWithEffects(
-    ctx,
-    "Tài",
-    leftCenter - radius / 2,
-    centerY - 28,
-    fontSize1,
-    "bold",
-    gradiantTai,
-    "#000000",
-    3,
-    "rgba(0,0,0,0.3)",
-    5
-  );
-  drawTextWithEffects(
-    ctx,
-    taiTotalText,
-    leftCenter - radius / 2,
-    centerY + 28,
-    fontSize2,
-    "normal",
-    gradiantTai,
-    "#000000",
-    2,
-    "rgba(0,0,0,0.3)",
-    3
-  );
-
-  // Vẽ chữ "Xỉu" và số tiền đặt cược
-  let xiuTotalText = formatCurrency(xiuTotal, 1000000000000);
-  drawTextWithEffects(
-    ctx,
-    "Xỉu",
-    rightCenter + radius / 2,
-    centerY - 28,
-    fontSize1,
-    "bold",
-    gradiantXiu,
-    "#000000",
-    3,
-    "rgba(0,0,0,0.3)",
-    5
-  );
-  drawTextWithEffects(
-    ctx,
-    xiuTotalText,
-    rightCenter + radius / 2,
-    centerY + 28,
-    fontSize2,
-    "normal",
-    gradiantXiu,
-    "#000000",
-    2,
-    "rgba(0,0,0,0.3)",
-    3
-  );
-
-  // Lưu canvas thành file ảnh
-  const filePath = path.resolve(`./assets/temp/taixiu_waiting_${Date.now()}.png`);
-  await writeFilePromise(filePath, canvas.toBuffer());
-
-  return filePath;
-}
-
-// Hàm tạo hiệu ứng chữ nổi với viền, bóng đổ và gradient từ tâm
-function drawTextWithEffects(ctx, text, x, y, fontSize, fontWeight, gradientColors, outlineColor, outlineWidth, shadowColor, shadowBlur) {
-  ctx.save();
-  ctx.font = `${fontWeight} ${fontSize}px 'Bebas Neue', 'Oswald', sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
+  ctx.fillStyle = "rgba(255,255,255,0.52)";
+  ctx.font = `bold 13px ${FONT_MAIN}`;
+  ctx.fillText("CÒN LẠI", centerX, centerY - 35);
+  ctx.fillStyle = "#ffffff";
+  ctx.font = `bold 68px ${FONT_MAIN}`;
+  ctx.fillText(seconds.toString().padStart(2, "0"), centerX, centerY + 13);
+  ctx.fillStyle = "#f4c95d";
+  ctx.font = `bold 14px ${FONT_MAIN}`;
+  ctx.fillText("GIÂY", centerX, centerY + 59);
 
-  // Thêm bóng đổ
-  ctx.shadowColor = shadowColor;
-  ctx.shadowBlur = shadowBlur;
-  ctx.shadowOffsetX = 2;
-  ctx.shadowOffsetY = 2;
+  roundedRect(ctx, 376, 420, 208, 26, 13);
+  ctx.fillStyle = "rgba(244,201,93,0.12)";
+  ctx.fill();
+  ctx.fillStyle = "#f8dda0";
+  ctx.font = `bold 12px ${FONT_MAIN}`;
+  ctx.fillText("ĐẶT CƯỢC NGAY", centerX, 433);
 
-  // Tạo gradient cho chữ từ tâm ra hai phía
-  const textWidth = ctx.measureText(text).width;
-  const gradient = ctx.createLinearGradient(x - textWidth / 2, y, x + textWidth / 2, y);
-  gradientColors.forEach((color, index) => {
-    const stop = index / (gradientColors.length - 1);
-    gradient.addColorStop(stop, color);
-  });
+  ctx.fillStyle = "rgba(255,255,255,0.43)";
+  ctx.font = `bold 14px ${FONT_MAIN}`;
+  ctx.fillText("TÀI: >tx tai [tiền]     •     XỈU: >tx xiu [tiền]", 480, 500);
 
-  // Vẽ viền
-  ctx.strokeStyle = outlineColor;
-  ctx.lineWidth = outlineWidth;
-  ctx.strokeText(text, x, y);
-
-  // Vẽ chữ với gradient
-  ctx.fillStyle = gradient;
-  ctx.fillText(text, x, y);
-
-  ctx.restore();
+  const filePath = path.resolve(`./assets/temp/taixiu_waiting_${Date.now()}.png`);
+  await writeFilePromise(filePath, canvas.toBuffer());
+  return filePath;
 }
 
 export async function createSoiCauImage(history, maxHistory = 20) {
@@ -498,7 +365,7 @@ function drawEvenOddGraph(ctx, history, width, height, maxHistory = 20) {
   ctx.font = "bold 20px Arial";
   ctx.fillStyle = "#FFFFFF";
   ctx.textAlign = "center";
-  ctx.fillText(`Thống Kê Tài/Xỉu - ${nameServer}`, width / 2, -26);
+  ctx.fillText("Thống Kê Tài/Xỉu", width / 2, -26);
 
   // Vẽ đường kết nối các điểm trước khi vẽ các điểm
   ctx.beginPath();

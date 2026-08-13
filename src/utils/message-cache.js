@@ -5,14 +5,15 @@ import { isAdmin } from "../index.js";
 import { getGroupAdmins, getGroupInfoData } from "../service-dqt/info-service/group-info.js";
 import { sendMessageWarning } from "../service-dqt/chat-zalo/chat-style/chat-style.js";
 import { connection } from "../database/index.js";
+import { LRUCache } from "lru-cache";
 
 /**
  * ============================================================================
- *  QUẢN LÝ LOG TIN NHẮN - PHIÊN BẢN SQL (không giữ cache RAM lâu dài)
+ *  QUẢN LÝ LOG TIN NHẮN - LƯU TRÊN MONGODB (không giữ cache RAM lâu dài)
  * ============================================================================
- * Toàn bộ log tin nhắn được lưu thẳng vào bảng MySQL `messages_log` thay vì
+ * Toàn bộ log tin nhắn được lưu vào collection `messages_log` thay vì
  * giữ trong RAM + ghi đè file message.json mỗi 30 giây như trước. Mỗi lần cần
- * đọc, code sẽ query trực tiếp SQL (đơn giản, nhẹ RAM nhất theo yêu cầu).
+ * đọc, code sẽ query trực tiếp MongoDB để giữ mức dùng RAM thấp.
  *
  * Giữ lại (mặc định) 24 giờ dữ liệu, có job dọn dẹp định kỳ.
  * ============================================================================
@@ -22,6 +23,10 @@ export const MESSAGE_TABLE = "messages_log";
 export const RETENTION_MS = 24 * 60 * 60 * 1000; // 24 giờ
 
 let tableReady = false;
+const messageLru = new LRUCache({ max: 5000, ttl: 3 * 60 * 1000 });
+const threadLru = new LRUCache({ max: 100, ttl: 60 * 1000 });
+const messageKey = (botId, threadId, msgId) => `${botId}:${threadId}:${msgId}`;
+const threadKey = (botId, threadId) => `${botId}:${threadId}`;
 
 async function ensureMessageTable() {
   if (tableReady) return;
@@ -100,6 +105,9 @@ export async function updateMessageCache(idBot, data) {
         payload,
       ]
     );
+    messageLru.set(messageKey(idBot, data.threadId, msgId), filterData);
+    const cachedThread = threadLru.get(threadKey(idBot, data.threadId));
+    if (cachedThread) cachedThread[msgId] = filterData;
   } catch (error) {
     console.error("Lỗi khi ghi message vào SQL:", error);
   }
@@ -120,6 +128,9 @@ export async function getMessageCache(idBot, threadId) {
   try {
     await ensureMessageTable();
     if (!threadId) return {};
+    const cacheKey = threadKey(idBot, threadId);
+    const cached = threadLru.get(cacheKey);
+    if (cached) return cached;
 
     const since = Date.now() - RETENTION_MS;
     const [rows] = await connection.execute(
@@ -131,7 +142,9 @@ export async function getMessageCache(idBot, threadId) {
     const result = {};
     for (const row of rows) {
       result[row.msgId] = rowToMessage(row);
+      messageLru.set(messageKey(idBot, threadId, row.msgId), result[row.msgId]);
     }
+    threadLru.set(cacheKey, result);
     return result;
   } catch (error) {
     console.error("Lỗi khi đọc message cache từ SQL:", error);
@@ -145,6 +158,9 @@ export async function getMessageCache(idBot, threadId) {
 export async function getMessageByThreadAndMsgId(idBot, threadId, msgId) {
   try {
     if (!threadId || !msgId) return null;
+    const cacheKey = messageKey(idBot, threadId, msgId);
+    const cached = messageLru.get(cacheKey);
+    if (cached) return cached;
     await ensureMessageTable();
 
     const [rows] = await connection.execute(
@@ -154,7 +170,9 @@ export async function getMessageByThreadAndMsgId(idBot, threadId, msgId) {
     );
 
     if (rows.length === 0) return null;
-    return rowToMessage(rows[0]);
+    const message = rowToMessage(rows[0]);
+    messageLru.set(cacheKey, message);
+    return message;
   } catch (error) {
     console.error("Lỗi khi đọc 1 message từ SQL:", error);
     return null;
@@ -173,6 +191,11 @@ export async function markMessageUndo(idBot, threadId, msgId) {
       `UPDATE ${MESSAGE_TABLE} SET isUndo = 1 WHERE botId = ? AND threadId = ? AND msgId = ?`,
       [idBot?.toString() ?? "", threadId?.toString() ?? "", msgId?.toString() ?? ""]
     );
+    const cacheKey = messageKey(idBot, threadId, msgId);
+    const cached = messageLru.get(cacheKey);
+    if (cached) cached.isUndo = true;
+    const cachedThread = threadLru.get(threadKey(idBot, threadId));
+    if (cachedThread?.[msgId]) cachedThread[msgId].isUndo = true;
   } catch (error) {
     console.error("Lỗi khi đánh dấu tin nhắn đã thu hồi:", error);
   }
@@ -442,7 +465,7 @@ export async function initializeCacheMessageService(api) {
     await cleanOldMessages();
   });
 
-  const jobCheckBugCliMsgId = schedule.scheduleJob("*/5 * * * * *", async () => {
+  const jobCheckBugCliMsgId = schedule.scheduleJob("*/30 * * * * *", async () => {
     try {
       await checkBugCliMsgId(api);
     } catch (error) {
@@ -453,5 +476,5 @@ export async function initializeCacheMessageService(api) {
   api.apiInstance.schedule.jobCleanOldMessages = jobCleanOldMessages;
   api.apiInstance.schedule.jobCheckBugCliMsgId = jobCheckBugCliMsgId;
 
-  console.log(chalk.magentaBright(`[${botId}] Khởi động service quản lý message log (SQL) hoàn tất`));
+  console.log(chalk.magentaBright(`[${botId}] Khởi động service quản lý message log (MongoDB) hoàn tất`));
 }

@@ -194,7 +194,6 @@ async function blockUser(api, message, threadId, senderId, senderName, groupSett
           {
             msg: "",
             attachments: imagePath ? [imagePath] : [],
-            quote: message,
             ttl: 86400000,
             isUseProphylactic: true,
           },
@@ -232,7 +231,6 @@ async function sendWarningMessage(api, message, senderId, senderName, count, gro
       {
         msg: caption,
         mentions: [MessageMention(senderId, senderName.length, "⚠️ Cảnh cáo ".length)],
-        quote: message,
         ttl: 300000,
       },
       message.threadId,

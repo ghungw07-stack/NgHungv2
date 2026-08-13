@@ -14,10 +14,12 @@ async function uploadImageToZaloCloud(api, imagePath, senderId) {
   return fileUrl;
 }
 
+// Palette RTF mà client Zalo thực sự render; RGB thuần như ff0000/00ff00
+// được nhận trong payload nhưng client thường fallback thành màu đen.
 export const COLOR_RED = "db342e";
 export const COLOR_YELLOW = "f7b503";
 export const COLOR_GREEN = "15a85f";
-export const COLOR_BLACK = "000000";
+export const COLOR_BLACK = "1f2937";
 export const SIZE_18 = "18";
 export const SIZE_16 = "14";
 export const IS_BOLD = true;
@@ -33,36 +35,47 @@ export const ALLOWED_STYLE_SIZES = ["10", "11", "12", "13", "14", "15", "16", "1
 export const STYLE_COLOR_PRESETS = {
   r: COLOR_RED,
   do: COLOR_RED,
+  "đỏ": COLOR_RED,
+  red: COLOR_RED,
   y: COLOR_YELLOW,
   vang: COLOR_YELLOW,
+  "vàng": COLOR_YELLOW,
+  yellow: COLOR_YELLOW,
   g: COLOR_GREEN,
   xanhla: COLOR_GREEN,
-  b: "2196f3",
-  xanhduong: "2196f3",
-  p: "9b59b6",
-  tim: "9b59b6",
-  o: "ff9800",
-  cam: "ff9800",
-  w: "ffffff",
-  trang: "ffffff",
-  k: "000000",
-  den: "000000",
+  "xanh lá": COLOR_GREEN,
+  green: COLOR_GREEN,
+  k: COLOR_BLACK,
+  den: COLOR_BLACK,
+  "đen": COLOR_BLACK,
+  black: COLOR_BLACK,
 };
 
 export function resolveStyleColor(input) {
   if (!input) return null;
   const key = input.trim().toLowerCase();
   if (STYLE_COLOR_PRESETS[key]) return STYLE_COLOR_PRESETS[key];
-  const hex = key.replace("#", "");
-  if (/^[0-9a-f]{6}$/.test(hex)) return hex;
   return null;
+}
+
+function normalizeStoredColor(color) {
+  const legacyColors = {
+    ff0000: COLOR_RED,
+    ef4444: COLOR_RED,
+    "00ff00": COLOR_GREEN,
+    "10b981": COLOR_GREEN,
+    ffff00: COLOR_YELLOW,
+    f59e0b: COLOR_YELLOW,
+    "000000": COLOR_BLACK,
+  };
+  return legacyColors[color] || ([COLOR_RED, COLOR_GREEN, COLOR_YELLOW, COLOR_BLACK].includes(color) ? color : COLOR_BLACK);
 }
 
 export function getDefaultServerStyle() {
   return {
-    color: COLOR_RED,
+    color: COLOR_BLACK,
     size: SIZE_18,
-    bold: false,
+    bold: true,
     italic: false,
     underline: false,
     strike: false,
@@ -80,7 +93,7 @@ export function getServerStyle(api) {
     if (!custom) return getDefaultServerStyle();
 
     return {
-      color: custom.color || COLOR_RED,
+      color: normalizeStoredColor(custom.color),
       size: custom.size || SIZE_18,
       bold: custom.bold !== undefined ? custom.bold : false,
       italic: !!custom.italic,
@@ -102,6 +115,7 @@ export function getTextStyle(api) {
     const custom = managerData?.chatStyle;
     const t = custom?.text || {};
     return {
+      color: normalizeStoredColor(custom?.textColor),
       size: custom?.textSize || SIZE_18,
       bold:      t.bold      !== undefined ? t.bold      : false,
       italic:    t.italic    !== undefined ? t.italic    : false,
@@ -109,7 +123,7 @@ export function getTextStyle(api) {
       strike:    t.strike    !== undefined ? t.strike    : false,
     };
   } catch {
-    return { size: SIZE_18, bold: false, italic: false, underline: false, strike: false };
+    return { color: COLOR_BLACK, size: SIZE_18, bold: false, italic: false, underline: false, strike: false };
   }
 }
 
@@ -133,7 +147,7 @@ export async function sendMessageInsufficientAuthority(api, message, caption, ha
     const bodyText = `\n${caption}${hasState ? iconState : ""}`;
     const style = MultiMsgStyle([
       MessageStyle(nameOffset, nameServer.length, serverStyle.color, serverStyle.size, serverStyle.bold, serverStyle.italic, serverStyle.underline, serverStyle.strike),
-      MessageStyle(nameOffset + nameServer.length, bodyText.length, COLOR_BLACK, textStyle.size, textStyle.bold, textStyle.italic, textStyle.underline, textStyle.strike),
+      MessageStyle(nameOffset + nameServer.length, bodyText.length, textStyle.color, textStyle.size, textStyle.bold, textStyle.italic, textStyle.underline, textStyle.strike),
     ]);
 
     let msg = `${isGroup ? senderName + "\n" : ""}${nameServer}` + bodyText;
@@ -169,7 +183,7 @@ export async function sendMessageQuery(api, message, caption, hasState = true) {
     const bodyText = `\n${caption}${hasState ? iconState : ""}`;
     const style = MultiMsgStyle([
       MessageStyle(nameOffset, nameServer.length, serverStyle.color, serverStyle.size, serverStyle.bold, serverStyle.italic, serverStyle.underline, serverStyle.strike),
-      MessageStyle(nameOffset + nameServer.length, bodyText.length, COLOR_BLACK, textStyle.size, textStyle.bold, textStyle.italic, textStyle.underline, textStyle.strike),
+      MessageStyle(nameOffset + nameServer.length, bodyText.length, textStyle.color, textStyle.size, textStyle.bold, textStyle.italic, textStyle.underline, textStyle.strike),
     ]);
 
     let msg = `${isGroup ? senderName + "\n" : ""}${nameServer}` + bodyText;
@@ -205,7 +219,7 @@ export async function sendMessageWarning(api, message, caption, hasState = true,
     const bodyText = `\n${caption}${hasState ? iconState : ""}`;
     const style = MultiMsgStyle([
       MessageStyle(nameOffset, nameServer.length, serverStyle.color, serverStyle.size, serverStyle.bold, serverStyle.italic, serverStyle.underline, serverStyle.strike),
-      MessageStyle(nameOffset + nameServer.length, bodyText.length, COLOR_BLACK, textStyle.size, textStyle.bold, textStyle.italic, textStyle.underline, textStyle.strike),
+      MessageStyle(nameOffset + nameServer.length, bodyText.length, textStyle.color, textStyle.size, textStyle.bold, textStyle.italic, textStyle.underline, textStyle.strike),
     ]);
 
     let msg = `${isGroup ? senderName + "\n" : ""}${nameServer}` + bodyText;
@@ -241,7 +255,7 @@ export async function sendMessageComplete(api, message, caption, hasState = true
     const bodyText = `\n${caption}${hasState ? iconState : ""}`;
     const style = MultiMsgStyle([
       MessageStyle(nameOffset, nameServer.length, serverStyle.color, serverStyle.size, serverStyle.bold, serverStyle.italic, serverStyle.underline, serverStyle.strike),
-      MessageStyle(nameOffset + nameServer.length, bodyText.length, COLOR_BLACK, textStyle.size, textStyle.bold, textStyle.italic, textStyle.underline, textStyle.strike),
+      MessageStyle(nameOffset + nameServer.length, bodyText.length, textStyle.color, textStyle.size, textStyle.bold, textStyle.italic, textStyle.underline, textStyle.strike),
     ]);
 
     let msg = `${isGroup ? senderName + "\n" : ""}${nameServer}` + bodyText;
@@ -277,7 +291,7 @@ export async function sendMessageFailed(api, message, caption, hasState = true, 
     const bodyText = `\n${caption}${hasState ? iconState : ""}`;
     const style = MultiMsgStyle([
       MessageStyle(nameOffset, nameServer.length, serverStyle.color, serverStyle.size, serverStyle.bold, serverStyle.italic, serverStyle.underline, serverStyle.strike),
-      MessageStyle(nameOffset + nameServer.length, bodyText.length, COLOR_BLACK, textStyle.size, textStyle.bold, textStyle.italic, textStyle.underline, textStyle.strike),
+      MessageStyle(nameOffset + nameServer.length, bodyText.length, textStyle.color, textStyle.size, textStyle.bold, textStyle.italic, textStyle.underline, textStyle.strike),
     ]);
 
     let msg = `${isGroup ? senderName + "\n" : ""}${nameServer}` + bodyText;
@@ -312,7 +326,7 @@ export async function sendMessageStateQuote(api, message, caption, state, ttl = 
     const bodyText = `\n${caption}${onState ? "\n" + iconState : ""}`;
     const style = MultiMsgStyle([
       MessageStyle(nameOffset, nameServer.length, serverStyle.color, serverStyle.size, serverStyle.bold, serverStyle.italic, serverStyle.underline, serverStyle.strike),
-      MessageStyle(nameOffset + nameServer.length, bodyText.length, COLOR_BLACK, textStyle.size, textStyle.bold, textStyle.italic, textStyle.underline, textStyle.strike),
+      MessageStyle(nameOffset + nameServer.length, bodyText.length, textStyle.color, textStyle.size, textStyle.bold, textStyle.italic, textStyle.underline, textStyle.strike),
     ]);
     let msg = `${senderName}\n${nameServer}` + bodyText;
     return await api.sendMessage(
@@ -346,7 +360,7 @@ export async function sendMessageStateNotQuote(api, message, caption, state, ttl
     const bodyText = `\n${caption}${onState ? "\n" + iconState : ""}`;
     const style = MultiMsgStyle([
       MessageStyle(nameOffset, nameServer.length, serverStyle.color, serverStyle.size, serverStyle.bold, serverStyle.italic, serverStyle.underline, serverStyle.strike),
-      MessageStyle(nameOffset + nameServer.length, bodyText.length, COLOR_BLACK, textStyle.size, textStyle.bold, textStyle.italic, textStyle.underline, textStyle.strike),
+      MessageStyle(nameOffset + nameServer.length, bodyText.length, textStyle.color, textStyle.size, textStyle.bold, textStyle.italic, textStyle.underline, textStyle.strike),
     ]);
     let msg = `${senderName}\n${nameServer}` + bodyText;
     return await api.sendMessage(
@@ -375,7 +389,7 @@ export async function sendMessageState(api, threadId, caption, state, ttl = 0) {
     const bodyText = `\n${caption}\n${iconState}`;
     const style = MultiMsgStyle([
       MessageStyle(0, nameServer.length, serverStyle.color, serverStyle.size, serverStyle.bold, serverStyle.italic, serverStyle.underline, serverStyle.strike),
-      MessageStyle(nameServer.length, bodyText.length, COLOR_BLACK, textStyle.size, textStyle.bold, textStyle.italic, textStyle.underline, textStyle.strike),
+      MessageStyle(nameServer.length, bodyText.length, textStyle.color, textStyle.size, textStyle.bold, textStyle.italic, textStyle.underline, textStyle.strike),
     ]);
     let msg = `${nameServer}` + bodyText;
     return await api.sendMessage(
@@ -403,7 +417,7 @@ export async function sendMessageStatePrivate(api, threadId, caption, state, ttl
     const bodyText = `\n${caption}\n${iconState}`;
     const style = MultiMsgStyle([
       MessageStyle(0, nameServer.length, serverStyle.color, serverStyle.size, serverStyle.bold, serverStyle.italic, serverStyle.underline, serverStyle.strike),
-      MessageStyle(nameServer.length, bodyText.length, COLOR_BLACK, textStyle.size, textStyle.bold, textStyle.italic, textStyle.underline, textStyle.strike),
+      MessageStyle(nameServer.length, bodyText.length, textStyle.color, textStyle.size, textStyle.bold, textStyle.italic, textStyle.underline, textStyle.strike),
     ]);
     let msg = `${nameServer}` + bodyText;
     return await api.sendMessage(
@@ -438,7 +452,7 @@ export async function sendMessageResultRequest(
     const bodyText = `\n${caption}\n${iconState}`;
     const style = MultiMsgStyle([
       MessageStyle(0, nameServer.length, serverStyle.color, serverStyle.size, serverStyle.bold, serverStyle.italic, serverStyle.underline, serverStyle.strike),
-      MessageStyle(nameServer.length, bodyText.length, COLOR_BLACK, textStyle.size, textStyle.bold, textStyle.italic, textStyle.underline, textStyle.strike),
+      MessageStyle(nameServer.length, bodyText.length, textStyle.color, textStyle.size, textStyle.bold, textStyle.italic, textStyle.underline, textStyle.strike),
     ]);
     let msg = `${nameServer}` + bodyText;
     return await api.sendMessage(
@@ -474,7 +488,7 @@ export async function sendMessageFromSQL(api, message, result, hasState = true, 
     }
     const style = MultiMsgStyle([
       MessageStyle(nameOffset, nameServer.length, serverStyle.color, serverStyle.size, serverStyle.bold, serverStyle.italic, serverStyle.underline, serverStyle.strike),
-      MessageStyle(nameOffset + nameServer.length, bodyText.length, COLOR_BLACK, textStyle.size, textStyle.bold, textStyle.italic, textStyle.underline, textStyle.strike),
+      MessageStyle(nameOffset + nameServer.length, bodyText.length, textStyle.color, textStyle.size, textStyle.bold, textStyle.italic, textStyle.underline, textStyle.strike),
     ]);
 
     let msg = `${isGroup ? senderName + "\n" : ""}${nameServer}` + bodyText;
@@ -543,7 +557,7 @@ export async function sendMessageFromSQLImage(api, message, result, hasState = t
     }
     const style = MultiMsgStyle([
       MessageStyle(nameOffset, nameServer.length, serverStyle.color, serverStyle.size, serverStyle.bold, serverStyle.italic, serverStyle.underline, serverStyle.strike),
-      MessageStyle(nameOffset + nameServer.length, bodyText.length, COLOR_BLACK, textStyle.size, textStyle.bold, textStyle.italic, textStyle.underline, textStyle.strike),
+      MessageStyle(nameOffset + nameServer.length, bodyText.length, textStyle.color, textStyle.size, textStyle.bold, textStyle.italic, textStyle.underline, textStyle.strike),
     ]);
 
     let msg = `${isGroup ? senderName + "\n" : ""}${nameServer}` + bodyText;
@@ -569,8 +583,9 @@ export async function sendMessageWarningRequest(api, message, objectData, ttl = 
   const senderName = message.data.dName;
   const isGroup = message.type === MessageType.GroupMessage;
 
+  const textStyle = getTextStyle(api);
   const style = MultiMsgStyle([
-    MessageStyle(isGroup ? senderName.length + 1 : 0, objectData.caption.length, COLOR_RED, SIZE_16, IS_BOLD),
+    MessageStyle(isGroup ? senderName.length + 1 : 0, objectData.caption.length, textStyle.color, textStyle.size, textStyle.bold, textStyle.italic, textStyle.underline, textStyle.strike),
   ]);
   let msg = `${isGroup ? senderName + "\n" : ""}` + `${objectData.caption}`;
 
@@ -594,8 +609,9 @@ export async function sendMessageProcessingRequest(api, message, objectData, ttl
   const senderName = message.data.dName;
   const isGroup = message.type === MessageType.GroupMessage;
 
+  const textStyle = getTextStyle(api);
   const style = MultiMsgStyle([
-    MessageStyle(isGroup ? senderName.length + 1 : 0, objectData.caption.length, COLOR_YELLOW, SIZE_16, IS_BOLD),
+    MessageStyle(isGroup ? senderName.length + 1 : 0, objectData.caption.length, textStyle.color, textStyle.size, textStyle.bold, textStyle.italic, textStyle.underline, textStyle.strike),
   ]);
   let msg = `${isGroup ? senderName + "\n" : ""}` + `${objectData.caption}`;
 
@@ -619,10 +635,19 @@ export async function sendMessageCompleteRequest(api, message, objectData, ttl =
   const senderName = message.data.dName;
   const isGroup = message.type === MessageType.GroupMessage;
 
-  const style = MultiMsgStyle([
-    MessageStyle(isGroup ? senderName.length + 1 : 0, objectData.caption.length, COLOR_GREEN, SIZE_16, IS_BOLD),
-  ]);
-  let msg = `${isGroup ? senderName + "\n" : ""}` + `${objectData.caption}`;
+  const textStyle = getTextStyle(api);
+  const caption = String(objectData.caption || "");
+  const captionOffset = isGroup ? senderName.length + 1 : 0;
+  const greenHeader = caption.match(/^> From [^\n]+ <\nNhạc Bạn Chọn Đâyy?!!!/i)?.[0] || "";
+  const styles = [];
+  if (greenHeader) {
+    styles.push(MessageStyle(captionOffset, greenHeader.length, COLOR_GREEN, textStyle.size, textStyle.bold, textStyle.italic, textStyle.underline, textStyle.strike));
+  }
+  if (caption.length > greenHeader.length) {
+    styles.push(MessageStyle(captionOffset + greenHeader.length, caption.length - greenHeader.length, textStyle.color, textStyle.size, textStyle.bold, textStyle.italic, textStyle.underline, textStyle.strike));
+  }
+  const style = MultiMsgStyle(styles);
+  let msg = `${isGroup ? senderName + "\n" : ""}` + caption;
 
   return await api.sendMessage(
     {

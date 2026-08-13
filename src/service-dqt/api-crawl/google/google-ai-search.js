@@ -1,7 +1,7 @@
 import { createCanvas } from "canvas";
 import path from "path";
 import { GoogleGenAI } from "@google/genai";
-import { getApiKeysMedia } from "../../../utils/api-key-manager.js";
+import { getNextApiKeyMedia } from "../../../utils/api-key-manager.js";
 import { getGlobalPrefix } from "../../service.js";
 import { removeMention } from "../../../utils/format-util.js";
 import {
@@ -13,8 +13,7 @@ import { tempDir } from "../../../utils/io-json.js";
 import { randomIDTemp } from "../../../utils/format-util.js";
 import { writeFilePromise, deleteFile } from "../../../utils/util.js";
 
-const genAI = new GoogleGenAI({ apiKey: getApiKeysMedia("GEMINI")[0] });
-const MODEL = "gemini-2.5-flash";
+const MODEL = "gemini-3.6-flash";
 
 const systemInstruction = `Bạn là trợ lý tìm kiếm thông minh. Nhiệm vụ của bạn là tìm kiếm và tổng hợp thông tin về câu hỏi được đưa ra.
 
@@ -55,6 +54,7 @@ function isHttp503(err) {
 }
 
 async function generateContentWithRetry(payload) {
+  const genAI = new GoogleGenAI({ apiKey: getNextApiKeyMedia("GEMINI") });
   try {
     return await genAI.models.generateContent(payload);
   } catch (e) {
@@ -88,9 +88,6 @@ const searchWithGemini = async (query) => {
       contents: prompt,
       config: {
         systemInstruction: systemInstruction,
-        temperature: 0.7,
-        topP: 0.9,
-        topK: 40,
         maxOutputTokens: 8192,
       },
     });

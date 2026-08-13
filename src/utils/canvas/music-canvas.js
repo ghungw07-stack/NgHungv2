@@ -1,18 +1,50 @@
-import { createCanvas, loadImage } from "canvas";
+import { createCanvas, loadImage, registerFont } from "canvas";
 import path from "path";
 import fsPromises from "fs/promises";
+import sharp from "sharp";
 import { loadImageBuffer } from "../util.js";
-import { FONT_MAIN, getFontCanvas } from "../format-util.js";
+import { getFontCanvas } from "../format-util.js";
 
-/* ---------- Bảng màu sáng, tối giản (giống ảnh mẫu) ---------- */
-const C_PAGE_BG   = "#e9ebf0"; // nền ngoài (viền quanh card)
-const C_CARD_BG   = "#ffffff";
-const C_BORDER    = "rgba(0,0,0,0.06)";
-const C_TITLE     = "#14151a";
-const C_SUB       = "#9096a3";
-const C_PLAY_BG   = "#14151a";
-const C_LIKE_FROM = "#ff7a3d";
-const C_LIKE_TO   = "#ff4d6d";
+const C_BORDER    = "rgba(255,255,255,0.16)";
+const C_TITLE     = "#ffffff";
+const C_SUB       = "rgba(255,255,255,0.72)";
+const CARD_FONT   = "Manrope, Arial, sans-serif";
+
+try {
+  const manropeDir = path.join(process.cwd(), "assets", "fonts");
+  registerFont(path.join(manropeDir, "Manrope-Regular.ttf"), { family: "Manrope", weight: "normal" });
+  registerFont(path.join(manropeDir, "Manrope-SemiBold.ttf"), { family: "Manrope", weight: "600" });
+  registerFont(path.join(manropeDir, "Manrope-Bold.ttf"), { family: "Manrope", weight: "bold" });
+} catch (error) {
+  console.warn(`[canvas] Không thể load font Manrope: ${error?.message || error}`);
+}
+
+function getCardFont(text) {
+  const fallback = getFontCanvas(String(text || ""));
+  return fallback.startsWith("Noto") ? fallback : CARD_FONT;
+}
+
+function drawBlendedBackground(ctx, width, height) {
+  const base = ctx.createLinearGradient(0, 0, width, height);
+  base.addColorStop(0, "#32145f");
+  base.addColorStop(0.48, "#263f82");
+  base.addColorStop(1, "#087b78");
+  ctx.fillStyle = base;
+  ctx.fillRect(0, 0, width, height);
+
+  const blobs = [
+    [width * 0.15, height * 0.15, width * 0.5, "rgba(255,88,190,.34)"],
+    [width * 0.72, height * 0.1, width * 0.42, "rgba(91,126,255,.30)"],
+    [width * 0.82, height * 0.95, width * 0.48, "rgba(34,238,190,.28)"],
+  ];
+  for (const [x, y, radius, color] of blobs) {
+    const glow = ctx.createRadialGradient(x, y, 0, x, y, radius);
+    glow.addColorStop(0, color);
+    glow.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, width, height);
+  }
+}
 
 function roundRectPath(ctx, x, y, w, h, r) {
   const rr = Math.max(0, Math.min(r, Math.floor(Math.min(w, h) / 2)));
@@ -27,6 +59,23 @@ function roundRectPath(ctx, x, y, w, h, r) {
   ctx.lineTo(x, y + rr);
   ctx.quadraticCurveTo(x, y, x + rr, y);
   ctx.closePath();
+}
+
+function drawImageCover(ctx, image, x, y, width, height) {
+  const imageRatio = image.width / image.height;
+  const targetRatio = width / height;
+  let sx = 0;
+  let sy = 0;
+  let sw = image.width;
+  let sh = image.height;
+  if (imageRatio > targetRatio) {
+    sw = image.height * targetRatio;
+    sx = (image.width - sw) / 2;
+  } else {
+    sh = image.width / targetRatio;
+    sy = (image.height - sh) / 2;
+  }
+  ctx.drawImage(image, sx, sy, sw, sh, x, y, width, height);
 }
 
 function clampText(ctx, text, maxWidth) {
@@ -64,104 +113,79 @@ function wrapTitle(ctx, text, maxWidth, maxLines = 2) {
   return lines;
 }
 
-/* Nút tròn play (đen, tam giác trắng) */
-function drawPlayButton(ctx, cx, cy, r) {
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.fillStyle = C_PLAY_BG;
-  ctx.fill();
-  ctx.restore();
-
-  const s = r * 0.62;
-  ctx.save();
-  ctx.beginPath();
-  ctx.moveTo(cx - s * 0.42, cy - s * 0.58);
-  ctx.lineTo(cx - s * 0.42, cy + s * 0.58);
-  ctx.lineTo(cx + s * 0.62, cy);
-  ctx.closePath();
-  ctx.fillStyle = "#ffffff";
-  ctx.fill();
-  ctx.restore();
-}
-
-/* Nút tròn tim (gradient cam) */
-function drawLikeButton(ctx, cx, cy, r) {
-  const grad = ctx.createLinearGradient(cx - r, cy - r, cx + r, cy + r);
-  grad.addColorStop(0, C_LIKE_FROM);
-  grad.addColorStop(1, C_LIKE_TO);
-
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.fillStyle = grad;
-  ctx.fill();
-  ctx.restore();
-
-  const s = r * 0.85;
-  ctx.save();
-  ctx.translate(cx, cy - s * 0.08);
-  ctx.beginPath();
-  ctx.moveTo(0, s * 0.32);
-  ctx.bezierCurveTo(-s * 0.1, s * 0.05, -s * 0.55, -s * 0.05, -s * 0.55, -s * 0.28);
-  ctx.bezierCurveTo(-s * 0.55, -s * 0.5, -s * 0.22, -s * 0.55, 0, -s * 0.22);
-  ctx.bezierCurveTo(s * 0.22, -s * 0.55, s * 0.55, -s * 0.5, s * 0.55, -s * 0.28);
-  ctx.bezierCurveTo(s * 0.55, -s * 0.05, s * 0.1, s * 0.05, 0, s * 0.32);
-  ctx.closePath();
-  ctx.fillStyle = "#ffffff";
-  ctx.fill();
-  ctx.restore();
-}
-
-export async function createMusicCard(musicInfo) {
-  const width = 900;
-  const height = 260;
+export async function createMusicCard(musicInfo, botId) {
+  const theme = { border: C_BORDER, title: C_TITLE, sub: C_SUB };
+  const width = 1200;
+  const height = 368;
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext("2d");
 
-  const PAD = 24;
+  const PAD = 34;
   const thumbSize = height - PAD * 2;
   const thumbX = PAD;
   const thumbY = PAD;
 
   try {
-    /* Nền ngoài + card trắng bo góc lớn */
-    ctx.fillStyle = C_PAGE_BG;
+    let thumbnail = null;
+    let blurredBackground = null;
+    if (musicInfo.thumbnailPath) {
+      try {
+        const buffer = await loadImageBuffer(musicInfo.thumbnailPath);
+        if (buffer) {
+          const blurredBuffer = await sharp(buffer)
+            .resize(width, height, { fit: "cover" })
+            .blur(26)
+            .modulate({ brightness: 0.72, saturation: 0.88 })
+            .png()
+            .toBuffer();
+          [thumbnail, blurredBackground] = await Promise.all([
+            loadImage(buffer),
+            loadImage(blurredBuffer),
+          ]);
+        }
+      } catch {}
+    }
+
+    // Paint every pixel opaque. Zalo may convert PNG to JPEG; transparent
+    // corners would otherwise be flattened to white.
+    ctx.fillStyle = "#111722";
+    ctx.fillRect(0, 0, width, height);
+    if (blurredBackground) drawImageCover(ctx, blurredBackground, 0, 0, width, height);
+    else drawBlendedBackground(ctx, width, height);
+
+    const darken = ctx.createLinearGradient(0, 0, width, 0);
+    darken.addColorStop(0, "rgba(7,10,18,0.30)");
+    darken.addColorStop(0.4, "rgba(7,10,18,0.48)");
+    darken.addColorStop(1, "rgba(7,10,18,0.64)");
+    ctx.fillStyle = darken;
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.fillStyle = "rgba(255,255,255,0.06)";
     ctx.fillRect(0, 0, width, height);
 
     ctx.save();
-    roundRectPath(ctx, 0, 0, width, height, 32);
-    ctx.clip();
-    ctx.fillStyle = C_CARD_BG;
-    ctx.fillRect(0, 0, width, height);
-    ctx.restore();
-
-    ctx.save();
-    roundRectPath(ctx, 1, 1, width - 2, height - 2, 32);
-    ctx.strokeStyle = C_BORDER;
+    roundRectPath(ctx, 16.5, 16.5, width - 33, height - 33, 22);
+    ctx.strokeStyle = theme.border;
     ctx.lineWidth = 1;
     ctx.stroke();
     ctx.restore();
 
-    /* Thumbnail vuông bo góc */
-    let thumbnail = null;
-    if (musicInfo.thumbnailPath) {
-      try {
-        const buf = await loadImageBuffer(musicInfo.thumbnailPath);
-        if (buf) thumbnail = await loadImage(buf);
-      } catch {}
-    }
-
     ctx.save();
-    roundRectPath(ctx, thumbX, thumbY, thumbSize, thumbSize, 20);
+    ctx.shadowColor = "rgba(0,0,0,0.38)";
+    ctx.shadowBlur = 24;
+    ctx.shadowOffsetY = 8;
+    roundRectPath(ctx, thumbX, thumbY, thumbSize, thumbSize, 22);
+    ctx.fillStyle = "rgba(0,0,0,0.25)";
+    ctx.fill();
+    ctx.shadowColor = "transparent";
     ctx.clip();
     if (thumbnail) {
-      ctx.drawImage(thumbnail, thumbX, thumbY, thumbSize, thumbSize);
+      drawImageCover(ctx, thumbnail, thumbX, thumbY, thumbSize, thumbSize);
     } else {
-      ctx.fillStyle = "#e4e6ec";
+      ctx.fillStyle = "rgba(255,255,255,0.14)";
       ctx.fillRect(thumbX, thumbY, thumbSize, thumbSize);
-      ctx.font = `700 40px ${FONT_MAIN}`;
-      ctx.fillStyle = C_SUB;
+      ctx.font = `700 64px ${CARD_FONT}`;
+      ctx.fillStyle = theme.title;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText("♪", thumbX + thumbSize / 2, thumbY + thumbSize / 2);
@@ -170,39 +194,44 @@ export async function createMusicCard(musicInfo) {
     }
     ctx.restore();
 
-    /* Khối văn bản: tiêu đề (tối đa 2 dòng) + thể loại/nguồn */
-    const textX = thumbX + thumbSize + 40;
-    const rightZoneW = 220; // khoảng trống dành cho 2 nút tròn bên phải
+    const textX = thumbX + thumbSize + 48;
+    const rightZoneW = 70;
     const maxTextWidth = width - textX - PAD - rightZoneW;
 
     const title = musicInfo.title || "Unknown Title";
-    ctx.font = `800 42px ${getFontCanvas(title)}`;
-    ctx.fillStyle = C_TITLE;
+    ctx.font = `700 42px ${getCardFont(title)}`;
+    ctx.fillStyle = theme.title;
     const titleLines = wrapTitle(ctx, title, maxTextWidth, 2);
 
-    const lineHeight = 50;
-    const blockHeight = titleLines.length * lineHeight + 40; // + chỗ cho subtitle
-    let textY = (height - blockHeight) / 2 + 42;
+    const lineHeight = 51;
+    const blockHeight = titleLines.length * lineHeight + 46;
+    let textY = (height - blockHeight) / 2 + 46;
 
     for (const line of titleLines) {
       ctx.fillText(line, textX, textY);
       textY += lineHeight;
     }
 
-    textY += 6;
-    const subtitle = (musicInfo.category || musicInfo.artists || musicInfo.source || "").toString().toUpperCase();
-    ctx.font = `600 22px ${FONT_MAIN}`;
-    ctx.fillStyle = C_SUB;
+    textY += 10;
+    const subtitle = (musicInfo.artists || musicInfo.artist || musicInfo.category || "Không rõ nghệ sĩ").toString();
+    ctx.font = `normal 20px ${getCardFont(subtitle)}`;
+    ctx.fillStyle = theme.sub;
     ctx.fillText(clampText(ctx, subtitle, maxTextWidth), textX, textY);
 
-    /* Hai nút tròn bên phải: play + tim */
-    const btnR = 46;
-    const btnCy = height / 2;
-    const likeCx = width - PAD - btnR;
-    const playCx = likeCx - btnR * 2 - 24;
+    const source = String(musicInfo.source || musicInfo.category || "NGH Music");
+    ctx.textAlign = "right";
+    ctx.fillStyle = "rgba(255,255,255,0.86)";
+    ctx.font = `normal 17px ${getCardFont(source)}`;
+    ctx.fillText(clampText(ctx, source, 220), width - PAD, PAD + 19);
 
-    drawPlayButton(ctx, playCx, btnCy, btnR);
-    drawLikeButton(ctx, likeCx, btnCy, btnR);
+    const duration = String(musicInfo.durationText || musicInfo.duration || "").trim();
+    if (duration) {
+      ctx.fillStyle = "rgba(255,255,255,0.90)";
+      ctx.font = `700 21px ${CARD_FONT}`;
+      ctx.fillText(duration, width - PAD, height - PAD);
+    }
+    ctx.textAlign = "left";
+
   } catch (error) {
     console.error("Lỗi khi tạo music card:", error);
     throw error;

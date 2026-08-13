@@ -27,7 +27,10 @@ import { deleteMessageCustomer } from "../../../commands/bot-manager/utilities.j
 
 const blockedUsers = new Set();
 
-export const PERCENT_NSFW = 40;
+// Điểm dưới mức này thường là ảnh đời thường bị model gán nhầm sang "Sexy".
+// Chỉ xử lý khi model có độ tin cậy cao để hạn chế xóa nhầm ảnh/video bình thường.
+export const PERCENT_NSFW = 65;
+const WHITELIST_PERCENT_NSFW = 80;
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -35,18 +38,23 @@ const workerPool = {
   workers: [],
   maxWorkers: 1,
   queue: [],
+  initPromise: null,
 
   async init() {
-    for (let i = 0; i < this.maxWorkers; i++) {
-      const worker = new Worker(path.join(__dirname, "anti-nude-worker.js"));
-      this.workers.push({
-        worker,
-        busy: false,
+    if (this.workers.length > 0) return;
+    if (!this.initPromise) {
+      this.initPromise = Promise.resolve().then(() => {
+        for (let i = 0; i < this.maxWorkers; i++) {
+          const worker = new Worker(path.join(__dirname, "anti-nude-worker.js"));
+          this.workers.push({ worker, busy: false });
+        }
       });
     }
+    await this.initPromise;
   },
 
   async getWorker() {
+    await this.init();
     const availableWorker = this.workers.find((w) => !w.busy);
     if (availableWorker) {
       availableWorker.busy = true;
@@ -66,8 +74,6 @@ const workerPool = {
     }
   },
 };
-
-await workerPool.init();
 
 async function loadViolations(botId) {
   const antiState = getAntiConfig(botId);
@@ -312,7 +318,7 @@ export async function antiNude(api, message, isAdminBox, groupSettings, botIsAdm
 
   const isWhiteList = isInWhiteList(groupSettings, threadId, senderId);
   let percentNsfw = PERCENT_NSFW;
-  if (isWhiteList) percentNsfw = 60;
+  if (isWhiteList) percentNsfw = WHITELIST_PERCENT_NSFW;
 
   if (groupSettings[threadId]?.antiNude) {
     if (linkContent || thumbnail) {
@@ -346,7 +352,6 @@ export async function antiNude(api, message, isAdminBox, groupSettings, botIsAdm
                   50
                 )}%).`,
                 mentions: [MessageMention(senderId, senderName.length, "⚠️ ".length)],
-                quote: message,
                 ttl: 30000,
               },
               threadId,
@@ -364,7 +369,6 @@ export async function antiNude(api, message, isAdminBox, groupSettings, botIsAdm
                   `Ở đây cấm gửi nội dung nhạy cảm!!! (Độ nhạy cảm: ${Math.max(nsfw_prob, 50)}%).` +
                   `\nVi phạm nhiều lần, tao đá khỏi box!`,
                 mentions: [MessageMention(senderId, senderName.length, "⚠️ Cảnh cáo ".length)],
-                quote: message,
                 ttl: 30000,
               },
               threadId,
@@ -417,7 +421,6 @@ async function handleNudeContent(api, message, threadId, senderId, senderName, g
           {
             msg: "",
             attachments: imagePath ? [imagePath] : [],
-            quote: message,
             ttl: 86400000,
             isUseProphylactic: true,
           },

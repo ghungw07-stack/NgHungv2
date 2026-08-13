@@ -196,18 +196,18 @@ export async function antiPhoneNumber(api, message, isAdminBox, groupSettings, b
           await handleViolationDetected(api, message, threadId, senderId, senderName);
         }
         return true;
-      } else {
-        await api.sendMessage(
-          {
-            msg: `Không thể xóa tin nhắn chứa số điện thoại của ${senderName} (có thể bot cần quyền admin).`,
-            quote: message,
-            ttl: 300000,
-          },
-          threadId,
-          MessageType.GroupMessage
-        );
-        return false;
-      }
+        } else {
+          await api.sendMessage(
+            {
+              msg: `Không thể xóa tin nhắn chứa số điện thoại của ${senderName} (có thể bot cần quyền admin).`,
+              quote: message,
+              ttl: 300000,
+            },
+            threadId,
+            MessageType.GroupMessage
+          );
+          return false;
+        }
     } catch (error) {
       return false;
     }
@@ -240,7 +240,6 @@ async function sendWarningMessage(api, message, senderId, senderName, threadId) 
       {
         msg: caption,
         mentions: [MessageMention(senderId, senderName.length, "⚠️ Cảnh cáo ".length)],
-        quote: message,
         ttl: 300000,
       },
       threadId,

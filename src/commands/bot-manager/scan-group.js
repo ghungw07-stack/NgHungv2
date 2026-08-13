@@ -13,6 +13,7 @@ import { getGlobalPrefix } from "../../service-dqt/service.js";
 import { removeMention } from "../../utils/format-util.js";
 
 const TIME_WAIT_SELECTION = 60000;
+const PAGE_SEND_DELAY_MS = 3500;
 const scanResultsMap = new LRUCache({
   max: 500,
   ttl: TIME_WAIT_SELECTION,
@@ -197,6 +198,7 @@ export async function scanGroupsWithAction(api, message, groupInfo, aliasCommand
               },
               TIME_WAIT_SELECTION
             );
+            await new Promise((resolve) => setTimeout(resolve, PAGE_SEND_DELAY_MS));
           }
         }
       } else {
@@ -214,6 +216,7 @@ export async function scanGroupsWithAction(api, message, groupInfo, aliasCommand
         if (messageChunks.length > 1) {
           for (let i = 0; i < messageChunks.length - 1; i++) {
             await sendMessageComplete(api, message, messageChunks[i], false, TIME_WAIT_SELECTION);
+            await new Promise((resolve) => setTimeout(resolve, PAGE_SEND_DELAY_MS));
           }
 
           const lastChunk = messageChunks[messageChunks.length - 1];

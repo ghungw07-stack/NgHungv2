@@ -13,12 +13,11 @@ import {
 import * as toughCookie from "tough-cookie";
 import { Zalo } from "../api-zalo/zalo.js";
 import { tempDir } from "../utils/io-json.js";
-import { deleteFile, loadImageBuffer, writeFileSync } from "../utils/util.js";
+import { deleteFile, writeFileSync } from "../utils/util.js";
 import { randomIDTemp } from "../utils/format-util.js";
 import { MessageType } from "../api-zalo/index.js";
 import { getMessageByThreadAndMsgId } from "../utils/message-cache.js";
-import { createCanvas, loadImage } from "canvas";
-import { getUserInfoBasic } from "../service-dqt/info-service/user-info.js";
+import { Canvas, loadImage } from "skia-canvas";
 
 const TIME_TO_LIVE = 1000 * 60 * 30;
 const TIME_LIVE_QRCODE = 100000;
@@ -322,15 +321,14 @@ function isInFinderPattern(x, y, moduleCount) {
   return inTopLeft || inTopRight || inBottomLeft;
 }
 
-async function createQRWithCircularAvatar(qrImageBase64, avatarPath, outputPath) {
+async function createQRWithCircularAvatar(qrImageBase64, _avatarPath, outputPath) {
   const canvasWidth = 600;
   const canvasHeight = 800;
   const qrSize = 500;
-  const avatarSize = 80;
   const qrX = (canvasWidth - qrSize) / 2;
   const qrY = 100;
 
-  const canvas = createCanvas(canvasWidth, canvasHeight);
+  const canvas = new Canvas(canvasWidth, canvasHeight);
   const ctx = canvas.getContext("2d");
 
   ctx.fillStyle = "#ffffff";
@@ -342,35 +340,13 @@ async function createQRWithCircularAvatar(qrImageBase64, avatarPath, outputPath)
   const qrImage = await loadImage(qrBuffer);
   ctx.drawImage(qrImage, qrX, qrY, qrSize, qrSize);
 
-  const imageBuffer = await loadImageBuffer(avatarPath);
-  const avatar = await loadImage(imageBuffer);
-  const avatarX = qrX + (qrSize - avatarSize) / 2;
-  const avatarY = qrY + (qrSize - avatarSize) / 2;
-
-  // Vẽ nền trắng lót dưới avatar để không đè lên module QR xung quanh viền avatar
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2 + 6, 0, Math.PI * 2);
-  ctx.closePath();
-  ctx.fillStyle = "#ffffff";
-  ctx.fill();
-  ctx.restore();
-
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
-  ctx.closePath();
-  ctx.clip();
-  ctx.drawImage(avatar, avatarX, avatarY, avatarSize, avatarSize);
-  ctx.restore();
-
   const textContent = "Mở ứng dụng Zalo và quét QR bằng camera";
   ctx.font = "bold 24px Arial";
   ctx.fillStyle = "#000000";
   ctx.textAlign = "center";
   ctx.fillText(textContent, canvasWidth / 2, qrY + qrSize + 60);
 
-  const buffer = canvas.toBuffer("image/png");
+  const buffer = await canvas.toBuffer("png");
   writeFileSync(outputPath, buffer);
 }
 
@@ -396,10 +372,8 @@ export async function loginQR(api, message, ctx) {
     let msgId = "";
     const qrPath = path.join(tempDir, `qrImg_${randomIDTemp()}.png`);
     try {
-      const userInfo = await getUserInfoBasic(api, senderId);
-
       // writeFileSync(qrPath, Buffer.from(qrData.image.replace(/^data:image\/png;base64,/, ""), "base64"));
-      await createQRWithCircularAvatar(qrData.image, userInfo.avatar, qrPath);
+      await createQRWithCircularAvatar(qrData.image, null, qrPath);
       msgId = await sendMessageCompleteRequest(
         api,
         message,

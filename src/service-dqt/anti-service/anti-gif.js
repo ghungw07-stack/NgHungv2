@@ -198,7 +198,6 @@ async function updateAllGifWarnings(
         mentions: [
           MessageMention(senderId, senderName.length, "⚠️ Cảnh cáo ".length),
         ],
-        quote: message,
         ttl: 300000,
       },
       threadId,

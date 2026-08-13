@@ -6,7 +6,7 @@ function processUrl(url) {
   const hostname = urlObj.hostname;
   const pathname = urlObj.pathname;
 
-  if (hostname.endsWith(".dlfl.me") || hostname.includes("zfcloud")) {
+  if (hostname.endsWith(".dlfl.me") || hostname.includes("zfcloud") || hostname.endsWith("zalo.me") || hostname.endsWith("zdn.vn")) {
     return url;
   } else if (hostname.endsWith(".dlfl.vn")) {
     const newHostname = hostname.replace(".dlfl.vn", ".dlfl.me");

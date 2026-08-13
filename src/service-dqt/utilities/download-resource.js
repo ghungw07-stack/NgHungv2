@@ -1,6 +1,7 @@
 import path from "path";
 import fs from "fs";
 import { mkdir } from "fs/promises";
+import { fileTypeFromFile } from "file-type";
 import { getGlobalPrefix } from "../service.js";
 import { removeMention } from "../../utils/format-util.js";
 import { downloadFile, checkExstentionFileRemote } from "../../utils/util.js";
@@ -12,8 +13,30 @@ import getFolderSize from "get-folder-size";
  * Kiểm tra tính hợp lệ của tên thư mục
  */
 function isValidDirectory(botId, dirName) {
-  const fullPath = path.join(RESOURCE_PATH(botId), dirName);
+  const resourcePath = path.resolve(RESOURCE_PATH(botId));
+  const fullPath = path.resolve(resourcePath, dirName);
+  if (fullPath !== resourcePath && !fullPath.startsWith(`${resourcePath}${path.sep}`)) return false;
   return fs.existsSync(fullPath) && fs.statSync(fullPath).isDirectory();
+}
+
+function getQuotedFileUrl(quote) {
+  if (!quote?.attach) return null;
+
+  try {
+    const attach = typeof quote.attach === "string" ? JSON.parse(quote.attach) : quote.attach;
+    return (
+      attach?.hdUrl ||
+      attach?.href ||
+      attach?.oriUrl ||
+      attach?.normalUrl ||
+      attach?.fileUrl ||
+      attach?.thumbUrl ||
+      null
+    );
+  } catch (error) {
+    console.error("Lỗi khi parse quote:", error);
+    return null;
+  }
 }
 
 /**
@@ -23,8 +46,16 @@ export async function handleDownloadResource(api, message, aliasCommand) {
   const botId = api.getBotId();
   const prefix = getGlobalPrefix(botId);
   const resourcePath = RESOURCE_PATH(botId);
-  const content = removeMention(message);
-  const args = content.replace(`${prefix}${aliasCommand}`, "").trim().split("|");
+  const normalizedContent = removeMention(message);
+  const rawContent = typeof message.data?.content === "string" ? message.data.content : "";
+  const commandToken = `${prefix}${aliasCommand}`;
+  const rawCommandIndex = rawContent.toLowerCase().indexOf(commandToken.toLowerCase());
+  const content = rawCommandIndex >= 0 ? rawContent.slice(rawCommandIndex) : normalizedContent;
+  const args = content
+    .replace(`${prefix}${aliasCommand}`, "")
+    .trim()
+    .split("|")
+    .map((arg) => arg.trim());
 
   if (args.length < 2) {
     const object = {
@@ -34,7 +65,17 @@ export async function handleDownloadResource(api, message, aliasCommand) {
     return;
   }
 
-  const [dirName, fileName, link] = args;
+  const [dirName, requestedFileName, link] = args;
+
+  if (!dirName || !requestedFileName || path.basename(requestedFileName) !== requestedFileName) {
+    await sendMessageWarningRequest(
+      api,
+      message,
+      { caption: `Tên thư mục hoặc tên file không hợp lệ!` },
+      30000
+    );
+    return;
+  }
 
   if (!isValidDirectory(botId, dirName)) {
     const object = {
@@ -44,19 +85,8 @@ export async function handleDownloadResource(api, message, aliasCommand) {
     return;
   }
 
-  let fileUrl = null;
   const quote = message.data?.quote;
-
-  if (quote) {
-    try {
-      const parseMessage = JSON.parse(quote.attach);
-      fileUrl = parseMessage?.href;
-    } catch (error) {
-      console.error("Lỗi khi parse quote:", error);
-    }
-  } else if (link) {
-    fileUrl = link;
-  }
+  const fileUrl = getQuotedFileUrl(quote) || link || null;
 
   if (!fileUrl) {
     const object = {
@@ -66,19 +96,8 @@ export async function handleDownloadResource(api, message, aliasCommand) {
     return;
   }
 
+  let tempPath = null;
   try {
-    const ext = await checkExstentionFileRemote(fileUrl);
-    const fullFileName = fileName.includes(".") ? fileName : `${fileName}.${ext}`;
-    const savePath = path.join(resourcePath, dirName, fullFileName);
-
-    if (fs.existsSync(savePath)) {
-      const object = {
-        caption: `❌ File "${fullFileName}" đã tồn tại trong thư mục "${dirName}"!\nVui lòng chọn tên file khác.`,
-      };
-      await sendMessageWarningRequest(api, message, object, 30000);
-      return;
-    }
-
     let totalResourceSize = 0;
 
     try {
@@ -95,8 +114,39 @@ export async function handleDownloadResource(api, message, aliasCommand) {
       return;
     }
 
-    mkdirRecursive(path.join(resourcePath, dirName));
-    await downloadFile(fileUrl, savePath);
+    const dirPath = path.join(resourcePath, dirName);
+    mkdirRecursive(dirPath);
+
+    // Tải trước rồi đọc magic bytes của file. CDN đôi khi báo sai Content-Type
+    // (ví dụ voice AAC bị báo là image/jpeg), nên không thể chỉ dựa vào HEAD.
+    tempPath = path.join(
+      dirPath,
+      `.download-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.tmp`
+    );
+    await downloadFile(fileUrl, tempPath);
+
+    const suppliedExt = path.extname(requestedFileName).slice(1).toLowerCase();
+    const detectedType = await fileTypeFromFile(tempPath);
+    const remoteExt = detectedType?.ext || (await checkExstentionFileRemote(fileUrl));
+    const finalExt = suppliedExt || remoteExt;
+
+    if (!finalExt) {
+      throw new Error("Không nhận diện được định dạng file");
+    }
+
+    const fullFileName = suppliedExt ? requestedFileName : `${requestedFileName}.${finalExt}`;
+    const savePath = path.join(dirPath, fullFileName);
+
+    if (fs.existsSync(savePath)) {
+      const object = {
+        caption: `❌ File "${fullFileName}" đã tồn tại trong thư mục "${dirName}"!\nVui lòng chọn tên file khác.`,
+      };
+      await sendMessageWarningRequest(api, message, object, 30000);
+      return;
+    }
+
+    await fs.promises.rename(tempPath, savePath);
+    tempPath = null;
 
     const object = {
       caption: `✅ Đã tải và lưu file thành công!\n📂 Thư mục: ${dirName}\n📄 Tên file: ${fullFileName}`,
@@ -108,6 +158,10 @@ export async function handleDownloadResource(api, message, aliasCommand) {
       caption: `❌ Đã xảy ra lỗi khi tải file. Vui lòng thử lại sau!`,
     };
     await sendMessageWarningRequest(api, message, object, 30000);
+  } finally {
+    if (tempPath && fs.existsSync(tempPath)) {
+      await fs.promises.unlink(tempPath).catch(() => {});
+    }
   }
 }
 

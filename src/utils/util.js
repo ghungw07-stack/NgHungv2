@@ -18,13 +18,36 @@ import { getClientAxios } from "../service-dqt/utilities/browser-launch.js";
 export const TIME_HOUR_24 = 86400000;
 
 export async function checkUrlStatus(url) {
+  if (!url) return false;
   try {
     const response = await axios.head(url, {
       timeout: 5000,
+      maxRedirects: 5,
+      validateStatus: () => true,
     });
-    return response.status === 200;
+    if (response.status >= 200 && response.status < 400) return true;
   } catch (error) {
-    console.log(`Link đã gãy hoặc timeout: ${url}`, error);
+    console.log(`HEAD không kiểm tra được link, chuyển sang GET Range: ${error.message}`);
+  }
+
+  // Nhiều CDN nhạc chặn HEAD nhưng vẫn cho tải/phát. Chỉ lấy byte đầu
+  // để xác nhận link, tránh tải lại toàn bộ file âm thanh.
+  try {
+    const response = await axios.get(url, {
+      timeout: 8000,
+      maxRedirects: 5,
+      responseType: "stream",
+      headers: {
+        Range: "bytes=0-0",
+        "User-Agent": "Mozilla/5.0",
+        Accept: "*/*",
+      },
+      validateStatus: () => true,
+    });
+    response.data?.destroy?.();
+    return response.status >= 200 && response.status < 400;
+  } catch (error) {
+    console.log(`Link đã gãy hoặc timeout: ${url}`, error.message);
     return false;
   }
 }
@@ -92,8 +115,10 @@ export async function uploadTempFile(pathLocal, serviceType = 1, apiObj) {
       });
       const zaloUrl = uploadResult?.[0]?.fileUrl || uploadResult?.[0]?.normalUrl;
       if (zaloUrl) return zaloUrl;
+      throw new Error("Zalo không trả về URL sau khi upload");
     } catch (error) {
-      console.error("Upload ảnh lên Zalo Cloud thất bại, fallback sang host ngoài:", error);
+      console.error("Core upload Zalo thất bại:", error);
+      throw error;
     }
   }
 
@@ -228,7 +253,12 @@ export async function downloadFile(url, filepath) {
   const client = getClientAxios();
   const response = await client.get(url, {
     responseType: "stream",
+    timeout: 30_000,
   });
+  // Abort stalled streams instead of leaving commands waiting forever.
+  if (typeof response.data.setTimeout === "function") {
+    response.data.setTimeout(30_000, () => response.data.destroy(new Error("Download stream timeout")));
+  }
   const tempFilePath =
     filepath || path.join(tempDir, `fileDownload_${randomIDTemp()}.${await checkExstentionFileRemote(url)}`);
   return new Promise((resolve, reject) => {

@@ -302,7 +302,7 @@ export async function handleShowLichHoatHinh3DTrungQuocCommand(api, message, ali
         thumbnailM: result.thumbnail,
       }));
 
-      imagePath = await createSearchResultImage(formattedDataFilm);
+      imagePath = await createSearchResultImage(formattedDataFilm, api.getBotId());
 
       let responseText =
         `🔎 Lịch phim Hoạt Hình 3D Trung Quốc Ngày "${thuString}" (${type === "vsub" ? "VietSub" : "Thuyết Minh"}):` +
@@ -468,7 +468,7 @@ export async function handleHoatHinh3DTrungQuocCommand(api, message, aliasComman
         thumbnailM: result.thumbnail,
       }));
 
-      imagePath = await createSearchResultImage(formattedDataFilm);
+      imagePath = await createSearchResultImage(formattedDataFilm, api.getBotId());
 
       let responseText = `🔎 Kết quả tìm kiếm phim Hoạt Hình 3D Trung Quốc:\n`;
       responseText += `Hãy trả lời tin nhắn này với số thứ tự phim bạn muốn xem!`;
@@ -545,7 +545,7 @@ export async function handleHoatHinh3DTrungQuocThuyetMinhCommand(api, message, a
         thumbnailM: result.thumbnail,
       }));
 
-      imagePath = await createSearchResultImage(formattedDataFilm);
+      imagePath = await createSearchResultImage(formattedDataFilm, api.getBotId());
 
       let responseText = `🔎 Kết quả tìm kiếm phim Hoạt Hình 3D Trung Quốc:\n`;
       responseText += `Hãy trả lời tin nhắn này với số thứ tự phim bạn muốn xem!`;

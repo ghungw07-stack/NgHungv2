@@ -115,13 +115,14 @@ export async function startWebServer() {
 
   app.use(express.json({ limit: "2mb" }));
 
+
   // ── WEBHOOK THANH TOÁN TỰ ĐỘNG DUYỆT BOT ────────────────────────
   // SECURITY: secret KHÔNG còn hardcode trong source (chuỗi cố định trong
   // code sẽ bị lộ cho bất kỳ ai có source, và họ có thể tự gọi webhook để
   // tự "duyệt thanh toán" free, không cần chuyển khoản thật).
   // Đặt biến môi trường WEBHOOK_SECRET để đổi giá trị thật khi deploy.
   const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || "mybot2024secretkey";
-  const WEBHOOK_PRICE = Number(process.env.WEBHOOK_PRICE) || 50000;
+  const WEBHOOK_PRICE = Number(process.env.WEBHOOK_PRICE) || 80000;
   if (!process.env.WEBHOOK_SECRET) {
     console.warn(
       "[Webhook] CẢNH BÁO: đang dùng WEBHOOK_SECRET mặc định (không an toàn). " +
@@ -154,42 +155,73 @@ export async function startWebServer() {
 
       const { autoApproveByPayment } = await import("../manager-bot/index.js");
       const body = req.body;
+      
+      console.error("[Webhook] Nhận request từ Sepay:", JSON.stringify(body));
+      console.error("[Webhook] Headers:", req.headers);
 
       // Xác thực API Key từ Sepay (header: Authorization: Apikey <key>) — so sánh constant-time
-      const token = (req.headers["authorization"] || "").replace("Apikey ", "").trim();
+      const token = (req.headers["authorization"] || "").replace(/^Apikey\s+/i, "").trim();
       const tokenBuf = Buffer.from(token);
       const secretBuf = Buffer.from(WEBHOOK_SECRET);
       const tokenValid =
         tokenBuf.length === secretBuf.length && crypto.timingSafeEqual(tokenBuf, secretBuf);
       if (!tokenValid) {
-        return res.status(401).json({ success: false });
+        console.error(`[Webhook] Từ chối request vì sai API Key! Nhận được: "${token}", Mong muốn: "${WEBHOOK_SECRET}"`);
+        return res.status(401).json({ success: false, message: "Invalid API Key" });
       }
 
-      const { transferAmount, content, transferType } = body;
+      const {
+        transferAmount,
+        amount,
+        content,
+        transferContent,
+        description,
+        transferType,
+        type,
+      } = body;
 
       // Chỉ xử lý tiền vào
-      if (transferType !== "in") return res.json({ success: true });
+      const normalizedTransferType = String(transferType || type || "").toLowerCase();
+      if (normalizedTransferType && normalizedTransferType !== "in") return res.json({ success: true });
 
-      // Đủ tiền chưa (cho phép lệch ±1000đ)
-      const amount = Number(transferAmount) || 0;
-      if (amount < WEBHOOK_PRICE - 1000) {
-        return res.json({ success: true, message: "Số tiền không đủ" });
+      // Lấy số tiền nhận được
+      const receivedAmount = Number(transferAmount ?? amount) || 0;
+      if (receivedAmount < 1000) {
+        return res.json({ success: true, message: "Số tiền quá nhỏ (dưới 1k)" });
       }
 
-      // Tìm ownerId trong nội dung CK: "BOTPAY 123456789"
-      const match = (content || "").toUpperCase().match(/BOTPAY\s+(\d+)/);
-      if (!match) return res.json({ success: true, message: "Không tìm thấy mã" });
+      // Tìm ownerId hoặc donateId trong nội dung CK
+      const paymentContent = [content, transferContent, description]
+        .filter((value) => value != null)
+        .join(" ")
+        .toUpperCase();
+      
+      const matchBotPay = paymentContent.match(/BOTPAY\s*(\d+)/);
+      const matchDonate = paymentContent.match(/DONATE\s*(\d+)/);
 
-      const ownerId = match[1];
+      if (!matchBotPay && !matchDonate) {
+        return res.json({ success: true, message: "Không tìm thấy mã BOTPAY hoặc DONATE" });
+      }
+
       const payRef = body.referenceCode || body.code || String(body.id || "");
 
-      // Chống gửi lại cùng 1 giao dịch nhiều lần để cộng dồn thời gian bot free
+      // Chống gửi lại cùng 1 giao dịch nhiều lần
       if (payRef && processedPaymentRefs.has(payRef)) {
         return res.json({ success: true, message: "Giao dịch đã được xử lý trước đó" });
       }
-      if (payRef) processedPaymentRefs.add(payRef);
 
-      const result = await autoApproveByPayment(ownerId, payRef);
+      if (matchDonate) {
+        const uid = matchDonate[1];
+        const { processDonatePayment } = await import("../service-dqt/game-service/index.js");
+        const result = await processDonatePayment(uid, payRef, receivedAmount);
+        if (result?.success && payRef) processedPaymentRefs.add(payRef);
+        return res.json(result);
+      }
+
+      const ownerId = matchBotPay[1];
+      // Chuyển số tiền vào hàm để tính toán ngày
+      const result = await autoApproveByPayment(ownerId, payRef, receivedAmount);
+      if (result?.success && payRef) processedPaymentRefs.add(payRef);
       return res.json(result);
     } catch (err) {
       console.error("[Webhook] Lỗi:", err);
@@ -266,7 +298,7 @@ export async function startWebServer() {
     return res.sendFile(path.join(pagesDir, "logs.html"));
   });
 
-  // ── API xem log SQL (bảng bot_logs, ghi bởi src/utils/sql-logger.js) ────
+  // ── API xem log MongoDB (collection bot_logs) ─────────────────────────
   // Nằm sau app.use("/api", requireAuth) ở trên nên tự động yêu cầu đăng nhập.
   app.get("/api/logs", async (req, res) => {
     try {

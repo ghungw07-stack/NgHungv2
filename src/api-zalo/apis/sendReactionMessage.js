@@ -21,7 +21,15 @@ export const sendReactionMessageFactory = apiFactory()((api, appContext, utils) 
     const isGroupMessage = messageArray[0].type === MessageType.GroupMessage;
     const threadId = messageArray[0].threadId;
 
-    const reaction = ReactionMap[icon] || ReactionMap.NONE;
+    const isCustomReaction =
+      icon &&
+      typeof icon === "object" &&
+      Number.isInteger(icon.rType) &&
+      typeof icon.text === "string" &&
+      icon.text.trim();
+    const reaction = isCustomReaction
+      ? { rType: icon.rType, text: icon.text.trim() }
+      : ReactionMap[icon] || ReactionMap.NONE;
     const { rType, text } = reaction;
     const rMsg = messageArray.map((msg) => ({
       gMsgID: parseInt(msg.data.msgId),

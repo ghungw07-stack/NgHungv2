@@ -2,8 +2,12 @@ import fs from "fs";
 import path from "path";
 import sharp from "sharp";
 import { createCanvas } from "canvas";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { tempDir } from "../../../../utils/io-json.js";
 import { randomIDTemp } from "../../../../utils/format-util.js";
+
+const execFileAsync = promisify(execFile);
 
 /**
  * ============================================================
@@ -27,12 +31,16 @@ export function parseExtraStickerArgs(args = []) {
     speedFactor: null, // number | null
     pixelSize: null, // number | null
     isCat: false,
+    rotation: null,
+    flipHorizontal: false,
+    flipVertical: false,
   };
 
   const zoomRegex = /^z(\d+(?:\.\d+)?)$/i;
   const speedRegex = /^sp(\d+(?:\.\d+)?)$/i;
   const pixelRegex = /^pixel(\d+)?$/i;
   const catRegex = /^cat$/i;
+  const rotateRegex = /^rot(-?\d+(?:\.\d+)?)$/i;
 
   for (const rawArg of args) {
     const arg = rawArg.trim();
@@ -60,6 +68,12 @@ export function parseExtraStickerArgs(args = []) {
       }
     } else if (catRegex.test(arg)) {
       result.isCat = true;
+    } else if ((match = arg.match(rotateRegex))) {
+      result.rotation = Math.max(-360, Math.min(360, parseFloat(match[1])));
+    } else if (/^fh$/i.test(arg)) {
+      result.flipHorizontal = true;
+    } else if (/^fv$/i.test(arg)) {
+      result.flipVertical = true;
     }
   }
 
@@ -71,7 +85,7 @@ export function parseExtraStickerArgs(args = []) {
 // Áp dụng theo thứ tự: cat (crop vuông 512) -> zoom -> pixelate
 // rồi trả về buffer PNG để convert-sticker.js tiếp tục xử lý bo góc + webp
 // ------------------------------------------------------------------
-export async function applyImageEffects(inputPath, { zoomFactor, pixelSize, isCat } = {}) {
+export async function applyImageEffects(inputPath, { zoomFactor, pixelSize, isCat, rotation, flipHorizontal, flipVertical } = {}) {
   let pipeline = sharp(inputPath, { animated: true });
   const metadata = await pipeline.metadata();
   const width = metadata.width || 512;
@@ -81,6 +95,10 @@ export async function applyImageEffects(inputPath, { zoomFactor, pixelSize, isCa
   if (isCat) {
     pipeline = pipeline.resize(512, 512, { fit: "cover", position: "center" });
   }
+
+  if (rotation) pipeline = pipeline.rotate(rotation, { background: { r: 0, g: 0, b: 0, alpha: 0 } });
+  if (flipHorizontal) pipeline = pipeline.flop();
+  if (flipVertical) pipeline = pipeline.flip();
 
   // 2. zoom: >1 zoom in (crop vùng giữa rồi phóng to lại), <1 zoom out (thu nhỏ + đệm nền trong suốt)
   if (zoomFactor && zoomFactor !== 1) {
@@ -147,7 +165,7 @@ export async function applyImageEffects(inputPath, { zoomFactor, pixelSize, isCa
 // VIDEO: xây dựng chuỗi filter ffmpeg dùng chung với convertToWebp
 // Trả về mảng string filter để nối bằng dấu phẩy vào "-vf"
 // ------------------------------------------------------------------
-export function buildVideoEffectFilters({ zoomFactor, pixelSize, isCat } = {}) {
+export function buildVideoEffectFilters({ zoomFactor, pixelSize, isCat, rotation, flipHorizontal, flipVertical } = {}) {
   const filters = [];
 
   // scale nền: nếu cat thì ép vuông 512x512, ngược lại giữ tỉ lệ scale về 512 chiều rộng
@@ -173,6 +191,12 @@ export function buildVideoEffectFilters({ zoomFactor, pixelSize, isCat } = {}) {
   if (pixelSize && pixelSize > 1) {
     filters.push(`scale=iw/${pixelSize}:ih/${pixelSize}:flags=neighbor`, `scale=iw*${pixelSize}:ih*${pixelSize}:flags=neighbor`);
   }
+  if (rotation) {
+    const radians = (rotation * Math.PI) / 180;
+    filters.push(`rotate=${radians}:ow=rotw(${radians}):oh=roth(${radians}):c=none`);
+  }
+  if (flipHorizontal) filters.push("hflip");
+  if (flipVertical) filters.push("vflip");
 
   return filters;
 }
@@ -265,4 +289,50 @@ export async function createTextStickerWebp(text) {
   const outputPath = path.join(tempDir, `sticker_text_${randomIDTemp()}.webp`);
   await sharp(pngBuffer).webp({ lossless: false, quality: 85, reductionEffort: 6 }).toFile(outputPath);
   return outputPath;
+}
+
+export async function createAnimatedTextStickerWebp(text, colorName = "rainbow") {
+  const colors = {
+    "đỏ": "#ef4444", do: "#ef4444", xanh: "#22c55e", vang: "#facc15", "vàng": "#facc15",
+    hong: "#ec4899", "hồng": "#ec4899", cam: "#f97316", tim: "#a855f7", "tím": "#a855f7",
+    trang: "#ffffff", "trắng": "#ffffff",
+  };
+  const frameDir = path.join(tempDir, `sticker_textvd_${randomIDTemp()}`);
+  const outputPath = path.join(tempDir, `sticker_textvd_${randomIDTemp()}.webp`);
+  fs.mkdirSync(frameDir, { recursive: true });
+  try {
+    const frameCount = 24;
+    for (let i = 0; i < frameCount; i++) {
+      const canvas = createCanvas(512, 512);
+      const ctx = canvas.getContext("2d");
+      const bg = ctx.createLinearGradient(0, 0, 512, 512);
+      bg.addColorStop(0, "#0f172a");
+      bg.addColorStop(1, "#020617");
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, 512, 512);
+      let fontSize = 72;
+      ctx.font = `bold ${fontSize}px sans-serif`;
+      while (ctx.measureText(text).width > 900 && fontSize > 30) {
+        fontSize -= 4;
+        ctx.font = `bold ${fontSize}px sans-serif`;
+      }
+      const textWidth = ctx.measureText(text).width;
+      const travel = 512 + textWidth;
+      const x = 512 - (travel * i) / (frameCount - 1);
+      const hue = Math.round((i / frameCount) * 360);
+      ctx.fillStyle = colorName.toLowerCase() === "rainbow" ? `hsl(${hue}, 90%, 62%)` : (colors[colorName.toLowerCase()] || "#ffffff");
+      ctx.shadowColor = ctx.fillStyle;
+      ctx.shadowBlur = 18;
+      ctx.textBaseline = "middle";
+      ctx.fillText(text, x, 256);
+      fs.writeFileSync(path.join(frameDir, `frame_${String(i).padStart(2, "0")}.png`), canvas.toBuffer("image/png"));
+    }
+    await execFileAsync("ffmpeg", [
+      "-y", "-loglevel", "error", "-framerate", "12", "-i", path.join(frameDir, "frame_%02d.png"),
+      "-loop", "0", "-an", "-c:v", "libwebp_anim", "-q:v", "78", outputPath,
+    ]);
+    return outputPath;
+  } finally {
+    fs.rmSync(frameDir, { recursive: true, force: true });
+  }
 }

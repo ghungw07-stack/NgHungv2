@@ -303,6 +303,15 @@ async function sendWarningMessage(api, message, senderId, senderName, threadId) 
     warning.count++;
     warning.lastWarningTime = currentTime;
 
+    const caption = warning.count === 2
+      ? `⚠️ Cảnh cáo ${senderName}!\nNgừng chuyển tiếp tin nhắn, trước khi bị chặn khỏi nhóm!`
+      : `⚠️ Cảnh cáo ${senderName}!\nNhóm này không cho phép chuyển tiếp tin nhắn.`;
+    await api.sendMessage(
+      { msg: caption, ttl: 300000 },
+      threadId,
+      MessageType.GroupMessage
+    );
+
     return warning.count;
   } catch (error) {
     return 0;

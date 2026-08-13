@@ -13,7 +13,7 @@ import https from "https";
 import { downloadAndConvertAudio } from "../../chat-zalo/chat-special/send-voice/process-audio.js";
 import { removeMention } from "../../../utils/format-util.js";
 import { sendVoiceMusic } from "../../chat-zalo/chat-special/send-voice/send-voice.js";
-import { setSelectionsMapData } from "../index.js";
+import { parseQuickSelection, setSelectionsMapData } from "../index.js";
 import { getCachedMedia, setCacheData } from "../../../utils/link-platform-cache.js";
 import { createSearchResultImage } from "../../../utils/canvas/search-canvas.js";
 import { deleteFile } from "../../../utils/util.js";
@@ -333,7 +333,8 @@ export async function handleNhacCuaTuiCommand(api, message, aliasCommand) {
     const content = removeMention(message);
     const prefix = getGlobalPrefix(api.getBotId());
     const commandContent = content.replace(`${prefix}${aliasCommand}`, "").trim();
-    const [keyword, numberMusic] = commandContent.split("&&");
+    const quickSelection = parseQuickSelection(commandContent);
+    const [keyword, numberMusic] = quickSelection.query.split("&&");
 
     if (!keyword) {
       const object = {
@@ -355,6 +356,16 @@ export async function handleNhacCuaTuiCommand(api, message, aliasCommand) {
 
     const limit = parseInt(numberMusic) || 10;
     const songs = result.data.items.slice(0, limit);
+    if (quickSelection.selectedIndex !== null) {
+      const song = songs[quickSelection.selectedIndex];
+      if (!song) {
+        return await sendMessageWarningRequest(api, message, {
+          caption: `Không có kết quả số ${quickSelection.selectedIndex + 1}.`,
+        }, 30000);
+      }
+      await api.addReaction("CLOCK", message);
+      return await handleSendTrackNhacCuaTui(api, message, song, quickSelection.option || "");
+    }
     let musicListTxt = "Đây là danh sách bài hát trên NhacCuaTui mà tôi tìm thấy:\n";
     musicListTxt += "Hãy trả lời tin nhắn này với số index của bài hát bạn muốn nghe!\n";
     musicListTxt += "VD: 1 hoặc 1 lyric hoặc 1 lossless...";
@@ -366,7 +377,7 @@ export async function handleNhacCuaTuiCommand(api, message, aliasCommand) {
       isOfficial: song.isOfficial,
       maxQuality: song.maxQuality,
     }));
-    imagePath = await createSearchResultImage(songsCustom);
+    imagePath = await createSearchResultImage(songsCustom, api.getBotId());
 
     const object = {
       caption: musicListTxt,

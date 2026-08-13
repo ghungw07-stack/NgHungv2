@@ -1,4 +1,4 @@
-import { MessageType } from "zlbotdqt";
+import { MessageMention, MessageType } from "zlbotdqt";
 import { sendMessageStateQuote } from "../chat-zalo/chat-style/chat-style.js";
 import { removeMention } from "../../utils/format-util.js";
 import { getGroupInfoData } from "../info-service/group-info.js";
@@ -293,6 +293,16 @@ async function handleIncomingMessageAntibot(api, uid, threadId, messageObject, g
 
     try {
       await api.deleteMessage(messageObject, false);
+      const senderName = messageObject.data?.dName || "thành viên";
+      await api.sendMessage(
+        {
+          msg: `⚠️ @${senderName}!\nĐại ca tui không cho bot khác ở đây.`,
+          mentions: [MessageMention(String(uid), senderName.length + 1, "⚠️ ".length)],
+          ttl: 300000,
+        },
+        threadId,
+        MessageType.GroupMessage
+      );
     } catch (error) {
       console.error(`Lỗi xóa tin nhắn uid=${uid} ở group ${threadId}: ${error}`);
     }

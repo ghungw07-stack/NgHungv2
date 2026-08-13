@@ -22,7 +22,9 @@ safeRegisterFont("SVN-Transformer.ttf", "Transformer");
 safeRegisterFont("BeVietnamPro-Bold.ttf", "BeVietnamPro");
 safeRegisterFont("NotoSans-Bold.ttf", "NotoSansB");
 safeRegisterFont("NotoSans-Bold.ttf", "NotoSansCJK-Bold");
-export const FONT_MAIN = "BeVietnamPro";
+// Symbola là fallback emoji dạng vector tương thích Cairo/node-canvas trên Node 24.
+// Noto Color Emoji có thể được nhận diện nhưng render thành khoảng trắng.
+export const FONT_MAIN = "BeVietnamPro, Symbola";
 export function getFontCanvas(text) {
   const trimmed = text.trim();
   for (const ch of trimmed) {
@@ -35,7 +37,7 @@ export function getFontCanvas(text) {
       (code >= 0x30a0 && code <= 0x30ff) ||   // Katakana
       (code >= 0x31f0 && code <= 0x31ff)      // Katakana Phonetic Ext.
     ) {
-      return "NotoSansCJK-Bold";
+      return "Noto Sans CJK JP, Symbola";
     }
   }
 
@@ -370,11 +372,35 @@ function removeMention(message) {
     content = content.title ? content.title : content;
     const mentions = message.data.mentions || [];
     if (content && typeof content === "string") {
-      if (!mentions) return content.trim();
-      const sortedMentions = [...mentions].sort((a, b) => b.pos - a.pos);
+      if (!Array.isArray(mentions) || mentions.length === 0) return content.trim();
+
+      // Xóa theo vị trí từ cuối về đầu. Zalo có client tính `len` gồm @,
+      // client khác chỉ tính phần tên; mở rộng khoảng để dọn luôn dấu @.
+      const sortedMentions = [...mentions]
+        .filter((mention) => Number.isInteger(mention?.pos) && Number(mention?.len) > 0)
+        .sort((a, b) => b.pos - a.pos);
       sortedMentions.forEach((mention) => {
-        content = content.replace(content.substr(mention.pos, mention.len), "");
+        let start = Math.max(0, mention.pos);
+        let end = Math.min(content.length, start + Number(mention.len));
+        if (content[start - 1] === "@") start--;
+        if (content[start] === "@" && end < content.length && !/\s/u.test(content[end])) end++;
+        const name = String(mention?.dName || mention?.name || "").replace(/^@+/u, "").trim().toLowerCase();
+        const selectedText = content.slice(start, end).replace(/^@+/u, "").trim().toLowerCase();
+        // Pos của mention reply trên vài client bị tính theo caption phụ. Chỉ
+        // tin vị trí khi đoạn được chọn thật sự là tên mention.
+        if (!name || selectedText === name || selectedText.includes(name) || name.includes(selectedText)) {
+          content = `${content.slice(0, start)} ${content.slice(end)}`;
+        }
       });
+
+      // Một số bản Zalo gửi pos theo phần caption thay vì toàn chuỗi. Nếu còn
+      // tag ở đầu, dùng tên mention làm fallback nhưng không đụng vào UID đã lưu.
+      for (const mention of mentions) {
+        const name = String(mention?.dName || mention?.name || "").replace(/^@+/u, "").trim();
+        if (!name) continue;
+        const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        content = content.replace(new RegExp(`^\\s*@?${escapedName}(?=\\s|$)`, "iu"), " ");
+      }
       return content
         .split("\n")
         .map((line) => line.replace(/\s+/g, " ").trim())

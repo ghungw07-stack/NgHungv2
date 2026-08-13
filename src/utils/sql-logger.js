@@ -2,10 +2,8 @@ import { format } from "node:util";
 
 /**
  * ============================================================================
- *  SQL LOGGER - Chặn console.log/info/warn/debug, KHÔNG in ra terminal nữa,
- *  chỉ ghi vào bảng MySQL `bot_logs`. Riêng console.error (lỗi) thì vừa ghi
- *  SQL vừa vẫn in ra terminal như cũ, để biết ngay khi có sự cố.
- *  Muốn xem lại log thường (info/warn) thì query SQL hoặc dùng read-logs.js.
+ *  LOGGER - Chặn console.log/info/warn/debug và lưu vào MongoDB `bot_logs`.
+ *  Muốn xem lại log thường (info/warn) thì dùng trang log hoặc read-logs.js.
  * ============================================================================
  *
  * File này CHỦ Ý không import trực tiếp `../database/index.js` ở đầu file,
@@ -101,7 +99,7 @@ async function flush() {
     const rows = batch.map((item) => [item.level, item.botId, item.message, item.createdAt]);
     await connection.query(`INSERT INTO ${LOG_TABLE} (level, botId, message, createdAt) VALUES ?`, [rows]);
   } catch {
-    // Ghi SQL thất bại (DB lỗi/mất kết nối tạm thời) -> đẩy batch trở lại đầu hàng đợi để thử lại lượt sau
+    // Ghi MongoDB thất bại -> đẩy batch trở lại đầu hàng đợi để thử lại lượt sau
     queue = batch.concat(queue);
     if (queue.length > MAX_QUEUE_SIZE) {
       queue.splice(0, queue.length - MAX_QUEUE_SIZE);
@@ -148,7 +146,7 @@ console.warn = (...args) => {
 console.error = (...args) => {
   pushLog("error", args);
   // Lỗi thì LUÔN in ra terminal (để còn biết ngay khi có sự cố), khác với
-  // log/info/warn/debug chỉ nằm trong SQL.
+  // log/info/warn/debug chỉ nằm trong MongoDB.
   originalConsole.error(...args);
 };
 console.debug = (...args) => {

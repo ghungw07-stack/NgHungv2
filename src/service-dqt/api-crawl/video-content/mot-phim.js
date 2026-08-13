@@ -176,7 +176,7 @@ export async function handleMotPhimCommand(api, message, aliasCommand) {
         thumbnailM: result.thumbnail,
       }));
 
-      imagePath = await createSearchResultImage(formattedDataFilm);
+      imagePath = await createSearchResultImage(formattedDataFilm, api.getBotId());
 
       let responseText = `🔎 Kết quả tìm kiếm phim tại MotPhim:\n`;
       responseText += `Hãy trả lời tin nhắn này với số thứ tự phim bạn muốn xem!`;

@@ -303,7 +303,7 @@ async function checkInfoTargetList(api) {
           if (targetInfo) {
             if (targetInfo.isOnline != data.status) {
               msg = `Người dùng ${targetInfo.name} ${
-                targetInfo.isOnline ? "vừa mới online" : "đã offline (6 phút trước hoặc hơn)"
+                targetInfo.isOnline ? "vừa mới online" : "đã offline (3 phút trước hoặc hơn)"
               }!\n`;
               if (target.type === MessageType.GroupMessage) {
                 mentionPos = msg.length;

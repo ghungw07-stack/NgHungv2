@@ -2,7 +2,7 @@ import { createCanvas, loadImage } from "canvas";
 import path from "path";
 import fs from "fs/promises";
 import { nameServer } from "../../../database/index.js";
-import { updatePlayerBalance, getPlayerBalance } from "../../../database/player.js";
+import { updatePlayerBalance, getPlayerBalance, addGameRankPoints } from "../../../database/player.js";
 import { formatCurrency, parseGameAmount } from "../../../utils/format-util.js";
 import { checkBeforeJoinGame } from "../index.js";
 import { clearImagePath } from "../../canvas/index.js";
@@ -476,6 +476,8 @@ async function endGame(api, game, winner) {
   const loser = winner === "red" ? "black" : "red";
   await updatePlayerBalance(game.players[winner], game.betAmount, true);
   await updatePlayerBalance(game.players[loser], game.betAmount.neg(), false);
+  await addGameRankPoints(game.players[winner], { won: true });
+  await addGameRankPoints(game.players[loser]);
 
   // Xóa game khỏi danh sách active
   activeGames.delete(game.id);

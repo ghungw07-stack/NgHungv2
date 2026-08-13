@@ -2,7 +2,7 @@ import Big from "big.js";
 import chalk from "chalk";
 import { MessageType } from "../../../api-zalo/index.js";
 import { sendMessageFromSQL } from "../../chat-zalo/chat-style/chat-style.js";
-import { getPlayerBalance, updatePlayerBalance, ensurePlayerAccount, isPlayerBanned } from "../../../database/player.js";
+import { getPlayerBalance, updatePlayerBalance, ensurePlayerAccount, isPlayerBanned, addGameRankPoints } from "../../../database/player.js";
 import { isAdmin } from "../../../index.js";
 import { getGlobalPrefix } from "../../service.js";
 import { formatCurrency, parseGameAmount, removeMention } from "../../../utils/format-util.js";
@@ -565,7 +565,7 @@ async function sendGuide(api, message, prefix) {
     `⚖️ Game giải trí miễn phí — tiền ảo KHÔNG quy đổi tiền mặt.\n\n` +
     `📋 Lệnh trong nhóm:\n` +
     `- ${prefix}xidach tao <cược>: Tạo bàn, bạn sẽ là nhà cái (vd: ${prefix}xidach tao 1m)\n` +
-    `- ${prefix}xidach vao [mã]: Vào bàn đang chờ theo mã (hoặc thả ❤️ vào tin nhắn mời). Nhóm có nhiều bàn thì cần nhập mã.\n` +
+    `- ${prefix}xidach vao: Vào bàn duy nhất đang chờ (hoặc thả ❤️ vào tin nhắn mời).\n` +
     `- ${prefix}xidach roi: Rời bàn (trước khi bắt đầu)\n` +
     `- ${prefix}xidach batdau: Nhà cái bắt đầu ván\n` +
     `- ${prefix}xidach huy: Hủy bàn (nhà cái/admin)\n` +
@@ -590,6 +590,23 @@ async function createTable(api, message, betText) {
   const threadId = message.threadId;
   const senderId = normalizePlayerId(message.data.uidFrom);
   const senderName = message.data.dName || senderId;
+
+  const joinExistingTable = async (table) => {
+    if (table.status !== "waiting") {
+      await sendMessageFromSQL(api, message, { success: false, message: "Bàn Xì Dách của nhóm đang chơi, vui lòng đợi ván sau." }, true, 30000);
+      return;
+    }
+    const result = await addPlayerToTable(api, table, senderId, senderName);
+    await sendMessageFromSQL(api, message, result, true, 30000);
+    if (result.success) {
+      await autoAcceptFriendIfPending(api, senderId);
+      await sendTableSnapshot(api, table);
+      saveGameData();
+    }
+  };
+
+  const existingTable = getTablesInThread(botId, threadId)[0];
+  if (existingTable) return joinExistingTable(existingTable);
 
   if (!betText) {
     await sendMessageFromSQL(
@@ -627,6 +644,10 @@ async function createTable(api, message, betText) {
     );
     return;
   }
+
+  // Nếu hai người tạo gần như đồng thời, người hoàn tất sau sẽ vào bàn đầu tiên.
+  const tableCreatedWhileWaiting = getTablesInThread(botId, threadId)[0];
+  if (tableCreatedWhileWaiting) return joinExistingTable(tableCreatedWhileWaiting);
 
   const code = generateUniqueTableCode(botId, threadId);
   const table = {
@@ -1330,6 +1351,7 @@ async function settleRound(api, table) {
     }
 
     await updatePlayerBalance(p.id, netDelta.toNumber(), netDelta.gt(0), netDelta.toNumber());
+    await addGameRankPoints(p.id, { won: netDelta.gt(0) });
     dealerNetTotal = dealerNetTotal.minus(netDelta);
 
     resultPlayers.push({
@@ -1341,6 +1363,7 @@ async function settleRound(api, table) {
   }
 
   await updatePlayerBalance(table.dealer.id, dealerNetTotal.toNumber(), dealerNetTotal.gt(0), dealerNetTotal.toNumber());
+  await addGameRankPoints(table.dealer.id, { won: dealerNetTotal.gt(0) });
 
   // Không thu hồi ảnh "đang diễn ra" cũ nữa — ảnh kết quả được gửi nối tiếp,
   // giữ nguyên chuỗi log diễn biến ván đấu (giống bot mẫu).

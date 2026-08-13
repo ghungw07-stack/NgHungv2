@@ -134,7 +134,9 @@ class Zalo {
   async login() {
     const loginData = await login(this);
     const serverInfo = await getServerInfo(this);
-    if (!loginData || !serverInfo) throw new Error("Failed to login");
+    if (!loginData?.data?.zpw_enk || !serverInfo) {
+      throw new Error("Cookie đăng nhập không hợp lệ hoặc đã hết hạn. Vui lòng quét QR để cập nhật lại bot.");
+    }
     this.appContext.secretKey = loginData.data.zpw_enk;
     this.appContext.uid = loginData.data.uid;
     this.appContext.idCloud = loginData.data.send2me_id;

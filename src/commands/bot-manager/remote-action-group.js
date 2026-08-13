@@ -356,13 +356,26 @@ export async function handleShowGroupsList(api, message, aliasCommand) {
     for (const [chunkIndex, groupChunk] of chunks.entries()) {
       let contentMessage = chunkIndex === 0 ? `Danh sách nhóm:\n\n` : `(Tiếp theo)\n\n`;
       const listIds = Object.values(groupChunk).map((group) => group.creatorId);
-      const owners = await getUsersInfoBasic(api, listIds);
+      const [owners, groupLinkResults] = await Promise.all([
+        getUsersInfoBasic(api, listIds),
+        Promise.allSettled(
+          groupChunk.map((group) => api.getLinkGroupByID(String(group.groupId)))
+        ),
+      ]);
       for (const [index, group] of groupChunk.entries()) {
         const actualIndex = chunkIndex * CHUNK_SIZE + index + 1;
+        const linkResult = groupLinkResults[index];
+        const rawLink = linkResult.status === "fulfilled" ? linkResult.value?.link : "";
+        const groupLink = rawLink
+          ? String(rawLink).startsWith("http")
+            ? String(rawLink)
+            : `https://${rawLink}`
+          : "Không lấy được (nhóm chưa bật link hoặc bot không có quyền)";
         contentMessage +=
           `${actualIndex}. ${group.name} (${group.totalMember} thành viên)\n` +
-          ` - Trưởng nhóm: ${owners[group.creatorId].displayName}\n` +
-          ` - ID: ${group.groupId}\n\n`;
+          ` - Trưởng nhóm: ${owners[group.creatorId]?.displayName || "Không rõ"}\n` +
+          ` - ID: ${group.groupId}\n` +
+          ` - Link: ${groupLink}\n\n`;
       }
 
       if (chunkIndex === chunks.length - 1) {
@@ -460,31 +473,42 @@ export async function handleActionGroupReply(
     await api.addReaction("CLOCK", message);
     const group = dataReply.groups[index - 1];
     const threadId = group.groupId;
-    const groupInfoTemp = groupInfo || (await getGroupInfoData(api, threadId));
-    const groupAdminsTemp = groupAdmins || (await getGroupAdmins(groupInfo));
+    const groupInfoTemp = await getGroupInfoData(api, threadId);
+    const groupAdminsTemp = await getGroupAdmins(groupInfoTemp);
     const groupSettingsTemp = groupSettings || groupSettingsAll.getByID(botId);
 
     switch (action) {
       default:
         const idHere = message.threadId;
         const typeHere = message.type;
+        const idToHere = message.data.idTo;
+        const contentHere = message.data.content;
+        const mentionsHere = message.data.mentions;
         message.threadId = group.groupId;
         message.type = MessageType.GroupMessage;
+        message.data.idTo = group.groupId;
         message.data.content = action;
         message.data.mentions = [];
-        const numHandleCommand = await handleCommand(
-          api,
-          message,
-          groupInfoTemp,
-          groupAdminsTemp,
-          groupSettingsTemp,
-          isAdminLevelHighest,
-          isAdminBot,
-          isAdminBox,
-          handleChat
-        );
-        message.threadId = idHere;
-        message.type = typeHere;
+        let numHandleCommand;
+        try {
+          numHandleCommand = await handleCommand(
+            api,
+            message,
+            groupInfoTemp,
+            groupAdminsTemp,
+            groupSettingsTemp,
+            isAdminLevelHighest,
+            isAdminBot,
+            isAdminBox,
+            handleChat
+          );
+        } finally {
+          message.threadId = idHere;
+          message.type = typeHere;
+          message.data.idTo = idToHere;
+          message.data.content = contentHere;
+          message.data.mentions = mentionsHere;
+        }
         if (numHandleCommand === 1 || numHandleCommand === 2 || numHandleCommand === 3 || numHandleCommand === 5) {
           const result = {
             success: true,

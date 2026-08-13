@@ -4,7 +4,7 @@ import disk from "diskusage";
 import { readFileSync } from "fs";
 import { join } from "path";
 import { exec, execFile } from "child_process";
-import { getUserInfoBasic } from "./user-info.js";
+import { getUserInfoData } from "./user-info.js";
 import { createBotInfoImage, clearImagePath } from "../../utils/canvas/index.js";
 import { getConfigStatus } from "./group-info.js";
 import { getNameServer } from "../chat-zalo/chat-style/chat-style.js";
@@ -230,7 +230,7 @@ export async function getBotDetails(api, message, groupSettings) {
   const botId = api.getBotId();
   const nameServer = getNameServer(api);
 
-  const botInfo = await getUserInfoBasic(api, botId);
+  const botInfo = await getUserInfoData(api, botId);
 
   const path = os.platform() === "win32" ? "C:\\" : "/";
   const [cpuData, diskData, network, stats] = await Promise.all([

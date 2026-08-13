@@ -1,154 +1,138 @@
 import axios from "axios";
-import * as cheerio from "cheerio";
 import fs from "fs";
 import path from "path";
 import { createCanvas } from "canvas";
-import * as cv from "../../utils/canvas/index.js";
 import { sendMessageTag, sendMessageStateQuote } from "../../service-dqt/chat-zalo/chat-style/chat-style.js";
 import { removeMention } from "../../utils/format-util.js";
 import { getGlobalPrefix } from "../../service-dqt/service.js";
 import { deleteFile } from "../../utils/util.js";
+import { parseGoldPriceHtml } from "../../utils/market-price-parser.js";
 
 const GOLD_TYPES = {
-  sjc:  { name: "Vàng SJC",               url: "https://webgia.click/bang-gia-vang-sjc" },
-  btmc: { name: "Vàng BẢO TÍN MINH CHÂU", url: "https://webgia.click/gia-vang-btmc" },
-  doji: { name: "Vàng Doji",              url: "https://webgia.click/gia-vang-doji" },
-  mh:   { name: "Vàng Mi Hồng",           url: "https://webgia.click/gia-vang-mi-hong" },
-  phq:  { name: "Vàng Phú Quý",           url: "https://webgia.click/gia-vang-phu-quy" },
-  pnj:  { name: "Vàng PNJ",               url: "https://webgia.click/gia-vang-pnj" },
+  sjc:  { name: "Vàng SJC", keywords: ["sjc"] },
+  btmc: { name: "Vàng BẢO TÍN MINH CHÂU", keywords: ["bảo tín", "btmc", "rồng thăng long"] },
+  doji: { name: "Vàng DOJI", keywords: ["doji", "hưng thịnh vượng"] },
+  mh:   { name: "Vàng Mi Hồng", keywords: ["mi hồng"] },
+  phq:  { name: "Vàng Phú Quý", keywords: ["phú quý"] },
+  pnj:  { name: "Vàng PNJ", keywords: ["pnj"] },
 };
+const GOLD_SOURCES = ["https://webgia.vn/", "https://giavang.org/"];
 
 const TTL_MESSAGE = 10 * 60 * 1000;
 
-async function fetchGoldPrice(url) {
+async function fetchGoldSource(url) {
   const res = await axios.get(url, {
     headers: { "User-Agent": "Mozilla/5.0" },
     timeout: 15000,
   });
 
-  const $ = cheerio.load(res.data);
-  const prices = [];
-
-  $("table tr").each((_, tr) => {
-    const tds = $(tr).find("td");
-    if (tds.length >= 3) {
-      prices.push({
-        name: $(tds[0]).text().trim(),
-        buy:  $(tds[1]).text().trim() || "N/A",
-        sell: $(tds[2]).text().trim() || "N/A",
-      });
-    }
-  });
+  const prices = parseGoldPriceHtml(res.data);
 
   if (!prices.length) throw new Error("Không tìm thấy dữ liệu");
   return prices;
 }
 
-export async function createGoldImage(goldTypeName, prices) {
-  const canvasWidth = 1100;
-  const rowH = 50;
-  const headerH = 70;
-  const minCol1 = 400;
-  const defaultCol1 = 500;
-  const padding = 20;
+export async function fetchGoldOverview() {
+  const errors = [];
+  for (const url of GOLD_SOURCES) {
+    try {
+      const prices = await fetchGoldSource(url);
+      if (prices.length) return prices;
+    } catch (error) {
+      errors.push(`${new URL(url).hostname}: ${error.code || error.message}`);
+    }
+  }
+  throw new Error(`Không lấy được nguồn giá vàng: ${errors.join("; ")}`);
+}
 
-  // Tạm canvas để đo text
-  const tempCanvas = createCanvas(0, 0);
-  const tempCtx = tempCanvas.getContext("2d");
-  tempCtx.font = "bold 20px Arial";
+function shortenText(ctx, text, maxWidth) {
+  const value = String(text || "");
+  if (ctx.measureText(value).width <= maxWidth) return value;
+  let shortened = value;
+  while (shortened.length > 1 && ctx.measureText(`${shortened}…`).width > maxWidth) shortened = shortened.slice(0, -1);
+  return `${shortened}…`;
+}
 
-  let maxTextWidth = 0;
-  prices.forEach(p => {
-    const w = tempCtx.measureText(p.name).width + padding * 2;
-    if (w > maxTextWidth) maxTextWidth = w;
-  });
+function formatPrice(value) {
+  return String(value || "—").replace(/\s*(?:₫|đ|VNĐ).*$/iu, "").trim();
+}
 
-  let col1Width = Math.max(minCol1, Math.min(maxTextWidth, canvasWidth - 2 * 50));
-  if (col1Width < defaultCol1) col1Width = defaultCol1;
-
-  const remaining = canvasWidth - col1Width;
-  const col2Width = remaining / 2;
-  const col3Width = remaining / 2;
-
-  const columns = [
-    { name: "Loại vàng", width: col1Width },
-    { name: "Mua vào",  width: col2Width },
-    { name: "Bán ra",   width: col3Width },
-  ];
-
-  const canvasHeight = headerH + rowH * (prices.length + 1);
+export async function createGoldImage(goldTypeName, prices, updatedAt = new Date()) {
+  const canvasWidth = 1200;
+  const rowH = 74;
+  const heroH = 218;
+  const tableHeaderH = 62;
+  const footerH = 76;
+  const visiblePrices = prices.slice(0, 16);
+  const canvasHeight = heroH + tableHeaderH + rowH * visiblePrices.length + footerH;
   const canvas = createCanvas(canvasWidth, canvasHeight);
   const ctx = canvas.getContext("2d");
 
-  // Nền gradient
-  const gradient = ctx.createLinearGradient(0, 0, 0, canvasHeight);
-  gradient.addColorStop(0, "rgba(59,130,246,1.0)");
-  gradient.addColorStop(1, "rgba(17,24,39,0.8)");
+  const gradient = ctx.createLinearGradient(0, 0, canvasWidth, canvasHeight);
+  gradient.addColorStop(0, "#1b1305");
+  gradient.addColorStop(0.48, "#3b2708");
+  gradient.addColorStop(1, "#111827");
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
-  // Overlay
-  ctx.fillStyle = "rgba(0,0,0,0.5)";
-  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+  const glow = ctx.createRadialGradient(980, 35, 20, 980, 35, 380);
+  glow.addColorStop(0, "rgba(250,204,21,0.30)");
+  glow.addColorStop(1, "rgba(250,204,21,0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(600, 0, 600, 430);
 
-  // Tiêu đề
-  ctx.font = "bold 36px Arial";
+  ctx.fillStyle = "#facc15";
+  ctx.font = "bold 24px Arial";
+  ctx.textAlign = "left";
+  ctx.fillText("THỊ TRƯỜNG · VIỆT NAM", 58, 55);
+  ctx.fillStyle = "#fff7d6";
+  ctx.font = "bold 48px Arial";
+  ctx.fillText(shortenText(ctx, `BẢNG GIÁ ${goldTypeName.toUpperCase()}`, 1080), 58, 116);
+  ctx.fillStyle = "#d6c69a";
+  ctx.font = "22px Arial";
+  ctx.fillText(`Cập nhật ${updatedAt.toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}`, 58, 158);
+  ctx.fillText("Đơn vị theo niêm yết của nguồn · Giá chỉ mang tính tham khảo", 58, 192);
+
+  const colX = [40, 720, 940, 1160];
+  ctx.fillStyle = "rgba(250,204,21,0.16)";
+  ctx.fillRect(40, heroH, 1120, tableHeaderH);
+  ctx.fillStyle = "#fef3c7";
+  ctx.font = "bold 21px Arial";
+  ctx.textAlign = "left";
+  ctx.fillText("SẢN PHẨM / THƯƠNG HIỆU", 66, heroH + 40);
   ctx.textAlign = "center";
-  ctx.fillStyle = cv.getRandomGradient(ctx, canvasWidth);
-  ctx.fillText(`BẢNG GIÁ ${goldTypeName.toUpperCase()}`, canvasWidth / 2, 50);
+  ctx.fillText("MUA VÀO", 830, heroH + 40);
+  ctx.fillText("BÁN RA", 1050, heroH + 40);
 
-  // Tính vị trí cột
-  let xPos = [0];
-  for (let i = 0; i < columns.length; i++) xPos.push(xPos[i] + columns[i].width);
-
-  // Header
-  ctx.fillStyle = "rgba(0,0,0,0.3)";
-  ctx.fillRect(0, headerH, canvasWidth, rowH);
-  ctx.font = "bold 22px Arial";
-  ctx.textAlign = "center";
-  columns.forEach((col, i) => {
-    ctx.fillStyle = "#FFFFFF";
-    ctx.fillText(col.name, xPos[i] + col.width / 2, headerH + 33);
-  });
-
-  // Rows
-  ctx.font = "bold 20px Arial";
-  prices.forEach((p, rowIdx) => {
-    const y = headerH + rowH * (rowIdx + 1);
-    ctx.fillStyle = rowIdx % 2 ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)";
-    ctx.fillRect(0, y, canvasWidth, rowH);
-
-    ctx.fillStyle = "#FFD700";
+  visiblePrices.forEach((price, index) => {
+    const y = heroH + tableHeaderH + index * rowH;
+    ctx.fillStyle = index % 2 ? "rgba(255,255,255,0.035)" : "rgba(255,255,255,0.075)";
+    ctx.fillRect(40, y, 1120, rowH);
+    ctx.fillStyle = "#fde68a";
+    ctx.font = "bold 20px Arial";
     ctx.textAlign = "left";
-    ctx.fillText(p.name, xPos[0] + 10, y + 33);
-
-    ctx.fillStyle = "#90EE90";
+    ctx.fillText(shortenText(ctx, price.name, 620), 66, y + 46);
+    ctx.fillStyle = "#86efac";
+    ctx.font = "bold 22px Arial";
     ctx.textAlign = "center";
-    ctx.fillText(p.buy, xPos[1] + columns[1].width / 2, y + 33);
-
-    ctx.fillStyle = "#FF8A80";
-    ctx.fillText(p.sell, xPos[2] + columns[2].width / 2, y + 33);
+    ctx.fillText(formatPrice(price.buy), 830, y + 46);
+    ctx.fillStyle = "#fbbf24";
+    ctx.fillText(formatPrice(price.sell), 1050, y + 46);
   });
 
-  // Grid
-  ctx.strokeStyle = "rgba(0,0,0,0.5)";
-  ctx.lineWidth = 2;
-  for (let i = 0; i <= prices.length + 1; i++) {
-    const y = headerH + rowH * i;
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(canvasWidth, y);
-    ctx.stroke();
+  ctx.strokeStyle = "rgba(251,191,36,0.24)";
+  ctx.lineWidth = 1;
+  for (const x of colX) {
+    ctx.beginPath(); ctx.moveTo(x, heroH); ctx.lineTo(x, canvasHeight - footerH); ctx.stroke();
   }
-  for (let i = 1; i < xPos.length - 1; i++) {
-    ctx.beginPath();
-    ctx.moveTo(xPos[i], headerH);
-    ctx.lineTo(xPos[i], canvasHeight);
-    ctx.stroke();
-  }
+  ctx.fillStyle = "#a99b79";
+  ctx.font = "18px Arial";
+  ctx.textAlign = "center";
+  ctx.fillText(`Hiển thị ${visiblePrices.length}/${prices.length} sản phẩm · Nguồn tổng hợp thị trường`, canvasWidth / 2, canvasHeight - 30);
 
-  const filePath = path.resolve(`./assets/temp/gold_${Date.now()}.png`);
-  await fs.promises.writeFile(filePath, canvas.toBuffer("image/png"));
+  const filePath = path.resolve(`./assets/temp/gold_${Date.now()}.jpg`);
+  await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.promises.writeFile(filePath, canvas.toBuffer("image/jpeg", { quality: 0.86 }));
   return filePath;
 }
 
@@ -164,18 +148,8 @@ export async function handleCheckGiaVangCommand(api, message, aliasCommand) {
   const prefix = getGlobalPrefix(api.getBotId());
   const args = content.replace(`${prefix}${aliasCommand}`, "").trim().toLowerCase();
 
-  if (!args) {
-    return sendMessageStateQuote(
-      api,
-      message,
-      getGoldMenu(prefix, aliasCommand),
-      true,
-      120000
-    );
-  }
-
-  const goldType = GOLD_TYPES[args];
-  if (!goldType) {
+  const goldType = args ? GOLD_TYPES[args] : null;
+  if (args && !goldType) {
     return sendMessageStateQuote(
       api,
       message,
@@ -185,29 +159,32 @@ export async function handleCheckGiaVangCommand(api, message, aliasCommand) {
     );
   }
 
+  let imagePath;
   try {
-    const prices = await fetchGoldPrice(goldType.url);
-    const imagePath = await createGoldImage(goldType.name, prices);
+    const overview = await fetchGoldOverview();
+    const prices = goldType
+      ? overview.filter((price) => goldType.keywords.some((keyword) => price.name.toLowerCase().includes(keyword)))
+      : overview;
+    if (!prices.length) throw new Error(`Nguồn hiện tại chưa có dữ liệu ${goldType.name}`);
+    const title = goldType ? goldType.name : "Vàng tổng hợp thị trường";
+    imagePath = await createGoldImage(title, prices);
 
     await sendMessageTag(
       api,
       message,
-      { caption: `Đây là giá vàng "${goldType.name}" hiện tại`, imagePath },
+      { caption: `Bảng giá ${title.toLowerCase()} hiện tại`, imagePath },
       TTL_MESSAGE
     );
-
-    await deleteFile(imagePath).catch(err => 
-      console.error("Lỗi xóa file sau khi gửi:", err)
-    );
-
   } catch (err) {
     console.error(err);
     return sendMessageStateQuote(
       api,
       message,
-      `❌ Không thể lấy giá ${goldType.name}`,
+      `❌ Không thể lấy ${goldType ? `giá ${goldType.name}` : "bảng giá vàng tổng hợp"}`,
       false,
       120000
     );
+  } finally {
+    if (imagePath) await deleteFile(imagePath).catch(() => {});
   }
 }

@@ -4,7 +4,7 @@ import path from "path";
 import { getGlobalPrefix } from "../../../service.js";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
-import { convertToM4A, downloadAndConvertAudio, extractAudioFromVideo, uploadAudioFile } from "./process-audio.js";
+import { convertToM4A, downloadAndConvertAudio, ensureVoiceUrlExtension, extractAudioFromVideo, uploadAudioFile } from "./process-audio.js";
 import {
   sendMessageCompleteRequest,
   sendMessageFailed,
@@ -31,10 +31,32 @@ import { getUserInfoData } from "../../../info-service/user-info.js";
 import { handleCheckLinkFromVoicesLocal } from "../../../../utils/local-upload-cache.js";
 import { getCachedMedia } from "../../../../utils/link-platform-cache.js";
 import { asyncTaskManager } from "../../../../utils/async-task.js";
+import { findVoiceMetadata, saveVoiceMetadata } from "../../../../utils/nova-store.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const TIME_24H = 86400000;
+function rememberMusicMetadata(message, object, voiceUrl) {
+  const metadata = {
+    title: object.title || "Không rõ tên",
+    artists: object.artists || object.artist || "Không rõ nghệ sĩ",
+    source: object.source || "Không rõ nguồn",
+    voiceUrl: String(voiceUrl || ""),
+    savedAt: Date.now(),
+  };
+  if (metadata.voiceUrl && message?.threadId) saveVoiceMetadata(message.threadId, metadata.voiceUrl, metadata);
+}
+
+export function getRepliedMusicMetadata(message) {
+  const quote = message?.data?.quote;
+  if (!quote) return null;
+  const candidates = [quote.href, quote.voiceUrl, quote.m4aUrl];
+  try {
+    const attach = typeof quote.attach === "string" ? JSON.parse(quote.attach) : quote.attach;
+    candidates.push(attach?.href, attach?.voiceUrl, attach?.m4aUrl, attach?.url);
+  } catch {}
+  return findVoiceMetadata(message.threadId, candidates);
+}
 
 async function textToSpeech(text, api, message, lang = "vi") {
   return new Promise((resolve, reject) => {
@@ -182,9 +204,7 @@ async function multilingualTextToSpeech(text, api, message) {
     console.error("Lỗi khi xử lý audio đa ngôn ngữ:", error);
     throw error;
   } finally {
-    audioFiles.forEach(async (file) => {
-      await deleteFile(file);
-    });
+    await Promise.all(audioFiles.map((file) => deleteFile(file)));
     await deleteFile(finalAudioPath);
   }
 }
@@ -331,48 +351,62 @@ export async function handleTarrotCommand(api, message) {
 
 export async function sendVoiceMusic(api, message, object, ttl = 86400000) {
   let thumbnailPath = path.resolve(tempDir, `${randomIDTemp()}.jpg`);
-  const voiceUrl = object.voiceUrl;
+  const voiceUrl = ensureVoiceUrlExtension(object.voiceUrl);
+  object.voiceUrl = voiceUrl;
+  rememberMusicMetadata(message, object, voiceUrl);
   if (!voiceUrl) {
     sendMessageFailed(api, message, "Upload file nhạc thất bại!", true);
     await api.addReaction("UNDO", message);
     await api.addReaction("TIEUTAN", message);
     return;
   }
+  if (object.fastMode) {
+    try {
+      await sendMessageCompleteRequest(api, message, object, 180000);
+      await api.sendVoice(message, voiceUrl, ttl);
+      await Promise.allSettled([api.addReaction("UNDO", message), api.addReaction("LIKE", message)]);
+    } catch (error) {
+      console.error("Lỗi khi gửi nhạc nhanh:", error);
+      await Promise.allSettled([api.addReaction("UNDO", message), api.addReaction("TIEUTAN", message)]);
+    }
+    return;
+  }
   let spinningWebp = null;
   // if (object.imageUrl) {
   //   asyncTaskManager.runAsync(object.imageUrl, () => createCircleWebp(api, message, object.imageUrl, object.trackId));
   // }
-  try {
-    if (message?.data?.uidFrom) {
-      let senderId = message.data.uidFrom;
-      const userInfo = await getUserInfoData(api, senderId);
-      object.dataUser = userInfo;
-    }
-  } catch (error) {
-    console.error("Lỗi khi lấy thông tin người dùng:", error);
-  }
   let imagePath = null;
   try {
+    const [userInfoResult, , spinResult] = await Promise.allSettled([
+      message?.data?.uidFrom ? getUserInfoData(api, message.data.uidFrom) : Promise.resolve(null),
+      object.imageUrl ? downloadFile(object.imageUrl, thumbnailPath) : Promise.resolve(null),
+      (object.imageUrl && object.trackId) ? getCachedMedia(PLATFORM_CIRCLE_WEPB, object.trackId, "webp") : Promise.resolve(null),
+    ]);
+
+    if (userInfoResult.status === 'fulfilled' && userInfoResult.value) {
+      object.dataUser = userInfoResult.value;
+    }
+    if (spinResult.status === 'fulfilled' && spinResult.value) {
+      spinningWebp = spinResult.value;
+    }
+
     if (object.imageUrl) {
-      await downloadFile(object.imageUrl, thumbnailPath);
       try {
         object.thumbnailPath = thumbnailPath;
-        imagePath = await createMusicCard(object);
+        imagePath = await createMusicCard(object, api.getBotId());
       } catch (error) {
         console.error("Lỗi khi tạo music card:", error);
         imagePath = null;
       }
-      // spinningWebp = object.spinning || await createCircleWebp(api, message, object.imageUrl, object.trackId);
-      spinningWebp = await getCachedMedia(PLATFORM_CIRCLE_WEPB, object.trackId, "webp");
     }
 
-    if (!(await checkUrlStatus(voiceUrl))) {
+    if (!object.directStream && !(await checkUrlStatus(voiceUrl))) {
       sendMessageFailed(api, message, "Không thể kết nối đến liên kết của nhạc..!\nVui lòng thử lại sau.", true);
       return;
     }
     
     const managerData = api.apiManager.getDataManager();
-    const spinDisk = managerData.spinDisk;
+    const spinDisk = managerData.spinDisk && !object.skipSpin;
     
     // Nếu bật spindisk và có imageUrl nhưng chưa có spinningWebp trong cache, tạo ngay
     if (spinDisk && object.imageUrl && !spinningWebp && object.trackId) {
@@ -398,17 +432,15 @@ export async function sendVoiceMusic(api, message, object, ttl = 86400000) {
       );
     }
     await api.sendVoice(message, voiceUrl, ttl);
-    await api.addReaction("UNDO", message);
-    await api.addReaction("LIKE", message);
+    await Promise.allSettled([api.addReaction("UNDO", message), api.addReaction("LIKE", message)]);
     
     // Tạo async để cache cho lần sau nếu chưa có
-    if (!spinningWebp && object.imageUrl && object.trackId) {
+    if (!object.skipSpin && !spinningWebp && object.imageUrl && object.trackId) {
       asyncTaskManager.runAsync(object.imageUrl, () => createCircleWebp(api, message, object.imageUrl, object.trackId));
     }
   } catch (error) {
     console.error("Lỗi khi gửi voice music:", error);
-    await api.addReaction("UNDO", message);
-    await api.addReaction("TIEUTAN", message);
+    await Promise.allSettled([api.addReaction("UNDO", message), api.addReaction("TIEUTAN", message)]);
   } finally {
     await deleteFile(thumbnailPath);
     if (imagePath && imagePath !== thumbnailPath) await deleteFile(imagePath);
@@ -424,7 +456,7 @@ export async function sendVoiceMusicNotQuote(api, message, object, ttl) {
       await downloadFile(object.imageUrl, thumbnailPath);
       try {
         object.thumbnailPath = thumbnailPath;
-        imagePath = await createMusicCard(object);
+        imagePath = await createMusicCard(object, api.getBotId());
       } catch (error) {
         console.error("Lỗi khi tạo music card:", error);
         imagePath = null;
@@ -581,6 +613,16 @@ export async function handleSendVoiceCommand(api, message, aliasCommand) {
   const threadId = message.threadId;
   const type = message.type;
 
+  const prepareVoiceUrl = async (value) => {
+    const url = String(value || "").trim();
+    if (!url) return url;
+    const extension = await checkExstentionFileRemote(url).catch(() => null);
+    if (extension === "mp3" || /\.mp3(?:[?#]|$)/iu.test(url)) {
+      return await downloadAndConvertAudio(url, api, message);
+    }
+    return ensureVoiceUrlExtension(url, extension === "m4a" ? "m4a" : "aac");
+  };
+
   try {
     if (keyword.trim() === "list") {
       const files = fs.readdirSync(dataVoicesPath);
@@ -615,8 +657,10 @@ export async function handleSendVoiceCommand(api, message, aliasCommand) {
       if (index > 0 && index <= files.length) {
         const selectedFile = files[index - 1];
         const fileLocal = await handleCheckLinkFromVoicesLocal(selectedFile, api);
+        if (!fileLocal?.fileUrl) throw new Error(`Không lấy được link voice ${selectedFile}`);
+        const voiceUrl = await prepareVoiceUrl(fileLocal.fileUrl);
         await sendMessageStateQuote(api, message, fileLocal.title, true, TIME_24H, false);
-        await api.sendVoice(message, fileLocal.fileUrl, TIME_24H);
+        await api.sendVoice(message, voiceUrl, TIME_24H);
         return;
       } else {
         await sendMessageWarningRequest(
@@ -663,7 +707,7 @@ export async function handleSendVoiceCommand(api, message, aliasCommand) {
     }
 
     if (await checkLinkIsValid(linkUpload)) {
-      if (!linkUpload.endsWith(".aac")) linkUpload = linkUpload + "/" + Date.now() + ".aac";
+      linkUpload = await prepareVoiceUrl(linkUpload);
       await sendMessageStateQuote(
         api,
         message,

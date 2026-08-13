@@ -221,12 +221,12 @@ export async function handleMyBagCommand(api, message, groupSettings) {
 
   const senderId = message.data.uidFrom;
 
-  // Kiểm tra người chơi đã đăng nhập
+  // Hồ sơ đã được tự động tạo bởi checkBeforeJoinGame.
   const playerInfo = await getPlayerInfo(senderId);
   if (playerInfo === null) {
     const result = {
       success: false,
-      message: `Bạn chưa đăng nhập tài khoản game nào trên zalo này để xem túi đồ.`,
+      message: `Không thể khởi tạo hồ sơ game. Vui lòng thử lại.`,
     };
     await sendMessageFromSQL(api, message, result);
     return;
@@ -362,12 +362,12 @@ export async function handleNongTraiCommand(api, message, groupSettings) {
   const prefix = getGlobalPrefix(idBot);
   const content = message.data.content.toLowerCase().trim();
 
-  // Kiểm tra người chơi đã đăng nhập
+  // Hồ sơ đã được tự động tạo bởi checkBeforeJoinGame.
   const playerInfo = await getPlayerInfo(senderId);
   if (playerInfo === null) {
     const result = {
       success: false,
-      message: `Bạn chưa đăng nhập tài khoản game nào trên zalo này để tham gia trò chơi nông trại.`,
+      message: `Không thể khởi tạo hồ sơ game. Vui lòng thử lại.`,
     };
     await sendMessageFromSQL(api, message, result);
     return;

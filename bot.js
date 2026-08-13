@@ -2,18 +2,24 @@ import { spawn, execSync } from "child_process";
 import { ensureLogFiles, logManagerBot } from "./src/utils/io-json.js";
 const isWindows = process.platform === "win32";
 const RESTART_DELAY_MS = 1000;
+const MAX_RESTART_DELAY_MS = 30000;
+const STABLE_UPTIME_MS = 60000;
 let botProcess = null;
 let restartTimer = null;
 let isQuitting = false;
 let isStopping = false;
+let restartAttempts = 0;
+let childStartedAt = 0;
 function scheduleRestart(reason) {
   if (isQuitting || restartTimer) return;
-  logManagerBot(`Scheduling bot restart: ${reason}`);
-  console.log(`Scheduling bot restart: ${reason}`);
+  const delay = Math.min(RESTART_DELAY_MS * 2 ** restartAttempts, MAX_RESTART_DELAY_MS);
+  restartAttempts++;
+  logManagerBot(`Scheduling bot restart in ${delay}ms: ${reason}`);
+  console.log(`Scheduling bot restart in ${delay}ms: ${reason}`);
   restartTimer = setTimeout(() => {
     restartTimer = null;
     startBot();
-  }, RESTART_DELAY_MS);
+  }, delay);
 }
 function startBot() {
   if (isQuitting) return;
@@ -30,6 +36,7 @@ function startBot() {
     stdio: "inherit",
     detached: !isWindows,
   });
+  childStartedAt = Date.now();
   attachBotEvents(botProcess);
   logManagerBot(`Bot started (PID: ${botProcess.pid})`);
   console.log(`Bot started (PID: ${botProcess.pid})`);
@@ -68,6 +75,7 @@ function attachBotEvents(bot) {
     logManagerBot(`Bot exited (code: ${code}, signal: ${signal || "none"})`);
     console.log(`Bot exited (code: ${code}, signal: ${signal || "none"})`);
     botProcess = null;
+    if (Date.now() - childStartedAt >= STABLE_UPTIME_MS) restartAttempts = 0;
     if (isQuitting) return;
     if (isStopping) {
       isStopping = false;

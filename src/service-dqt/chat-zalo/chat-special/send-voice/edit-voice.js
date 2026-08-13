@@ -31,8 +31,6 @@ async function cleanupFiles(...files) {
 async function cutAudio(inputPath, start, end = null, options = {}) {
   const outputPath = path.join(tempDir, `cut_${randomIDTemp()}.aac`);
   const tempInputPath = path.join(tempDir, `input_${randomIDTemp()}.aac`);
-  const tempCutPath = path.join(tempDir, `cut_temp_${randomIDTemp()}.aac`);
-  const tempSpeedPath = path.join(tempDir, `speed_temp_${randomIDTemp()}.aac`);
   const fadeInDuration = options.fadeInDuration || 1.5;
   const fadeOutDuration = options.fadeOutDuration || 1.5;
   const speed = options.speed || 1.0;
@@ -41,97 +39,61 @@ async function cutAudio(inputPath, start, end = null, options = {}) {
     const response = await axios({
       method: "GET",
       url: inputPath,
-      responseType: "arraybuffer",
+      responseType: "stream",
+      timeout: 0,
     });
-    await writeFilePromise(tempInputPath, response.data);
+    await new Promise((resolve, reject) => {
+      const writer = fs.createWriteStream(tempInputPath);
+      response.data.pipe(writer);
+      writer.on("finish", resolve);
+      writer.on("error", reject);
+      response.data.on("error", reject);
+    });
 
-    const cutCommand = [
-      "ffmpeg",
-      "-y",
-      "-analyzeduration",
-      "10M",
-      "-probesize",
-      "10M",
-      "-i",
-      tempInputPath,
-      "-vn",
-      "-ss",
-      start,
-      ...(end ? ["-t", getTimeDuration(start, end)] : []),
-      "-c:a",
-      "aac",
-      "-b:a",
-      "128k",
-      tempCutPath,
-    ].join(" ");
-
-    await execAsync(cutCommand);
-
-    // Áp dụng thay đổi tốc độ nếu khác 1.0
-    let currentInputFile = tempCutPath;
-    let currentOutputFile = tempCutPath;
+    const filters = [];
 
     if (speed !== 1.0) {
-      const speedCommand = [
-        "ffmpeg",
-        "-y",
-        "-i",
-        currentInputFile,
-        "-filter:a",
-        `atempo=${speed}`,
-        "-c:a",
-        "aac",
-        "-b:a",
-        "128k",
-        tempSpeedPath,
-      ].join(" ");
-
-      await execAsync(speedCommand);
-      currentInputFile = tempSpeedPath;
-      currentOutputFile = tempSpeedPath;
+      filters.push(`atempo=${speed}`);
     }
 
-    if (options.fadeIn || options.fadeOut) {
-      let filterComplex = [];
-
-      if (options.fadeIn) {
-        filterComplex.push(`afade=t=in:st=0:d=${fadeInDuration}`);
-      }
-
-      if (options.fadeOut) {
-        const durationCommand = `ffprobe -i "${currentInputFile}" -show_entries format=duration -v quiet -of csv="p=0"`;
-        const durationResult = await execAsync(durationCommand);
-        const duration = Math.floor(parseFloat(durationResult.stdout.trim()));
-
-        if (duration > fadeOutDuration * 2) {
-          filterComplex.push(`afade=t=out:st=${duration - fadeOutDuration}:d=${fadeOutDuration}`);
-        }
-      }
-
-      const fadeCommand = [
-        "ffmpeg",
-        "-y",
-        "-i",
-        currentInputFile,
-        "-af",
-        filterComplex.join(","),
-        "-c:a",
-        "aac",
-        "-b:a",
-        "128k",
-        outputPath,
-      ].join(" ");
-
-      await execAsync(fadeCommand);
-    } else {
-      await fs.promises.rename(currentOutputFile, outputPath);
+    if (options.fadeIn) {
+      filters.push(`afade=t=in:st=0:d=${fadeInDuration}`);
     }
 
-    await cleanupFiles(tempInputPath, tempCutPath, tempSpeedPath);
+    if (options.fadeOut) {
+      const durationCommand = `ffprobe -i "${tempInputPath}" -show_entries format=duration -v quiet -of csv="p=0"`;
+      const durationResult = await execAsync(durationCommand);
+      let totalDuration = Math.floor(parseFloat(durationResult.stdout.trim()));
 
+      const startSec = start ? getTimeDuration("0:00", start) : 0;
+      const endSec = end ? getTimeDuration("0:00", end) : totalDuration;
+      let effectiveDuration = (endSec - startSec) / speed;
+
+      if (effectiveDuration > fadeOutDuration * 2) {
+        filters.push(`afade=t=out:st=${effectiveDuration - fadeOutDuration}:d=${fadeOutDuration}`);
+      }
+    }
+
+    const ffmpegArgs = [
+      "ffmpeg",
+      "-y",
+      "-i", tempInputPath,
+      "-vn",
+      "-ss", start,
+      ...(end ? ["-t", getTimeDuration(start, end)] : []),
+      ...(filters.length > 0 ? ["-af", filters.join(",")] : []),
+      "-c:a", "aac",
+      "-b:a", "96k",
+      "-ac", "1",
+      outputPath,
+    ].join(" ");
+
+    await execAsync(ffmpegArgs);
+
+    await cleanupFiles(tempInputPath);
     return outputPath;
   } catch (error) {
-    await cleanupFiles(tempInputPath, tempCutPath, tempSpeedPath, outputPath);
+    await cleanupFiles(tempInputPath, outputPath);
     console.error("Lỗi khi cắt audio:", error);
     throw error;
   }

@@ -42,6 +42,20 @@ export function deleteSelectionsMapData(idUser) {
     selectionsMapData.delete(idUser);
   }
 }
+
+// Cú pháp chọn nhanh: "từ khóa >>1" hoặc "từ khóa >>1 audio".
+// Khi không có >>n, handler vẫn hiển thị canvas lựa chọn như bình thường.
+export function parseQuickSelection(input) {
+  const value = String(input || "").trim();
+  const match = value.match(/^(.*?)\s*>>(\d+)(?:\s+(\S+))?\s*$/u);
+  if (!match) return { query: value, selectedIndex: null, option: null };
+
+  return {
+    query: match[1].trim(),
+    selectedIndex: Number(match[2]) - 1,
+    option: match[3]?.trim() || null,
+  };
+}
 function isArrayNumericOnly(array) {
   let arrTemp = array;
   if (!Array.isArray(array)) {

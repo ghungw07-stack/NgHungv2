@@ -4,6 +4,10 @@ import { getGlobalPrefix } from "../service.js";
 import * as fs from 'fs';
 import path from 'path';
 import axios from 'axios';
+import FormData from 'form-data';
+import { MessageSendType } from "../../api-zalo/models/Message.js";
+import { removeMention } from "../../utils/format-util.js";
+import { deleteFile, downloadAndSaveVideo, uploadToUguu } from "../../utils/util.js";
 /* Author:HA HUY HOANG
 Date:2025-08-15
 Description:file này dùng để quản lý dữ liệu */
@@ -21,6 +25,23 @@ const DEFAULT_HEADERS = {
     'Accept': '*/*',
     'Accept-Language': 'en-US,en;q=0.9'
 };
+
+function normalizeDataFileName(input, quote) {
+    let fileName = String(input || "default").trim().replace(/\.txt$/i, "").toLowerCase();
+    const isVideo = String(quote?.cliMsgType) === String(MessageSendType["chat.video.msg"]);
+
+    // Cho phép nhập tên nhóm ngắn khi đang reply video.
+    if (isVideo && fileName === "anime") fileName = "vdanime";
+    if (isVideo && fileName === "girl") fileName = "vdgirl";
+    if (fileName === "chill") fileName = "vdchill";
+    if (fileName === "vdgril") fileName = "vdgirl";
+
+    return /^[\p{L}\p{N}_-]+$/u.test(fileName) ? fileName : null;
+}
+
+function escapeRegExp(value) {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 function isValidUrl(string) {
     try {
@@ -106,21 +127,20 @@ async function processInBatches(links, batchSize = 5) {
 }
 
 export async function handleDataCommand(api, message, aliasCommand) {
-    const content = message.data?.content?.trim() || "";
+    // removeMention xử lý mention ở mọi vị trí, kể cả khi reply người khác
+    // rồi tag họ trong cùng câu lệnh.
+    const content = removeMention(message).trim();
     const senderName = message.data?.dName || "Người dùng";
     const prefix = getGlobalPrefix(api.getBotId());
     const quote = message.data?.quote;
-    const mentionRegex = /^@\w+\s+/;
-    const contentWithoutMention = content.replace(mentionRegex, "").trim();
-    const commandRegex = new RegExp(`^${prefix}${aliasCommand}\\s*`, "i");
-    const contentWithoutCommand = contentWithoutMention.replace(commandRegex, "").trim();
+    const commandRegex = new RegExp(`^${escapeRegExp(prefix + aliasCommand)}\\s*`, "i");
+    const contentWithoutCommand = content.replace(commandRegex, "").trim();
     const args = contentWithoutCommand.split(/\s+/).filter(arg => arg.length > 0);
     const action = args[0]?.toLowerCase() === "check" ? "check" : "add";
-    const param = contentWithoutCommand.split(/\s+/).pop();
-    let fileName = (param && param.toLowerCase() !== "check") ? param : "default";
+    const param = action === "check" ? args[1] : args[0];
+    let fileName = normalizeDataFileName(param, quote);
 
-
-    if (!action || !['add', 'check'].includes(action)) {
+    if (!fileName) {
         await sendMessageWarningRequest(api, message, {
             caption: `${senderName}, cú pháp không đúng!\n` +
                 `Sử dụng:\n` +            
@@ -214,7 +234,7 @@ export async function handleDataCommand(api, message, aliasCommand) {
             return;
         }
 
-        const finalFileName = fileName ? `${fileName}.txt` : "default.txt";
+        const finalFileName = `${fileName}.txt`;
         const filePath = path.join(BASE_DATA_PATH, finalFileName);
 
         try {
@@ -232,22 +252,49 @@ export async function handleDataCommand(api, message, aliasCommand) {
             }
             const apiEndpoint = `https://catbox.moe/user/api.php`;
             let response;
+            let tempFilePath;
             try {
-                const formData = new URLSearchParams();
-                formData.append('reqtype', 'urlupload');
-                formData.append('url', fileUrl);
+                // urlupload khiến Catbox tự truy cập link nguồn và dễ bị 412
+                // với các link Imgur/CDN có chống hotlink. Tải file về bot
+                // trước rồi upload multipart sẽ ổn định hơn.
+                try {
+                    tempFilePath = await downloadAndSaveVideo(fileUrl);
+                } catch (error) {
+                    const status = error.response?.status ? ` (HTTP ${error.response.status})` : "";
+                    throw new Error(`Tải video nguồn thất bại${status}: ${error.message}`);
+                }
+                const formData = new FormData();
+                formData.append('reqtype', 'fileupload');
+                formData.append('fileToUpload', fs.createReadStream(tempFilePath));
 
                 response = await axios.post(apiEndpoint, formData, {
                     headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
+                        ...formData.getHeaders(),
                         ...DEFAULT_HEADERS
                     },
-                    timeout: 30000
+                    timeout: 120000,
+                    maxContentLength: Infinity,
+                    maxBodyLength: Infinity
                 });
             } catch (error) {
                 console.error("Lỗi khi gọi API upload:", error.message);
-                await sendMessageStateQuote(api, message, `Upload thất bại do lỗi kết nối: ${error.message}`, false, 10000);
-                return;
+                // Catbox đôi lúc trả 412 theo IP/khu vực. Dùng Uguu dự phòng
+                // với chính file đã tải xuống, không bắt dịch vụ bên ngoài
+                // phải tự truy cập link nguồn.
+                if (tempFilePath && !error.message.startsWith("Tải video")) {
+                    const fallbackLink = await uploadToUguu(tempFilePath);
+                    if (fallbackLink) {
+                        response = { data: fallbackLink };
+                    } else {
+                        await sendMessageStateQuote(api, message, `Upload Catbox và Uguu đều thất bại: ${error.message}`, false, 10000);
+                        return;
+                    }
+                } else {
+                    await sendMessageStateQuote(api, message, error.message, false, 10000);
+                    return;
+                }
+            } finally {
+                if (tempFilePath) await deleteFile(tempFilePath);
             }
 
             const uploadedLink = response.data.trim();

@@ -36,8 +36,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
   socket.on("botInfo", (info) => {
     if (info) {
-      document.getElementById("botTitle").textContent = `HHH - ${info.name || "Bot"} - Bảng điều khiển`;
-      document.title = `HHH - ${info.name || "Bot"} - Bảng điều khiển`;
+      document.getElementById("botTitle").textContent = `NGH - ${info.name || "Bot"} - Bảng điều khiển`;
+      document.title = `NGH - ${info.name || "Bot"} - Bảng điều khiển`;
     }
   });
 

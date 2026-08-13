@@ -8,6 +8,9 @@ import { handleReactionConfirmAutoJoin } from "../service-dqt/anti-service/auto-
 import { handleHeartReactionDelete } from "./reaction-delete.js";
 import { handleHungReaction } from "../commands/send-all/hung-reaction.js";
 import { handleXiDachReaction } from "../service-dqt/game-service/xi-dach/xi-dach.js";
+import { handleWerewolfReaction } from "../service-dqt/game-service/ma-soi/index.js";
+import { handleHorseRaceReaction } from "../service-dqt/game-service/dua-ngua/dua-ngua.js";
+import { handleCardTableReaction } from "../service-dqt/game-service/card-tables/card-tables.js";
 //Xử Lý Sự Kiện Reaction
 export async function reactionEvents(api, reaction) {
   await Promise.all([
@@ -21,5 +24,8 @@ export async function reactionEvents(api, reaction) {
     handleHeartReactionDelete(api, reaction),
     handleHungReaction(api, reaction),
     handleXiDachReaction(api, reaction),
+    handleWerewolfReaction(api, reaction),
+    handleHorseRaceReaction(api, reaction),
+    handleCardTableReaction(api, reaction),
   ]);
 }

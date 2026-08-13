@@ -15,7 +15,7 @@ import {
   getHistorySettingGroup,
   updateHistorySettingGroup,
 } from "../service-dqt/info-service/group-info.js";
-import { sendMessageResultRequest, sendMessageWarning } from "../service-dqt/chat-zalo/chat-style/chat-style.js";
+import { getNameServer, sendMessageResultRequest, sendMessageWarning } from "../service-dqt/chat-zalo/chat-style/chat-style.js";
 import { logMessageToFile, readWebConfig, writeWebConfig } from "../utils/io-json.js";
 import { groupSettingsAll } from "./event-send-msg.js";
 import { enforceAntiInvite } from "../service-dqt/anti-service/anti-invite.js";
@@ -23,7 +23,6 @@ import { getPrCard } from "../commands/bot-manager/welcome-bye.js";
 import { getDataAllGroup } from "../service-dqt/info-service/group-info.js";
 
 const blockedMembers = new Map();
-const BLOCK_CHECK_TIMEOUT = 1200;
 const historyJoinRequest = new Map();
 const kickHistory = new Map();
 const TIME_COUNT_KICK = 15000;
@@ -34,6 +33,185 @@ const blockedSendUserMember = new Map();
 const MAX_JOIN_COUNT = 5; 
 const BLOCK_DURATION = 24 * 60 * 60 * 1000; 
 const JOIN_WINDOW = 5 * 60 * 1000; 
+const JOIN_LEAVE_SPAM_WINDOW = 30 * 1000;
+const JOIN_LEAVE_SPAM_LIMIT = 2;
+const JOIN_LEAVE_BLOCK_DURATION = 12 * 60 * 60 * 1000;
+const JOIN_LEAVE_BLOCKS_PATH = path.join(process.cwd(), "assets", "data", "join-leave-blocks.json");
+const joinLeaveSpamHistory = new Map();
+const joinLeaveApiByBot = new Map();
+
+function loadJoinLeaveBlocks() {
+  try {
+    if (fs.existsSync(JOIN_LEAVE_BLOCKS_PATH)) {
+      const parsed = JSON.parse(fs.readFileSync(JOIN_LEAVE_BLOCKS_PATH, "utf8"));
+      return parsed && typeof parsed === "object" ? parsed : {};
+    }
+  } catch (error) {
+    console.error("Lỗi đọc danh sách chặn spam ra/vào:", error);
+  }
+  return {};
+}
+
+const joinLeaveBlocks = loadJoinLeaveBlocks();
+
+function saveJoinLeaveBlocks() {
+  try {
+    fs.mkdirSync(path.dirname(JOIN_LEAVE_BLOCKS_PATH), { recursive: true });
+    fs.writeFileSync(JOIN_LEAVE_BLOCKS_PATH, JSON.stringify(joinLeaveBlocks, null, 2), "utf8");
+  } catch (error) {
+    console.error("Lỗi lưu danh sách chặn spam ra/vào:", error);
+  }
+}
+
+function normalizeMemberId(value) {
+  return String(value ?? "").replace(/_0$/u, "");
+}
+
+async function sendJoinLeaveBlockNotice(api, threadId, userId, member) {
+  const serverName = getNameServer(api);
+  let blockedName = member?.dName || member?.name || member?.zaloName || "Thành viên";
+  if (blockedName === "Thành viên") {
+    try {
+      const blockedInfo = await getUserInfoBasic(api, userId);
+      blockedName = blockedInfo?.zaloName || blockedInfo?.name || blockedName;
+    } catch {}
+  }
+
+  await api.sendMessage(
+    {
+      msg:
+        `${serverName}\n` +
+        `Tự động chặn ${blockedName} - [ ${userId} ]\n` +
+        `Lý do: Vào/rời nhóm 3 lần trong vòng 12h`,
+      ttl: 300000,
+    },
+    threadId,
+    MessageType.GroupMessage
+  );
+}
+
+async function enforceJoinLeaveSpam(api, event) {
+  const botId = normalizeMemberId(api.getBotId());
+  joinLeaveApiByBot.set(botId, api);
+  if (![GroupEventType.JOIN, GroupEventType.LEAVE].includes(event.type)) return;
+  const members = Array.isArray(event.data?.updateMembers) ? event.data.updateMembers : [];
+  if (!members.length) return;
+
+  const threadId = String(event.threadId);
+  const now = Date.now();
+
+  for (const member of members) {
+    const rawUserId = String(member?.id ?? member ?? "");
+    const normalizedUserId = normalizeMemberId(rawUserId);
+    if (!rawUserId || !normalizedUserId || normalizedUserId === botId) continue;
+    const blockKey = `${botId}:${threadId}:${normalizedUserId}`;
+    const activeBlock = joinLeaveBlocks[blockKey];
+    if (Number(activeBlock?.until) > now) {
+      // Bản ghi fallback cũ sẽ thử block lại bằng UID đầy đủ. Chỉ kick nếu
+      // endpoint block thực sự trả lỗi cho UID đó.
+      if (event.type === GroupEventType.JOIN && activeBlock.mode === "kick") {
+        try {
+          const retryBlock = await api.blockUsers(threadId, [rawUserId]);
+          const failedMembers = Array.isArray(retryBlock?.errorMembers) ? retryBlock.errorMembers : [];
+          if (failedMembers.length) {
+            await api.removeUserFromGroup(threadId, [rawUserId]);
+          } else {
+            activeBlock.mode = "block";
+            activeBlock.userId = rawUserId;
+            saveJoinLeaveBlocks();
+          }
+        } catch (error) {
+          try {
+            await api.removeUserFromGroup(threadId, [rawUserId]);
+          } catch (kickError) {
+            console.error(`Lỗi block/kick UID đang bị cấm ${rawUserId} tại nhóm ${threadId}:`, kickError);
+          }
+        }
+      }
+      continue;
+    }
+
+    const recent = (joinLeaveSpamHistory.get(blockKey) || [])
+      .filter((timestamp) => now - timestamp <= JOIN_LEAVE_SPAM_WINDOW);
+    recent.push(now);
+    joinLeaveSpamHistory.set(blockKey, recent);
+    if (recent.length <= JOIN_LEAVE_SPAM_LIMIT) continue;
+
+    try {
+      let mode = "block";
+      const blockResult = await api.blockUsers(threadId, [rawUserId]);
+      if (Array.isArray(blockResult?.errorMembers) && blockResult.errorMembers.length > 0) {
+        mode = "kick";
+      }
+
+      if (mode === "kick" && event.type === GroupEventType.JOIN) {
+        await api.removeUserFromGroup(threadId, [rawUserId]);
+      }
+
+      joinLeaveBlocks[blockKey] = {
+        botId,
+        threadId,
+        userId: rawUserId,
+        mode,
+        until: now + JOIN_LEAVE_BLOCK_DURATION,
+      };
+      joinLeaveSpamHistory.delete(blockKey);
+      saveJoinLeaveBlocks();
+      if (mode === "block") {
+        try {
+          await sendJoinLeaveBlockNotice(api, threadId, rawUserId, member);
+        } catch (noticeError) {
+          console.error(`Đã block nhưng không gửi được thông báo cho ${rawUserId}:`, noticeError);
+        }
+      }
+    } catch (error) {
+      // Nếu endpoint block gặp lỗi tạm thời, vẫn lưu lệnh cấm và dùng kick để
+      // ngăn UID quay lại trong 12 giờ; lần JOIN sau sẽ thử block thật lại.
+      try {
+        if (event.type === GroupEventType.JOIN) {
+          await api.removeUserFromGroup(threadId, [rawUserId]);
+        }
+        joinLeaveBlocks[blockKey] = {
+          botId,
+          threadId,
+          userId: rawUserId,
+          mode: "kick",
+          until: now + JOIN_LEAVE_BLOCK_DURATION,
+        };
+        joinLeaveSpamHistory.delete(blockKey);
+        saveJoinLeaveBlocks();
+      } catch (kickError) {
+        console.error(`Lỗi chặn/kick spam ra/vào ${rawUserId} tại nhóm ${threadId}:`, kickError);
+      }
+    }
+  }
+}
+
+setInterval(async () => {
+  const now = Date.now();
+  let changed = false;
+  for (const [key, record] of Object.entries(joinLeaveBlocks)) {
+    if (Number(record.until) > now) continue;
+    const api = joinLeaveApiByBot.get(String(record.botId));
+    if (!api) continue;
+    try {
+      if (record.mode !== "kick") {
+        await api.unblockUsers(String(record.threadId), [String(record.userId)]);
+      }
+      delete joinLeaveBlocks[key];
+      changed = true;
+    } catch (error) {
+      console.error(`Lỗi gỡ chặn spam ra/vào ${record.userId} tại nhóm ${record.threadId}:`, error);
+    }
+  }
+  if (changed) saveJoinLeaveBlocks();
+
+  for (const [key, timestamps] of joinLeaveSpamHistory) {
+    const recent = timestamps.filter((timestamp) => now - timestamp <= JOIN_LEAVE_SPAM_WINDOW);
+    if (recent.length) joinLeaveSpamHistory.set(key, recent);
+    else joinLeaveSpamHistory.delete(key);
+  }
+}, 60 * 1000).unref?.();
 
 function getWelcomePMConfig() {
   try {
@@ -54,12 +232,13 @@ function getWelcomePMConfig() {
   };
 }
 
-async function sendGroupMessage(api, threadId, imagePath, messageText) {
+async function sendGroupMessage(api, threadId, imagePath, messageText, mentions = []) {
   const message = messageText ? messageText : "";
   try {
     await api.sendMessage(
       {
         msg: message,
+        mentions,
         attachments: imagePath ? [imagePath] : [],
         ttl: 86400000,
         isUseProphylactic: true,
@@ -70,6 +249,33 @@ async function sendGroupMessage(api, threadId, imagePath, messageText) {
   } catch (error) {
     console.error("Lỗi khi gửi tin nhắn tới group:", error);
   }
+}
+
+function renderMemberEventMessage(template, userId, userName, memberCount, groupName, shouldMentionUser = true) {
+  const displayName = userName || "Thành viên";
+  const userText = shouldMentionUser ? `@${displayName}` : displayName;
+  const memberText = String(memberCount ?? "?");
+  const groupText = String(groupName || "nhóm");
+  const parts = String(template || "").split(/(\{user\}|\{member\}|\{group\})/gi);
+  const mentions = [];
+  let msg = "";
+
+  for (const part of parts) {
+    if (part.toLowerCase() === "{user}") {
+      if (shouldMentionUser) {
+        mentions.push({ uid: String(userId), pos: msg.length, len: userText.length });
+      }
+      msg += userText;
+    } else if (part.toLowerCase() === "{member}") {
+      msg += memberText;
+    } else if (part.toLowerCase() === "{group}") {
+      msg += groupText;
+    } else {
+      msg += part;
+    }
+  }
+
+  return { msg, mentions };
 }
 
 export async function gruopEvents(api, event) {
@@ -84,6 +290,8 @@ export async function gruopEvents(api, event) {
   
   const groupSettings = groupSettingsAll.getByID(botId);
   const threadSettings = groupSettings[threadId] || {};
+
+  await enforceJoinLeaveSpam(api, event);
   
   let welcomePMConfigCache = null;
   const getCachedWelcomePMConfig = () => {
@@ -92,6 +300,80 @@ export async function gruopEvents(api, event) {
     }
     return welcomePMConfigCache;
   };
+
+  // Zalo phát UPDATE khi đổi tên/ảnh nhóm và UPDATE_SETTING khi đổi các quyền.
+  // Xử lý sớm vì hai event này không có updateMembers và trước đây dễ bị rơi
+  // qua nhánh xử lý thành viên hoặc bị bỏ qua nếu canvas tạo ảnh thất bại.
+  if (threadSettings.updateGroup && [GroupEventType.UPDATE, GroupEventType.UPDATE_SETTING].includes(type)) {
+    let actorName = "Một thành viên";
+    let actorInfo = { zaloName: actorName, name: actorName };
+    if (idAction) {
+      try {
+        const actor = await getUserInfoBasic(api, idAction);
+        actorInfo = actor ? { ...actor } : actorInfo;
+        actorName = actor?.zaloName || actor?.name || actorName;
+      } catch {}
+    }
+    actorInfo.zaloName ||= actorName;
+
+    const sendUpdateCanvas = async (setting, fallbackText) => {
+      let imagePath = null;
+      try {
+        imagePath = await cv.createUpdateSettingGroupImage(actorInfo, setting, groupName || "Nhóm", groupType);
+        await sendGroupMessage(api, threadId, imagePath, "");
+        return true;
+      } catch (error) {
+        console.error("Lỗi tạo canvas updategroup:", error?.message || error);
+        await api.sendMessage({ msg: fallbackText, ttl: 300000 }, threadId, MessageType.GroupMessage);
+        return false;
+      } finally {
+        if (imagePath) await cv.clearImagePath(imagePath);
+      }
+    };
+
+    if (type === GroupEventType.UPDATE) {
+      await sendUpdateCanvas(
+        {
+          content: "Thông Tin Nhóm",
+          result: "Cập Nhật",
+          value: true,
+          type: 2,
+        },
+        `📢 ${actorName} vừa cập nhật thông tin nhóm${groupName ? ` “${groupName}”` : ""}.`
+      );
+      return;
+    }
+
+    const newGroupSetting = event.data?.groupSetting || {};
+    const oldGroupSetting = threadSettings.updateGroupSnapshot || {};
+    const changedKeys = Object.keys(newGroupSetting).filter(
+      (key) => JSON.stringify(newGroupSetting[key]) !== JSON.stringify(oldGroupSetting[key])
+    );
+
+    const keysToNotify = changedKeys.length ? changedKeys : [null];
+    for (const key of keysToNotify) {
+      const value = key == null ? true : newGroupSetting[key];
+      const knownSetting = key == null ? null : getContentUpdateGroup(key, value);
+      const setting = knownSetting?.type
+        ? knownSetting
+        : {
+            content: key || "Cài Đặt Nhóm",
+            result: typeof value === "boolean" ? (value ? "Bật" : "Tắt") : "Cập Nhật",
+            value: Boolean(value),
+            type: 2,
+          };
+      await sendUpdateCanvas(
+        setting,
+        `📢 ${actorName} vừa cập nhật cài đặt nhóm.\n• ${setting.content}: ${setting.result}`
+      );
+    }
+
+    const nextSnapshot = { ...oldGroupSetting, ...newGroupSetting };
+    threadSettings.updateGroupSnapshot = structuredClone(nextSnapshot);
+    groupSettingsAll.setChanged();
+    await updateHistorySettingGroup(threadId, nextSnapshot);
+    return;
+  }
 
   if (type === GroupEventType.JOIN && updateMembers && updateMembers.length > 0) {
     const botIdStr = String(botId);
@@ -178,6 +460,7 @@ export async function gruopEvents(api, event) {
 
       let imagePath;
       let messageText = "";
+      let welcomeMentions = [];
 
       switch (type) {
         case GroupEventType.ADD_ADMIN:
@@ -203,8 +486,46 @@ export async function gruopEvents(api, event) {
 
             try {
               userInfo = await getUserInfoData(api, userId);
-              imagePath = await cv.createWelcomeImage(userInfo, groupName, groupType, userActionName, isAdminBot);
+              imagePath = await cv.createWelcomeImage(userInfo, groupName, groupType, userActionName, isAdminBot, botId);
             } catch (error) {
+            }
+
+            if (threadSettings.welcomeMessage) {
+              let memberCount;
+              try {
+                const currentGroup = await getGroupInfoData(api, threadId);
+                const reportedCounts = [
+                  currentGroup?.memberCount,
+                  currentGroup?.totalMember,
+                  currentGroup?.memVerList?.length,
+                ].filter((value) => Number.isFinite(Number(value)));
+                memberCount = reportedCounts.length
+                  ? Math.max(...reportedCounts.map(Number))
+                  : undefined;
+
+                // Sự kiện JOIN thường đến trước khi API cập nhật danh sách nhóm.
+                // Chỉ cộng người mới nếu UID của họ chưa xuất hiện để không bị cộng hai lần.
+                const normalizedUserId = String(userId).replace(/_0$/, "");
+                const memberList = currentGroup?.memVerList || [];
+                const isNewUserAlreadyCounted = memberList.some(
+                  (memberId) => String(memberId).replace(/_0$/, "") === normalizedUserId
+                );
+                if (memberCount !== undefined && !isNewUserAlreadyCounted) {
+                  memberCount += 1;
+                }
+              } catch (error) {
+                console.error("Lỗi khi lấy số thành viên cho welcome:", error);
+              }
+
+              const rendered = renderMemberEventMessage(
+                threadSettings.welcomeMessage,
+                userId,
+                userInfoBasic?.zaloName || userInfo?.name,
+                memberCount,
+                groupName
+              );
+              messageText = rendered.msg;
+              welcomeMentions = rendered.mentions;
             }
           } else {
           }
@@ -213,9 +534,36 @@ export async function gruopEvents(api, event) {
         case GroupEventType.LEAVE:
           if (botId !== idAction && threadSettings.byeGroup) {
             userInfo = await getUserInfoData(api, userId);
-            imagePath = await cv.createGoodbyeImage(userInfo, groupName, groupType, isAdminBot);
+            imagePath = await cv.createGoodbyeImage(userInfo, groupName, groupType, isAdminBot, botId);
             if (threadSettings.leaveMessage) {
-              messageText = threadSettings.leaveMessage;
+              let memberCount;
+              try {
+                const currentGroup = await getGroupInfoData(api, threadId);
+                const memberList = currentGroup?.memVerList || [];
+                const normalizedUserId = String(userId).replace(/_0$/, "");
+                const departingUserStillCounted = memberList.some(
+                  (memberId) => String(memberId).replace(/_0$/, "") === normalizedUserId
+                );
+                const reportedCount = currentGroup?.memberCount
+                  ?? currentGroup?.totalMember
+                  ?? memberList.length;
+                memberCount = Number.isFinite(Number(reportedCount))
+                  ? Number(reportedCount) - (departingUserStillCounted ? 1 : 0)
+                  : undefined;
+              } catch (error) {
+                console.error("Lỗi khi lấy số thành viên cho bye:", error);
+              }
+
+              const rendered = renderMemberEventMessage(
+                threadSettings.leaveMessage,
+                userId,
+                userInfoBasic?.zaloName || userInfo?.name,
+                memberCount,
+                groupName,
+                false
+              );
+              messageText = rendered.msg;
+              welcomeMentions = rendered.mentions;
             }
           }
           break;
@@ -245,22 +593,6 @@ export async function gruopEvents(api, event) {
               isRemoveAdmin = true;
             }
           }
-          if (botId !== idAction && threadSettings.enableKickImage) {
-            if (!blockedMembers.has(userId)) {
-              await new Promise((resolve) => setTimeout(resolve, BLOCK_CHECK_TIMEOUT));
-              if (!blockedMembers.has(userId)) {
-                userInfo = await getUserInfoData(api, userId);
-                imagePath = await cv.createKickImage(
-                  userInfo,
-                  groupName,
-                  groupType,
-                  userInfo.genderId,
-                  userActionName,
-                  isAdminBot
-                );
-              }
-            }
-          }
           if (!isRemoveAdmin) {
             const dataGroup = await getGroupInfoData(api, threadId);
             let adminList = dataGroup.adminIds.map((item) => item);
@@ -281,21 +613,7 @@ export async function gruopEvents(api, event) {
           break;
 
         case GroupEventType.BLOCK_MEMBER:
-          if (botId !== idAction && threadSettings.enableBlockImage) {
-            userInfo = await getUserInfoData(api, userId);
-            blockedMembers.set(userId, Date.now());
-            imagePath = await cv.createBlockImage(
-              userInfo,
-              groupName,
-              groupType,
-              userInfo.genderId,
-              userActionName,
-              isAdminBot
-            );
-            setTimeout(() => {
-              blockedMembers.delete(userId);
-            }, 3000);
-          } else if (botId !== idAction) {
+          if (botId !== idAction) {
             blockedMembers.set(userId, Date.now());
             setTimeout(() => {
               blockedMembers.delete(userId);
@@ -307,12 +625,12 @@ export async function gruopEvents(api, event) {
           return;
       }
 
-      if (imagePath) {
+      if (imagePath || messageText) {
         try {
-          await sendGroupMessage(api, threadId, imagePath, messageText);
+          await sendGroupMessage(api, threadId, imagePath, messageText, welcomeMentions);
         } catch (error) {
         }
-        await cv.clearImagePath(imagePath);
+        if (imagePath) await cv.clearImagePath(imagePath);
       } else {
       }
     }
@@ -447,7 +765,7 @@ export async function gruopEvents(api, event) {
           const userInfo = userInfos[userId];
           let imagePath = null;
           try {
-            imagePath = await cv.createWelcomeImage(userInfo, groupName, groupType, userActionName);
+            imagePath = await cv.createWelcomeImage(userInfo, groupName, groupType, userActionName, false, api.getBotId());
             await sendGroupMessage(api, threadId, imagePath, "");
           } catch (error) {
             console.error(`Lỗi khi gửi welcome image cho ${userId}:`, error);
@@ -541,8 +859,8 @@ export async function gruopEvents(api, event) {
       }
 
     } else if (type === GroupEventType.UPDATE_SETTING && threadSettings.updateGroup) {
-      const newGroupSetting = event.data.groupSetting;
-      const nowGroupSetting = await getHistorySettingGroup(api, threadId);
+      const newGroupSetting = event.data.groupSetting || {};
+      const nowGroupSetting = threadSettings.updateGroupSnapshot || await getHistorySettingGroup(api, threadId);
       let listChanges = {},
         userActionInfo;
       for (const key in newGroupSetting) {
@@ -572,7 +890,10 @@ export async function gruopEvents(api, event) {
           await Promise.allSettled(promises);
         } catch {}
       }
-      updateHistorySettingGroup(threadId, newGroupSetting);
+      const nextSnapshot = { ...nowGroupSetting, ...newGroupSetting };
+      threadSettings.updateGroupSnapshot = structuredClone(nextSnapshot);
+      groupSettingsAll.setChanged();
+      updateHistorySettingGroup(threadId, nextSnapshot);
   } else {
     switch (type) {
       case GroupEventType.JOIN_REQUEST:

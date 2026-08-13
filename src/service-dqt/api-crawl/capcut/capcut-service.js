@@ -13,8 +13,8 @@ import { getCachedMedia, setCacheData } from "../../../utils/link-platform-cache
 import { downloadAndSaveVideo, deleteFile } from "../../../utils/util.js";
 import { createSearchResultImage } from "../../../utils/canvas/search-canvas.js";
 
-// Author: ndqitvn
-// Description: Code get data youtube by N D Q (ndqitvn)
+// Author: NGH
+// Description: Code maintained by NGH
 // Note: This code is not working, let goto https://www.capcut.com/vi-vn/templates and copy new request headers of search capcut
 
 const CONFIG = {
@@ -124,7 +124,7 @@ export async function handleCapcutCommand(api, message, aliasCommand) {
       usage: template.usage_amount,
     }));
 
-    imagePath = await createSearchResultImage(templates);
+    imagePath = await createSearchResultImage(templates, api.getBotId());
 
     const object = {
       caption: `Đây là kết quả tìm kiếm template của bạn.\nReply tin nhắn này với số thứ tự để chọn template.`,

@@ -28,6 +28,16 @@ export function readSettingConfig() {
   }
 }
 
+export function writeSettingConfig(config) {
+  try {
+    fs.mkdirSync(JSON_DATA_PATH, { recursive: true });
+    fs.writeFileSync(SETTING_CONFIG_FILE_PATH, `${JSON.stringify(config, null, 2)}\n`, "utf-8");
+  } catch (error) {
+    console.error("Lỗi khi ghi file setting-config.json:", error);
+    throw error;
+  }
+}
+
 export function readConfig() {
   let config = {};
   try {

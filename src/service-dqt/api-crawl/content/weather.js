@@ -360,6 +360,182 @@ export async function weatherCommand(api, message, aliasCommand) {
 export async function generateWeatherForeCastImage(data) {
   const width = 1280;
   const height = 1920;
+  const margin = 64;
+  const contentWidth = width - margin * 2;
+  const navy = "#0b1730";
+  const muted = "#aebbd2";
+  const white = "#f8fbff";
+  const cyan = "#6ee7f9";
+  const violet = "#9b8cff";
+
+  const canvas = createCanvas(width, height);
+  const ctx = canvas.getContext("2d");
+
+  const roundRect = (x, y, w, h, radius, fill, stroke) => {
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, radius);
+    if (fill) {
+      ctx.fillStyle = fill;
+      ctx.fill();
+    }
+    if (stroke) {
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+  };
+
+  const truncate = (value, maxWidth, font) => {
+    let text = String(value || "");
+    ctx.font = font;
+    while (text.length > 1 && ctx.measureText(`${text}…`).width > maxWidth) text = text.slice(0, -1);
+    return text === String(value || "") ? text : `${text}…`;
+  };
+
+  const drawText = (value, x, y, font, color = white, align = "left") => {
+    ctx.save();
+    ctx.font = font;
+    ctx.fillStyle = color;
+    ctx.textAlign = align;
+    ctx.textBaseline = "top";
+    ctx.fillText(String(value || ""), x, y);
+    ctx.restore();
+  };
+
+  const drawIcon = async (url, x, y, size) => {
+    if (!url) return false;
+    try {
+      const image = await loadImage(String(url));
+      ctx.drawImage(image, x, y, size, size);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  // Nền gradient nhẹ, không phụ thuộc ảnh ngoài nên render ổn định và nhanh.
+  const background = ctx.createLinearGradient(0, 0, width, height);
+  background.addColorStop(0, "#172b50");
+  background.addColorStop(0.52, "#0c1831");
+  background.addColorStop(1, "#07101f");
+  ctx.fillStyle = background;
+  ctx.fillRect(0, 0, width, height);
+
+  ctx.fillStyle = "rgba(110,231,249,0.08)";
+  ctx.beginPath();
+  ctx.arc(width - 80, 80, 300, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "rgba(155,140,255,0.07)";
+  ctx.beginPath();
+  ctx.arc(80, height - 90, 360, 0, Math.PI * 2);
+  ctx.fill();
+
+  const location = data?.locationObj?.longName || data?.locationObj?.localizedName || "Thời tiết hiện tại";
+  const current = data?.current || {};
+  const hourly = Array.isArray(data?.hourly) ? data.hourly.slice(0, 6) : [];
+  const daily = Array.isArray(data?.daily) ? data.daily.slice(0, 3) : [];
+  const air = data?.airQuality || {};
+
+  drawText("DỰ BÁO THỜI TIẾT", margin, 58, "bold 30px Tahoma", cyan);
+  drawText(truncate(location, 720, "bold 66px Tahoma"), margin, 100, "bold 66px Tahoma");
+  drawText(current.subtitle || "Cập nhật mới nhất", margin, 184, "32px Tahoma", muted);
+  drawText(new Date().toLocaleDateString("vi-VN", { weekday: "long", day: "2-digit", month: "2-digit" }), width - margin, 72, "30px Tahoma", muted, "right");
+
+  // Current weather card.
+  const currentY = 260;
+  const currentH = 430;
+  roundRect(margin, currentY, contentWidth, currentH, 34, "rgba(27,48,83,0.92)", "rgba(131,194,255,0.22)");
+  const iconSize = 190;
+  await drawIcon(current.weatherIcon, margin + 52, currentY + 72, iconSize);
+  drawText(current.phrase || current.title || "Không rõ", margin + 52, currentY + 288, "bold 30px Tahoma", white);
+  drawText("NHIỆT ĐỘ HIỆN TẠI", margin + 310, currentY + 64, "24px Tahoma", muted);
+  drawText(current.temp || "--", margin + 306, currentY + 92, "bold 142px Tahoma", white);
+  drawText(current.unit || "°", margin + 520, currentY + 126, "bold 54px Tahoma", cyan);
+  drawText(current.realFeel ? `Cảm giác ${current.realFeel}` : "", margin + 316, currentY + 260, "32px Tahoma", muted);
+
+  const detailEntries = Object.entries(current.details || {}).slice(0, 3);
+  const detailX = margin + 700;
+  detailEntries.forEach(([label, value], index) => {
+    const y = currentY + 72 + index * 94;
+    ctx.strokeStyle = "rgba(255,255,255,0.10)";
+    ctx.beginPath();
+    ctx.moveTo(detailX, y + 62);
+    ctx.lineTo(width - margin - 42, y + 62);
+    ctx.stroke();
+    drawText(truncate(label, 230, "26px Tahoma"), detailX, y, "26px Tahoma", muted);
+    drawText(truncate(value, 230, "bold 30px Tahoma"), width - margin - 42, y - 2, "bold 30px Tahoma", white, "right");
+  });
+
+  // Hourly forecast.
+  const hourlyY = currentY + currentH + 34;
+  const hourlyH = 345;
+  roundRect(margin, hourlyY, contentWidth, hourlyH, 30, "rgba(18,35,64,0.88)", "rgba(131,194,255,0.16)");
+  drawText("DỰ BÁO THEO GIỜ", margin + 32, hourlyY + 28, "bold 28px Tahoma", white);
+  const hourlyTop = hourlyY + 98;
+  const hourlyW = (contentWidth - 48) / Math.max(hourly.length, 1);
+  for (let i = 0; i < hourly.length; i++) {
+    const item = hourly[i] || {};
+    const cx = margin + 24 + hourlyW * i + hourlyW / 2;
+    drawText(item.time || "--", cx, hourlyTop, "26px Tahoma", muted, "center");
+    await drawIcon(item.icon, cx - 48, hourlyTop + 42, 96);
+    drawText(item.temp || "--", cx, hourlyTop + 150, "bold 32px Tahoma", white, "center");
+    drawText(item.precip || "", cx, hourlyTop + 204, "24px Tahoma", cyan, "center");
+  }
+
+  // Three-day forecast rows.
+  const dailyY = hourlyY + hourlyH + 34;
+  const dailyH = 500;
+  roundRect(margin, dailyY, contentWidth, dailyH, 30, "rgba(18,35,64,0.88)", "rgba(131,194,255,0.16)");
+  drawText("DỰ BÁO 3 NGÀY", margin + 32, dailyY + 28, "bold 28px Tahoma", white);
+  for (let i = 0; i < daily.length; i++) {
+    const item = daily[i] || {};
+    const rowY = dailyY + 96 + i * 126;
+    if (i > 0) {
+      ctx.strokeStyle = "rgba(255,255,255,0.10)";
+      ctx.beginPath();
+      ctx.moveTo(margin + 28, rowY - 22);
+      ctx.lineTo(width - margin - 28, rowY - 22);
+      ctx.stroke();
+    }
+    drawText(item.dateGroup?.day || `Ngày ${i + 1}`, margin + 34, rowY + 18, "bold 30px Tahoma", white);
+    drawText(item.dateGroup?.date || "", margin + 34, rowY + 58, "24px Tahoma", muted);
+    await drawIcon(item.iconTempGroup?.icon, margin + 270, rowY, 90);
+    const temp = item.iconTempGroup?.tempPhraseWrapper || {};
+    drawText(`${temp.high || "--"} / ${temp.low || "--"}`, margin + 390, rowY + 24, "bold 32px Tahoma", white);
+    const phrase = item.phraseGroup?.day || item.phraseGroup?.text || "";
+    drawText(truncate(phrase, 360, "28px Tahoma"), margin + 650, rowY + 28, "28px Tahoma", muted);
+    drawText(item.precipGroup?.value || "", width - margin - 34, rowY + 28, "bold 28px Tahoma", cyan, "right");
+  }
+
+  // Sunrise/sunset and air-quality footer.
+  const footerY = dailyY + dailyH + 34;
+  const footerH = 230;
+  roundRect(margin, footerY, contentWidth, footerH, 30, "rgba(18,35,64,0.88)", "rgba(131,194,255,0.16)");
+  const sunItems = data?.sunriseSunset?.items || [];
+  const sunText = sunItems.slice(0, 2).map((item) => {
+    const time = (item.times || []).map((t) => `${t.label || ""} ${t.value || ""}`).join(" · ");
+    return `${item.phrase || ""} ${time}`.trim();
+  }).filter(Boolean).join("   |   ");
+  drawText("MẶT TRỜI", margin + 34, footerY + 34, "bold 24px Tahoma", violet);
+  drawText(truncate(sunText || "Chưa có dữ liệu", 650, "28px Tahoma"), margin + 34, footerY + 78, "28px Tahoma", white);
+  drawText("CHẤT LƯỢNG KHÔNG KHÍ", margin + 750, footerY + 34, "bold 24px Tahoma", violet);
+  drawText(truncate(air.category || "Chưa có dữ liệu", 390, "bold 30px Tahoma"), margin + 750, footerY + 76, "bold 30px Tahoma", getAirQualityColor(air.category));
+  drawText(truncate(air.statement || "", 390, "24px Tahoma"), margin + 750, footerY + 124, "24px Tahoma", muted);
+
+  const outPath = path.join(tempDir, `weather-forecast_${Date.now()}.png`);
+  const out = fs.createWriteStream(outPath);
+  canvas.createPNGStream().pipe(out);
+  await new Promise((resolve, reject) => {
+    out.on("finish", resolve);
+    out.on("error", reject);
+  });
+  return outPath;
+}
+
+// Bản render cũ giữ lại tạm để dễ đối chiếu khi cần rollback.
+async function generateWeatherForeCastImageLegacy(data) {
+  const width = 1280;
+  const height = 1920;
 
   // Choose background provider (local assets folder or fallback)
   const imageDir = path.join(BACKGROUND_RESOURCE_PATH_TEMP, "1080x1920");

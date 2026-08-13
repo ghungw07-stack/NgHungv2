@@ -1,11 +1,33 @@
 import { createCanvas, loadImage } from "canvas";
+import { Canvas as SkiaCanvas, FontLibrary, loadImage as loadSkiaImage } from "skia-canvas";
 import fs from "fs";
 import path from "path";
-import * as cs from "./index.js";
 import { handleCheckLinkFromImageLocal } from "../local-upload-cache.js";
 import { FONT_MAIN, getFontCanvas } from "../format-util.js";
 
-export const linkBackgroundDefault = path.resolve("./assets/resources/images/hhhbot.png");
+const EVENT_FONT = "Manrope";
+FontLibrary.use(EVENT_FONT, [
+  path.resolve("./assets/fonts/Manrope-Regular.ttf"),
+  path.resolve("./assets/fonts/Manrope-SemiBold.ttf"),
+  path.resolve("./assets/fonts/Manrope-Bold.ttf"),
+]);
+
+function isValidUrl(value) {
+  try {
+    new URL(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function normalizeImageUrl(value) {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().replace(/\\\//g, "/").replace(/^\/\//, "https://");
+  return isValidUrl(normalized) ? normalized : null;
+}
+
+export const linkBackgroundDefault = path.resolve("./assets/resources/images/Google.png");
 export const linkBackgroundDefaultZalo = "https://files.catbox.moe/hiygtb.png";
 
 const CANVAS_CONFIG = {
@@ -54,9 +76,9 @@ const CARD_CONFIG = {
   shadowOffset: { x: 0, y: 10 }
 };
 const AVATAR_CONFIG = {
-  x: 200,
+  x: 210,
   y: 200,
-  size: 180,
+  size: 200,
   borderWidth: 5,
   glowRadius: 30
 };
@@ -71,7 +93,19 @@ async function loadImageWithRetry(url, maxRetries = 3, delay = 500) {
   let lastError;
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const img = await loadImage(url);
+      let imageSource = url;
+      if (/^https?:\/\//i.test(url)) {
+        const response = await fetch(url, {
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/135 Safari/537.36",
+            Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+          },
+          signal: AbortSignal.timeout(10000),
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        imageSource = Buffer.from(await response.arrayBuffer());
+      }
+      const img = await loadImage(imageSource);
       if (attempt > 1) {
         console.log(`✅ Thành công sau ${attempt} lần thử - URL: ${url}`);
       }
@@ -137,46 +171,27 @@ function getGradientColors(typeImage) {
   const palette = GRADIENT_PALETTES[typeImage] || GRADIENT_PALETTES.default;
   return [...palette].sort(() => Math.random() - 0.5);
 }
-async function drawBackground(ctx, width, height, userInfo) {
-  try {
-    const bg = await getLinkBackgroundDefault(userInfo);
-    if (bg) {
-      const scale = Math.max(width / bg.width, height / bg.height);
-      const scaledWidth = bg.width * scale;
-      const scaledHeight = bg.height * scale;
-      const x = (width - scaledWidth) / 2;
-      const y = (height - scaledHeight) / 2;
-      ctx.drawImage(bg, x, y, scaledWidth, scaledHeight);
-      const overlay = ctx.createLinearGradient(0, 0, width, height);
-      overlay.addColorStop(0, "rgba(0,0,0,0.7)");
-      overlay.addColorStop(0.5, "rgba(0,0,0,0.8)");
-      overlay.addColorStop(1, "rgba(0,0,0,0.85)");
-      ctx.fillStyle = overlay;
-      ctx.fillRect(0, 0, width, height);
-      const vignette = ctx.createRadialGradient(
-        width / 2, height / 2, 0,
-        width / 2, height / 2, Math.max(width, height) * 0.9
-      );
-      vignette.addColorStop(0, "rgba(0,0,0,0)");
-      vignette.addColorStop(0.7, "rgba(0,0,0,0.3)");
-      vignette.addColorStop(1, "rgba(0,0,0,0.6)");
-      ctx.fillStyle = vignette;
-      ctx.fillRect(0, 0, width, height);
-    } else {
-      const gradient = ctx.createLinearGradient(0, 0, width, height);
-      gradient.addColorStop(0, "#0a0a0a");
-      gradient.addColorStop(0.5, "#1a1a2e");
-      gradient.addColorStop(1, "#16213e");
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, width, height);
-    }
-  } catch (e) {
-    console.error("Lỗi background:", e);
-    const gradient = ctx.createLinearGradient(0, 0, width, height);
-    gradient.addColorStop(0, "#0a0a0a");
-    gradient.addColorStop(0.5, "#1a1a2e");
-    gradient.addColorStop(1, "#16213e");
-    ctx.fillStyle = gradient;
+async function drawBackground(ctx, width, height, userInfo, botId) {
+  drawBlendedEventBackground(ctx, width, height, getImageType(userInfo?.fileName || ""));
+}
+
+function drawBlendedEventBackground(ctx, width, height, type = IMAGE_TYPES.WELCOME) {
+  const welcome = type !== IMAGE_TYPES.GOODBYE && type !== IMAGE_TYPES.REMOVE_MEMBER;
+  const base = ctx.createLinearGradient(0, 0, width, height);
+  base.addColorStop(0, welcome ? "#17245c" : "#312342");
+  base.addColorStop(0.52, welcome ? "#12637a" : "#5e3b58");
+  base.addColorStop(1, welcome ? "#123b46" : "#26394c");
+  ctx.fillStyle = base;
+  ctx.fillRect(0, 0, width, height);
+
+  const blobs = welcome
+    ? [[.12, .12, .5, "rgba(134,89,255,.42)"], [.78, .18, .42, "rgba(39,191,255,.34)"], [.7, .95, .5, "rgba(42,238,172,.28)"]]
+    : [[.12, .18, .5, "rgba(238,91,151,.30)"], [.82, .12, .43, "rgba(139,100,255,.28)"], [.7, .95, .52, "rgba(45,158,190,.24)"]];
+  for (const [px, py, scale, color] of blobs) {
+    const glow = ctx.createRadialGradient(width * px, height * py, 0, width * px, height * py, width * scale);
+    glow.addColorStop(0, color);
+    glow.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = glow;
     ctx.fillRect(0, 0, width, height);
   }
 }
@@ -258,25 +273,17 @@ function drawBlockedIcon(ctx, x, y, size = 30) {
   ctx.restore();
 }
 async function drawAvatar(ctx, userInfo, gradientColors, showBlockedIcon = false) {
-  const { x, y, size, borderWidth, glowRadius } = AVATAR_CONFIG;
+  const { x, y, size, borderWidth } = AVATAR_CONFIG;
+  const avatarX = x - size / 2;
+  const avatarY = y - size / 2;
+  const radius = 24;
   const userAvatarUrl = userInfo.avatar;
-  if (!userAvatarUrl || !cs.isValidUrl(userAvatarUrl)) {
+  if (!userAvatarUrl || !isValidUrl(userAvatarUrl)) {
     console.error("URL avatar không hợp lệ:", userAvatarUrl);
     return;
   }
     try {
       const avatar = await loadImage(userAvatarUrl);
-    ctx.save();
-    const glowGradient = ctx.createRadialGradient(x, y, size / 2, x, y, size / 2 + glowRadius);
-    gradientColors.slice(0, 3).forEach((color, index) => {
-      glowGradient.addColorStop(index / 2, color + "80");
-      glowGradient.addColorStop(1, color + "00");
-    });
-    ctx.fillStyle = glowGradient;
-    ctx.beginPath();
-    ctx.arc(x, y, size / 2 + glowRadius, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
     ctx.save();
     const borderGradient = ctx.createLinearGradient(
       x - size / 2 - borderWidth,
@@ -291,17 +298,22 @@ async function drawAvatar(ctx, userInfo, gradientColors, showBlockedIcon = false
     ctx.shadowBlur = 20;
     ctx.shadowOffsetX = 0;
     ctx.shadowOffsetY = 0;
-      ctx.beginPath();
-    ctx.arc(x, y, size / 2 + borderWidth, 0, Math.PI * 2);
+    roundRect(
+      ctx,
+      avatarX - borderWidth,
+      avatarY - borderWidth,
+      size + borderWidth * 2,
+      size + borderWidth * 2,
+      radius + borderWidth
+    );
     ctx.fillStyle = borderGradient;
-      ctx.fill();
+    ctx.fill();
     ctx.restore();
     ctx.save();
-      ctx.beginPath();
-    ctx.arc(x, y, size / 2, 0, Math.PI * 2);
-      ctx.clip();
-    ctx.drawImage(avatar, x - size / 2, y - size / 2, size, size);
-      ctx.restore();
+    roundRect(ctx, avatarX, avatarY, size, size, radius);
+    ctx.clip();
+    ctx.drawImage(avatar, avatarX, avatarY, size, size);
+    ctx.restore();
     if (showBlockedIcon) {
       const iconX = x + size / 2 - 20;
       const iconY = y + size / 2 - 20;
@@ -422,7 +434,7 @@ function drawKeyIcon(ctx, x, y, size = 20) {
   ctx.fill();
   ctx.restore();
 }
-async function createImage(userInfo, message, fileName) {
+async function createImage(userInfo, message, fileName, botId) {
   const width = fileName.includes("update_group_o") 
     ? CANVAS_CONFIG.updateGroupO.width 
     : CANVAS_CONFIG.default.width;
@@ -431,8 +443,8 @@ async function createImage(userInfo, message, fileName) {
   const ctx = canvas.getContext("2d");
   const typeImage = getImageType(fileName);
   const gradientColors = getGradientColors(typeImage);
-  await drawBackground(ctx, width, height, userInfo);
-  drawDecorativeShapes(ctx, width, height, gradientColors);
+  await drawBackground(ctx, width, height, userInfo, botId);
+  // V1 giữ nền sạch, không vẽ các quầng/orb sáng hình tròn.
   drawGlassCard(ctx, width, height, gradientColors);
   const showBlockedIcon = typeImage === IMAGE_TYPES.BLOCKED || fileName.includes("kicked");
   await drawAvatar(ctx, userInfo, gradientColors, showBlockedIcon);
@@ -550,22 +562,293 @@ async function createImage(userInfo, message, fileName) {
     out.on("error", reject);
   });
 }
-export async function createWelcomeImage(userInfo, groupName, groupType, userActionName, isAdmin) {
-  const userName = userInfo.name || "";
-  const authorText = userActionName === userName 
-    ? "Tham Gia Trực Tiếp Hoặc Được Mời" 
-    : `Duyệt bởi ${userActionName}`;
-  return createImage(
-    userInfo,
-    {
-      title: `${groupName}`,
-      userName: `Chào mừng ${isAdmin ? "Cán Bộ " : ""}${userName}`,
-      subtitle: `Đã Tham Gia ${groupType ? (groupType === 2 ? "Cộng Đồng" : "Nhóm") : "Nhóm"}`,
-      author: `${authorText}`,
-      executedBy: userActionName ? `Executed by ${userActionName}` : "Executed by",
-    },
-    `welcome_${Date.now()}.png`
-  );
+async function createMemberEventImage({ userInfo, groupName, groupType, userActionName, isAdmin, event }) {
+  const width = 1200, height = 420;
+  // Dùng cùng engine/loader với ảnh info vì Skia tải ổn định ảnh CDN của Zalo.
+  const canvas = new SkiaCanvas(width, height);
+  const ctx = canvas.getContext("2d");
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  const welcome = event === "welcome";
+  const primary = welcome ? "#62f2ce" : "#ffad78";
+  const secondary = welcome ? "#72cfff" : "#ff718f";
+  const safe = (value, fallback = "") => {
+    const text = value == null ? "" : String(value).trim();
+    return !text || text.toLowerCase() === "undefined" ? fallback : text;
+  };
+  const rounded = (x, y, w, h, r, fill, stroke) => {
+    ctx.beginPath(); ctx.roundRect(x, y, w, h, r); ctx.fillStyle = fill; ctx.fill();
+    if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1; ctx.stroke(); }
+  };
+  const fit = (value, maxWidth, font) => {
+    const source = safe(value);
+    ctx.font = font;
+    if (ctx.measureText(source).width <= maxWidth) return source;
+    let end = source.length;
+    while (end > 0 && ctx.measureText(source.slice(0, end) + "…").width > maxWidth) end--;
+    return source.slice(0, end).trim() + "…";
+  };
+  const drawCover = (image, x, y, targetWidth, targetHeight) => {
+    const sourceRatio = image.width / image.height;
+    const targetRatio = targetWidth / targetHeight;
+    let sx = 0, sy = 0, sw = image.width, sh = image.height;
+    if (sourceRatio > targetRatio) {
+      sw = image.height * targetRatio;
+      sx = (image.width - sw) / 2;
+    } else {
+      sh = image.width / targetRatio;
+      sy = (image.height - sh) / 2;
+    }
+    ctx.drawImage(image, sx, sy, sw, sh, x, y, targetWidth, targetHeight);
+  };
+
+  const avatarUrls = [...new Set([
+    userInfo?.avatarFull,
+    userInfo?.avatar,
+    userInfo?.avatarFallback,
+  ].map(normalizeImageUrl).filter(Boolean))];
+  const coverUrl = normalizeImageUrl(userInfo?.cover);
+  const [avatar, cover] = await Promise.all([
+    (async () => {
+      for (const avatarUrl of avatarUrls) {
+        const image = await loadSkiaImage(avatarUrl).catch(() => null);
+        if (image) return image;
+      }
+      return null;
+    })(),
+    coverUrl && coverUrl !== linkBackgroundDefaultZalo && isValidUrl(coverUrl)
+      ? loadSkiaImage(coverUrl).catch(() => null)
+      : Promise.resolve(null),
+  ]);
+
+  // Avatar chỉ dành cho khung đại diện; nền phải là ảnh bìa của chính user.
+  if (cover) {
+    drawCover(cover, 0, 0, width, height);
+  } else {
+    drawBlendedEventBackground(ctx, width, height, welcome ? IMAGE_TYPES.WELCOME : IMAGE_TYPES.GOODBYE);
+  }
+
+  // Color wash giúp mọi loại ảnh bìa cùng một art direction.
+  const wash = ctx.createLinearGradient(0, 0, width, height);
+  wash.addColorStop(0, welcome ? "rgba(3,25,27,.14)" : "rgba(37,11,18,.16)");
+  wash.addColorStop(.5, "rgba(5,9,15,.25)");
+  wash.addColorStop(1, "rgba(4,7,12,.40)");
+  ctx.fillStyle = wash;
+  ctx.fillRect(0, 0, width, height);
+
+  const ambient = ctx.createRadialGradient(1000, 10, 0, 1000, 10, 430);
+  ambient.addColorStop(0, welcome ? "rgba(55,224,191,.24)" : "rgba(255,105,130,.22)");
+  ambient.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = ambient;
+  ctx.fillRect(0, 0, width, height);
+
+  // Main glass panel.
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,.55)";
+  ctx.shadowBlur = 28;
+  ctx.shadowOffsetY = 10;
+  rounded(28, 26, width - 56, height - 52, 30, "rgba(8,12,18,.30)");
+  ctx.restore();
+  const panelGradient = ctx.createLinearGradient(28, 26, width - 28, height - 26);
+  panelGradient.addColorStop(0, "rgba(16,24,30,.28)");
+  panelGradient.addColorStop(.52, "rgba(8,12,18,.36)");
+  panelGradient.addColorStop(1, "rgba(8,10,15,.48)");
+  rounded(28, 26, width - 56, height - 52, 30, panelGradient, "rgba(255,255,255,.15)");
+
+  const accentGradient = ctx.createLinearGradient(64, 0, 326, 0);
+  accentGradient.addColorStop(0, primary);
+  accentGradient.addColorStop(1, secondary);
+
+  const avatarSize = 270;
+  const avatarX = 66;
+  const avatarY = 76;
+  ctx.save();
+  ctx.shadowColor = welcome ? "rgba(98,242,206,.28)" : "rgba(255,113,143,.25)";
+  ctx.shadowBlur = 25;
+  rounded(avatarX - 4, avatarY - 4, avatarSize + 8, avatarSize + 8, 31, accentGradient);
+  ctx.restore();
+  rounded(avatarX, avatarY, avatarSize, avatarSize, 27, "rgba(255,255,255,.10)");
+  if (avatar) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(avatarX, avatarY, avatarSize, avatarSize, 27);
+    ctx.clip();
+    drawCover(avatar, avatarX, avatarY, avatarSize, avatarSize);
+    const avatarShade = ctx.createLinearGradient(0, avatarY, 0, avatarY + avatarSize);
+    avatarShade.addColorStop(.65, "rgba(0,0,0,0)");
+    avatarShade.addColorStop(1, "rgba(0,0,0,.24)");
+    ctx.fillStyle = avatarShade;
+    ctx.fillRect(avatarX, avatarY, avatarSize, avatarSize);
+    ctx.restore();
+  } else {
+    const fallback = ctx.createLinearGradient(avatarX, avatarY, avatarX + avatarSize, avatarY + avatarSize);
+    fallback.addColorStop(0, welcome ? "#173d3c" : "#482632");
+    fallback.addColorStop(1, "#121a24");
+    rounded(avatarX, avatarY, avatarSize, avatarSize, 27, fallback);
+    ctx.fillStyle = primary;
+    ctx.font = "700 100px " + EVENT_FONT;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(safe(userInfo?.name, "?").charAt(0).toUpperCase(), avatarX + avatarSize / 2, avatarY + avatarSize / 2 + 4);
+    ctx.textBaseline = "alphabetic";
+  }
+
+  const textX = 382;
+  const maxWidth = 748;
+  ctx.textAlign = "left";
+  ctx.fillStyle = primary;
+  ctx.font = "700 14px " + EVENT_FONT;
+  ctx.fillText(welcome ? "WELCOME TO THE COMMUNITY" : "THANK YOU FOR BEING WITH US", textX, 91);
+
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "700 50px " + EVENT_FONT;
+  const displayName = (isAdmin ? "Cán bộ " : "") + safe(userInfo?.name, "Thành viên");
+  ctx.fillText(fit(displayName, maxWidth, "700 50px " + EVENT_FONT), textX, 151);
+
+  ctx.fillStyle = "rgba(255,255,255,.68)";
+  ctx.font = "400 20px " + EVENT_FONT;
+  ctx.fillText(welcome ? "Đã tham gia" : "Đã rời khỏi", textX, 194);
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "700 28px " + EVENT_FONT;
+  ctx.fillText(fit(groupName, maxWidth, "700 28px " + EVENT_FONT), textX, 233);
+
+  ctx.strokeStyle = "rgba(255,255,255,.13)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(textX, 260);
+  ctx.lineTo(1129, 260);
+  ctx.stroke();
+
+  const actionText = welcome && userActionName && userActionName !== userInfo?.name
+    ? "Được duyệt bởi " + userActionName
+    : welcome ? "Chúc bạn có những phút giây thật vui tại đây" : "Hẹn gặp lại bạn vào một ngày gần nhất";
+  ctx.fillStyle = "rgba(255,255,255,.64)";
+  ctx.font = "400 18px " + EVENT_FONT;
+  ctx.fillText(fit(actionText, maxWidth, "400 18px " + EVENT_FONT), textX, 296);
+
+  const dateText = new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date());
+  const badgeText = `${groupType === 2 ? "CỘNG ĐỒNG" : "NHÓM CHAT"}  •  ${dateText}`;
+  ctx.font = "700 13px " + EVENT_FONT;
+  const badgeWidth = ctx.measureText(badgeText).width + 40;
+  rounded(textX, 321, badgeWidth, 38, 19, welcome ? "rgba(98,242,206,.12)" : "rgba(255,173,120,.12)", welcome ? "rgba(98,242,206,.28)" : "rgba(255,173,120,.26)");
+  ctx.fillStyle = primary;
+  ctx.fillText(badgeText, textX + 20, 346);
+
+  ctx.textAlign = "right";
+  ctx.fillStyle = "rgba(255,255,255,.34)";
+  ctx.font = "700 10px " + EVENT_FONT;
+  ctx.fillText("NGH • GROUP EVENT", 1129, 346);
+  ctx.textAlign = "left";
+
+  const filePath = path.resolve("./assets/temp/" + event + "_cover_simple_" + Date.now() + ".png");
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  await fs.promises.writeFile(filePath, await canvas.toBuffer("png"));
+  return filePath;
+}
+
+async function createMemberEventImageOld({ userInfo, groupName, groupType, userActionName, isAdmin, event }) {
+  const width = 1600;
+  const height = 560;
+  const canvas = createCanvas(width, height);
+  const ctx = canvas.getContext("2d");
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+
+  const isWelcome = event === "welcome";
+  const bg = ctx.createLinearGradient(0, 0, width, height);
+  if (isWelcome) {
+    bg.addColorStop(0, "#073d36");
+    bg.addColorStop(1, "#176b5b");
+  } else {
+    bg.addColorStop(0, "#262925");
+    bg.addColorStop(1, "#4b4d46");
+  }
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, width, height);
+
+  ctx.fillStyle = isWelcome ? "#f1c879" : "#b8bcb5";
+  ctx.fillRect(0, 0, 18, height);
+  ctx.globalAlpha = 0.07;
+  ctx.fillStyle = "#ffffff";
+  ctx.beginPath();
+  ctx.arc(1500, -30, 310, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  const avatarSize = 300;
+  const avatarX = 86;
+  const avatarY = 130;
+  ctx.fillStyle = isWelcome ? "#f1c879" : "#d6d8d3";
+  roundRect(ctx, avatarX - 9, avatarY - 9, avatarSize + 18, avatarSize + 18, 34);
+  ctx.fill();
+  let avatar = null;
+  try {
+    const url = userInfo.avatarFull || userInfo.avatar;
+    if (url && isValidUrl(url)) avatar = await loadImage(url);
+  } catch {}
+  ctx.save();
+  roundRect(ctx, avatarX, avatarY, avatarSize, avatarSize, 26);
+  ctx.clip();
+  if (avatar) ctx.drawImage(avatar, avatarX, avatarY, avatarSize, avatarSize);
+  else {
+    ctx.fillStyle = "#d9e3de";
+    ctx.fillRect(avatarX, avatarY, avatarSize, avatarSize);
+    ctx.fillStyle = "#174c42";
+    ctx.font = `bold 112px ${FONT_MAIN}`;
+    ctx.textAlign = "center";
+    ctx.fillText(String(userInfo.name || "?").charAt(0).toUpperCase(), avatarX + 150, avatarY + 190);
+  }
+  ctx.restore();
+
+  const textX = 450;
+  const maxTextWidth = width - textX - 80;
+  function fit(text, maxWidth, font) {
+    let output = String(text || "");
+    ctx.font = font;
+    if (ctx.measureText(output).width <= maxWidth) return output;
+    while (output.length > 1 && ctx.measureText(`${output}…`).width > maxWidth) output = output.slice(0, -1);
+    return `${output}…`;
+  }
+
+  ctx.textAlign = "left";
+  ctx.fillStyle = isWelcome ? "#f1c879" : "#c9cdc6";
+  ctx.font = `bold 22px ${FONT_MAIN}`;
+  ctx.fillText(isWelcome ? "THÀNH VIÊN MỚI" : "THÀNH VIÊN ĐÃ RỜI NHÓM", textX, 104);
+  ctx.fillStyle = "#ffffff";
+  const nameFont = `bold 60px ${FONT_MAIN}`;
+  const displayName = `${isAdmin ? "Cán bộ " : ""}${userInfo.name || "Thành viên"}`;
+  ctx.fillText(fit(displayName, maxTextWidth, nameFont), textX, 184);
+  ctx.fillStyle = "rgba(255,255,255,.82)";
+  ctx.font = `32px ${FONT_MAIN}`;
+  const place = groupType === 2 ? "cộng đồng" : "nhóm";
+  ctx.fillText(isWelcome ? `Chào mừng bạn đến với ${place}` : `Vừa rời khỏi ${place}`, textX, 238);
+
+  ctx.strokeStyle = "rgba(255,255,255,.18)";
+  ctx.beginPath();
+  ctx.moveTo(textX, 278);
+  ctx.lineTo(width - 80, 278);
+  ctx.stroke();
+  ctx.fillStyle = "rgba(255,255,255,.58)";
+  ctx.font = `20px ${FONT_MAIN}`;
+  ctx.fillText("NHÓM", textX, 326);
+  ctx.fillStyle = "#ffffff";
+  ctx.font = `bold 30px ${FONT_MAIN}`;
+  ctx.fillText(fit(groupName, maxTextWidth, `bold 30px ${FONT_MAIN}`), textX, 366);
+  ctx.fillStyle = "rgba(255,255,255,.58)";
+  ctx.font = `19px ${FONT_MAIN}`;
+  const actionText = isWelcome && userActionName && userActionName !== userInfo.name
+    ? `Được duyệt bởi ${userActionName}`
+    : isWelcome ? "Tham gia trực tiếp hoặc được mời" : "Hẹn gặp lại bạn";
+  ctx.fillText(fit(actionText, maxTextWidth, `19px ${FONT_MAIN}`), textX, 420);
+
+  const filePath = path.resolve(`./assets/temp/${event}_${Date.now()}.png`);
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  await fs.promises.writeFile(filePath, canvas.toBuffer("image/png"));
+  return filePath;
+}
+
+export async function createWelcomeImage(userInfo, groupName, groupType, userActionName, isAdmin, botId) {
+  return createMemberEventImage({ userInfo, groupName, groupType, userActionName, isAdmin, event: "welcome" });
 }
 export async function createUpdateMemberGroupImage(userInfo, groupName, groupType, userActionName, typeUpdate) {
   const userName = userInfo.name || "";
@@ -615,19 +898,8 @@ export async function createUpdateSettingGroupImage(userActionInfo, setting, gro
     `${setting.value ? "update_group_on" : "update_group_off"}_${Date.now()}.png`
   );
 }
-export async function createGoodbyeImage(userInfo, groupName, groupType, isAdmin) {
-  const userName = userInfo.name || "";
-  return createImage(
-    userInfo,
-    {
-      title: "Member Left The Group",
-      userName: `${isAdmin ? "Cán Bộ " : ""}${userName}`,
-      subtitle: `Vừa rời khỏi ${groupType ? (groupType === 2 ? "Cộng Đồng" : "Nhóm") : "Nhóm"}`,
-      author: `${groupName}`,
-      executedBy: `Executed by ${userName}`,
-    },
-    `goodbye_${Date.now()}.png`
-  );
+export async function createGoodbyeImage(userInfo, groupName, groupType, isAdmin, botId) {
+  return createMemberEventImage({ userInfo, groupName, groupType, isAdmin, event: "goodbye" });
 }
 export async function createKickImage(userInfo, groupName, groupType, gender, userActionName, isAdmin) {
   const userName = userInfo.name || "";

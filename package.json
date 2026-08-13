@@ -1,13 +1,16 @@
 {
   "name": "zlbotdqt",
-  "version": "2.0.3",
+  "version": "1.5.5",
+  "engines": {
+    "node": ">=24 <25"
+  },
   "main": "src/api-zalo/index.js",
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
     "bot": "node bot.js"
   },
-  "author": "NDQ x LQT",
+  "author": "NGH",
   "license": "ISC",
   "description": "A Project ChatBot Zalo Code by DQT",
   "dependencies": {
@@ -19,7 +22,8 @@
     "axios": "^1.11.0",
     "axios-cookiejar-support": "^6.0.4",
     "big.js": "^7.0.1",
-    "canvas": "^2.11.2",
+    "canvas": "^3.2.3",
+    "chalk": "^5.4.1",
     "cheerio": "^1.1.2",
     "cloudmersive-convert-api-client": "^2.8.0",
     "crypto": "^1.0.1",
@@ -43,8 +47,8 @@
     "lru-cache": "^11.1.0",
     "lunar-calendar": "^0.1.4",
     "lzma-purejs": "^0.9.3",
+    "mongodb": "^6.17.0",
     "multer": "^1.4.5-lts.1",
-    "mysql2": "^3.14.4",
     "natural": "^8.0.1",
     "node-fetch": "^3.3.2",
     "node-schedule": "^2.1.1",
@@ -52,6 +56,7 @@
     "nsfwjs": "^4.2.1",
     "otplib": "^12.0.1",
     "pako": "^2.1.0",
+    "pdfjs-dist": "^5.4.149",
     "puppeteer": "^24.18.0",
     "puppeteer-real-browser": "^1.4.2",
     "pureimage": "^0.4.18",

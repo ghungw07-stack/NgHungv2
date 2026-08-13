@@ -99,7 +99,6 @@ async function sendWarningMessage(api, message, senderId, senderName, threadId) 
       {
         msg: caption,
         mentions: [MessageMention(senderId, senderName.length, "⚠️ Cảnh cáo ".length)],
-        quote: message,
         ttl: 300000,
       },
       threadId,

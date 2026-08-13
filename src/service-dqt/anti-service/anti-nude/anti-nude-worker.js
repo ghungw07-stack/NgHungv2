@@ -9,14 +9,9 @@ const initModel = async () => {
   try {
     if (!model) {
       model = await nsfwjs.load(); //"InceptionV3"
-      parentPort.postMessage({ type: "init", success: true });
     }
   } catch (error) {
-    parentPort.postMessage({
-      type: "init",
-      success: false,
-      error: error.message,
-    });
+    throw error;
   }
 };
 
@@ -33,17 +28,18 @@ async function analyzeImage(imageBuffer) {
   const { data, width, height } = await loadImageWithSharp(imageBuffer);
   const imageData = { data, width, height };
   const predictions = await model.classify(imageData);
-  const nsfw_score = predictions.reduce((score, pred) => {
-    if (["Porn", "Sexy", "Hentai"].includes(pred.className)) {
-      return score + pred.probability;
-    }
-    return score;
-  }, 0);
+  const probabilityByClass = Object.fromEntries(
+    predictions.map(({ className, probability }) => [className, probability])
+  );
 
-  return nsfw_score * 100;
+  // Porn/Hentai là tín hiệu nội dung lộ liễu. "Sexy" của NSFWJS dễ bắt
+  // nhầm ảnh chân dung, đồ thể thao hoặc ảnh nhiều màu da, nên giảm trọng số
+  // thay vì cộng thẳng cả ba lớp như trước.
+  const explicitScore = (probabilityByClass.Porn || 0) + (probabilityByClass.Hentai || 0);
+  const suggestiveScore = (probabilityByClass.Sexy || 0) * 0.75;
+
+  return Math.max(explicitScore, suggestiveScore) * 100;
 }
-
-initModel();
 
 const picpurifyUrl = "https://www.picpurify.com/analyse/1.1";
 export let API_KEY_PICPURIFY = "eW470CfhLhbA8UASItPKtLHAKYzd8PUF";
@@ -104,7 +100,6 @@ async function analyzeImageApiPICPURIFY(srcCheck) {
 
 parentPort.on("message", async (data) => {
   try {
-    if (!model) throw new Error("Model chưa được khởi tạo");
     const score = await analyzeImage(data.imageBuffer);
     // const score = await analyzeImageApiPICPURIFY(data.imageBuffer);
     parentPort.postMessage({ type: "result", success: true, score });

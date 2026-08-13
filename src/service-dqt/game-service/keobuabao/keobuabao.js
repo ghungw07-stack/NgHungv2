@@ -1,4 +1,4 @@
-import { updatePlayerBalance, getPlayerBalance } from "../../../database/player.js";
+import { updatePlayerBalance, getPlayerBalance, addGameRankPoints } from "../../../database/player.js";
 import { isHaveLoginAccount, nameServer } from "../../../database/index.js";
 import { checkBeforeJoinGame, checkPlayerBanned } from "../index.js";
 import { formatCurrency, parseGameAmount } from "../../../utils/format-util.js";
@@ -106,6 +106,7 @@ export async function handleKBBCommand(api, message, groupSettings) {
 
   // Cập nhật số dư
   await updatePlayerBalance(senderId, netWinnings, result === "win");
+  await addGameRankPoints(senderId, { won: result === "win" });
 
   // Format tin nhắn kết quả
   const resultMessage = formatResultMessage(

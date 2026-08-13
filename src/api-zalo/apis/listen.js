@@ -256,9 +256,14 @@ export class Listener extends EventEmitter {
         if (data.fileUrl && !data.fileUrl.includes("createby=")) {
           data.fileUrl = data.fileUrl + (data.fileUrl.includes("?") ? "&" : "?") + "createby=NguyenGiaHung_Bot";
         }
-        const uploadCallback = this.appContext.uploadCallbacks.get(String(control.content.fileId));
-        if (uploadCallback) uploadCallback(data);
-        this.appContext.uploadCallbacks.delete(String(control.content.fileId));
+        const callbackKey = String(control.content.fileId);
+        const uploadCallback = this.appContext.uploadCallbacks.get(callbackKey);
+        if (uploadCallback) {
+          uploadCallback(data);
+          this.appContext.uploadCallbacks.delete(callbackKey);
+        } else {
+          this.appContext.uploadResults?.set(callbackKey, data);
+        }
         this.emit("upload_attachment", data);
       } else if (control.content.act_type == "voice_aac_success") {
         const data = {
@@ -268,9 +273,14 @@ export class Listener extends EventEmitter {
         if (data.fileUrl && !data.fileUrl.includes("createby=")) {
           data.fileUrl = data.fileUrl + (data.fileUrl.includes("?") ? "&" : "?") + "createby=NguyenGiaHung_Bot";
         }
-        const uploadCallback = this.appContext.uploadCallbacks.get(String(control.content.fileId));
-        if (uploadCallback) uploadCallback(data);
-        this.appContext.uploadCallbacks.delete(String(control.content.fileId));
+        const callbackKey = String(control.content.fileId);
+        const uploadCallback = this.appContext.uploadCallbacks.get(callbackKey);
+        if (uploadCallback) {
+          uploadCallback(data);
+          this.appContext.uploadCallbacks.delete(callbackKey);
+        } else {
+          this.appContext.uploadResults?.set(callbackKey, data);
+        }
         this.emit("upload_attachment", data);
       } else if (control.content.act_type == "group") {
         if (control.content.act == "join_reject") continue;

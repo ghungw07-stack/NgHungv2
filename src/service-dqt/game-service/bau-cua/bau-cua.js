@@ -3,7 +3,7 @@ import path from "path";
 import fs from "fs";
 import chalk from "chalk";
 import Big from "big.js";
-import { updatePlayerBalance, getPlayerBalance } from "../../../database/player.js";
+import { updatePlayerBalance, getPlayerBalance, addGameRankPoints } from "../../../database/player.js";
 import { nameServer } from "../../../database/index.js";
 import { checkBeforeJoinGame } from "../index.js";
 import { formatCurrency, normalizeSymbolName, parseGameAmount } from "../../../utils/format-util.js";
@@ -58,6 +58,8 @@ const SYMBOL_ICON_NAME = Object.fromEntries(Object.values(SYMBOLS).map((s) => [s
 
 const MAX_JACKPOT_MULTIPLIER = 1000;
 const JACKPOT_CONTRIBUTION_PERCENT = 0.6;
+const JACKPOT_CHANCE = 0.07;
+const HOUSE_BIAS_CHANCE = 0.65;
 
 // Thêm hàm khởi tạo dữ liệu
 export async function initializeGameBauCua() {
@@ -79,14 +81,9 @@ async function saveGameData() {
 }
 
 // Sửa hàm kiểm tra nổ hũ
-function checkJackpot(result, bets) {
-  // Kiểm tra 3 con có giống nhau không
-  if (result[0] === result[1] && result[1] === result[2]) {
-    const jackpotSymbol = result[0];
-    // Kiểm tra người chơi có đặt cược vào con này không
-    return bets.hasOwnProperty(jackpotSymbol);
-  }
-  return false;
+function checkJackpot(netWinnings) {
+  // Chỉ vé cược đang thắng mới được quay hũ, xác suất cố định và không theo số dư.
+  return new Big(netWinnings).gt(0) && Math.random() < JACKPOT_CHANCE;
 }
 
 // Sửa đổi hàm xử lý lệnh bầu cua
@@ -162,7 +159,7 @@ export async function handleBauCua(api, message, groupSettings) {
 
   // Kiểm tra nổ hũ với điều kiện mới
   let jackpotAmount = new Big(0);
-  let isJackpot = checkJackpot(result, bets);
+  let isJackpot = checkJackpot(netWinnings);
 
   if (isJackpot) {
     // Giới hạn tiền thắng từ hũ (1000% tiền cược)
@@ -183,6 +180,7 @@ export async function handleBauCua(api, message, groupSettings) {
 
   // Cập nhật số dư người chơi với tổng tiền thắng/thua
   await updatePlayerBalance(senderId, netWinnings, isWin || isJackpot);
+  await addGameRankPoints(senderId, { won: isWin || isJackpot, jackpot: isJackpot });
 
   // Lưu dữ liệu game
   await saveGameData();
@@ -290,17 +288,22 @@ async function parseBets(content, currentBalance) {
 }
 
 function rollDice(playerBets) {
-  const result = [];
-  const availableSymbols = [...SYMBOL_LIST];
+  const randomRoll = () => Array.from({ length: 3 }, () => SYMBOL_LIST[Math.floor(Math.random() * SYMBOL_LIST.length)]);
+  if (Math.random() >= HOUSE_BIAS_CHANCE) return randomRoll();
 
-  // Điền các symbol còn lại
-  while (result.length < 3) {
-    const randomIndex = Math.floor(Math.random() * availableSymbols.length);
-    const randomSymbol = availableSymbols[randomIndex];
-    result.push(randomSymbol);
+  // Chọn trong nhiều lượt lắc hợp lệ kết quả có nghĩa vụ trả thưởng thấp nhất.
+  // Chỉ xét chính vé cược hiện tại, tuyệt đối không đọc số dư người chơi.
+  let bestResult = randomRoll();
+  let bestPayout = calculateWinnings(playerBets, bestResult);
+  for (let attempt = 1; attempt < 24; attempt++) {
+    const candidate = randomRoll();
+    const payout = calculateWinnings(playerBets, candidate);
+    if (payout.lt(bestPayout)) {
+      bestResult = candidate;
+      bestPayout = payout;
+    }
   }
-
-  return result;
+  return bestResult;
 }
 
 function calculateWinnings(bets, result) {

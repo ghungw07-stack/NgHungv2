@@ -1,9 +1,9 @@
 import { GoogleGenAI } from "@google/genai";
-import { getApiKeysMedia } from "../../../utils/api-key-manager.js";
+import { getNextApiKeyMedia } from "../../../utils/api-key-manager.js";
 import { Queue } from "../../utilities/queue.js";
 
-const genAI = new GoogleGenAI({ apiKey: getApiKeysMedia("GEMINI")[0] });
-const MODEL_CHAT = "gemini-2.5-flash";
+const createGeminiClient = () => new GoogleGenAI({ apiKey: getNextApiKeyMedia("GEMINI") });
+const MODEL_CHAT = "gemini-3.6-flash";
 const MODEL_INTENT = "gemini-2.5-flash-lite";
 
 const systemInstructionChat = `Bạn là trợ lý trò chuyện thân thiện và súc tích. Luôn đi thẳng trọng tâm, không dài dòng.
@@ -57,6 +57,7 @@ function sleep(ms) {
 }
 
 async function generateContentWithRetry(payload) {
+  const genAI = createGeminiClient();
   try {
     return await genAI.models.generateContent(payload);
   } catch (e) {
@@ -70,13 +71,11 @@ async function generateContentWithRetry(payload) {
 
 function getChatSessionAssistant(userId) {
   if (!chatSessionsAssistant.has(userId)) {
+    const genAI = createGeminiClient();
     const chat = genAI.chats.create({
       model: MODEL_CHAT,
       config: {
         systemInstruction: systemInstructionChat,
-        temperature: 0.6,
-        topP: 0.8,
-        topK: 40,
         maxOutputTokens: 1024,
       },
     });

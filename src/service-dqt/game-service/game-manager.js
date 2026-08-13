@@ -60,6 +60,15 @@ function saveGameData() {
   }
 }
 
+// Dùng cho các lệnh quản trị cần đảm bảo dữ liệu đã nằm trên đĩa
+// trước khi báo thao tác thành công.
+export function saveGameDataNow() {
+  saveGameData();
+  Object.keys(gameState.changes).forEach((key) => {
+    gameState.changes[key] = false;
+  });
+}
+
 // Hàm kiểm tra và lưu thay đổi
 async function checkAndSaveChanges() {
   const hasChanges = Object.values(gameState.changes).some((change) => change);

@@ -3,8 +3,32 @@ import { sendMessageStateQuote } from "../chat-zalo/chat-style/chat-style.js";
 import { getMessageByThreadAndMsgId, markMessageUndo } from "../../utils/message-cache.js";
 
 const undoQueue = [];
+const queuedUndoKeys = new Set();
 let isProcessingQueue = false;
 const TIME_SHOW_UNDO_MESSAGE = 300000;
+const MAX_UNDO_QUEUE_SIZE = 100;
+const UNDO_QUEUE_DELAY_MS = 250;
+
+function getUndoQueueKey(api, undoEvent) {
+  const botId = api?.getBotId?.() || "unknown";
+  const threadId = undoEvent?.data?.idTo || "unknown";
+  const rawContent = undoEvent?.data?.content;
+  const content = Array.isArray(rawContent) ? rawContent[0] : rawContent;
+  const messageId =
+    content?.globalMsgId ||
+    content?.globalDelMsgId ||
+    content?.clientMsgId ||
+    content?.clientDelMsgId ||
+    undoEvent?.data?.msgId ||
+    `${undoEvent?.data?.uidFrom || "unknown"}:${undoEvent?.data?.ts || Date.now()}`;
+  return `${botId}:${threadId}:${messageId}`;
+}
+
+function getUndoMessageId(undoEvent) {
+  const rawContent = undoEvent?.data?.content;
+  const content = Array.isArray(rawContent) ? rawContent[0] : rawContent;
+  return (content?.globalMsgId || content?.globalDelMsgId)?.toString();
+}
 
 function parseParams(params) {
   if (typeof params === "string") {
@@ -94,13 +118,16 @@ async function processUndoQueue() {
   if (isProcessingQueue || undoQueue.length === 0) return;
 
   isProcessingQueue = true;
-  const { api, undoEvent, isAdminBox, groupSettings, botIsAdminBox, isSelf } = undoQueue.shift();
+  const queueItem = undoQueue.shift();
+  const { api, undoEvent, isAdminBox, groupSettings, botIsAdminBox, isSelf, queueKey } = queueItem;
 
   try {
     await processUndo(api, undoEvent, isAdminBox, groupSettings, botIsAdminBox, isSelf);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, UNDO_QUEUE_DELAY_MS));
   } catch (error) {
     console.error("Lỗi khi xử lý tin nhắn thu hồi trong queue:", error);
+  } finally {
+    queuedUndoKeys.delete(queueKey);
   }
 
   isProcessingQueue = false;
@@ -115,7 +142,7 @@ async function processUndo(api, undoEvent, isAdminBox, groupSettings, botIsAdmin
     return;
   }
 
-  const messageId = undoEvent.data?.content?.globalMsgId?.toString();
+  const messageId = getUndoMessageId(undoEvent);
   if (!messageId) {
     return;
   }
@@ -361,6 +388,15 @@ async function processUndo(api, undoEvent, isAdminBox, groupSettings, botIsAdmin
 }
 
 export async function antiUndoGroup(api, undoEvent, isAdminBox, groupSettings, botIsAdminBox, isSelf) {
-  undoQueue.push({ api, undoEvent, isAdminBox, groupSettings, botIsAdminBox, isSelf });
+  const queueKey = getUndoQueueKey(api, undoEvent);
+  if (queuedUndoKeys.has(queueKey)) return;
+
+  if (undoQueue.length >= MAX_UNDO_QUEUE_SIZE) {
+    const droppedItem = undoQueue.shift();
+    if (droppedItem?.queueKey) queuedUndoKeys.delete(droppedItem.queueKey);
+  }
+
+  queuedUndoKeys.add(queueKey);
+  undoQueue.push({ api, undoEvent, isAdminBox, groupSettings, botIsAdminBox, isSelf, queueKey });
   processUndoQueue();
 }

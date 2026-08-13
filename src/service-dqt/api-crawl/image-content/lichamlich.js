@@ -192,6 +192,175 @@ const toCanChi = (gz) => (stems[gz[0]] || "") + " " + (branches[gz[1]] || "");
 var hd = new Holidays();
 hd.init("VN");
 
+function roundedRect(ctx, x, y, width, height, radius = 28) {
+  const r = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + width, y, x + width, y + height, r);
+  ctx.arcTo(x + width, y + height, x, y + height, r);
+  ctx.arcTo(x, y + height, x, y, r);
+  ctx.arcTo(x, y, x + width, y, r);
+  ctx.closePath();
+}
+
+function wrapCalendarText(ctx, text, maxWidth, maxLines = 3) {
+  const words = String(text || "").trim().split(/\s+/).filter(Boolean);
+  const lines = [];
+  let line = "";
+  for (const word of words) {
+    const next = line ? `${line} ${word}` : word;
+    if (!line || ctx.measureText(next).width <= maxWidth) line = next;
+    else {
+      lines.push(line);
+      line = word;
+      if (lines.length === maxLines) break;
+    }
+  }
+  if (line && lines.length < maxLines) lines.push(line);
+  if (lines.length === maxLines && words.join(" ") !== lines.join(" ")) {
+    while (lines[maxLines - 1].length > 1 && ctx.measureText(`${lines[maxLines - 1]}…`).width > maxWidth) {
+      lines[maxLines - 1] = lines[maxLines - 1].slice(0, -1);
+    }
+    lines[maxLines - 1] += "…";
+  }
+  return lines;
+}
+
+function drawInfoCard(ctx, { x, y, width, title, value, accent, icon, minHeight = 150 }) {
+  ctx.save();
+  ctx.font = "600 32px Tahoma";
+  const lines = wrapCalendarText(ctx, value || "Đang cập nhật", width - 72, 3);
+  const height = Math.max(minHeight, 84 + lines.length * 43);
+
+  roundedRect(ctx, x, y, width, height, 30);
+  ctx.fillStyle = "rgba(13, 20, 31, 0.78)";
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,0.12)";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  roundedRect(ctx, x + 24, y + 24, 52, 52, 16);
+  ctx.fillStyle = `${accent}2b`;
+  ctx.fill();
+  ctx.font = "28px Tahoma";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = accent;
+  ctx.fillText(icon, x + 50, y + 50);
+
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+  ctx.font = "700 28px Tahoma";
+  ctx.fillStyle = accent;
+  ctx.fillText(title.toUpperCase(), x + 92, y + 32);
+  ctx.font = "600 32px Tahoma";
+  ctx.fillStyle = "#f8fafc";
+  lines.forEach((line, index) => ctx.fillText(line, x + 36, y + 91 + index * 43));
+  ctx.restore();
+  return height;
+}
+
+function drawModernLunarCalendar(ctx, data) {
+  const { width, height } = ctx.canvas;
+  const margin = 64;
+  const contentWidth = width - margin * 2;
+
+  const shade = ctx.createLinearGradient(0, 0, 0, height);
+  shade.addColorStop(0, "rgba(5,10,18,0.35)");
+  shade.addColorStop(0.42, "rgba(5,10,18,0.70)");
+  shade.addColorStop(1, "rgba(4,8,15,0.96)");
+  ctx.fillStyle = shade;
+  ctx.fillRect(0, 0, width, height);
+
+  const glow = ctx.createRadialGradient(width * 0.8, 180, 20, width * 0.8, 180, 600);
+  glow.addColorStop(0, "rgba(251,191,36,0.24)");
+  glow.addColorStop(1, "rgba(251,191,36,0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, width, 800);
+
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+  ctx.fillStyle = "rgba(255,255,255,0.72)";
+  ctx.font = "700 28px Tahoma";
+  ctx.fillText("LỊCH VIỆT • HÔM NAY", margin, 62);
+  ctx.textAlign = "right";
+  ctx.fillStyle = "#fbbf24";
+  ctx.font = "700 42px Tahoma";
+  ctx.fillText(data.timeText, width - margin, 52);
+
+  ctx.textAlign = "left";
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "800 60px Tahoma";
+  ctx.fillText(data.weekdayName, margin, 150);
+  ctx.font = "900 300px Tahoma";
+  ctx.fillStyle = "#f8fafc";
+  ctx.fillText(String(data.day).padStart(2, "0"), margin - 10, 190);
+
+  ctx.fillStyle = "#fbbf24";
+  ctx.font = "800 62px Tahoma";
+  ctx.fillText(`THÁNG ${String(data.month).padStart(2, "0")}`, 610, 295);
+  ctx.fillStyle = "rgba(255,255,255,0.92)";
+  ctx.font = "800 92px Tahoma";
+  ctx.fillText(String(data.year), 610, 365);
+
+  roundedRect(ctx, margin, 540, contentWidth, 300, 38);
+  const lunarGradient = ctx.createLinearGradient(margin, 540, width - margin, 840);
+  lunarGradient.addColorStop(0, "rgba(120,53,15,0.92)");
+  lunarGradient.addColorStop(1, "rgba(55,24,8,0.86)");
+  ctx.fillStyle = lunarGradient;
+  ctx.fill();
+  ctx.strokeStyle = "rgba(251,191,36,0.38)";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.fillStyle = "#fde68a";
+  ctx.font = "700 28px Tahoma";
+  ctx.fillText("ÂM LỊCH", margin + 42, 580);
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "900 104px Tahoma";
+  ctx.fillText(`${String(data.lunarDay).padStart(2, "0")} / ${String(data.lunarMonth).padStart(2, "0")}`, margin + 38, 628);
+  ctx.fillStyle = "rgba(255,255,255,0.82)";
+  ctx.font = "600 32px Tahoma";
+  ctx.fillText(`Năm ${data.canChi.namCanChi} • ${data.canChi.conGiapNam}`, margin + 44, 758);
+
+  ctx.textAlign = "right";
+  ctx.fillStyle = "#fde68a";
+  ctx.font = "700 30px Tahoma";
+  ctx.fillText(`Ngày ${data.canChi.ngayCanChi}`, width - margin - 42, 604);
+  ctx.fillStyle = "rgba(255,255,255,0.82)";
+  ctx.fillText(`Tháng ${data.canChi.thangCanChi}`, width - margin - 42, 658);
+  ctx.fillText(`Năm ${data.canChi.namCanChi}`, width - margin - 42, 712);
+  ctx.textAlign = "left";
+
+  let y = 878;
+  const holidays = data.holidays.slice(0, 2);
+  if (holidays.length) {
+    const holidayText = holidays.map((item) => `${item._isUpcoming ? item.rule : "Hôm nay"}: ${item.name}`).join("  •  ");
+    y += drawInfoCard(ctx, { x: margin, y, width: contentWidth, title: "Ngày đặc biệt", value: holidayText, accent: "#fbbf24", icon: "✦" }) + 20;
+  }
+
+  const gap = 20;
+  const half = (contentWidth - gap) / 2;
+  const goodText = data.auspiciousHour?.slice(0, 6).join(" • ") || "Chưa có dữ liệu";
+  const badText = data.inauspiciousHours?.slice(0, 6).join(" • ") || "Chưa có dữ liệu";
+  const goodH = drawInfoCard(ctx, { x: margin, y, width: half, title: "Giờ hoàng đạo", value: goodText, accent: "#4ade80", icon: "✓", minHeight: 260 });
+  const badH = drawInfoCard(ctx, { x: margin + half + gap, y, width: half, title: "Giờ hắc đạo", value: badText, accent: "#fb7185", icon: "!", minHeight: 260 });
+  y += Math.max(goodH, badH) + 20;
+
+  const direction = data.huongXuatHanh?.join(" • ") || "Thông tin hướng xuất hành đang được cập nhật";
+  y += drawInfoCard(ctx, { x: margin, y, width: contentWidth, title: "Hướng xuất hành", value: direction, accent: "#60a5fa", icon: "➜", minHeight: 190 }) + 20;
+
+  const footerY = height - margin - 112;
+  roundedRect(ctx, margin, footerY, contentWidth, 112, 30);
+  ctx.fillStyle = "rgba(255,255,255,0.07)";
+  ctx.fill();
+  ctx.fillStyle = "rgba(255,255,255,0.58)";
+  ctx.font = "600 27px Tahoma";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("Bình an trong tâm • Thuận lợi trong ngày", width / 2, footerY + 56);
+}
+
 export async function generateLunarCalendarImage() {
   const width = 1280;
   const height = 1920;
@@ -360,10 +529,34 @@ export async function generateLunarCalendarImage() {
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext("2d");
 
-  ctx.save();
-  ctx.globalAlpha = 0.6;
-  ctx.drawImage(img, 0, 0, width, height);
-  ctx.restore();
+  if (img) ctx.drawImage(img, 0, 0, width, height);
+  else {
+    const fallback = ctx.createLinearGradient(0, 0, width, height);
+    fallback.addColorStop(0, "#172033");
+    fallback.addColorStop(1, "#060a12");
+    ctx.fillStyle = fallback;
+    ctx.fillRect(0, 0, width, height);
+  }
+
+  drawModernLunarCalendar(ctx, {
+    timeText,
+    weekdayName: ["CHỦ NHẬT", "THỨ HAI", "THỨ BA", "THỨ TƯ", "THỨ NĂM", "THỨ SÁU", "THỨ BẢY"][now.getDay()],
+    day,
+    month,
+    year,
+    lunarDay,
+    lunarMonth,
+    lunarYear,
+    canChi: vnStringDate,
+    holidays: holidayNow,
+    auspiciousHour,
+    inauspiciousHours,
+    huongXuatHanh,
+  });
+
+  const modernOutPath = path.join(tempDir, `lunar-calendar-${Date.now()}.png`);
+  await fs.promises.writeFile(modernOutPath, canvas.toBuffer("image/png"));
+  return modernOutPath;
 
   try {
     const dateText = `${weekday}, Ngày ${day} Tháng ${month} Năm ${year}`;

@@ -36,7 +36,7 @@ export async function createLesCheckImage(name, percent, msgType = "gay", avatar
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext("2d");
 
-  const bgPath = path.resolve("./assets/resources/images/hhhbot.png");
+  const bgPath = path.resolve("./assets/resources/images/Google.png");
   try {
     const bg = await loadImage(bgPath);
     ctx.drawImage(bg, 0, 0, width, height);
@@ -114,7 +114,7 @@ export async function createLesCheckImage(name, percent, msgType = "gay", avatar
   ctx.font = "italic 15px Arial";
   ctx.fillStyle = "rgba(255,255,255,0.5)";
   ctx.textAlign = "center";
-  ctx.fillText("Bot 2.0.3 by Ha Huy Hoang", width / 2, height - 20);
+  ctx.fillText("Bot 1.5.5 by Ha Huy Hoang", width / 2, height - 20);
 
   const outputDir = "./assets/temp";
   await fsPromises.mkdir(outputDir, { recursive: true });

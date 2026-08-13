@@ -6,6 +6,7 @@ import {
   getPlayerBalance,
   updatePlayerBalanceByUsername,
   setLoserGameByUsername,
+  addGameRankPoints,
 } from "../../../database/player.js";
 import {
   COLOR_RED,
@@ -235,6 +236,10 @@ async function endGame(api) {
         playerText += `\nLỗi cập nhật tiền thắng, vui lòng liên hệ admin!\n`;
       }
     }
+    await addGameRankPoints(playerId, {
+      won: playerTotalWin.gt(0),
+      jackpot: playerResults.some((item) => item.matches === 6),
+    });
 
     resultText += playerText + "\n";
 
@@ -315,7 +320,7 @@ async function placeBet(api, message, threadId, senderId, amount, numbers) {
   if (!username) {
     await sendMessageFromSQL(api, message, {
       success: false,
-      message: "Không tìm thấy thông tin tài khoản.",
+      message: "Không thể khởi tạo hồ sơ game. Vui lòng thử lại.",
     });
     return;
   }
@@ -574,6 +579,13 @@ export async function initializeGameVietlott655(api) {
 }
 
 export function getJackpot() {
+  return jackpot;
+}
+
+export function resetJackpot() {
+  jackpot = new Big(1000000);
+  gameState.data.vietlott655.jackpot = jackpot.toString();
+  gameState.changes.vietlott655 = true;
   return jackpot;
 }
 

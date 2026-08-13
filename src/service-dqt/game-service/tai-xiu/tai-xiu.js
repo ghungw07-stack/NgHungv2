@@ -2,7 +2,7 @@ import fs from "fs/promises";
 import path from "path";
 import chalk from "chalk";
 import { MultiMsgStyle, MessageStyle, MessageType } from "../../../api-zalo/index.js";
-import { getApiManager, isAdmin } from "../../../index.js";
+import { getApiManager } from "../../../index.js";
 import {
   updatePlayerBalance,
   getPlayerBalance,
@@ -10,6 +10,7 @@ import {
   setLoserGameByUsername,
   getUsernameByIdZalo,
   updatePlayerBalanceByUsername,
+  addGameRankPoints,
 } from "../../../database/player.js";
 import {
   sendMessageFromSQL,
@@ -43,9 +44,9 @@ const TIME_SEND_UPDATE = 10000; // 10 giây
 const TTL_IMAGE = 10800000;
 
 const WIN_PERCENT = 1000; // x1000
-
-// Thêm biến để lưu trữ kết quả được chỉ định
-let forcedResult = null;
+const NORMAL_PAYOUT_MULTIPLIER = 1.9; // Trả cả gốc, nhà cái giữ lợi thế 5%
+const JACKPOT_CHANCE = 0.07;
+const HOUSE_BIAS_CHANCE = 0.65;
 
 // Thêm biến lưu lịch sử kết quả (giới hạn 15 kết quả gần nhất)
 const MAX_HISTORY = 20;
@@ -60,12 +61,6 @@ function saveGameData() {
 }
 
 function getRandomResult() {
-  if (forcedResult) {
-    const result = forcedResult;
-    forcedResult = null;
-    return result;
-  }
-
   const dice1 = Math.floor(Math.random() * 6) + 1;
   const dice2 = Math.floor(Math.random() * 6) + 1;
   const dice3 = Math.floor(Math.random() * 6) + 1;
@@ -77,9 +72,24 @@ function getRandomResult() {
   };
 }
 
+function getSessionResult(players) {
+  const bets = Object.values(players || {});
+  if (!bets.length || Math.random() >= HOUSE_BIAS_CHANCE) return getRandomResult();
+  const totalTai = bets.filter((bet) => bet.betType === "tai").reduce((sum, bet) => sum.plus(bet.amount), new Big(0));
+  const totalXiu = bets.filter((bet) => bet.betType === "xiu").reduce((sum, bet) => sum.plus(bet.amount), new Big(0));
+  const preferred = totalTai.gt(totalXiu) ? "xiu" : totalXiu.gt(totalTai) ? "tai" : (Math.random() < 0.5 ? "tai" : "xiu");
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const result = getRandomResult();
+    if (result.result === preferred) return result;
+  }
+  return getRandomResult();
+}
+
 export async function initializeGameTaiXiu(api) {
   if (!gameState.data.taixiu) gameState.data.taixiu = {};
-  if (!gameState.data.taixiu.activeThreads) gameState.data.taixiu.activeThreads = {};
+  if (!gameState.data.taixiu.activeThreads || Array.isArray(gameState.data.taixiu.activeThreads)) {
+    gameState.data.taixiu.activeThreads = {};
+  }
   if (!gameState.data.taixiu.history) gameState.data.taixiu.history = [];
   if (!gameState.data.taixiu.jackpot) gameState.data.taixiu.jackpot = "1000000";
   gameState.data.taixiu.jackpot = new Big(gameState.data.taixiu.jackpot);
@@ -132,7 +142,7 @@ async function runGameLoop(api) {
 }
 
 async function endGame(api) {
-  const result = getRandomResult();
+  const result = getSessionResult(currentSession.players);
 
   // Thêm kết quả vào lịch sử với timestamp
   const newResult = {
@@ -163,6 +173,8 @@ async function endGame(api) {
   const threadPlayers = {};
 
   let jackpotWinners = [];
+  // Một lần quay cho cả phiên, không phụ thuộc số dư hay số người đặt cược.
+  const jackpotTriggered = Math.random() < JACKPOT_CHANCE;
   let totalJackpotBet = new Big(0);
   let totalJackpotPaid = new Big(0); // Thêm biến này
 
@@ -171,9 +183,11 @@ async function endGame(api) {
     for (const [playerId, bet] of Object.entries(currentSession.players)) {
       const isWin = bet.betType === result.result;
       const playerChoice = bet.betType === "tai" ? "Tài" : "Xỉu";
-      const isJackpot = checkJackpot(result.dice, bet.betType);
+      const isJackpot = isWin && jackpotTriggered;
       const betAmount = new Big(bet.amount);
-      const winAmount = isWin ? betAmount : betAmount.neg();
+      const winAmount = isWin
+        ? betAmount.mul(NORMAL_PAYOUT_MULTIPLIER - 1).round(0, Big.roundDown)
+        : betAmount.neg();
 
       if (isWin) {
         if (isJackpot) {
@@ -184,13 +198,19 @@ async function endGame(api) {
           });
           totalJackpotBet = totalJackpotBet.plus(betAmount);
         }
-        await updatePlayerBalanceByUsername(bet.username, betAmount.mul(2).toNumber(), isWin, winAmount.toNumber());
+        await updatePlayerBalanceByUsername(
+          bet.username,
+          betAmount.mul(NORMAL_PAYOUT_MULTIPLIER).round(0, Big.roundDown).toNumber(),
+          isWin,
+          winAmount.toNumber()
+        );
       } else {
         await setLoserGameByUsername(bet.username, betAmount.neg().toNumber());
         totalLoss = totalLoss.plus(betAmount);
         // Cộng 20% tiền thua vào hũ
         jackpot = jackpot.plus(betAmount.mul(0.6));
       }
+      await addGameRankPoints(playerId, { won: isWin, jackpot: isJackpot });
 
       resultText += `@${bet.playerName}: [${playerChoice}] ${isWin ? "Thắng" : "Thua"} ${winAmount
         .abs()
@@ -377,21 +397,6 @@ async function sendGameUpdate(api, remainingSeconds) {
 
 async function placeBet(api, message, threadId, senderId, betType, amount) {
   const botId = api.getBotId();
-  const atcThreadofBot = activeThreads[botId];
-  if (!atcThreadofBot?.includes(threadId)) {
-    await sendMessageFromSQL(
-      api,
-      message,
-      {
-        success: false,
-        message: "Trò chơi Tài Xỉu không được kích hoạt trong nhóm này.",
-      },
-      true,
-      30000
-    );
-    return;
-  }
-
   const username = await getUsernameByIdZalo(senderId);
   if (!username) {
     await sendMessageFromSQL(
@@ -399,7 +404,7 @@ async function placeBet(api, message, threadId, senderId, betType, amount) {
       message,
       {
         success: false,
-        message: "Bạn cần đăng nhập để tham gia trò chơi.",
+        message: "Không thể khởi tạo hồ sơ game. Vui lòng thử lại.",
       },
       true,
       30000
@@ -429,7 +434,7 @@ async function placeBet(api, message, threadId, senderId, betType, amount) {
   if (!balanceResult.success) {
     const result = {
       success: false,
-      message: "Không thể lấy thông tin số dư. Vui lòng thử lại sau\nNếu chưa đăng ký, chat game để xem hớng dẫn.",
+      message: "Không thể lấy thông tin số dư. Vui lòng thử lại sau.",
     };
     await sendMessageFromSQL(api, message, result, true, 30000);
     return;
@@ -473,6 +478,15 @@ async function placeBet(api, message, threadId, senderId, betType, amount) {
 
   const playerName = message.data.dName || senderId;
 
+  // Nhóm đã qua kiểm tra gameactive ở handleTaiXiuCommand, tự đăng ký luồng gửi
+  // ảnh chờ/kết quả cho đúng tài khoản bot đang nhận cược.
+  if (!Array.isArray(activeThreads[botId])) activeThreads[botId] = [];
+  if (!activeThreads[botId].includes(threadId)) {
+    activeThreads[botId].push(threadId);
+    gameState.data.taixiu.activeThreads = activeThreads;
+    saveGameData();
+  }
+
   await updatePlayerBalanceByUsername(username, betAmount.neg());
   currentSession.players[senderId] = {
     betType,
@@ -504,68 +518,6 @@ async function placeBet(api, message, threadId, senderId, betType, amount) {
     currentSession.interval = DEFAULT_INTERVAL;
     currentSession.endTime = Date.now() + DEFAULT_INTERVAL * 1000;
   }
-}
-
-async function toggleThreadParticipation(api, message, threadId, isStart) {
-  const botId = api.getBotId();
-  if (!gameState.data.taixiu.activeThreads[botId]) gameState.data.taixiu.activeThreads[botId] = [];
-  const atcThreadofBot = gameState.data.taixiu.activeThreads[botId];
-  if (isStart) {
-    if (!atcThreadofBot.includes(threadId)) {
-      atcThreadofBot.push(threadId);
-      saveGameData();
-      await sendMessageFromSQL(api, message, {
-        success: true,
-        message: "Trò chơi Tài Xỉu đã được kích hoạt trong nhóm này.",
-      });
-    } else {
-      await sendMessageFromSQL(api, message, {
-        success: false,
-        message: "Trò chơi Tài Xỉu đã được kích hoạt trước đó trong nhóm này.",
-      });
-    }
-  } else {
-    const index = atcThreadofBot.indexOf(threadId);
-    if (index > -1) {
-      atcThreadofBot.splice(index, 1);
-      saveGameData();
-      await sendMessageFromSQL(api, message, {
-        success: true,
-        message: "Trò chơi Tài Xỉu đã bị vô hiệu hóa trong nhóm này.",
-      });
-    } else {
-      await sendMessageFromSQL(api, message, {
-        success: false,
-        message: "Trò chơi Tài Xỉu chưa được kích hoạt trong nhóm này.",
-      });
-    }
-  }
-}
-
-// Thêm hàm mới để set kết quả
-export function setForcedResult(result) {
-  if (result !== "tai" && result !== "xiu") {
-    throw new Error("Kết quả không hợp lệ. Chỉ chấp nhận 'tai' hoặc 'xiu'.");
-  }
-
-  let dice;
-  if (result === "tai") {
-    // Tạo kết quả Tài (tổng > 10)
-    dice = [Math.floor(Math.random() * 3) + 4, Math.floor(Math.random() * 3) + 4, Math.floor(Math.random() * 3) + 4];
-  } else {
-    // Tạo kết quả Xỉu (tổng <= 10)
-    dice = [Math.floor(Math.random() * 3) + 1, Math.floor(Math.random() * 3) + 1, Math.floor(Math.random() * 3) + 1];
-  }
-
-  const total = dice.reduce((sum, value) => sum + value, 0);
-
-  forcedResult = {
-    dice,
-    total,
-    result,
-  };
-
-  return forcedResult; // Trả về kết quả chi tiết
 }
 
 // Thêm hàm xử lý lệnh soi cầu
@@ -601,7 +553,6 @@ async function handleSoiCau(api, message, threadId) {
   await clearImagePath(imagePath);
 }
 
-// Sửa đổi hàm handleTaiXiuCommand để hiển thị chi tiết hơn về forcedResult
 export async function handleTaiXiuCommand(api, message, groupSettings) {
   if (!(await checkBeforeJoinGame(api, message, groupSettings, true))) return;
 
@@ -612,56 +563,24 @@ export async function handleTaiXiuCommand(api, message, groupSettings) {
   const commandParts = content.split(" ");
   const prefix = getGlobalPrefix(api.getBotId());
 
-  // Xử lý lệnh private để set kết quả
-  if (commandParts[1] === "kq") {
-    if (isAdmin(api.getBotId(), senderId)) {
-      const result = commandParts[2] === "tai" ? "tai" : commandParts[2] === "xiu" ? "xiu" : null;
-      if (result) {
-        try {
-          setForcedResult(result);
-          // Hiển thị chi tiết về forcedResult
-          const detailedResult = `Đã set kết quả tài xỉu cho phiên tiếp theo:
-Kết quả: ${forcedResult.result === "tai" ? "Tài" : "Xỉu"}
-Xúc xắc: ${forcedResult.dice.join(" - ")}
-Tổng điểm: ${forcedResult.total}`;
-          await api.sendMessage({ msg: detailedResult }, threadId, MessageType.DirectMessage);
-        } catch (error) {
-          console.error("Lỗi khi set kết quả tài xỉu:", error.message);
-          await api.sendMessage(
-            { msg: `Có lỗi xảy ra khi set kết quả: ${error.message}` },
-            threadId,
-            MessageType.DirectMessage
-          );
-        }
-      } else {
-        await api.sendMessage(
-          { msg: "Lệnh không hợp lệ. Sử dụng '!tx kq tai' hoặc '!tx kq xiu'.", ttl: 30000 },
-          threadId,
-          MessageType.DirectMessage
-        );
-      }
-    }
-    return;
-  }
-
   // Thêm xử lý lệnh soi cầu
   if (commandParts[1] === "soicau") {
     await handleSoiCau(api, message, threadId);
     return;
   }
 
-  // Kiểm tra nếu lệnh là start hoặc close
+  // Không còn bật/tắt riêng Tài Xỉu; gameactive của nhóm là công tắc duy nhất.
   if (commandParts[1] === "start" || commandParts[1] === "close") {
-    if (!isAdmin(api.getBotId(), senderId, threadId)) {
-      const result = {
-        success: false,
-        message: "Bạn không có quyền sử dụng lệnh này.",
-      };
-      await sendMessageFromSQL(api, message, result, true, 30000);
-      return;
-    }
-
-    await toggleThreadParticipation(api, message, threadId, content.endsWith("start"));
+    await sendMessageFromSQL(
+      api,
+      message,
+      {
+        success: true,
+        message: `Tài Xỉu dùng chung trạng thái ${prefix}gameactive của nhóm, không cần bật hoặc tắt riêng.`,
+      },
+      true,
+      30000
+    );
     return;
   }
 
@@ -694,16 +613,9 @@ export function getJackpot() {
   return jackpot;
 }
 
-// Thêm hàm kiểm tra điều kiện nổ hũ
-function checkJackpot(dice, betType) {
-  // Kiểm tra 3 số 1 (xỉu) hoặc 3 số 6 (tài)
-  if (dice[0] === dice[1] && dice[1] === dice[2]) {
-    if (dice[0] === 1 && betType === "xiu") {
-      return true;
-    }
-    if (dice[0] === 6 && betType === "tai") {
-      return true;
-    }
-  }
-  return false;
+export function resetJackpot() {
+  jackpot = new Big(1000000);
+  gameState.data.taixiu.jackpot = jackpot.toString();
+  saveGameData();
+  return jackpot;
 }

@@ -18,9 +18,9 @@ class ManagerBotSocket {
     const listIdsActiveBot = [];
 
     const listOwnerIds = Object.keys(this.botChildrenStore.getAll());
-    let infoListBotActive = null;
+    let infoListBotActive = {};
     try {
-      infoListBotActive = await getUsersInfoBasic(apiGlobal, listOwnerIds);
+      infoListBotActive = (await getUsersInfoBasic(apiGlobal, listOwnerIds)) || {};
     } catch (error) {}
 
     for (const [id, apiMng] of Object.entries(apiManager.apiManagerObject)) {
@@ -38,27 +38,25 @@ class ManagerBotSocket {
         return acc;
       }, {});
 
-    if (infoListBotActive) {
-      for (const [id, botData] of Object.entries(inactiveBots)) {
-        const ownerInfo = infoListBotActive[id];
-        bots.push(
-          this.returnDataBotInfo(
-            {
-              apiZalo: {
-                accountInfo: {
-                  name: ownerInfo.displayName,
-                  avatar: ownerInfo.avatar,
-                  uid: id,
-                  phone: botData.numberPhone || "Khởi chạy bot để hiển thị",
-                },
-                isMainBot: false,
-                timeStart: 0,
+    for (const [id, botData] of Object.entries(inactiveBots)) {
+      const ownerInfo = infoListBotActive[id] || {};
+      bots.push(
+        this.returnDataBotInfo(
+          {
+            apiZalo: {
+              accountInfo: {
+                name: botData.nameBot || botData.infoOwner?.name || ownerInfo.displayName || botData.createdBy || id,
+                avatar: botData.avatarBot || ownerInfo.avatar || ownerInfo.avatarFull || null,
+                uid: botData.idBot || id,
+                phone: botData.numberPhone || "Khởi chạy bot để hiển thị",
               },
             },
-            botData
-          )
-        );
-      }
+            isMainBot: false,
+            timeStart: 0,
+          },
+          botData
+        )
+      );
     }
 
     return bots;

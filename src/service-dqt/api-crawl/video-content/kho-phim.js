@@ -1,4 +1,5 @@
 import * as cheerio from "cheerio";
+import axios from "axios";
 import schedule from "node-schedule";
 import path from "path";
 import { formatSelectionRanges, randomEmoji, randomIDTemp, removeMention } from "../../../utils/format-util.js";
@@ -52,16 +53,32 @@ export async function findFilmFromKKPHIM(keyword) {
     };
 
     const client = getClientAxios();
-    const response = await client.get(API_SEARCH_PHIM_URL, { params });
-    const { data } = response;
+    let response;
+    try {
+      response = await client.get(API_SEARCH_PHIM_URL, { params, timeout: 15000 });
+    } catch (error) {
+      // Axios dùng chung đôi lúc bị lỗi DNS/proxy; thử client độc lập một lần.
+      response = await axios.get(API_SEARCH_PHIM_URL, {
+        params,
+        timeout: 15000,
+        headers: { "user-agent": "Mozilla/5.0", accept: "application/json" },
+      });
+    }
+    const data = response?.data;
+    const items = Array.isArray(data?.data?.items)
+      ? data.data.items
+      : Array.isArray(data?.items)
+        ? data.items
+        : [];
 
-    if (data && data.data) {
-      const result = data.data.items.map((item) => ({
+    if (items.length > 0) {
+      const imageDomain = data?.data?.APP_DOMAIN_CDN_IMAGE || "https://img.ophim.live/uploads/movies";
+      const result = items.map((item) => ({
         id: item._id,
         slug: API_PHIM + "/" + item.slug,
-        title: item.name,
+        title: item.name || item.origin_name || "Không rõ tên phim",
         originName: item.origin_name,
-        thumbnail: data.data.APP_DOMAIN_CDN_IMAGE + "/" + item.poster_url,
+        thumbnail: item.poster_url?.startsWith("http") ? item.poster_url : imageDomain + "/" + item.poster_url,
         episode: item.episode_current + `${item.quality ? ` [${item.quality}]` : ""}`,
         typeSub: item.lang || null,
       }));
@@ -91,8 +108,9 @@ export async function findFilmFromDULIEUPHIM(keyword) {
     const response = await client.get(API_SEARCH_DULIEUPHIM, { params });
     const { data } = response;
 
-    if (data && data.data) {
-      const detailPromises = data.data.map(async (item) => {
+    const items = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
+    if (items.length > 0) {
+      const detailPromises = items.map(async (item) => {
         const itemDetail = await getDetailPhim(API_DULIEUPHIM + item.slug);
         if (itemDetail.error) return null;
         return {
@@ -123,12 +141,13 @@ export async function handleFindKhoPhimCommand(keyword) {
   ]);
 
   const finalFilm = [...filmsFromDuLieuPhim];
-  const mergedTitles = new Set(filmsFromDuLieuPhim.map((item) => item.title.toLowerCase()));
+  const mergedTitles = new Set(filmsFromDuLieuPhim.map((item) => String(item.title || "").toLowerCase()));
 
   for (const item of filmsFromKhoPhim) {
-    if (!mergedTitles.has(item.title.toLowerCase())) {
+    const normalizedTitle = String(item.title || "").toLowerCase();
+    if (normalizedTitle && !mergedTitles.has(normalizedTitle)) {
       finalFilm.push(item);
-      mergedTitles.add(item.title);
+      mergedTitles.add(normalizedTitle);
     }
   }
 
@@ -168,7 +187,7 @@ export async function handleKhoPhimCommand(api, message, aliasCommand) {
         thumbnailM: result.thumbnail,
       }));
 
-      imagePath = await createSearchResultImage(formattedDataFilm);
+      imagePath = await createSearchResultImage(formattedDataFilm, api.getBotId());
 
       let responseText = `🔎 Kết quả tìm kiếm phim tại Kho Phim:\n`;
       responseText += `Hãy trả lời tin nhắn này với số thứ tự phim bạn muốn xem!`;
@@ -179,7 +198,14 @@ export async function handleKhoPhimCommand(api, message, aliasCommand) {
       };
 
       const listMessage = await sendMessageCompleteRequest(api, message, object, CONFIG.timeWaitSelection);
-      const quotedMsgId = listMessage?.message?.msgId || listMessage?.attachment[0]?.msgId;
+      const quotedMsgId =
+        listMessage?.message?.msgId ||
+        listMessage?.attachment?.[0]?.msgId ||
+        listMessage?.msgId;
+
+      if (!quotedMsgId) {
+        throw new Error("Không lấy được mã tin nhắn danh sách phim");
+      }
 
       listRequestKhoPhim.set(quotedMsgId.toString(), {
         userRequest: message.data.uidFrom,

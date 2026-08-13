@@ -42,6 +42,11 @@ export async function antiTag(api, message, isAdminBox, groupSettings, botIsAdmi
   try {
     const deleteResult = await api.deleteMessage(message, false);
     if (deleteResult && deleteResult.status === 0) {
+      await api.sendMessage(
+        { msg: `⚠️ Cảnh cáo ${senderName}!\nNhóm này không cho phép tag thành viên.`, ttl: 300000 },
+        threadId,
+        MessageType.GroupMessage
+      );
       return true;
     } else {
       await api.sendMessage(
@@ -83,4 +88,3 @@ export async function handleAntiTagCommand(api, message, groupSettings) {
   
   return true;
 }
-

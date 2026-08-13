@@ -95,6 +95,158 @@ export const ReactionMap = {
   CUSTOM: { text: "Hà Huy Hoàng - Bot", rType: 200 },
 };
 
+const ReactionAliases = {
+  "tim": "HEART",
+  "trái tim": "HEART",
+  "thả tim": "HEART",
+  "love": "HEART",
+  "yêu": "HEART",
+  "cười": "HAHA",
+  "haha": "HAHA",
+  "khóc": "KHOC",
+  "buồn": "BUON",
+  "thích": "LIKE",
+  "like": "LIKE",
+  "không thích": "DISLIKE",
+  "dislike": "DISLIKE",
+  "cười nhẹ": "CUOINHE",
+  "cười ra nước mắt": "CUOIRANUOCMAT",
+  "ngại": "NGAI",
+  "sợ": "SO",
+  "giận": "GIAN",
+  "ngầu": "COOLNGAU",
+  "ngủ": "NGU",
+  "vỗ tay": "VOTAY",
+  "tuyệt vời": "TUYỆT VỜI",
+  "cảm ơn": "THANKS",
+  "cám ơn": "THANKS",
+  "ok": "OK",
+  "đồng ý": "OK",
+  "sấm sét": "TIASET",
+  "tia sét": "TIASET",
+  "hoa hồng": "HOAHONG",
+  "bắt tay": "BẮT TAY",
+  "nắm đấm": "NẮM ĐẤM",
+  "con chó": "DOG",
+  "con heo": "PIG",
+  "cây thông": "CÂY THÔNG",
+  "giọt nước": "GIỌT NƯỚC",
+  "người tuyết": "NGƯỜI TUYẾT",
+  "cạn ly": "CẠN LY",
+  "đùi gà": "ĐÙI GÀ",
+  "lá cờ": "FLAG",
+  "cờ việt nam": "FLAG",
+  "⚡": "TIASET",
+  "🚀": "TIASET",
+  "😂": "HAHA",
+  "😢": "KHOC",
+  "😭": "KHOC",
+  "👍": "LIKE",
+  "👎": "DISLIKE",
+  "❤️": "HEART",
+  "❤": "HEART",
+  "😊": "SMILE",
+  "😄": "SMILE",
+  "😘": "MISS",
+  "😨": "SO",
+  "😡": "GIAN",
+  "😎": "COOLNGAU",
+  "😋": "LELUOI",
+  "😮": "WOW",
+  "😴": "NGU",
+  "👏": "VOTAY",
+  "💩": "SHIT",
+  "✅": "OK",
+  "👌": "OK",
+  "🙏": "THANKS",
+  "⏰": "CLOCK",
+  "🏳️": "FLAG",
+};
+
+const HiddenReactionKeys = new Set(["UNDO", "NONE", "CUSTOM"]);
+
+function normalizeReactionInput(value) {
+  return String(value || "")
+    .trim()
+    .replace(/\uFE0F/g, "")
+    .replace(/\s+/g, " ")
+    .toLocaleLowerCase("vi-VN");
+}
+
+function normalizeReactionName(value) {
+  return normalizeReactionInput(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+/**
+ * Resolve an emoji, Zalo reaction code, or reaction name to a ReactionMap key.
+ * Returns null for unsupported/hidden reactions instead of silently using NONE.
+ */
+export function resolveReactionKey(value) {
+  const input = String(value || "").trim();
+  if (!input) return null;
+
+  const normalizedInput = normalizeReactionInput(input);
+  const aliasEntry = Object.entries(ReactionAliases).find(
+    ([alias]) => normalizeReactionInput(alias) === normalizedInput
+  );
+  if (aliasEntry) return aliasEntry[1];
+
+  const key = Object.keys(ReactionMap).find(
+    (reactionKey) => reactionKey.toLocaleUpperCase("vi-VN") === input.toLocaleUpperCase("vi-VN")
+  );
+  if (key && !HiddenReactionKeys.has(key)) return key;
+
+  const textEntry = Object.entries(ReactionMap).find(
+    ([reactionKey, reaction]) =>
+      !HiddenReactionKeys.has(reactionKey) &&
+      normalizeReactionInput(reaction.text) === normalizedInput
+  );
+  if (textEntry) return textEntry[0];
+
+  // Nhận tên viết không dấu, sai khoảng trắng hoặc nằm trong một câu ngắn.
+  const looseInput = normalizeReactionName(input);
+  if (!looseInput) return null;
+
+  const looseKey = Object.keys(ReactionMap).find(
+    (reactionKey) => !HiddenReactionKeys.has(reactionKey) && normalizeReactionName(reactionKey) === looseInput
+  );
+  if (looseKey) return looseKey;
+
+  const looseAlias = Object.entries(ReactionAliases)
+    .map(([alias, key]) => [alias, key, normalizeReactionName(alias)])
+    .filter(([, , normalizedAlias]) => normalizedAlias && (
+      normalizedAlias === looseInput ||
+      (normalizedAlias.length >= 3 && looseInput.includes(normalizedAlias))
+    ))
+    .sort((a, b) => b[2].length - a[2].length)[0];
+  return looseAlias?.[1] || null;
+}
+
+/**
+ * Build a value accepted by addReaction. Known values use Zalo's reaction map;
+ * other short keyboard symbols/text use Zalo's custom reaction payload.
+ */
+export function resolveReactionInput(value) {
+  const input = String(value || "").trim();
+  if (!input) return null;
+
+  const key = resolveReactionKey(input);
+  if (key) return key;
+
+  // rType 200 is the custom reaction format accepted by sendReactionMessage.
+  // Keep it short and on one line so arbitrary command text is not sent as an icon.
+  const characters = Array.from(input);
+  if (!/[\r\n]/.test(input) && characters.length <= 16) {
+    return { rType: 200, text: input };
+  }
+
+  return null;
+}
+
 export const Reactions = Object.keys(ReactionMap).reduce((acc, key) => {
   acc[key] = ReactionMap[key].text;
   return acc;

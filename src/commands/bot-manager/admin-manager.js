@@ -18,8 +18,11 @@ import { updateListAdminByIDBot } from "../../index.js";
 import { getUserInfoBasic } from "../../service-dqt/info-service/user-info.js";
 
 export async function handleAdminHighLevelCommands(api, message, groupAdmins, groupSettings, isAdminLevelHighest) {
-  const content = removeMention(message);
   const prefix = getGlobalPrefix(api.getBotId());
+  const normalizedContent = removeMention(message);
+  const rawContent = typeof message.data?.content === "string" ? message.data.content : "";
+  const commandMatch = rawContent.match(new RegExp(`${prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:add|remove)(?=\\s|$)`, "iu"));
+  const content = commandMatch ? rawContent.slice(commandMatch.index) : normalizedContent;
 
   if (!content.includes(`${prefix}add`) && !content.includes(`${prefix}remove`)) {
     return false;
@@ -330,6 +333,17 @@ async function handleAddRemoveAdmin(api, message, groupSettings, action, isAdmin
     const args = cleanContent.split(/\s+/).filter(arg => arg.trim());
     const uidPattern = /^\d+$/;
     const rawUIDs = args.filter(arg => uidPattern.test(arg));
+    // Cho phép reply trực tiếp tin nhắn của thành viên thay cho @mention/UID.
+    // Zalo lưu UID người gửi tin nhắn được reply ở quote.ownerId.
+    const repliedOwnerId = message.data.quote?.ownerId;
+    if (
+      rawUIDs.length === 0 &&
+      repliedOwnerId != null &&
+      String(repliedOwnerId) !== "0" &&
+      String(repliedOwnerId) !== String(botId)
+    ) {
+      rawUIDs.push(String(repliedOwnerId));
+    }
     
     if (rawUIDs.length > 0) {
       let listAdmin = null;
@@ -398,7 +412,7 @@ async function handleAddRemoveAdmin(api, message, groupSettings, action, isAdmin
   }
 
   if (!mentions || mentions.length === 0) {
-    const caption = "Vui lòng đề cập (@mention) người dùng cần thêm/xóa khỏi danh sách quản trị bot hoặc cung cấp UID.";
+    const caption = "Vui lòng reply tin nhắn, đề cập (@mention) người dùng hoặc cung cấp UID để thêm/xóa quản trị viên.";
     await sendMessageQuery(api, message, caption);
     return;
   }
@@ -412,8 +426,20 @@ async function handleAddRemoveAdmin(api, message, groupSettings, action, isAdmin
   }
   
   for (const mention of mentions) {
-    const targetId = mention.uid;
-    const targetName = message.data.content.substring(mention.pos, mention.pos + mention.len).replace("@", "");
+    const targetId = String(mention.uid || mention.userId || mention.id || "");
+    if (!targetId) continue;
+    // Pos/len của mention tự chèn khi reply bị lệch trên một số client Zalo,
+    // có thể cắt trúng `>add`. Lấy tên theo metadata/UID thay vì substring.
+    let targetName = String(mention.dName || mention.name || "").replace(/^@+/u, "").trim();
+    if (!targetName) {
+      try {
+        const userInfo = await getUserInfoBasic(api, targetId);
+        targetName = userInfo?.displayName || userInfo?.zaloName || "";
+      } catch (error) {
+        console.error(`Lỗi khi lấy tên user ${targetId}:`, error);
+      }
+    }
+    if (!targetName) targetName = `ID ${targetId}`;
 
     if (isGlobalAdmin) {
       if (action === "add") {
@@ -460,4 +486,3 @@ async function handleAddRemoveAdmin(api, message, groupSettings, action, isAdmin
     updateListAdminByIDBot(botId, listAdmin);
   }
 }
-

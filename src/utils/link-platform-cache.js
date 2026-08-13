@@ -134,13 +134,40 @@ function deleteCacheData(platform, id, quality = null) {
   cacheState.hasChanges = true;
 }
 
+// Cache validation TTL — skip HTTP HEAD check for recent entries
+const CACHE_VALID_TTL = 30 * 60 * 1000; // 30 phút
+const TRUSTED_HOSTS = ['zdn.vn', 'zalo.me', 'dlfl.vn', 'dlfl.me'];
+
+function isTrustedUrl(url) {
+  try {
+    const host = new URL(url).hostname;
+    return TRUSTED_HOSTS.some(h => host === h || host.endsWith('.' + h));
+  } catch {
+    return false;
+  }
+}
+
 async function validateCache(platform, id, quality = null) {
   const cacheEntry = getCacheData(platform, id);
   if (!cacheEntry) return false;
 
   const linkChoose = quality ? cacheEntry[quality] : cacheEntry;
-  if (!linkChoose) return false;
+  if (!linkChoose || !linkChoose.fileUrl) return false;
 
+  // Skip validation for recent cache entries (< 30 min)
+  if (linkChoose.timestamp && Date.now() - linkChoose.timestamp < CACHE_VALID_TTL) {
+    return true;
+  }
+
+  // Skip validation for trusted Zalo CDN URLs
+  const urlToCheck = Array.isArray(linkChoose.fileUrl)
+    ? (linkChoose.fileUrl[0]?.fileUrl || linkChoose.fileUrl[0])
+    : linkChoose.fileUrl;
+  if (isTrustedUrl(urlToCheck)) {
+    return true;
+  }
+
+  // Full validation for old or external URLs
   let isValid = false;
 
   if (Array.isArray(linkChoose.fileUrl)) {

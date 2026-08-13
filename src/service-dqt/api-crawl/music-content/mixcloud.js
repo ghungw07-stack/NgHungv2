@@ -9,7 +9,7 @@ import {
 } from "../../chat-zalo/chat-style/chat-style.js";
 import { removeMention } from "../../../utils/format-util.js";
 import { sendVoiceMusic } from "../../chat-zalo/chat-special/send-voice/send-voice.js";
-import { setSelectionsMapData } from "../index.js";
+import { parseQuickSelection, setSelectionsMapData } from "../index.js";
 import { getCachedMedia, setCacheData } from "../../../utils/link-platform-cache.js";
 import { deleteFile } from "../../../utils/util.js";
 import { createSearchResultImage } from "../../../utils/canvas/search-canvas.js";
@@ -89,7 +89,8 @@ export async function handleMixcloudCommand(api, message, aliasCommand) {
     const senderId = message.data.uidFrom;
     const prefix = getGlobalPrefix(api.botId || api.getBotId());
     const commandContent = content.replace(`${prefix}${aliasCommand}`, "").trim();
-    const [question, numberMusic] = commandContent.split("&&");
+    const quickSelection = parseQuickSelection(commandContent);
+    const [question, numberMusic] = quickSelection.query.split("&&");
 
     if (!question) {
       const object = {
@@ -110,6 +111,17 @@ export async function handleMixcloudCommand(api, message, aliasCommand) {
       return;
     }
 
+    if (quickSelection.selectedIndex !== null) {
+      const track = searchResult.data[quickSelection.selectedIndex];
+      if (!track) {
+        return await sendMessageWarningRequest(api, message, {
+          caption: `Không có kết quả số ${quickSelection.selectedIndex + 1}.`,
+        }, 30000);
+      }
+      await api.addReaction("CLOCK", message);
+      return await handleSendTrackMixcloud(api, message, track);
+    }
+
     let musicListTxt = "Đây là danh sách cloudcast trên Mixcloud mà tôi tìm thấy:\n";
     musicListTxt += "Hãy trả lời tin nhắn này với số index của cloudcast bạn muốn nghe!";
 
@@ -127,7 +139,7 @@ export async function handleMixcloudCommand(api, message, aliasCommand) {
       comment: item.comment_count,
     }));
 
-    imagePath = await createSearchResultImage(songs);
+    imagePath = await createSearchResultImage(songs, api.getBotId());
 
     const object = {
       caption: musicListTxt,
@@ -371,5 +383,3 @@ export async function handleSendTrackMixcloud(api, message, track) {
     return true;
   }
 }
-
-

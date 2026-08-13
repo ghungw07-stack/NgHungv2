@@ -200,7 +200,7 @@ export async function handleCheckClipphotCommand(api, message, aliasCommand) {
           thumbnailM: result.thumbnail,
         }));
 
-        imagePath = await createSearchResultImage(formattedDataClip);
+        imagePath = await createSearchResultImage(formattedDataClip, api.getBotId());
 
         responseText =
           `🔎 Đây là danh sách clip gần đây được đăng tải...` + `\nVui lòng nhập số thứ tự clip bạn muốn xem!`;
@@ -242,7 +242,7 @@ export async function handleCheckClipphotCommand(api, message, aliasCommand) {
           thumbnailM: result.thumbnail,
         }));
 
-        imagePath = await createSearchResultImage(formattedDataClip);
+        imagePath = await createSearchResultImage(formattedDataClip, api.getBotId());
 
         const object = {
           caption: responseText,

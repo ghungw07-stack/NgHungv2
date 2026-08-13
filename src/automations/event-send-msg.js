@@ -1,7 +1,9 @@
 import schedule from "node-schedule";
 import { MessageMention, MessageSendType, MessageType } from "zlbotdqt";
 import { antiForward } from "../service-dqt/anti-service/anti-forward.js";
-import { isAdmin } from "../index.js";
+import { handleAutoRaiLinkMention } from "../service-dqt/scheduler/auto-rai-link.js";
+import { handleWerewolfGroupRestriction, handleWerewolfGroupVote } from "../service-dqt/game-service/ma-soi/index.js";
+import { inheritBotLeader, isAdmin } from "../index.js";
 import { antiFile } from "../service-dqt/anti-service/anti-file.js";
 import { antiLink } from "../service-dqt/anti-service/anti-link.js";
 import { antiSpam } from "../service-dqt/anti-service/anti-spam.js";
@@ -36,7 +38,7 @@ import { pushMessageToWebLog } from "../web-service/web-server.js";
 import { antiAllEffectGif } from "../service-dqt/anti-service/anti-gif.js";
 import { getAutoReplyPMConfig, getPrCard } from "../commands/bot-manager/welcome-bye.js";
 import { sendMessageFromSQL } from "../service-dqt/chat-zalo/chat-style/chat-style.js";
-import { handleNotifyParentOnPM } from "../manager-bot/notify-parent-pm.js";
+import { handleNotifyParentOnPM, handleParentReplyToPM } from "../manager-bot/notify-parent-pm.js";
 import { checkAutoPingId } from "../commands/send-all/ping-id.js";
 
 class GroupsSettingsAll {
@@ -250,9 +252,11 @@ export async function messagesUser(api, message) {
   const senderName = message.data.dName;
   let isAdminLevelHighest = false;
   let isAdminBot = false;
+  await inheritBotLeader(api, senderId, senderName);
   isAdminLevelHighest = isAdmin(idBot, senderId);
   isAdminBot = isAdmin(idBot, senderId, threadId);
   let isSelf = idBot === senderId;
+
   const contentText = isPlainText
     ? content
     : content.href
@@ -274,6 +278,9 @@ export async function messagesUser(api, message) {
   const groupSettings = groupSettingsAll.getByID(idBot);
   switch (message.type) {
     case MessageType.DirectMessage: {
+      // Bot mẹ reply thông báo của bot con: chuyển thẳng nội dung tới người gửi gốc.
+      if (await handleParentReplyToPM(api, message)) return;
+
       const uidFrom = message.data.uidFrom;
       const idTo = message.data.idTo;
       const userInfoResponse = await api.getInfoMembers([uidFrom, idTo]);
@@ -407,17 +414,35 @@ export async function messagesUser(api, message) {
         handleChat && !(await antiLink(api, message, groupInfo, isAdminBox, groupSettings, botIsAdminBox, isSelf));
       const isBlocked = isUserBlocked(idBot, senderId);
       handleChat = handleChat && !isBlocked;
-      const numberHandleCommand = await handleCommand(
-        api,
-        message,
-        groupInfo,
-        groupAdmins,
-        groupSettings,
-        isAdminLevelHighest,
-        isAdminBot,
-        isAdminBox,
-        handleChat
-      );
+      // Ghi lại trạng thái moderation trước khi activeBot có thể làm handleChat=false.
+      // Các anti vẫn phải hoạt động khi bot tắt tương tác, nhưng không được chạy
+      // chồng lên nhau sau khi một anti trước đó đã xử lý/xóa tin nhắn.
+      const canRunRemainingAnti = handleChat && !isSelf && !isBlocked;
+      const werewolfRestricted =
+        !isSelf && handleChat
+          ? await handleWerewolfGroupRestriction(api, message, isAdminLevelHighest || isAdminBot || isAdminBox)
+          : false;
+      if (werewolfRestricted) return;
+      const werewolfVoteHandled =
+        isPlainText && !isSelf && handleChat && groupSettings[threadId]?.activeBot === true
+          ? await handleWerewolfGroupVote(api, message)
+          : false;
+      const numberHandleCommand = werewolfVoteHandled
+        ? 5
+        : await handleCommand(
+            api,
+            message,
+            groupInfo,
+            groupAdmins,
+            groupSettings,
+            isAdminLevelHighest,
+            isAdminBot,
+            isAdminBox,
+            handleChat
+          );
+      const autoRaiLinkHandled = !isSelf && !isBlocked
+        ? await handleAutoRaiLinkMention(api, message, groupInfo)
+        : false;
       if (isPlainText) {
         // numberHandleCommand = -1: Không Có Lệnh Nào Được Xử Lý
         // numberHandleCommand = 1: Đã Xử Lý Lệnh activeBot
@@ -446,13 +471,13 @@ export async function messagesUser(api, message) {
         );
       }
 
-      if (isPlainText) {
+      if (isPlainText && !autoRaiLinkHandled) {
         if (!isSelf && !isBlocked) {
           await handleChatBot(api, message, threadId, groupSettings, nameGroup, numberHandleCommand === 2);
         }
       }
 
-      if (isPlainText && !isSelf && !isBlocked && numberHandleCommand === -1) {
+      if (isPlainText && !isSelf && !isBlocked && !autoRaiLinkHandled && numberHandleCommand === -1) {
         await checkAutoPingId(api, message, groupSettings, groupInfo);
       }
 
@@ -465,7 +490,10 @@ export async function messagesUser(api, message) {
               const reactionKeys = Object.keys(ReactionMap).filter(key =>
                 key !== 'UNDO' && key !== 'NONE' && ReactionMap[key].rType >= 0
               );
-              const TOTAL_REACTIONS = 8; 
+              // Một lần được tag chỉ phản hồi một reaction. Việc thả nhiều
+              // reaction liên tiếp làm các lệnh không nhận diện (ví dụ gl)
+              // trông như bị nhiều bot xử lý cùng lúc.
+              const TOTAL_REACTIONS = 1;
               for (let i = 0; i < TOTAL_REACTIONS; i++) {
                 const reaction = reactionKeys[Math.floor(Math.random() * reactionKeys.length)];
                 try {
@@ -483,24 +511,35 @@ export async function messagesUser(api, message) {
         }
       }
 
-      await Promise.all([
-        antiBadWord(api, message, groupSettings, isAdminBox, botIsAdminBox, isSelf),
-        antiNotText(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf),
-        antiNude(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf),
-        antiMedia(api, message, groupSettings, isAdminBox, botIsAdminBox, isSelf),
-        autoJoinGroup(api, message, groupSettings, botIsAdminBox, isSelf),
-        antiForward(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf),
-        antiFile(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf),
-        antiVoice(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf),
-        antiTag(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf),
-        antiAllEffectSticker(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf),
-        antiPhotoVideo(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf),
-        antiPhoneNumber(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf),
-        antiStickerEffect(api, message, groupInfo, isAdminBox, groupSettings, botIsAdminBox, isSelf),
-        antiBot(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf),
-        antiAllEffectGif(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf),
-        handleAutoReplyGemini(api, message, groupSettings, isSelf),
-      ]);
+      let remainingAntiHandled = false;
+      if (canRunRemainingAnti) {
+        const antiChecks = [
+          () => antiBadWord(api, message, groupSettings, isAdminBox, botIsAdminBox, isSelf),
+          () => antiNude(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf),
+          () => antiMedia(api, message, groupSettings, isAdminBox, botIsAdminBox, isSelf),
+          () => antiForward(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf),
+          () => antiFile(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf),
+          () => antiVoice(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf),
+          () => antiTag(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf),
+          () => antiAllEffectSticker(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf),
+          () => antiPhotoVideo(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf),
+          () => antiPhoneNumber(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf),
+          () => antiStickerEffect(api, message, groupInfo, isAdminBox, groupSettings, botIsAdminBox, isSelf),
+          () => antiAllEffectGif(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf),
+          () => antiNotText(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf),
+        ];
+        for (const checkAnti of antiChecks) {
+          if (await checkAnti()) {
+            remainingAntiHandled = true;
+            break;
+          }
+        }
+      }
+
+      await autoJoinGroup(api, message, groupSettings, botIsAdminBox, isSelf);
+      if (canRunRemainingAnti && !remainingAntiHandled) {
+        await handleAutoReplyGemini(api, message, groupSettings, isSelf);
+      }
     }
   }
 }

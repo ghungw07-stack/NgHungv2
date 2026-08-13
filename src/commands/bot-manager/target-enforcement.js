@@ -21,8 +21,12 @@ export function isKickTarget(api, uid) {
   return getTargetStore(api).kickTargets.some((t) => t.idUserZalo === uid);
 }
 
-export function isBlockTarget(api, uid) {
-  return getTargetStore(api).blockTargets.some((t) => t.idUserZalo === uid);
+export function isBlockTarget(api, uid, threadId) {
+  return getTargetStore(api).blockTargets.some((t) => {
+    if (t.idUserZalo !== uid) return false;
+    if (!t.scope || t.scope === "all") return true;
+    return Array.isArray(t.threadIds) && t.threadIds.map(String).includes(String(threadId));
+  });
 }
 
 export function addKickTarget(api, targetId, targetName, addedBy) {
@@ -38,14 +42,35 @@ export function addKickTarget(api, targetId, targetName, addedBy) {
   return true;
 }
 
-export function addBlockTarget(api, targetId, targetName, addedBy) {
+export function addBlockTarget(api, targetId, targetName, addedBy, scope = "all", threadId = null) {
   const mngrData = getTargetStore(api);
-  if (mngrData.blockTargets.some((t) => t.idUserZalo === targetId)) return false;
+  const existing = mngrData.blockTargets.find((t) => t.idUserZalo === targetId);
+  if (existing) {
+    if (scope === "all") {
+      if (!existing.scope || existing.scope === "all") return false;
+      existing.scope = "all";
+      existing.threadIds = [];
+      existing.addedBy = addedBy;
+      existing.addedAt = Date.now();
+      managerDataCache.setChanged(api.getBotId());
+      return true;
+    }
+    if (!existing.scope || existing.scope === "all") return false;
+    existing.threadIds ??= [];
+    if (existing.threadIds.map(String).includes(String(threadId))) return false;
+    existing.threadIds.push(String(threadId));
+    existing.addedBy = addedBy;
+    existing.addedAt = Date.now();
+    managerDataCache.setChanged(api.getBotId());
+    return true;
+  }
   mngrData.blockTargets.push({
     idUserZalo: targetId,
     targetName: targetName || `ID ${targetId}`,
     addedBy,
     addedAt: Date.now(),
+    scope,
+    threadIds: scope === "group" && threadId ? [String(threadId)] : [],
   });
   managerDataCache.setChanged(api.getBotId());
   return true;
@@ -197,10 +222,13 @@ export async function renderTargetListImage(api, targets, kind) {
 
   const items = targets.map((t) => {
     const info = usersInfo?.[t.idUserZalo];
+    const scopeText = !t.scope || t.scope === "all"
+      ? "Phạm vi: Tất cả nhóm"
+      : `Phạm vi: ${t.threadIds?.length || 0} nhóm`;
     return {
       name: info?.displayName || t.targetName,
       avatar: info?.avatar || null,
-      info: `UID: ${t.idUserZalo}`,
+      info: `UID: ${t.idUserZalo} • ${scopeText}`,
       badge: kind === "kick" ? "K" : "B",
       badgeColor: kind === "kick" ? "#FF6347" : "#DC2626",
     };
@@ -235,28 +263,18 @@ export async function handleTargetEnforcementOnJoin(api, event) {
 
     const idBot = api.getBotId();
     const mngrData = getTargetStore(api);
-    if (!mngrData.kickTargets.length && !mngrData.blockTargets.length) return;
+    if (!mngrData.blockTargets.length) return;
 
     for (const member of members) {
       const uid = member?.id;
       if (!uid || uid === idBot) continue;
 
-      if (mngrData.blockTargets.some((t) => t.idUserZalo === uid)) {
+      if (isBlockTarget(api, uid, threadId)) {
         try {
           await api.blockUsers(threadId, [uid]);
           console.log(`🚫 [target-enforcement] Re-block ${uid} khi vào lại nhóm ${threadId}`);
         } catch (err) {
           console.error(`[target-enforcement] Không thể re-block ${uid} tại ${threadId}:`, err.message);
-        }
-        continue;
-      }
-
-      if (mngrData.kickTargets.some((t) => t.idUserZalo === uid)) {
-        try {
-          await api.removeUserFromGroup(threadId, [uid]);
-          console.log(`🚪 [target-enforcement] Re-kick ${uid} khi vào lại nhóm ${threadId}`);
-        } catch (err) {
-          console.error(`[target-enforcement] Không thể re-kick ${uid} tại ${threadId}:`, err.message);
         }
       }
     }

@@ -103,16 +103,25 @@ export async function getUserInfoBasic(api, userId) {
 }
 
 export async function getUsersInfoData(api, userIds) {
-  const userInfoResponse = await api.getUserInfo(userIds);
+  const [userInfoResponse, basicInfoResponse] = await Promise.all([
+    api.getUserInfo(userIds),
+    api.getInfoMembers(userIds).catch(() => ({ profiles: {} })),
+  ]);
   let objDataUser = {};
   for (const idx in userIds) {
     const userId = userIds[idx];
-    let avtFull = {};
+    let avatarResponse = null;
     try {
-      avtFull = await api.getUserAvatar(userId);
+      avatarResponse = await api.getUserAvatar(userId);
     } catch {}
     const userInfo = userInfoResponse.unchanged_profiles?.[userId] || userInfoResponse.changed_profiles?.[userId];
-    objDataUser[userId] = getAllInfoUser({ ...userInfo, ...avtFull });
+    const basicInfo = basicInfoResponse.profiles?.[userId];
+    const avatarFull = getBestAvatarUrl(avatarResponse, true);
+    objDataUser[userId] = getAllInfoUser({
+      ...userInfo,
+      avatarFull: avatarFull || userInfo?.avatar || basicInfo?.avatar,
+      avatarFallback: basicInfo?.avatar || userInfo?.avatar,
+    });
   }
   return objDataUser;
 }
@@ -130,26 +139,69 @@ export async function getUserInfoData(api, userId) {
     }
   }
   const userInfoResponse = await api.getUserInfo(realUserId);
-  let avtFull = {};
+  let avatarResponse = null;
   try {
-    avtFull = await api.getUserAvatar(realUserId);
+    avatarResponse = await api.getUserAvatar(realUserId);
   } catch {}
   const userInfo = userInfoResponse.unchanged_profiles?.[realUserId] || userInfoResponse.changed_profiles?.[realUserId];
-  return getAllInfoUser({ ...userInfo, ...avtFull });
+  let basicInfo = null;
+  try {
+    const basicInfoResponse = await api.getInfoMembers([realUserId]);
+    basicInfo = basicInfoResponse.profiles?.[realUserId] || Object.values(basicInfoResponse.profiles || {})[0];
+  } catch {}
+  const avatarFull = getBestAvatarUrl(avatarResponse, true);
+  return getAllInfoUser({
+    ...userInfo,
+    avatarFull: avatarFull || userInfo?.avatar || basicInfo?.avatar,
+    avatarFallback: basicInfo?.avatar || userInfo?.avatar,
+  });
+}
+
+function getBestAvatarUrl(data, acceptAnyImageUrl = false) {
+  const candidates = [];
+  const visited = new Set();
+
+  function walk(value, key = "", depth = 0) {
+    if (depth > 5 || value == null) return;
+    if (typeof value === "string") {
+      const normalizedUrl = value.trim().replace(/\\\//g, "/").replace(/^\/\//, "https://");
+      const hint = `${key} ${normalizedUrl}`.toLowerCase();
+      if (/^https?:\/\//i.test(normalizedUrl) && !/(cover|background|wallpaper)/.test(key) &&
+          (acceptAnyImageUrl || /(avatar|avt|profile|photo|image|zalo|jpg|jpeg|png|webp)/i.test(hint))) {
+        let score = 0;
+        if (/(full|original|origin|large|720|1080|2048|high)/.test(hint)) score += 100;
+        if (/(avatar|avt|profile)/.test(hint)) score += 30;
+        if (/(thumb|thumbnail|small|25|50|75|100|120)/.test(hint)) score -= 80;
+        const sizes = [...hint.matchAll(/(?:^|[^\d])(\d{2,4})[x_](\d{2,4})(?:[^\d]|$)/g)];
+        for (const match of sizes) score += Math.min(80, (Number(match[1]) * Number(match[2])) / 10000);
+        candidates.push({ url: normalizedUrl, score });
+      }
+      return;
+    }
+    if (typeof value !== "object" || visited.has(value)) return;
+    visited.add(value);
+    for (const [childKey, childValue] of Object.entries(value)) walk(childValue, `${key}.${childKey}`, depth + 1);
+  }
+
+  walk(deepParseJSON(data));
+  candidates.sort((a, b) => b.score - a.score);
+  return candidates[0]?.url || null;
 }
 
 export function getAllInfoUser(userInfo) {
   const currentTime = Date.now();
   const lastActionTime = userInfo.lastActionTime || 0;
-  const isOnline = currentTime - lastActionTime <= 300000;
+  const isOnline = currentTime - lastActionTime <= 180000;
 
+  const bestAvatar = userInfo.avatarFull || userInfo.bk_full_avatar || getBestAvatarUrl(userInfo) || userInfo.avatar;
   return {
     title: "Thông Tin Người Dùng",
     uid: userInfo.userId || "Không xác định",
     name: formatName(userInfo.zaloName),
-    avatar: userInfo.avatar,
+    avatar: bestAvatar,
+    avatarFallback: userInfo.avatarFallback,
     cover: userInfo.cover,
-    avatarFull: userInfo.bk_full_avatar,
+    avatarFull: bestAvatar,
     gender: formatGender(userInfo.gender),
     genderId: userInfo.gender,
     businessAccount: userInfo.bizPkg?.label ? "Có" : "Không",
@@ -158,7 +210,7 @@ export function getAllInfoUser(userInfo) {
     isActivePC: userInfo.isActivePC,
     isActiveWeb: userInfo.isActiveWeb,
     isValid: userInfo.isValid,
-    username: userInfo.username,
+    username: userInfo.username || userInfo.userName || "Ẩn",
     bizPkg: userInfo.bizPkg,
     birthday: formatDate(userInfo.dob || userInfo.sdob) || "Ẩn",
     phone: userInfo.phone || "Ẩn",
@@ -176,7 +228,8 @@ function randomEmoji() {
 }
 
 function formatName(name) {
-  return name.length > 30 ? name.slice(0, 27) + "..." : name;
+  const safeName = name || "Không xác định";
+  return safeName.length > 30 ? safeName.slice(0, 27) + "..." : safeName;
 }
 
 function formatGender(gender) {

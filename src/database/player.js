@@ -1,6 +1,7 @@
-import { connection, NAME_TABLE_PLAYERS, nameServer, NAME_TABLE_ACCOUNT, DAILY_REWARD } from "./index.js";
+import { connection, NAME_TABLE_PLAYERS, nameServer, NAME_TABLE_ACCOUNT, DAILY_REWARD } from "./state.js";
 import { getUserInfoData } from "../service-dqt/info-service/user-info.js";
 import { getTimeToString, getTimeNow, formatBigNumber } from "../utils/format-util.js";
+import { getGameTier } from "../utils/canvas/game-finance.js";
 import { Big } from "big.js";
 
 /**
@@ -110,11 +111,12 @@ export async function claimDailyReward(idUser) {
     const [rows] = await connection.execute(`SELECT * FROM ${NAME_TABLE_PLAYERS} WHERE idUserZalo = ?`, [idUser]);
 
     if (rows.length === 0) {
-      return { success: false, message: `Bạn chưa đăng nhập tài khoản nào.` };
+      return { success: false, message: `Không thể khởi tạo hồ sơ game của bạn.` };
     }
 
     const player = rows[0];
     const now = getTimeNow();
+
     const lastReward = player.lastDailyReward ? new Date(player.lastDailyReward) : null;
 
     if (
@@ -130,8 +132,16 @@ export async function claimDailyReward(idUser) {
       };
     }
 
-    const rewardAmount = new Big(DAILY_REWARD);
+    const tierInfo = getGameTier(player.rankPoints);
+    let rewardAmount = new Big(tierInfo.daily || DAILY_REWARD);
     const currentBalance = new Big(player.balance);
+
+    let interestAmount = new Big(0);
+    if (tierInfo.key === "diamond") {
+      interestAmount = currentBalance.times(0.06).round(0, 0);
+      rewardAmount = rewardAmount.plus(interestAmount);
+    }
+
     const newBalance = currentBalance.plus(rewardAmount);
 
     const [updateResult] = await connection.execute(
@@ -140,9 +150,13 @@ export async function claimDailyReward(idUser) {
     );
 
     if (updateResult.affectedRows === 1) {
+      let msg = `[Hạng ${tierInfo.name}] Bạn đã nhận ${formatBigNumber(rewardAmount)} VNĐ. Hãy quay lại vào ngày mai để nhận thêm!`;
+      if (tierInfo.key === "diamond") {
+        msg = `[Hạng ${tierInfo.name}] Bạn đã nhận Daily + Sinh lời 6% (${formatBigNumber(interestAmount)} VNĐ). Tổng: ${formatBigNumber(rewardAmount)} VNĐ.`;
+      }
       return {
         success: true,
-        message: `Bạn đã nhận ${formatBigNumber(rewardAmount)} VNĐ. Hãy quay lại vào ngày mai để nhận thêm!`,
+        message: msg,
       };
     } else {
       return { success: false, message: `Có lỗi xảy ra khi nhận quà.` };
@@ -160,7 +174,7 @@ export async function getMyCard(api, idUser) {
     if (rows.length === 0) {
       return {
         success: false,
-        message: `${nameServer}: Chưa có thông tin, vui lòng kiểm tra lại thông tin đăng nhập.\nDùng lệnh game để xem hướng dẫn. ❌`,
+        message: `${nameServer}: Không thể khởi tạo hồ sơ game của bạn. Vui lòng thử lại. ❌`,
       };
     }
 
@@ -191,6 +205,7 @@ export async function getMyCard(api, idUser) {
       idUser: player.idUserZalo,
       playerName: player.playerName,
       balance: balance.toString(),
+      rankPoints: Number(player.rankPoints || 0),
       registrationTime: getTimeToString(player.registrationTime),
       totalWinnings: totalWinnings.toString(),
       totalLosses: totalLosses.toString(),
@@ -339,7 +354,7 @@ export async function setPlayerBalance(idUser, amount) {
     const [rows] = await connection.execute(`SELECT * FROM ${NAME_TABLE_PLAYERS} WHERE idUserZalo = ?`, [idUser]);
 
     if (rows.length === 0) {
-      return { success: false, message: `Zalo ID này chưa đăng nhập tài khoản nào.` };
+      return { success: false, message: `Zalo ID này chưa có hồ sơ game.` };
     }
 
     const newBalance = new Big(amount).round(0);
@@ -373,7 +388,7 @@ export async function getPlayerBalance(idUser) {
     } else {
       return {
         success: false,
-        message: `Không tìm thấy dữ liệu người chơi của bạn, nếu chưa đăng nhập, hãy chat lệnh game để xem hướng dẫn!`,
+        message: `Không thể lấy dữ liệu người chơi. Hãy thử lại lệnh game sau ít phút!`,
       };
     }
   } catch (error) {
@@ -394,6 +409,117 @@ export async function getPlayerInfo(idUserZalo) {
   } catch (error) {
     console.error("Lỗi khi lấy thông tin người chơi:", error);
     throw error;
+  }
+}
+
+/** Hạng không còn tăng từ kết quả chơi game. Giữ hàm no-op để tương thích các mini game cũ. */
+export async function addGameRankPoints(idUserZalo, { won = false, jackpot = false } = {}) {
+  void idUserZalo; void won; void jackpot;
+  return { success: true, points: 0 };
+}
+
+/** Đổi tiền trong ví game thành điểm hạng, có khóa lạc quan để tránh trừ tiền hai lần. */
+export async function donateForRank(idUserZalo, amount) {
+  const donation = new Big(amount).round(0, Big.roundDown);
+  const points = Number(donation.div(10000).round(0, Big.roundDown).toString());
+  if (points < 1) return { success: false, message: "Số tiền donenat tối thiểu là 10.000 VNĐ." };
+
+  const charged = new Big(points).times(10000);
+  try {
+    const collection = connection.collection(NAME_TABLE_PLAYERS);
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const player = await collection.findOne({ idUserZalo: String(idUserZalo) });
+      if (!player) return { success: false, message: "Không tìm thấy hồ sơ game của bạn." };
+      const oldBalance = new Big(player.balance || 0);
+      if (oldBalance.lt(charged)) {
+        return { success: false, message: `Số dư không đủ. Bạn chỉ có ${formatBigNumber(oldBalance)} VNĐ.` };
+      }
+
+      const oldPoints = Number(player.rankPoints || 0);
+      const newBalance = oldBalance.minus(charged);
+      const result = await collection.updateOne(
+        { _id: player._id, balance: player.balance },
+        { $set: { balance: newBalance.toString() }, $inc: { rankPoints: points } }
+      );
+      if (result.modifiedCount === 1) {
+        return {
+          success: true,
+          charged: charged.toString(),
+          points,
+          oldPoints,
+          newPoints: oldPoints + points,
+          oldBalance: oldBalance.toString(),
+          newBalance: newBalance.toString(),
+        };
+      }
+    }
+    return { success: false, message: "Số dư vừa thay đổi, vui lòng thử lại." };
+  } catch (error) {
+    console.error("Lỗi khi donenat đổi điểm hạng:", error);
+    return { success: false, message: "Không thể donenat lúc này, vui lòng thử lại." };
+  }
+}
+
+/** Chỉ nâng điểm lên mốc mới, tuyệt đối không hạ điểm/hạng hiện tại. */
+export async function raisePlayerRank(idUserZalo, targetPoints) {
+  try {
+    const collection = connection.collection(NAME_TABLE_PLAYERS);
+    const player = await collection.findOne({ idUserZalo: String(idUserZalo) });
+    if (!player) return { success: false, message: "Người này chưa có hồ sơ game." };
+    const oldPoints = Number(player.rankPoints || 0);
+    const newPoints = Math.max(0, Math.trunc(Number(targetPoints) || 0));
+    if (newPoints <= oldPoints) {
+      return { success: false, message: "Người này đã ở hạng bằng hoặc cao hơn, lệnh nâng không thể hạ hạng." };
+    }
+    const result = await collection.updateOne(
+      { _id: player._id, $or: [{ rankPoints: { $lt: newPoints } }, { rankPoints: { $exists: false } }] },
+      { $set: { rankPoints: newPoints } }
+    );
+    if (result.modifiedCount !== 1) return { success: false, message: "Điểm hạng vừa thay đổi, vui lòng thử lại." };
+    return { success: true, oldPoints, newPoints };
+  } catch (error) {
+    console.error("Lỗi khi admin nâng hạng game:", error);
+    return { success: false, message: "Không thể nâng hạng lúc này." };
+  }
+}
+
+export async function recordGameTransfer(transaction) {
+  try {
+    const collection = connection.collection("game_transactions");
+    await collection.insertOne({
+      referenceCode: String(transaction.referenceCode),
+      senderId: String(transaction.senderId),
+      senderName: String(transaction.senderName || transaction.senderId),
+      receiverId: String(transaction.receiverId),
+      receiverName: String(transaction.receiverName || transaction.receiverId),
+      amount: new Big(transaction.amount).round(0).toString(),
+      senderBalanceBefore: new Big(transaction.senderBalanceBefore).round(0).toString(),
+      senderBalanceAfter: new Big(transaction.senderBalanceAfter).round(0).toString(),
+      receiverBalanceBefore: new Big(transaction.receiverBalanceBefore).round(0).toString(),
+      receiverBalanceAfter: new Big(transaction.receiverBalanceAfter).round(0).toString(),
+      botId: String(transaction.botId),
+      threadId: String(transaction.threadId),
+      createdAt: transaction.createdAt instanceof Date ? transaction.createdAt : new Date(transaction.createdAt || Date.now()),
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Lỗi khi lưu lịch sử chuyển tiền game:", error);
+    return { success: false };
+  }
+}
+
+export async function getGameTransferHistory(idUserZalo, limit = 10) {
+  try {
+    const safeLimit = Math.max(1, Math.min(20, Number(limit) || 10));
+    return await connection
+      .collection("game_transactions")
+      .find({ $or: [{ senderId: String(idUserZalo) }, { receiverId: String(idUserZalo) }] })
+      .sort({ createdAt: -1 })
+      .limit(safeLimit)
+      .toArray();
+  } catch (error) {
+    console.error("Lỗi khi đọc lịch sử chuyển tiền game:", error);
+    return [];
   }
 }
 
@@ -439,52 +565,6 @@ export async function updateAccountVND(username, amount) {
   } catch (error) {
     console.error("Lỗi khi cập nhật số dư VND của tài khoản:", error);
     return { success: false, message: `${nameServer}: Đã xảy ra lỗi khi cập nhật số dư VND!` };
-  }
-}
-
-export async function registerAccount(username, password) {
-  try {
-    const [existingUsers] = await connection.execute(`SELECT username FROM ${NAME_TABLE_ACCOUNT} WHERE username = ?`, [
-      username,
-    ]);
-
-    if (existingUsers.length > 0) {
-      return {
-        success: false,
-        message: `${nameServer}: Tên tài khoản đã tồn tại. Vui lòng chọn tên khác!`,
-      };
-    }
-
-    const specialChars = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+/;
-    const vietnameseChars = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]+/i;
-
-    if (
-      specialChars.test(password) ||
-      vietnameseChars.test(password) ||
-      specialChars.test(username) ||
-      vietnameseChars.test(username)
-    ) {
-      return {
-        success: false,
-        message: `${nameServer}: Tài khoản hoặc mật khẩu không được chứa ký tự đặc biệt hoặc dấu. Vui lòng thử lại (lưu ý bỏ dấu [ và ])!`,
-      };
-    }
-
-    await connection.execute(`INSERT INTO ${NAME_TABLE_ACCOUNT} (username, password) VALUES (?, ?)`, [
-      username,
-      password,
-    ]);
-
-    return {
-      success: true,
-      message: `${nameServer}: Đăng ký tài khoản thành công, dùng lệnh daily để nhận quà hàng ngày!`,
-    };
-  } catch (error) {
-    console.error("Lỗi khi đăng ký tài khoản:", error);
-    return {
-      success: false,
-      message: `${nameServer}: Đã xảy ra lỗi khi đăng ký tài khoản!`,
-    };
   }
 }
 

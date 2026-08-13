@@ -26,23 +26,93 @@ import { groupSettingsAll } from "../../automations/event-send-msg.js";
 import { managerDataCache } from "./active-bot.js";
 import { getGroupInfoData } from "../../service-dqt/info-service/group-info.js";
 import {
-  addKickTarget,
+  getLowInteractionStats,
+  resetLowInteractionStats,
+} from "../../service-dqt/info-service/rank-chat.js";
+import {
   addBlockTarget,
-  removeKickTarget,
-  removeBlockTarget,
-  getKickTargets,
   getBlockTargets,
-  scanAndKickEverywhere,
   scanAndBlockEverywhere,
   renderTargetListImage,
   removeTargetsByRefs,
 } from "./target-enforcement.js";
-import { createListImage } from "../../utils/canvas/list-form-v1.js";
 import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const TIME_REGEX = /^(\d{1,2}):(\d{2})$/;
+const LOCK_CHAT_TIME_ZONE = "Asia/Ho_Chi_Minh";
 const lockChatTimers = new Map();
+
+/** Hiển thị thành viên ít tương tác, dạng text 25 người mỗi trang. */
+async function handleLowInteractionMembers(api, message, groupInfo, args, aliasCommand) {
+  const prefix = getGlobalPrefix(api.getBotId());
+  const action = String(args[0] || "").toLowerCase();
+  if (["reset", "rs", "clear"].includes(action)) {
+    const resetAt = resetLowInteractionStats(api.getBotId(), message.threadId);
+    await sendMessageComplete(
+      api,
+      message,
+      `✅ Đã reset bộ lọc tương tác của nhóm.\nChu kỳ mới bắt đầu: ${new Date(resetAt).toLocaleString("vi-VN")}`,
+      false,
+      60000
+    );
+    return;
+  }
+
+  const rawPage = Number.parseInt(args[0], 10);
+  const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1;
+  const pageSize = 25;
+
+  try {
+    const fullGroupInfo = await getGroupInfoData(api, message.threadId);
+    const memberIds = [...new Set((fullGroupInfo?.memVerList || [])
+      .map((id) => String(id).replace(/_0$/, ""))
+      .filter((id) => id && id !== String(api.getBotId())))];
+
+    if (!memberIds.length) {
+      await sendMessageWarning(api, message, "Không lấy được danh sách thành viên trong nhóm.", false);
+      return;
+    }
+
+    const { resetAt, counts } = getLowInteractionStats(api.getBotId(), message.threadId);
+    const members = memberIds.map((id) => {
+      return { id, name: id, count: Number(counts[id]) || 0 };
+    });
+
+    // Lấy tên mới nhất theo batch; lỗi một profile không làm hỏng cả danh sách.
+    for (let i = 0; i < memberIds.length; i += 50) {
+      try {
+        const profiles = await getUsersInfoBasic(api, memberIds.slice(i, i + 50));
+        for (const member of members.slice(i, i + 50)) {
+          const profile = profiles?.[member.id];
+          member.name = profile?.displayName || profile?.zaloName || member.name;
+        }
+      } catch (error) {
+        console.warn(`[stg noactive] Không lấy được tên thành viên: ${error.message}`);
+      }
+    }
+
+    members.sort((a, b) => a.count - b.count || a.name.localeCompare(b.name, "vi"));
+    const totalPages = Math.max(1, Math.ceil(members.length / pageSize));
+    const safePage = Math.min(page, totalPages);
+    const start = (safePage - 1) * pageSize;
+    const current = members.slice(start, start + pageSize);
+    const lines = current.map((member, index) =>
+      `${start + index + 1}. ${member.name} — ${member.count} tin nhắn`
+    );
+    const groupName = fullGroupInfo?.name || groupInfo?.name || "nhóm";
+    const caption =
+      `📉 THÀNH VIÊN ÍT TƯƠNG TÁC — ${groupName}\n` +
+      `Trang ${safePage}/${totalPages} · Tổng ${members.length} thành viên\n` +
+      `Chu kỳ: từ ${new Date(resetAt).toLocaleDateString("vi-VN")} (15 ngày)\n\n` +
+      lines.join("\n") +
+      `\n\nDùng ${prefix}${aliasCommand} noactive ${safePage < totalPages ? safePage + 1 : 1} để xem trang tiếp theo.`;
+    await sendMessageComplete(api, message, caption, false, 300000);
+  } catch (error) {
+    console.error("[stg noactive] Lỗi:", error);
+    await sendMessageWarning(api, message, `Không thể lấy danh sách ít tương tác: ${error.message}`, false);
+  }
+}
 
 function clearLockChatTimer(threadId) {
   const timers = lockChatTimers.get(threadId);
@@ -87,6 +157,34 @@ function parseTimeToDelay(timeStr) {
 
 function isTimeFormat(str) {
   return !!str && TIME_REGEX.test(str);
+}
+
+function getTimeInZone(timeZone = LOCK_CHAT_TIME_ZONE) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.hour}:${values.minute}`;
+}
+
+function timeToMinutes(time) {
+  const match = TIME_REGEX.exec(time || "");
+  if (!match) return null;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (hour > 23 || minute > 59) return null;
+  return hour * 60 + minute;
+}
+
+function isInsideLockChatWindow(currentTime, lockTime, unlockTime) {
+  const current = timeToMinutes(currentTime);
+  const lock = timeToMinutes(lockTime);
+  const unlock = timeToMinutes(unlockTime);
+  if (current === null || lock === null || unlock === null || lock === unlock) return false;
+  return lock < unlock ? current >= lock && current < unlock : current >= lock || current < unlock;
 }
 
 function getDelayFromSchedule(raw) {
@@ -147,8 +245,6 @@ export async function handleCreateGroup(api, message) {
 }
 export async function handleKick(api, message, groupInfo, groupSettings) {
   const threadId = message.threadId;
-  const groupName = groupInfo.name;
-  const senderName = message.data.dName;
   const senderId = message.data.uidFrom;
   const idBot = api.getBotId();
   const ownerIsKeyGold = idBot === groupInfo.creatorId;
@@ -164,68 +260,15 @@ export async function handleKick(api, message, groupInfo, groupSettings) {
   // UID gõ tay trực tiếp (không @mention), ví dụ: kick 1234567890123
   const rawUidArgs = tokens.slice(1).filter((t) => /^\d{6,}$/.test(t));
 
-  // ------- kick list: hiển thị danh sách kick-target vĩnh viễn (canvas list v1) -------
-  if (mentions.length === 0 && rawUidArgs.length === 0 && subCommand === "list") {
-    const kickTargets = getKickTargets(api);
-    if (!kickTargets.length) {
-      await sendMessageComplete(api, message, "📭 Danh sách kick-target đang trống.", false, 60000);
-      return;
-    }
-    let imagePath = null;
-    try {
-      imagePath = await renderTargetListImage(api, kickTargets, "kick");
-      await sendMessageCompleteRequest(
-        api,
-        message,
-        {
-          caption: `Đây là danh sách ${kickTargets.length} mục tiêu bị kick trên toàn bộ box mà bot có quyền quản trị.`,
-          imagePath,
-        },
-        600000
-      );
-    } catch (error) {
-      console.error("Lỗi khi tạo ảnh danh sách kick-target:", error);
-    } finally {
-      await cv.clearImagePath(imagePath);
-    }
-    return;
-  }
-
-  // ------- kick remove/gỡ @mention hoặc uid: chỉ Quản Trị Bot mới được gỡ khỏi danh sách -------
-  if (subCommand === "remove" || subCommand === "gỡ" || subCommand === "go") {
-    if (!isAdmin(idBot, senderId, threadId)) {
-      await sendMessageWarning(api, message, "🚨 Chỉ Quản Trị Bot mới có quyền gỡ mục tiêu khỏi danh sách kick!", false);
-      return;
-    }
-    const idsToRemove = [...mentions.map((m) => m.uid), ...tokens.slice(2).filter((t) => /^\d{6,}$/.test(t))];
-    if (idsToRemove.length === 0) {
-      await sendMessageWarning(
-        api,
-        message,
-        `Vui lòng @mention hoặc nhập UID người cần gỡ khỏi danh sách kick.\nCú pháp: ${prefix}kick remove @mention (hoặc UID)`,
-        false
-      );
-      return;
-    }
-    const removedNames = [];
-    for (const uid of new Set(idsToRemove)) {
-      const removed = removeKickTarget(api, uid);
-      if (removed) removedNames.push(removed.targetName);
-    }
-    await sendMessageComplete(
+  if (subCommand === "target" || subCommand === "list" || subCommand === "remove") {
+    await sendMessageWarning(
       api,
       message,
-      removedNames.length
-        ? `✅ Đã gỡ khỏi danh sách kick vĩnh viễn: ${removedNames.join(", ")}`
-        : `⚠️ Không tìm thấy mục tiêu tương ứng trong danh sách kick.`,
-      false,
-      300000
+      `Đã bỏ chế độ kick target. Dùng ${prefix}target add @mention hoặc ${prefix}target add all @mention.`,
+      false
     );
     return;
   }
-
-  // ------- kick target: kick + thêm vào danh sách target vĩnh viễn + quét toàn bộ box bot có quyền admin -------
-  const isTargetMode = subCommand === "target";
 
   // ------- Hành vi kick mặc định: hỗ trợ cả @mention lẫn UID gõ tay -------
   if (mentions.length === 0 && rawUidArgs.length === 0) {
@@ -276,76 +319,14 @@ export async function handleKick(api, message, groupInfo, groupSettings) {
       return;
     }
 
-    if (isTargetMode) {
-      // Thêm vào danh sách kick-target vĩnh viễn + quét toàn bộ box mà bot có quyền admin
-      for (const uid of uids) {
-        const userData = UserDataMentions.find((u) => u.uid === uid);
-        const targetName = userData?.name || `ID ${uid}`;
-        addKickTarget(api, uid, targetName, senderId);
-      }
-
-      (async () => {
-        for (const uid of uids) {
-          const { success, failed } = await scanAndKickEverywhere(api, uid, threadId);
-          if (success || failed) {
-            console.log(
-              `[target-enforcement] Quét toàn bộ box để kick ${uid}: thành công ${success}, thất bại ${failed}.`
-            );
-          }
-        }
-      })().catch((err) => console.error("Lỗi khi quét toàn bộ box để kick target:", err));
-    }
-
-    // Vẽ ảnh canvas danh sách (list-form-v1) tóm tắt kết quả kick, dùng cho cả kick thường lẫn kick target
-    let listImagePath = null;
-    try {
-      const listItems = UserDataMentions.map((u) => ({
-        name: u.name || `ID ${u.uid}`,
-        avatar: u.avatar || null,
-        info: `UID: ${u.uid}`,
-        badge: "K",
-        badgeColor: "#FF6347",
-      }));
-      listImagePath = await createListImage(
-        { columnCount: listItems.length > 4 ? 2 : 1 },
-        listItems,
-        {
-          mainTitle: isTargetMode ? "KICK TARGET" : "KICK",
-          subTitle: isTargetMode
-            ? "Đã Kick Khỏi Nhóm Hiện Tại + Toàn Bộ Box Bot Có Admin"
-            : "Đã Kick Khỏi Nhóm Hiện Tại",
-          icon: "🚪",
-        }
-      );
-      await sendMessageCompleteRequest(api, message, { caption: "", imagePath: listImagePath }, 300000);
-    } catch (error) {
-      console.error("Lỗi khi tạo ảnh canvas danh sách kick:", error);
-    } finally {
-      await cv.clearImagePath(listImagePath);
-    }
-
-    const isEnableKickImage = groupSettings?.[threadId]?.enableKickImage === true;
-    if (isEnableKickImage) {
-      for (const userInfo of UserDataMentions) {
-        let imagePath = null;
-        try {
-          imagePath = await cv.createKickImage(userInfo, groupName, groupInfo.type, userInfo.genderId, senderName);
-  
-          const kickMessage = {
-            msg: "",
-            attachments: imagePath ? [imagePath] : [],
-            ttl: 86400000,
-            isUseProphylactic: true,
-          };
-  
-          await api.sendMessage(kickMessage, threadId, MessageType.GroupMessage);
-        } catch (error) {
-          console.error("Lỗi khi tạo và gửi ảnh kết quả:", error);
-        } finally {
-          await cv.clearImagePath(imagePath);
-        }
-      }
-    }
+    const names = UserDataMentions.map((u) => u.name || `ID ${u.uid}`);
+    await sendMessageComplete(
+      api,
+      message,
+      `✅ Đã kick ${names.length ? names.join(", ") : uids.join(", ")} khỏi nhóm.`,
+      false,
+      60000
+    );
   } catch (error) {
     console.error("Chắc Chắn Là Đã Có Lỗi Gì Đó :D", error);
     await sendMessageWarning(api, message, "Ném Đây Cái Key Vàng 🔑, Tôi Kick Cho Bạn Xem :D 🚀", false);
@@ -435,8 +416,6 @@ export async function handleKickAll(api, message, groupInfo, groupSettings) {
 }
 export async function handleBlock(api, message, groupInfo, groupSettings) {
   const threadId = message.threadId;
-  const groupName = groupInfo.name;
-  const senderName = message.data.dName;
   const senderId = message.data.uidFrom;
   const idBot = api.getBotId();
   const ownerIsKeyGold = idBot === groupInfo.creatorId;
@@ -452,68 +431,15 @@ export async function handleBlock(api, message, groupInfo, groupSettings) {
   // UID gõ tay trực tiếp (không @mention), ví dụ: block 1234567890123
   const rawUidArgs = tokens.slice(1).filter((t) => /^\d{6,}$/.test(t));
 
-  // ------- block list: hiển thị danh sách block-target vĩnh viễn (canvas list v1) -------
-  if (mentions.length === 0 && rawUidArgs.length === 0 && subCommand === "list") {
-    const blockTargets = getBlockTargets(api);
-    if (!blockTargets.length) {
-      await sendMessageComplete(api, message, "📭 Danh sách block-target đang trống.", false, 60000);
-      return;
-    }
-    let imagePath = null;
-    try {
-      imagePath = await renderTargetListImage(api, blockTargets, "block");
-      await sendMessageCompleteRequest(
-        api,
-        message,
-        {
-          caption: `Đây là danh sách ${blockTargets.length} mục tiêu bị block trên toàn bộ box mà bot có quyền quản trị.`,
-          imagePath,
-        },
-        600000
-      );
-    } catch (error) {
-      console.error("Lỗi khi tạo ảnh danh sách block-target:", error);
-    } finally {
-      await cv.clearImagePath(imagePath);
-    }
-    return;
-  }
-
-  // ------- block remove/gỡ @mention hoặc uid: chỉ Quản Trị Bot mới được gỡ khỏi danh sách -------
-  if (subCommand === "remove" || subCommand === "gỡ" || subCommand === "go") {
-    if (!isAdmin(idBot, senderId, threadId)) {
-      await sendMessageWarning(api, message, "🚨 Chỉ Quản Trị Bot mới có quyền gỡ mục tiêu khỏi danh sách block!", false);
-      return;
-    }
-    const idsToRemove = [...mentions.map((m) => m.uid), ...tokens.slice(2).filter((t) => /^\d{6,}$/.test(t))];
-    if (idsToRemove.length === 0) {
-      await sendMessageWarning(
-        api,
-        message,
-        `Vui lòng @mention hoặc nhập UID người cần gỡ khỏi danh sách block.\nCú pháp: ${prefix}block remove @mention (hoặc UID)`,
-        false
-      );
-      return;
-    }
-    const removedNames = [];
-    for (const uid of new Set(idsToRemove)) {
-      const removed = removeBlockTarget(api, uid);
-      if (removed) removedNames.push(removed.targetName);
-    }
-    await sendMessageComplete(
+  if (subCommand === "target" || subCommand === "list" || subCommand === "remove") {
+    await sendMessageWarning(
       api,
       message,
-      removedNames.length
-        ? `✅ Đã gỡ khỏi danh sách block vĩnh viễn: ${removedNames.join(", ")}`
-        : `⚠️ Không tìm thấy mục tiêu tương ứng trong danh sách block.`,
-      false,
-      300000
+      `Đã bỏ chế độ block target. Dùng ${prefix}target add @mention hoặc ${prefix}target add all @mention.`,
+      false
     );
     return;
   }
-
-  // ------- block target: block + thêm vào danh sách target vĩnh viễn + quét toàn bộ box bot có quyền admin -------
-  const isTargetMode = subCommand === "target";
 
   // ------- Hành vi block mặc định: hỗ trợ cả @mention lẫn UID gõ tay -------
   if (mentions.length === 0 && rawUidArgs.length === 0) {
@@ -564,76 +490,14 @@ export async function handleBlock(api, message, groupInfo, groupSettings) {
       return;
     }
 
-    if (isTargetMode) {
-      // Thêm vào danh sách block-target vĩnh viễn + quét toàn bộ box mà bot có quyền admin
-      for (const uid of uids) {
-        const userData = UserDataMentions.find((u) => u.uid === uid);
-        const targetName = userData?.name || `ID ${uid}`;
-        addBlockTarget(api, uid, targetName, senderId);
-      }
-
-      (async () => {
-        for (const uid of uids) {
-          const { success, failed } = await scanAndBlockEverywhere(api, uid, threadId);
-          if (success || failed) {
-            console.log(
-              `[target-enforcement] Quét toàn bộ box để block ${uid}: thành công ${success}, thất bại ${failed}.`
-            );
-          }
-        }
-      })().catch((err) => console.error("Lỗi khi quét toàn bộ box để block target:", err));
-    }
-
-    // Vẽ ảnh canvas danh sách (list-form-v1) tóm tắt kết quả block, dùng cho cả block thường lẫn block target
-    let listImagePath = null;
-    try {
-      const listItems = UserDataMentions.map((u) => ({
-        name: u.name || `ID ${u.uid}`,
-        avatar: u.avatar || null,
-        info: `UID: ${u.uid}`,
-        badge: "B",
-        badgeColor: "#DC2626",
-      }));
-      listImagePath = await createListImage(
-        { columnCount: listItems.length > 4 ? 2 : 1 },
-        listItems,
-        {
-          mainTitle: isTargetMode ? "BLOCK TARGET" : "BLOCK",
-          subTitle: isTargetMode
-            ? "Đã Block Khỏi Nhóm Hiện Tại + Toàn Bộ Box Bot Có Admin"
-            : "Đã Block Khỏi Nhóm Hiện Tại",
-          icon: "🚫",
-        }
-      );
-      await sendMessageCompleteRequest(api, message, { caption: "", imagePath: listImagePath }, 300000);
-    } catch (error) {
-      console.error("Lỗi khi tạo ảnh canvas danh sách block:", error);
-    } finally {
-      await cv.clearImagePath(listImagePath);
-    }
-
-    const isEnableBlockImage = groupSettings?.[threadId]?.enableBlockImage === true;
-    if (isEnableBlockImage) {
-      for (const userInfo of UserDataMentions) {
-        let imagePath = null;
-        try {
-          imagePath = await cv.createBlockImage(userInfo, groupName, groupInfo.groupType, userInfo.genderId, senderName);
-          
-          const blockMessage = {
-            msg: "",
-            attachments: imagePath ? [imagePath] : [],
-            ttl: 86400000,
-            isUseProphylactic: true,
-          };
-  
-          await api.sendMessage(blockMessage, threadId, message.type);
-        } catch (error) {
-          console.error("Lỗi khi tạo và gửi ảnh kết quả:", error);
-        } finally {
-          await cv.clearImagePath(imagePath);
-        }
-      }
-    }
+    const names = UserDataMentions.map((u) => u.name || `ID ${u.uid}`);
+    await sendMessageComplete(
+      api,
+      message,
+      `✅ Đã block ${names.length ? names.join(", ") : uids.join(", ")} trong nhóm.`,
+      false,
+      60000
+    );
   } catch (error) {
     console.error("Chắc Chắn Là Đã Có Lỗi Gì Đó :D", error);
     await sendMessageWarning(api, message, "Ném Đây Cái Key Vàng 🔑, Tôi Block Cho Bạn Xem :D 🚀", false);
@@ -641,9 +505,9 @@ export async function handleBlock(api, message, groupInfo, groupSettings) {
 }
 
 /**
- * Lệnh `target`: quản lý danh sách những người đang bị block-target trên toàn bộ box mà bot có quyền admin.
- * - target (hoặc target list): hiển thị danh sách (canvas list-form-v1) kèm số thứ tự
- * - target remove <số thứ tự | uid | @mention> (nhiều mục tiêu, cách nhau bằng khoảng trắng): gỡ khỏi danh sách
+ * target add @tag       -> block và theo dõi target trong nhóm hiện tại
+ * target add all @tag   -> block và theo dõi target trong tất cả nhóm bot có quyền
+ * target list/remove    -> xem hoặc gỡ target
  */
 export async function handleTarget(api, message) {
   const threadId = message.threadId;
@@ -657,7 +521,6 @@ export async function handleTarget(api, message) {
   const tokens = afterPrefix.split(/\s+/).filter(Boolean);
   const subCommand = tokens[1]?.toLowerCase();
 
-  // ------- target (list): hiển thị danh sách những người đang bị block target -------
   if (!subCommand || subCommand === "list") {
     const blockTargets = getBlockTargets(api);
     if (!blockTargets.length) {
@@ -672,7 +535,7 @@ export async function handleTarget(api, message) {
         message,
         {
           caption:
-            `Đây là danh sách ${blockTargets.length} mục tiêu đang bị block trên toàn bộ box mà bot có quyền quản trị.\n` +
+            `Danh sách ${blockTargets.length} target theo phạm vi nhóm hoặc toàn bộ nhóm.\n` +
             `Gỡ: ${prefix}target remove <số thứ tự trong danh sách | uid | @mention>`,
           imagePath,
         },
@@ -686,7 +549,83 @@ export async function handleTarget(api, message) {
     return;
   }
 
-  // ------- target remove/gỡ: theo số thứ tự trong danh sách, uid, hoặc @mention -------
+  if (subCommand === "add" || subCommand === "thêm" || subCommand === "them") {
+    if (!isAdmin(idBot, senderId, threadId)) {
+      await sendMessageWarning(api, message, "🚨 Chỉ Quản Trị Bot mới có quyền thêm target!", false);
+      return;
+    }
+
+    const isAllGroups = tokens[2]?.toLowerCase() === "all";
+    const uidStartIndex = isAllGroups ? 3 : 2;
+    const rawUidArgs = tokens.slice(uidStartIndex).filter((token) => /^\d{6,}$/.test(token));
+    const candidateIds = [...new Set([...mentions.map((mention) => mention.uid), ...rawUidArgs])];
+    if (!candidateIds.length) {
+      await sendMessageWarning(
+        api,
+        message,
+        `Cú pháp:\n${prefix}target add @mention - Target nhóm hiện tại\n` +
+          `${prefix}target add all @mention - Target tất cả nhóm`,
+        false
+      );
+      return;
+    }
+
+    const addedNames = [];
+    const existingNames = [];
+    const protectedNames = [];
+    let successGroups = 0;
+    let failedGroups = 0;
+
+    for (const targetId of candidateIds) {
+      let targetName = `ID ${targetId}`;
+      try {
+        const userInfo = await getUserInfoData(api, targetId);
+        targetName = userInfo?.name || targetName;
+      } catch {}
+
+      if (isAdmin(idBot, targetId, threadId)) {
+        protectedNames.push(targetName);
+        continue;
+      }
+
+      const changed = addBlockTarget(
+        api,
+        targetId,
+        targetName,
+        senderId,
+        isAllGroups ? "all" : "group",
+        threadId
+      );
+      (changed ? addedNames : existingNames).push(targetName);
+
+      try {
+        const result = await api.blockUsers(threadId, [targetId]);
+        if (result?.errorMembers?.length) failedGroups++;
+        else successGroups++;
+      } catch {
+        failedGroups++;
+      }
+
+      if (isAllGroups) {
+        const scanResult = await scanAndBlockEverywhere(api, targetId, threadId);
+        successGroups += scanResult.success;
+        failedGroups += scanResult.failed;
+      }
+    }
+
+    const lines = [];
+    if (addedNames.length) {
+      lines.push(
+        `✅ Đã thêm target ${isAllGroups ? "tất cả nhóm" : "nhóm hiện tại"}: ${addedNames.join(", ")}`
+      );
+    }
+    if (existingNames.length) lines.push(`ℹ️ Target đã tồn tại trong phạm vi này: ${existingNames.join(", ")}`);
+    if (protectedNames.length) lines.push(`⚠️ Không thể target quản trị bot: ${protectedNames.join(", ")}`);
+    lines.push(`📊 Xử lý nhóm: thành công ${successGroups}, lỗi/bỏ qua ${failedGroups}`);
+    await sendMessageComplete(api, message, lines.join("\n"), false, 300000);
+    return;
+  }
+
   if (subCommand === "remove" || subCommand === "gỡ" || subCommand === "go") {
     if (!isAdmin(idBot, senderId, threadId)) {
       await sendMessageWarning(api, message, "🚨 Chỉ Quản Trị Bot mới có quyền gỡ mục tiêu khỏi danh sách target!", false);
@@ -719,7 +658,11 @@ export async function handleTarget(api, message) {
   await sendMessageWarning(
     api,
     message,
-    `Cú pháp:\n${prefix}target list - Xem danh sách bị block target\n${prefix}target remove <số thứ tự | uid | @mention> - Gỡ khỏi danh sách`,
+    `Cú pháp:\n` +
+      `${prefix}target add @mention - Target nhóm hiện tại\n` +
+      `${prefix}target add all @mention - Target tất cả nhóm\n` +
+      `${prefix}target list - Xem danh sách target\n` +
+      `${prefix}target remove <số thứ tự | uid | @mention> - Gỡ target`,
     false
   );
 }
@@ -731,18 +674,12 @@ export async function handleKeyCommands(api, message, groupSettings, isAdminLeve
   const prefix = getGlobalPrefix(api.getBotId());
 
   if (
-    !content.startsWith(`${prefix}keygold`) &&
-    !content.startsWith(`${prefix}keysilver`) &&
-    !content.startsWith(`${prefix}unkey`)
+    !content.startsWith(`${prefix}keygold`)
   ) {
     return false;
   }
 
-  const action = content.startsWith(`${prefix}keygold`)
-    ? "gold"
-    : content.startsWith(`${prefix}keysilver`)
-      ? "silver"
-      : "unkey";
+  const action = "gold";
 
   // if (!isAdminLevelHighest) {
   //   const caption = "Chỉ có quản trị bot cấp cao mới được sử dụng lệnh này!";
@@ -1318,6 +1255,10 @@ export async function handleSettingGroupCommand(api, message, groupInfo, aliasCo
   const groupTypeString = groupInfo.groupType === 1 ? "Nhóm" : "Cộng Đồng";
 
   args.shift();
+  const legacyKeyCommand = String(aliasCommand || "").toLowerCase();
+  if (["keygold", "keysilver", "unkey", "listkey"].includes(legacyKeyCommand)) {
+    args.unshift(legacyKeyCommand);
+  }
 
   if (args.length < 1) {
     const result = {
@@ -1325,14 +1266,23 @@ export async function handleSettingGroupCommand(api, message, groupInfo, aliasCo
       message:
         `Sử dụng: ${prefix}${aliasCommand} <loại config> <giá trị>` +
         `\n\n[Cài đặt Bật/Tắt] (on/off hoặc 1/0):` +
-        `\n- lockchat: ${groupInfo.setting?.lockSendMsg ? "Tắt" : "Mở"} chat trong ${groupTypeString}` +
+        `\n- lockchat on/off: ${groupInfo.setting?.lockSendMsg ? "Tắt" : "Mở"} chat trong ${groupTypeString}` +
+        `\n- lockchat HH:MM HH:MM: Tự khóa/mở chat hằng ngày theo giờ Việt Nam` +
+        `\n- lockchat status|cancel: Xem hoặc hủy lịch khóa chat` +
         `\n- lockview: ${groupInfo.setting?.lockViewMember ? "Tắt" : "Mở"} xem thành viên trong ${groupTypeString}` +
         `\n- history: ${groupInfo.setting?.enableMsgHistory ? "Mở" : "Tắt"
         } cho phép thành viên mới đọc tin nhắn gần nhất` +
         `\n- joinappr: ${groupInfo.setting?.joinAppr ? "Mở" : "Tắt"} chế độ phê duyệt thành viên` +
         `\n- showkey: ${groupInfo.setting?.signAdminMsg ? "Mở" : "Tắt"} hiển thị key quản trị` +
+        `\n\n[Quản lý Key]:` +
+        `\n- keygold [@mention]: Nhường trưởng nhóm/key vàng` +
+        `\n- keysilver [@mention]: Phong phó nhóm/key bạc` +
+        `\n- unkey [@mention]: Gỡ phó nhóm/key bạc` +
+        `\n- listkey: Xem danh sách key vàng/key bạc` +
         `\n\n[Cài đặt List]:` +
         `\n- block <add/remove/list> <@mention|index>: Thêm/xóa/xem danh sách chặn trong ${groupTypeString}` +
+        `\n- noactive [trang]: Xem thành viên ít/không tương tác (25 người/trang, chu kỳ 15 ngày)` +
+        `\n- noactive reset: Reset chu kỳ tương tác ngay lập tức` +
         `\n\n[Cài đặt Chuỗi]:` +
         `\n- name <tên mới>: Đổi tên ${groupTypeString}` +
         `\n\n[Cài đặt Link]:` +
@@ -1355,6 +1305,117 @@ export async function handleSettingGroupCommand(api, message, groupInfo, aliasCo
   const hasTime2 = isTimeFormat(rawSchedule2);
   const isTimeWindow = hasTime1 && hasTime2;
   const delayMsSingle = getDelayFromSchedule(rawSchedule);
+
+  if (["noactive", "inactive", "lowactive", "ittt"].includes(settingType)) {
+    await handleLowInteractionMembers(api, message, groupInfo, argsList, aliasCommand);
+    return;
+  }
+
+  if (settingType === "lockchat") {
+    const firstArg = argsList[0]?.toLowerCase();
+    const botGroupSettings = groupSettingsAll.getByID(api.getBotId());
+    if (!botGroupSettings[threadId]) botGroupSettings[threadId] = {};
+
+    if (["status", "view", "show"].includes(firstArg)) {
+      const config = botGroupSettings[threadId].lockChatSchedule;
+      await sendMessageStateQuote(
+        api,
+        message,
+        config?.enabled
+          ? `⏰ Lịch khóa chat đang bật:\n- Khóa lúc: ${config.lockTime}\n- Mở lúc: ${config.unlockTime}\n- Múi giờ: Việt Nam`
+          : `Chưa đặt lịch khóa/mở chat tự động cho ${groupTypeString}.`,
+        !!config?.enabled,
+        60000
+      );
+      return;
+    }
+
+    if (["cancel", "clear", "stop", "huy", "hủy"].includes(firstArg)) {
+      clearLockChatTimer(threadId);
+      delete botGroupSettings[threadId].lockChatSchedule;
+      groupSettingsAll.setChanged();
+      await sendMessageStateQuote(api, message, `Đã hủy lịch khóa/mở chat tự động của ${groupTypeString}.`, true, 60000);
+      return;
+    }
+
+    let lockTime = null;
+    let unlockTime = null;
+    if (isTimeFormat(argsList[0]) && isTimeFormat(argsList[1])) {
+      [lockTime, unlockTime] = [argsList[0], argsList[1]];
+    } else if (["schedule", "time", "hen", "hẹn"].includes(firstArg)) {
+      [lockTime, unlockTime] = [argsList[1], argsList[2]];
+    } else if (["on", "1"].includes(firstArg) && isTimeFormat(argsList[1]) && isTimeFormat(argsList[2])) {
+      [lockTime, unlockTime] = [argsList[1], argsList[2]];
+    }
+
+    if (lockTime || unlockTime) {
+      const lockMinutes = timeToMinutes(lockTime);
+      const unlockMinutes = timeToMinutes(unlockTime);
+      if (lockMinutes === null || unlockMinutes === null || lockMinutes === unlockMinutes) {
+        await sendMessageStateQuote(
+          api,
+          message,
+          `Giờ khóa/mở không hợp lệ hoặc đang trùng nhau. Ví dụ: ${prefix}stg lockchat 22:00 06:00`,
+          false,
+          60000
+        );
+        return;
+      }
+
+      const currentTime = getTimeInZone();
+      const shouldLockNow = isInsideLockChatWindow(currentTime, lockTime, unlockTime);
+      const currentSettings = { ...(groupInfo.setting || {}), lockSendMsg: shouldLockNow ? 1 : 0 };
+
+      try {
+        await api.changeGroupSetting(threadId, currentSettings);
+        clearLockChatTimer(threadId);
+        botGroupSettings[threadId].lockChatSchedule = {
+          enabled: true,
+          lockTime,
+          unlockTime,
+          timeZone: LOCK_CHAT_TIME_ZONE,
+          lastActionKey: null,
+          updatedAt: Date.now(),
+        };
+        groupSettingsAll.setChanged();
+        await sendMessageStateQuote(
+          api,
+          message,
+          `✅ Đã đặt lịch hằng ngày:\n- Khóa chat lúc ${lockTime}\n- Mở chat lúc ${unlockTime}\n- Múi giờ Việt Nam\nHiện tại chat đang ${shouldLockNow ? "khóa" : "mở"}.`,
+          true,
+          60000
+        );
+      } catch (error) {
+        await sendMessageStateQuote(api, message, `Không thể đặt lịch khóa chat: ${error.message}`, false, 60000);
+      }
+      return;
+    }
+  }
+
+  if (["keygold", "keysilver", "unkey"].includes(settingType)) {
+    const action = settingType === "keygold" ? "gold" : settingType === "keysilver" ? "silver" : "unkey";
+    const mentions = message.data.mentions || [];
+
+    if (mentions.length === 0) {
+      const senderId = message.data.uidFrom;
+      await handleKeyAction(api, message, null, threadId, senderId, action, "Bạn");
+    } else {
+      for (const mention of mentions) {
+        const targetName = message.data.content
+          .substring(mention.pos, mention.pos + mention.len)
+          .replace("@", "");
+        await handleKeyAction(api, message, null, threadId, mention.uid, action, targetName);
+      }
+    }
+
+    groupSettingsAll.setChanged();
+    return;
+  }
+
+  if (settingType === "listkey") {
+    await handleListKey(api, message, groupInfo, aliasCommand);
+    return;
+  }
 
   if (settingType === "changelink") {
     const groupId = groupInfo.groupId;
@@ -2100,15 +2161,20 @@ async function createKeyListImage(keyUsers, groupInfo) {
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext("2d");
 
-  const BACKGROUND_PATH = path.resolve("./assets/resources/images/hhhbot.png");
+  const BACKGROUND_PATH = path.resolve("./assets/resources/images/listkey-background.jpeg");
   let bgLoaded = false;
   try {
     const bg = await loadImage(BACKGROUND_PATH);
-    ctx.drawImage(bg, 0, 0, width, height);
+    const coverScale = Math.max(width / bg.width, height / bg.height);
+    const backgroundWidth = bg.width * coverScale;
+    const backgroundHeight = bg.height * coverScale;
+    const backgroundX = (width - backgroundWidth) / 2;
+    const backgroundY = (height - backgroundHeight) * 0.28;
+    ctx.drawImage(bg, backgroundX, backgroundY, backgroundWidth, backgroundHeight);
     bgLoaded = true;
     const overlay = ctx.createLinearGradient(0, 0, 0, height);
-    overlay.addColorStop(0, "rgba(10, 25, 60, 0.75)");
-    overlay.addColorStop(1, "rgba(5, 15, 50, 0.85)");
+    overlay.addColorStop(0, "rgba(18, 12, 35, 0.48)");
+    overlay.addColorStop(1, "rgba(8, 12, 35, 0.68)");
     ctx.fillStyle = overlay;
     ctx.fillRect(0, 0, width, height);
   } catch (err) {

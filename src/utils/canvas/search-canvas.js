@@ -5,273 +5,306 @@ import { loadImageBuffer } from "../util.js";
 
 const fontPath = path.join(process.cwd(), "assets", "fonts");
 try {
-  registerFont(path.join(fontPath, "BeVietnamPro-Bold.ttf"), { family: "BeVietnamPro", weight: "bold" });
-  registerFont(path.join(fontPath, "BeVietnamPro-Medium.ttf"), { family: "BeVietnamPro", weight: "normal" });
+  registerFont(path.join(fontPath, "BeVietnamPro-Bold.ttf"), { family: "BeVietnamPro", weight: "700" });
+  registerFont(path.join(fontPath, "BeVietnamPro-Medium.ttf"), { family: "BeVietnamPro", weight: "500" });
 } catch {}
-/* Ch? d˘ng 2 weight "bold" v‡ "normal" trong to‡n b? ctx.font bÍn du?i ó
-   ph?i kh?p chÌnh x·c chu?i weight d„ registerFont ? trÍn, tr·nh canvas fallback
-   sang font h? th?ng thi?u glyph d?u ti?ng Vi?t (d, u, ...).
-   KhÙng d˘ng k˝ t? Unicode d?c bi?t (icon, emoji, ?...) l‡m text v? tr?c ti?p ó
-   BeVietnamPro khÙng cÛ c·c glyph dÛ nÍn s? hi?n Ù vuÙng l?i.
-   Icon placeholder du?c v? b?ng canvas path (hÏnh h?c) thay vÏ k˝ t? font. */
 
-/* ---------- B?ng m‡u: gradient xanh duong -> xanh ng?c (gi?ng ?nh m?u) ---------- */
-const C_THUMB_BG = "#28304a"; // n?n placeholder ?nh khi khÙng t?i du?c
-const C_BAR       = "#5a6690"; // 3 v?ch icon placeholder
-const C_TEXT      = "#ffffff"; // tiÍu d? chÌnh
-const C_SUB       = "#c7cde3"; // ngh? si / ph? d?
-const C_ITEM_BG   = "rgba(255,255,255,0.06)"; // n?n nh? cho t?ng item danh s·ch
-const C_DIVIDER   = "rgba(255,255,255,0.08)"; // du?ng ph‚n c·ch c?t
-// M‡u "lÛt" phÌa du?i to‡n b? canvas. ?nh xu?t ra HO¿N TO¿N KH‘NG cÛ alpha
-// (opaque 100%) nÍn khi n?n t?ng chat (Zalo/Messenger...) nÈn ?nh sang JPEG
-// (JPEG khÙng h? tr? trong su?t), 4 gÛc s? KH‘NG b? t? d?ng tÙ tr?ng n?a ó
-// vÏ v?n di ch˙ng d„ l‡ m‡u d?c (t?i, h‡i hÚa v?i gradient) ch? khÙng ph?i
-// pixel trong su?t ch? b? flatten th‡nh tr?ng.
-const C_BACKDROP  = "#131a2e";
+const COLORS = {
+  bg: "#080a0f",
+  surface: "#11141b",
+  surfaceLight: "#171b24",
+  text: "#f7f8fa",
+  muted: "#9aa3b2",
+  faint: "#606a79",
+  border: "rgba(255,255,255,0.09)",
+};
 
-function roundRectPath(ctx, x, y, w, h, r) {
-  const rr = Math.max(0, Math.min(r, Math.floor(Math.min(w, h) / 2)));
+const THEMES = {
+  MUSIC: { accent: "#b6f33d", accent2: "#53e0ba", label: "√ÇM NH·∫†C", noun: "b√†i h√°t", action: "nghe" },
+  VIDEO: { accent: "#ff6b4a", accent2: "#ffb23e", label: "VIDEO", noun: "video", action: "xem" },
+  MEDIA: { accent: "#8b7cff", accent2: "#56c5ff", label: "KH√ÅM PH√Å", noun: "k·∫øt qu·∫£", action: "m·ªü" },
+};
+
+function roundedPath(ctx, x, y, width, height, radius) {
+  const r = Math.min(radius, width / 2, height / 2);
   ctx.beginPath();
-  ctx.moveTo(x + rr, y);
-  ctx.lineTo(x + w - rr, y);
-  ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
-  ctx.lineTo(x + w, y + h - rr);
-  ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
-  ctx.lineTo(x + rr, y + h);
-  ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
-  ctx.lineTo(x, y + rr);
-  ctx.quadraticCurveTo(x, y, x + rr, y);
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + width, y, x + width, y + height, r);
+  ctx.arcTo(x + width, y + height, x, y + height, r);
+  ctx.arcTo(x, y + height, x, y, r);
+  ctx.arcTo(x, y, x + width, y, r);
   ctx.closePath();
 }
 
-function clampText(ctx, text, maxWidth) {
-  let out = String(text || "");
-  if (ctx.measureText(out).width <= maxWidth) return out;
-  while (out.length > 0 && ctx.measureText(`${out}...`).width > maxWidth) out = out.slice(0, -1);
-  return out.length > 0 ? `${out}...` : "...";
+function fillRoundRect(ctx, x, y, width, height, radius, fill) {
+  roundedPath(ctx, x, y, width, height, radius);
+  ctx.fillStyle = fill;
+  ctx.fill();
 }
 
-function drawGradient(ctx, W, H) {
-  // Gradient chÈo xanh duong (trÍn-tr·i) -> xanh ng?c (du?i-ph?i), gi?ng ?nh m?u
-  const g = ctx.createLinearGradient(0, 0, W, H);
-  g.addColorStop(0, "#2a4a8f");
-  g.addColorStop(0.5, "#2e4570");
-  g.addColorStop(1, "#1c7a72");
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, W, H);
-
-  const glow = ctx.createRadialGradient(W * 0.1, H * 0.05, 0, W * 0.1, H * 0.05, W * 0.65);
-  glow.addColorStop(0, "rgba(255,255,255,0.08)");
-  glow.addColorStop(1, "rgba(255,255,255,0)");
-  ctx.fillStyle = glow;
-  ctx.fillRect(0, 0, W, H);
-}
-
-/* Icon 3 v?ch (equalizer) l‡m placeholder khi ?nh khÙng t?i du?c */
-function drawPlaceholderIcon(ctx, cx, cy, size) {
-  const barW = Math.max(2, size * 0.14);
-  const gap = barW * 0.8;
-  const heights = [size * 0.35, size * 0.6, size * 0.45];
-  const totalW = barW * 3 + gap * 2;
-  let x = cx - totalW / 2;
-  heights.forEach((h) => {
-    roundRectPath(ctx, x, cy - h / 2, barW, h, barW / 2);
-    ctx.fillStyle = C_BAR;
-    ctx.fill();
-    x += barW + gap;
-  });
-}
-
-/* V? ?nh theo ki?u "cover" (gi? t? l?, l?p d?y khung, c?t ph?n du)
-   thay vÏ kÈo gi„n mÈo ?nh. */
-function drawImageCover(ctx, img, x, y, w, h) {
-  const ir = img.width / img.height;
-  const tr = w / h;
-  let sx, sy, sw, sh;
-  if (ir > tr) {
-    sh = img.height;
-    sw = sh * tr;
-    sx = (img.width - sw) / 2;
-    sy = 0;
-  } else {
-    sw = img.width;
-    sh = sw / tr;
-    sx = 0;
-    sy = (img.height - sh) / 2;
-  }
-  ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
-}
-
-function drawThumb(ctx, img, x, y, w, h, r) {
-  ctx.save();
-  roundRectPath(ctx, x, y, w, h, r);
-  ctx.clip();
-  if (img) {
-    drawImageCover(ctx, img, x, y, w, h);
-  } else {
-    ctx.fillStyle = C_THUMB_BG;
-    ctx.fillRect(x, y, w, h);
-    drawPlaceholderIcon(ctx, x + w / 2, y + h / 2, Math.min(w, h) * 0.5);
-  }
-  ctx.restore();
-}
-
-/* Danh s·ch 1 c?t: m?i item cÛ n?n th? nh?, s? th? t? g?n li?n v‡o tiÍu d?
-   (vd "2. Track 06 x Noi...") gi?ng b? c?c ?nh m?u. */
-function drawListColumn(ctx, songs, images, startRank, x, y, colW, rowH, thumbS) {
-  const padX = 9;
-  const innerW = colW - padX * 2;
-  songs.forEach((song, idx) => {
-    const rank = startRank + idx;
-    const rowY = y + idx * rowH;
-    const rowCenterY = rowY + rowH / 2;
-
-    roundRectPath(ctx, x, rowY + 3, colW, rowH - 6, 12);
-    ctx.fillStyle = C_ITEM_BG;
-    ctx.fill();
-
-    const thumbX = x + padX;
-    const thumbY = rowCenterY - thumbS / 2;
-    drawThumb(ctx, images[idx], thumbX, thumbY, thumbS, thumbS, 9);
-
-    const textX = thumbX + thumbS + 11;
-    const textMaxW = x + innerW + padX - textX - 6;
-
-    ctx.font = "bold 14px BeVietnamPro, Arial";
-    ctx.fillStyle = C_TEXT;
-    ctx.textAlign = "left";
-    ctx.textBaseline = "alphabetic";
-    ctx.fillText(clampText(ctx, `${rank}. ${song?.title || "Unknown"}`, Math.max(30, textMaxW)), textX, rowCenterY - 4);
-
-    ctx.font = "normal 11.5px BeVietnamPro, Arial";
-    ctx.fillStyle = C_SUB;
-    ctx.fillText(
-      clampText(ctx, song?.artistsNames || song?.channelName || "Unknown Artist", Math.max(30, textMaxW)),
-      textX,
-      rowCenterY + 14
-    );
-  });
-}
-
-export async function createSearchResultImage(data) {
-  const sorted = (Array.isArray(data) ? [...data] : []).slice(0, 16);
-  if (sorted.length === 0) throw new Error("KhÙng cÛ d? li?u.");
-
-  /* ---------- KÌch thu?c & b? c?c 3 c?t (d„ tang size t?ng th?) ---------- */
-  const W = 900;
-  const PAD = 28;
-  const GAP = 20;
-  const RADIUS = 26;
-
-  const COL1_W = 270; // c?t tr·i: b‡i h‡ng d?u (hero)
-  const listAreaW = W - PAD * 2 - COL1_W - GAP * 2;
-  const COL2_W = Math.floor(listAreaW / 2);
-  const COL3_W = listAreaW - COL2_W;
-
-  const ROW_H = 58;
-  const THUMB_S = 42;
-
-  const rest = sorted.slice(1);
-  const colACount = Math.ceil(rest.length / 2);
-  const colA = rest.slice(0, colACount);
-  const colB = rest.slice(colACount);
-
-  const leftContentH = COL1_W + 16 + 24 + 18; // thumb + title/artist block
-  const rightContentH = Math.max(colA.length, colB.length, 1) * ROW_H;
-  const contentH = Math.max(leftContentH, rightContentH);
-  const H = PAD * 2 + contentH;
-
-  const thumbnails = await Promise.all(
-    sorted.map(async (song) => {
-      try {
-        const buf = await loadImageBuffer(song?.thumbnailM || song?.thumbnail || song?.artwork_url);
-        return buf ? await loadImage(buf) : null;
-      } catch {
-        return null;
-      }
-    })
-  );
-
-  const canvas = createCanvas(W, H);
-  const ctx = canvas.getContext("2d");
-
-  // 1) LÛt to‡n b? canvas b?ng m‡u d?c (opaque, khÙng alpha) ó d‚y l‡ bu?c
-  //    then ch?t d? 4 gÛc khÙng bao gi? b? "lÚi tr?ng" khi app chat nÈn ?nh
-  //    sang JPEG, vÏ khÙng cÛ pixel trong su?t n‡o c? d? b? flatten th‡nh tr?ng.
-  ctx.fillStyle = C_BACKDROP;
-  ctx.fillRect(0, 0, W, H);
-
-  // 2) V? card bo gÛc gradient + to‡n b? n?i dung bÍn trong 1 clip duy nh?t,
-  //    d?m b?o khÙng cÛ gÏ tr‡n ra ngo‡i du?ng bo v‡ khÙng cÛ vi?n/rang cua.
-  ctx.save();
-  roundRectPath(ctx, 0, 0, W, H, RADIUS);
-  ctx.clip();
-
-  drawGradient(ctx, W, H);
-
-  /* ---------- C?t 1: b‡i h‡ng d?u (hero) ó s? g?n li?n tiÍu d? ---------- */
-  const hero = sorted[0];
-  const col1X = PAD;
-  const col1Y = PAD;
-
-  drawThumb(ctx, thumbnails[0], col1X, col1Y, COL1_W, COL1_W, 18);
-
-  const textY = col1Y + COL1_W + 16;
-
-  ctx.font = "bold 20px BeVietnamPro, Arial";
-  ctx.fillStyle = C_TEXT;
-  ctx.textAlign = "left";
-  ctx.textBaseline = "alphabetic";
-  ctx.fillText(clampText(ctx, `1. ${hero?.title || "Unknown"}`, COL1_W), col1X, textY + 18);
-
-  ctx.font = "normal 14px BeVietnamPro, Arial";
-  ctx.fillStyle = C_SUB;
-  ctx.fillText(
-    clampText(ctx, hero?.artistsNames || hero?.channelName || "Unknown Artist", COL1_W),
-    col1X,
-    textY + 40
-  );
-
-  /* ---------- –u?ng ph‚n c·ch gi?a c·c c?t ---------- */
-  const col2X = col1X + COL1_W + GAP;
-  const col3X = col2X + COL2_W + GAP;
-
-  ctx.strokeStyle = C_DIVIDER;
+function strokeRoundRect(ctx, x, y, width, height, radius, stroke = COLORS.border) {
+  roundedPath(ctx, x + 0.5, y + 0.5, width - 1, height - 1, radius);
+  ctx.strokeStyle = stroke;
   ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(col2X - GAP / 2, PAD);
-  ctx.lineTo(col2X - GAP / 2, H - PAD);
   ctx.stroke();
-  if (colB.length > 0) {
+}
+
+function truncate(ctx, value, maxWidth) {
+  const text = String(value ?? "").trim();
+  if (ctx.measureText(text).width <= maxWidth) return text;
+  let end = text.length;
+  while (end > 0 && ctx.measureText(`${text.slice(0, end)}‚Ä¶`).width > maxWidth) end--;
+  return end ? `${text.slice(0, end).trim()}‚Ä¶` : "‚Ä¶";
+}
+
+function subtitleOf(item) {
+  const artists = Array.isArray(item?.artists)
+    ? item.artists.map((artist) => artist?.name || artist).filter(Boolean).join(", ")
+    : item?.artists;
+  return item?.artistsNames || artists || item?.channelName || item?.author || item?.episode ||
+    item?.category || item?.source || "Ch∆∞a c√≥ th√¥ng tin";
+}
+
+function metaOf(item) {
+  return item?.durationText || item?.duration || item?.publishedTime || item?.quality || "";
+}
+
+function detectTheme(items) {
+  const isMusic = items.some((item) =>
+    item?.listen != null || item?.artists || item?.artistsNames || item?.artwork_url || item?.isPremium != null
+  );
+  const isVideo = items.some((item) =>
+    item?.view != null || item?.publishedTime || item?.episode || item?.durationText || item?.videoId
+  );
+  return THEMES[isVideo && !isMusic ? "VIDEO" : isMusic ? "MUSIC" : "MEDIA"];
+}
+
+function drawImageCover(ctx, image, x, y, width, height) {
+  const sourceRatio = image.width / image.height;
+  const targetRatio = width / height;
+  let sx = 0, sy = 0, sw = image.width, sh = image.height;
+  if (sourceRatio > targetRatio) {
+    sw = image.height * targetRatio;
+    sx = (image.width - sw) / 2;
+  } else {
+    sh = image.width / targetRatio;
+    sy = (image.height - sh) / 2;
+  }
+  ctx.drawImage(image, sx, sy, sw, sh, x, y, width, height);
+}
+
+function drawFallback(ctx, x, y, width, height, index, theme) {
+  const gradient = ctx.createLinearGradient(x, y, x + width, y + height);
+  gradient.addColorStop(0, index % 2 ? "#252a34" : "#1d2630");
+  gradient.addColorStop(1, index % 2 ? "#151820" : "#11171d");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(x, y, width, height);
+
+  ctx.globalAlpha = 0.16;
+  ctx.strokeStyle = theme.accent;
+  ctx.lineWidth = 2;
+  for (let offset = -height; offset < width; offset += 18) {
     ctx.beginPath();
-    ctx.moveTo(col3X - GAP / 2, PAD);
-    ctx.lineTo(col3X - GAP / 2, H - PAD);
+    ctx.moveTo(x + offset, y + height);
+    ctx.lineTo(x + offset + height, y);
     ctx.stroke();
   }
+  ctx.globalAlpha = 1;
+}
 
-  /* ---------- C?t 2 & 3: danh s·ch cÚn l?i ---------- */
-  const listY = PAD + Math.max(0, (contentH - rightContentH) / 2);
+function drawArtwork(ctx, image, x, y, width, height, index, theme) {
+  ctx.save();
+  roundedPath(ctx, x, y, width, height, 15);
+  ctx.clip();
+  if (image) drawImageCover(ctx, image, x, y, width, height);
+  else drawFallback(ctx, x, y, width, height, index, theme);
 
-  if (colA.length > 0) {
-    drawListColumn(ctx, colA, thumbnails.slice(1, 1 + colA.length), 2, col2X, listY, COL2_W, ROW_H, THUMB_S);
-  }
-  if (colB.length > 0) {
-    drawListColumn(
-      ctx,
-      colB,
-      thumbnails.slice(1 + colA.length, 1 + colA.length + colB.length),
-      2 + colA.length,
-      col3X,
-      listY,
-      COL3_W,
-      ROW_H,
-      THUMB_S
-    );
-  }
-
+  const shade = ctx.createLinearGradient(x, y, x, y + height);
+  shade.addColorStop(0.5, "rgba(0,0,0,0)");
+  shade.addColorStop(1, "rgba(0,0,0,0.3)");
+  ctx.fillStyle = shade;
+  ctx.fillRect(x, y, width, height);
   ctx.restore();
+}
+
+function drawSearchIcon(ctx, x, y, color) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 3;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.arc(x, y, 8, 0, Math.PI * 2);
+  ctx.moveTo(x + 6, y + 6);
+  ctx.lineTo(x + 13, y + 13);
+  ctx.stroke();
+}
+
+function drawArrow(ctx, x, y) {
+  ctx.strokeStyle = COLORS.faint;
+  ctx.lineWidth = 2;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  ctx.moveTo(x - 5, y);
+  ctx.lineTo(x + 5, y);
+  ctx.moveTo(x + 1, y - 4);
+  ctx.lineTo(x + 5, y);
+  ctx.lineTo(x + 1, y + 4);
+  ctx.stroke();
+}
+
+function drawLogo(ctx, x, y, theme) {
+  fillRoundRect(ctx, x, y, 42, 42, 13, theme.accent);
+  ctx.fillStyle = COLORS.bg;
+  [13, 22, 31].forEach((barX, index) => {
+    const heights = [13, 23, 17];
+    fillRoundRect(ctx, x + barX - 2.5, y + (42 - heights[index]) / 2, 5, heights[index], 3, COLORS.bg);
+  });
+}
+
+export async function createSearchResultImage(data, botId) {
+  const items = (Array.isArray(data) ? data : []).filter(Boolean).slice(0, 16);
+  if (!items.length) throw new Error("Kh√¥ng c√≥ d·ªØ li·ªáu.");
+
+  const theme = detectTheme(items);
+  const width = 1200;
+  const margin = 44;
+  const headerHeight = 190;
+  const cardHeight = 112;
+  const rowGap = 14;
+  const columnGap = 18;
+  const rows = Math.ceil(items.length / 2);
+  const footerHeight = 78;
+  const height = Math.max(650, margin + headerHeight + rows * cardHeight + (rows - 1) * rowGap + footerHeight);
+  const contentWidth = width - margin * 2;
+  const columnWidth = (contentWidth - columnGap) / 2;
+
+  const artworks = await Promise.all(items.map(async (item) => {
+    try {
+      const source = item?.thumbnailM || item?.thumbnail || item?.artwork_url || item?.image;
+      if (!source) return null;
+      const buffer = await loadImageBuffer(source);
+      return buffer ? await loadImage(buffer) : null;
+    } catch {
+      return null;
+    }
+  }));
+
+  const canvas = createCanvas(width, height);
+  const ctx = canvas.getContext("2d");
+
+  const background = ctx.createLinearGradient(0, 0, width, height);
+  background.addColorStop(0, "#0c0f15");
+  background.addColorStop(0.55, COLORS.bg);
+  background.addColorStop(1, "#090c11");
+  ctx.fillStyle = background;
+  ctx.fillRect(0, 0, width, height);
+
+  const glow = ctx.createRadialGradient(width - 160, -60, 0, width - 160, -60, 480);
+  glow.addColorStop(0, `${theme.accent}2b`);
+  glow.addColorStop(1, `${theme.accent}00`);
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, width, 480);
+
+  // Brand and result count.
+  drawLogo(ctx, margin, margin, theme);
+  ctx.fillStyle = COLORS.text;
+  ctx.font = "700 15px BeVietnamPro, Arial";
+  ctx.fillText("NGH MEDIA", margin + 56, margin + 17);
+  ctx.fillStyle = COLORS.faint;
+  ctx.font = "500 10px BeVietnamPro, Arial";
+  ctx.fillText("SMART SEARCH", margin + 56, margin + 35);
+
+  fillRoundRect(ctx, width - margin - 158, margin + 3, 158, 36, 18, "rgba(255,255,255,0.055)");
+  strokeRoundRect(ctx, width - margin - 158, margin + 3, 158, 36, 18);
+  ctx.fillStyle = theme.accent;
+  ctx.beginPath();
+  ctx.arc(width - margin - 137, margin + 21, 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = COLORS.muted;
+  ctx.font = "700 10px BeVietnamPro, Arial";
+  ctx.fillText(`${String(items.length).padStart(2, "0")} K·∫æT QU·∫¢`, width - margin - 123, margin + 25);
+
+  ctx.fillStyle = theme.accent;
+  ctx.font = "700 11px BeVietnamPro, Arial";
+  ctx.fillText(theme.label, margin, margin + 90);
+  ctx.fillStyle = COLORS.text;
+  ctx.font = "700 36px BeVietnamPro, Arial";
+  ctx.fillText(`Ch·ªçn ${theme.noun} b·∫°n mu·ªën ${theme.action}`, margin, margin + 132);
+  ctx.fillStyle = COLORS.muted;
+  ctx.font = "500 13px BeVietnamPro, Arial";
+  ctx.fillText("Nh·∫≠p s·ªë th·ª© t·ª± t∆∞∆°ng ·ª©ng ƒë·ªÉ ti·∫øp t·ª•c", margin, margin + 158);
+
+  const hintWidth = 172;
+  fillRoundRect(ctx, width - margin - hintWidth, margin + 107, hintWidth, 44, 14, `${theme.accent}16`);
+  drawSearchIcon(ctx, width - margin - hintWidth + 24, margin + 128, theme.accent);
+  ctx.fillStyle = COLORS.muted;
+  ctx.font = "500 10px BeVietnamPro, Arial";
+  ctx.fillText("CH·ªåN NHANH", width - margin - hintWidth + 49, margin + 123);
+  ctx.fillStyle = COLORS.text;
+  ctx.font = "700 11px BeVietnamPro, Arial";
+  ctx.fillText("TR·∫¢ L·ªúI B·∫∞NG S·ªê", width - margin - hintWidth + 49, margin + 139);
+
+  const listY = margin + headerHeight;
+  items.forEach((item, index) => {
+    const column = index % 2;
+    const row = Math.floor(index / 2);
+    const x = margin + column * (columnWidth + columnGap);
+    const y = listY + row * (cardHeight + rowGap);
+
+    const cardGradient = ctx.createLinearGradient(x, y, x + columnWidth, y + cardHeight);
+    cardGradient.addColorStop(0, COLORS.surfaceLight);
+    cardGradient.addColorStop(1, COLORS.surface);
+    fillRoundRect(ctx, x, y, columnWidth, cardHeight, 20, cardGradient);
+    strokeRoundRect(ctx, x, y, columnWidth, cardHeight, 20);
+
+    drawArtwork(ctx, artworks[index], x + 10, y + 10, 92, 92, index, theme);
+    fillRoundRect(ctx, x + 18, y + 70, 36, 24, 8, "rgba(7,9,13,0.86)");
+    ctx.fillStyle = theme.accent;
+    ctx.font = "700 10px BeVietnamPro, Arial";
+    ctx.textAlign = "center";
+    ctx.fillText(String(index + 1).padStart(2, "0"), x + 36, y + 86);
+
+    const textX = x + 122;
+    const meta = metaOf(item);
+    const arrowArea = 42;
+    const textWidth = columnWidth - 122 - arrowArea - 16;
+    ctx.textAlign = "left";
+    ctx.fillStyle = COLORS.text;
+    ctx.font = "700 14px BeVietnamPro, Arial";
+    ctx.fillText(truncate(ctx, item?.title || "Kh√¥ng c√≥ ti√™u ƒë·ªÅ", textWidth), textX, y + 39);
+    ctx.fillStyle = COLORS.muted;
+    ctx.font = "500 11px BeVietnamPro, Arial";
+    ctx.fillText(truncate(ctx, subtitleOf(item), textWidth), textX, y + 64);
+
+    if (meta) {
+      ctx.fillStyle = theme.accent;
+      ctx.beginPath();
+      ctx.arc(textX + 3, y + 84, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = COLORS.faint;
+      ctx.font = "500 9px BeVietnamPro, Arial";
+      ctx.fillText(truncate(ctx, meta, textWidth - 13), textX + 13, y + 87);
+    }
+
+    fillRoundRect(ctx, x + columnWidth - 45, y + 39, 28, 34, 10, "rgba(255,255,255,0.045)");
+    drawArrow(ctx, x + columnWidth - 31, y + 56);
+  });
+
+  const footerY = height - 43;
+  ctx.strokeStyle = COLORS.border;
+  ctx.beginPath();
+  ctx.moveTo(margin, footerY - 20);
+  ctx.lineTo(width - margin, footerY - 20);
+  ctx.stroke();
+  ctx.fillStyle = COLORS.faint;
+  ctx.font = "500 9px BeVietnamPro, Arial";
+  ctx.fillText("POWERED BY NGH MEDIA", margin, footerY);
+  ctx.textAlign = "right";
+  ctx.fillText(botId ? `BOT ‚Ä¢ ${String(botId).slice(-6).toUpperCase()}` : "READY TO EXPLORE", width - margin, footerY);
+  ctx.textAlign = "left";
 
   const filePath = path.resolve(`./assets/temp/search_result_${Date.now()}.png`);
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
   await fs.writeFile(filePath, canvas.toBuffer("image/png"));
   return filePath;
 }

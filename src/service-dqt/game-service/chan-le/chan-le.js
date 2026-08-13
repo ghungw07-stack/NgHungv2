@@ -1,6 +1,6 @@
 import chalk from "chalk";
 import Big from "big.js";
-import { updatePlayerBalance, getPlayerBalance } from "../../../database/player.js";
+import { updatePlayerBalance, getPlayerBalance, addGameRankPoints } from "../../../database/player.js";
 import { nameServer } from "../../../database/index.js";
 import { checkBeforeJoinGame } from "../index.js";
 import { formatCurrency, parseGameAmount } from "../../../utils/format-util.js";
@@ -61,6 +61,8 @@ const MAX_HISTORY = 20; // Giữ tối đa 20 kết quả gần nhất
 const WINNING_MULTIPLIER = 1.9; // Tỷ lệ tiền thắng cược
 const MIN_JACKPOT_PERCENT = 0.0001; // 0.01% của hũ
 const MAX_JACKPOT_MULTIPLIER = 1000; // Giới hạn 1000% tiền cược (x10 thành x1000)
+const JACKPOT_CHANCE = 0.07;
+const HOUSE_BIAS_CHANCE = 0.65;
 const TTL_IMAGE = 10800000;
 
 function getRandomJackpotContribution() {
@@ -139,9 +141,19 @@ export async function handleChanLe(api, message, groupSettings) {
     return;
   }
 
-  const dice1 = rollDice();
-  const dice2 = rollDice();
-  const dice3 = rollDice();
+  let dice1 = rollDice();
+  let dice2 = rollDice();
+  let dice3 = rollDice();
+  if (Math.random() < HOUSE_BIAS_CHANCE) {
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const candidate = [rollDice(), rollDice(), rollDice()];
+      const candidateKey = candidate.reduce((sum, value) => sum + value, 0) % 2 === 0 ? "chan" : "le";
+      if (candidateKey !== playerChoice.key) {
+        [dice1, dice2, dice3] = candidate;
+        break;
+      }
+    }
+  }
   const total = dice1 + dice2 + dice3;
 
   const result = total % 2 === 0 ? CHOICES.CHAN : CHOICES.LE;
@@ -149,16 +161,8 @@ export async function handleChanLe(api, message, groupSettings) {
 
   let isJackpot = false;
   let isMissedJackpot = false;
-  const tripleNumber = dice1 === dice2 && dice2 === dice3;
-
-  if (tripleNumber) {
-    const isTripleEven = dice1 % 2 === 0;
-    if ((isTripleEven && playerChoice.key === "chan") || (!isTripleEven && playerChoice.key === "le")) {
-      isJackpot = true;
-    } else {
-      isMissedJackpot = true;
-    }
-  }
+  // Hũ quay độc lập với số dư; chỉ người đoán đúng mới có 7% cơ hội nổ hũ.
+  isJackpot = isWin && Math.random() < JACKPOT_CHANCE;
 
   let winnings;
   let jackpotAmount = new Big(0);
@@ -195,6 +199,7 @@ export async function handleChanLe(api, message, groupSettings) {
   const netWinnings = winnings.minus(betAmount).round(0, Big.roundDown);
 
   await updatePlayerBalance(senderId, netWinnings, isWin || isJackpot);
+  await addGameRankPoints(senderId, { won: isWin || isJackpot, jackpot: isJackpot });
 
   const resultMessage = formatResultMessage(
     senderName,

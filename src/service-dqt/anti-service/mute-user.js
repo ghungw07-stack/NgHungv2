@@ -11,7 +11,7 @@ import {
   sendMessageWarning,
 } from "../chat-zalo/chat-style/chat-style.js";
 import { getGlobalPrefix } from "../service.js";
-import { FONT_MAIN, formatMiliseconds, parseTime, randomIDTemp, removeMention } from "../../utils/format-util.js";
+import { FONT_MAIN, formatMiliseconds, randomIDTemp, removeMention } from "../../utils/format-util.js";
 import schedule from "node-schedule";
 import * as cv from "../../utils/canvas/index.js";
 import { tempDir } from "../../utils/io-json.js";
@@ -21,6 +21,48 @@ import { getMessageCache } from "../../utils/message-cache.js";
 import { deleteMessageCustomer } from "../../commands/bot-manager/utilities.js";
 
 const PERMANENT_MUTE = -1;
+const MUTE_TIME_UNITS = {
+  s: 1000,
+  giay: 1000,
+  m: 60 * 1000,
+  p: 60 * 1000,
+  phut: 60 * 1000,
+  h: 60 * 60 * 1000,
+  g: 60 * 60 * 1000,
+  gio: 60 * 60 * 1000,
+  d: 24 * 60 * 60 * 1000,
+  n: 24 * 60 * 60 * 1000,
+  ngay: 24 * 60 * 60 * 1000,
+  w: 7 * 24 * 60 * 60 * 1000,
+  tuan: 7 * 24 * 60 * 60 * 1000,
+  mo: 30 * 24 * 60 * 60 * 1000,
+  th: 30 * 24 * 60 * 60 * 1000,
+  thang: 30 * 24 * 60 * 60 * 1000,
+  y: 365 * 24 * 60 * 60 * 1000,
+  nam: 365 * 24 * 60 * 60 * 1000,
+};
+
+function parseMuteDuration(value) {
+  if (!value || ["forever", "permanent", "vinhvien", "vv"].includes(String(value).toLowerCase())) {
+    return PERMANENT_MUTE;
+  }
+
+  const normalized = String(value)
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d");
+  const match = normalized.match(/^(\d+(?:[.,]\d+)?)\s*([a-z]+)$/);
+  if (!match) return null;
+
+  const amount = Number(match[1].replace(",", "."));
+  const multiplier = MUTE_TIME_UNITS[match[2]];
+  if (!Number.isFinite(amount) || amount <= 0 || !multiplier) return null;
+
+  const duration = Math.round(amount * multiplier);
+  return Number.isSafeInteger(duration) ? duration : null;
+}
 
 function isMuted(groupSettings, threadId, senderId) {
   const muteInfo = groupSettings[threadId]?.muteList?.[senderId];
@@ -414,20 +456,32 @@ export async function handleMuteUser(api, message, groupSettings, groupAdmins) {
   const threadId = message.threadId;
   const content = removeMention(message);
   const prefix = getGlobalPrefix(api.getBotId());
-  const parts = content.split(" ");
+  const parts = content.trim().split(/\s+/);
 
   let isChangeSetting = false;
 
   if (content.includes(`${prefix}mute all`)) {
-    let timeStr = parts[2];
-    const duration = parseTime(timeStr, PERMANENT_MUTE);
+    const timeStr = parts[2];
+    const duration = parseMuteDuration(timeStr);
+    if (duration === null) {
+      await sendMessageWarning(api, message, `Thời gian không hợp lệ. Ví dụ: ${prefix}mute all 30m`);
+      return false;
+    }
     isChangeSetting = await addOrUpdateMute(api, message, -1, "All Users", duration, groupSettings);
     return isChangeSetting;
   }
   const mentions = message.data.mentions;
   if (mentions && mentions.length > 0) {
-    let timeStr = parts[1];
-    const duration = parseTime(timeStr, PERMANENT_MUTE);
+    const timeStr = parts[1];
+    const duration = parseMuteDuration(timeStr);
+    if (duration === null) {
+      await sendMessageWarning(
+        api,
+        message,
+        `Thời gian không hợp lệ. Dùng s/m/h/d/w/th/y (ví dụ: ${prefix}mute @user 30m).`
+      );
+      return false;
+    }
 
     for (const mention of mentions) {
       const userId = mention.uid;

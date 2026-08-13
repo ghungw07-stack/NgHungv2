@@ -1022,22 +1022,39 @@ export async function handleListAlias(api, message, commandName) {
         300000
       );
     } else {
-      const aliasInfo = commandConfig.commands
+      const aliasRows = commandConfig.commands
         .filter((cmd) => cmd.alias && cmd.alias.length > 0)
-        .map((cmd) => `${cmd.name}: ${cmd.alias.join(", ")}`)
-        .join("\n");
+        .map((cmd) => `• ${cmd.name}: ${cmd.alias.join(", ")}`);
 
-      await sendMessageFromSQL(
-        api,
-        message,
-        {
-          success: true,
-          message:
-            aliasInfo.length > 0 ? `Danh sách alias của các lệnh:\n${aliasInfo}` : "Không có alias nào được cấu hình",
-        },
-        false,
-        300000
-      );
+      if (aliasRows.length === 0) {
+        await sendMessageFromSQL(api, message, { success: true, message: "Không có alias nào được cấu hình" }, false, 300000);
+        return;
+      }
+
+      // Danh sách alias có thể vượt giới hạn độ dài một tin Zalo. Chia trang
+      // thay vì gửi một khối lớn khiến API từ chối và người dùng thấy bot im lặng.
+      const pages = [];
+      let page = [];
+      let pageLength = 0;
+      for (const row of aliasRows) {
+        if (page.length && pageLength + row.length + 1 > 1700) {
+          pages.push(page);
+          page = [];
+          pageLength = 0;
+        }
+        page.push(row);
+        pageLength += row.length + 1;
+      }
+      if (page.length) pages.push(page);
+
+      for (let index = 0; index < pages.length; index++) {
+        const header = `🏷️ DANH SÁCH ALIAS · Trang ${index + 1}/${pages.length}\n\n`;
+        await api.sendMessage(
+          { msg: header + pages[index].join("\n"), ttl: 300000 },
+          message.threadId,
+          message.type
+        );
+      }
     }
   } catch (error) {
     await sendMessageFromSQL(
@@ -1222,7 +1239,9 @@ export async function handleSendTaskCommand(api, message, groupSettings) {
     newStatus = groupSettings[threadId].sendTask ? "bật" : "tắt";
   }
 
-  const caption = `Đã ${newStatus} chức năng gửi nội dung tự động sau mỗi giờ vào nhóm này!`;
+  const caption =
+    `Đã ${newStatus} chức năng gửi nội dung tự động vào nhóm này!\n` +
+    `Lịch thị trường: giá vàng 07:30 · giá xăng dầu 17:30.`;
   await sendMessageStateQuote(api, message, caption, groupSettings[threadId].sendTask, 300000);
 
   return true;

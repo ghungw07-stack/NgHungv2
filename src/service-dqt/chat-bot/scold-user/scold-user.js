@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { getUserInfoData } from "../../info-service/user-info.js";
 import { isAdmin } from "../../../index.js";
 import { getGlobalPrefix } from "../../service.js";
@@ -6,7 +7,7 @@ import { removeMention } from "../../../utils/format-util.js";
 const scoldUsers = new Map();
 let isScoldingActive = false;
 
-export const scoldMessages = [
+export let scoldMessages = [
     "Bạn ra đây tao bảo, hiện hồn nhanh con chó",
     "Hiện hồn nhanh Không tao đốt nhà Bạn giờ",
     "Địt mẹ Bạn bố nói tử tế mà Không dậy à",
@@ -1685,6 +1686,28 @@ export const scoldMessages = [
     "m lmj đủ tầm ảnh hưởng :)))"
   ];
 
+// Ưu tiên file câu nhảy bên ngoài source để thay nội dung không cần sửa code.
+// Có thể đổi đường dẫn bằng biến môi trường SCOLD_FILE_PATH.
+const scoldFilePath = process.env.SCOLD_FILE_PATH || "/root/nhay.txt";
+try {
+  if (fs.existsSync(scoldFilePath)) {
+    const fileMessages = fs
+      .readFileSync(scoldFilePath, "utf8")
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    if (fileMessages.length > 0) {
+      scoldMessages = fileMessages;
+      console.log(`[SCOLD] Đã nạp ${fileMessages.length} câu từ ${scoldFilePath}`);
+    }
+  } else {
+    console.warn(`[SCOLD] Không tìm thấy file ${scoldFilePath}, dùng câu mặc định.`);
+  }
+} catch (error) {
+  console.error(`[SCOLD] Không đọc được ${scoldFilePath}: ${error.message}`);
+}
+
 export async function scoldUser(api, message) {
   const prefix = getGlobalPrefix(api.getBotId());
   const senderId = message.data.uidFrom;
@@ -1699,7 +1722,7 @@ export async function scoldUser(api, message) {
     }
   }
 
-  let delay = 5000;
+  let delay = Number(process.env.SCOLD_DELAY_MS) || 5000;
   const args = content.split(" ").filter((arg) => arg !== "");
   const delayArg = args.find((arg) => {
     const cleanArg = arg.toLowerCase().replace("ms", "");

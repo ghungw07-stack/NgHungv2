@@ -1,5 +1,5 @@
 /**
- * Công cụ xem log nhanh từ bảng SQL `bot_logs` (không cần mở workbench/phpMyAdmin).
+ * Công cụ xem log nhanh từ collection MongoDB `bot_logs`.
  *
  * Cách dùng (chạy ở thư mục gốc project, cùng cấp với thư mục "src" và "assets"):
  *   node read-logs.js                 -> 50 dòng log mới nhất
@@ -10,7 +10,7 @@
  * File này KHÔNG bị chặn console.log (vì nó không import src/utils/sql-logger.js),
  * nên in ra terminal bình thường để bạn đọc.
  */
-import mysql from "mysql2/promise";
+import { MongoClient } from "mongodb";
 import path from "path";
 import fs from "fs";
 
@@ -25,30 +25,13 @@ async function main() {
 
   const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8"));
 
-  const connection = await mysql.createConnection({
-    host: config.host,
-    user: config.user,
-    password: config.password,
-    database: config.database,
-    port: config.port,
-  });
-
-  const where = [];
-  const params = [];
-  if (level) {
-    where.push("level = ?");
-    params.push(level);
-  }
-  if (botId) {
-    where.push("botId = ?");
-    params.push(botId);
-  }
-  const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
-
-  const [rows] = await connection.execute(
-    `SELECT id, level, botId, message, createdAt FROM bot_logs ${whereSql} ORDER BY id DESC LIMIT ${limit}`,
-    params
-  );
+  const client = new MongoClient(config.uri || "mongodb://127.0.0.1:27017");
+  await client.connect();
+  const filter = {};
+  if (level) filter.level = level;
+  if (botId) filter.botId = botId;
+  const rows = await client.db(config.database).collection("bot_logs")
+    .find(filter, { projection: { _id: 0 } }).sort({ id: -1 }).limit(limit).toArray();
 
   rows.reverse().forEach((row) => {
     const time = new Date(row.createdAt).toLocaleString("vi-VN");
@@ -57,7 +40,7 @@ async function main() {
   });
 
   console.log(`\n-- ${rows.length} dòng log (mới nhất bên dưới) --`);
-  await connection.end();
+  await client.close();
 }
 
 main().catch((error) => {

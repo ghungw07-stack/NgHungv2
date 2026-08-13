@@ -1,7 +1,7 @@
 import { sendMessageStateQuote, sendMessageWarning } from "../../service-dqt/chat-zalo/chat-style/chat-style.js";
 import { getGlobalPrefix } from "../../service-dqt/service.js";
 import { removeMention } from "../../utils/format-util.js";
-import { getDataAllGroup } from "../../service-dqt/info-service/group-info.js";
+import { getDataAllGroup, getGroupInfoData, updateHistorySettingGroup } from "../../service-dqt/info-service/group-info.js";
 import { readWebConfig } from "../../utils/io-json.js";
 import fs from "fs";
 import path from "path";
@@ -74,12 +74,53 @@ export async function handleWelcomeBye(api, message, groupSettings) {
   const threadId = message.threadId;
   const prefix = getGlobalPrefix(api.getBotId());
 
-  const [command, option] = content.split(" ");
+  const [command, option, ...messageParts] = content.trim().split(/\s+/);
+  const optionNormalized = option?.toLowerCase();
+  const isWelcomeCommand = command === `${prefix}welcome`;
+  const isByeCommand = command === `${prefix}bye`;
+
+  if ((isWelcomeCommand || isByeCommand) && optionNormalized === "set") {
+    const customMessage = messageParts.join(" ").trim();
+    if (!customMessage) {
+      await sendMessageWarning(
+        api,
+        message,
+        `Vui lòng nhập nội dung ${isWelcomeCommand ? "chào mừng" : "tạm biệt"}.\n\nCú pháp: ${prefix}${isWelcomeCommand ? "welcome" : "bye"} set [nội dung]\nPlaceholder: {user} = tag thành viên, {member} = số thành viên, {group} = tên nhóm/cộng đồng.`
+      );
+      return false;
+    }
+
+    const messageKey = isWelcomeCommand ? "welcomeMessage" : "leaveMessage";
+    const statusKey = isWelcomeCommand ? "welcomeGroup" : "byeGroup";
+    groupSettings[threadId][messageKey] = customMessage;
+    groupSettings[threadId][statusKey] = true;
+    await sendMessageStateQuote(
+      api,
+      message,
+      `Đã lưu nội dung và bật ${isWelcomeCommand ? "welcome" : "bye"} cho nhóm này!\n\n${customMessage}`,
+      true,
+      300000
+    );
+    return true;
+  }
+
+  if ((isWelcomeCommand || isByeCommand) && optionNormalized === "show") {
+    const customMessage = groupSettings[threadId][isWelcomeCommand ? "welcomeMessage" : "leaveMessage"];
+    await sendMessageWarning(
+      api,
+      message,
+      customMessage
+        ? `Nội dung ${isWelcomeCommand ? "welcome" : "bye"} hiện tại:\n\n${customMessage}`
+        : `Nhóm chưa đặt nội dung ${isWelcomeCommand ? "welcome" : "bye"}.\nDùng: ${prefix}${isWelcomeCommand ? "welcome" : "bye"} set [nội dung]`
+    );
+    return true;
+  }
+
   let newStatus;
 
-  if (option === "on") {
+  if (optionNormalized === "on") {
     newStatus = true;
-  } else if (option === "off") {
+  } else if (optionNormalized === "off") {
     newStatus = false;
   } else if (!option) {
     newStatus = !groupSettings[threadId][command === `${prefix}welcome` ? "welcomeGroup" : "byeGroup"];
@@ -87,7 +128,7 @@ export async function handleWelcomeBye(api, message, groupSettings) {
     await sendMessageWarning(
       api,
       message,
-      `Cú pháp không hợp lệ. Vui lòng sử dụng '${prefix}welcome [on/off]' hoặc '${prefix}bye [on/off]'.`
+      `Cú pháp không hợp lệ. Dùng '${prefix}welcome|bye [on/off]', '${prefix}welcome|bye set [nội dung]' hoặc '${prefix}welcome|bye show'.`
     );
     return false;
   }
@@ -160,13 +201,25 @@ export async function handleUpdateGroup(api, message, groupSettings, aliasComman
     return false;
   }
 
+  if (newStatus) {
+    try {
+      const groupInfo = await getGroupInfoData(api, threadId);
+      const currentSetting = structuredClone(groupInfo?.setting || {});
+      groupSettings[threadId].updateGroupSnapshot = currentSetting;
+      await updateHistorySettingGroup(threadId, currentSetting);
+    } catch (error) {
+      console.error("Không thể lưu trạng thái ban đầu cho updategroup:", error?.message || error);
+      await sendMessageWarning(api, message, "Không lấy được cài đặt hiện tại của nhóm, vui lòng thử lại.");
+      return false;
+    }
+  } else {
+    delete groupSettings[threadId].updateGroupSnapshot;
+  }
+
   groupSettings[threadId].updateGroup = newStatus;
 
   const status = newStatus ? "bật" : "tắt";
   await sendMessageStateQuote(api, message, `Đã ${status} chức năng cập nhật thông tin nhóm!`, newStatus, 300000);
-  if (newStatus) {
-    await api.handleGroupPendingMembers(threadId, true);
-  }
   return true;
 }
 

@@ -19,8 +19,8 @@ const __dirname = dirname(__filename);
 const QUANTITY_CORE = os.cpus().length;
 export const PLATFORM_CIRCLE_WEPB = "CIRCLE_WEBP";
 
-export const FRAME_RATE = 30;
-export const TIME_CIRCLE = 5;
+export const FRAME_RATE = 10;
+export const TIME_CIRCLE = 4;
 export const TOTAL_FRAME = TIME_CIRCLE * FRAME_RATE;
 
 const arrUpload = [];

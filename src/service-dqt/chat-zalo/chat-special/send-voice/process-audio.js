@@ -54,12 +54,37 @@ export async function uploadAudioFile(mp3Path, api, message, uploadCloud = false
     // Zalo cloud/regular-file URLs are extensionless; voice forwarding needs
     // the generated extension suffix (for example .../<fileId>/<timestamp>.aac).
     const ext = path.extname(mp3Path).replace(".", "") || "aac";
-    if (!voiceFinalUrl.endsWith(`.${ext}`)) {
-      voiceFinalUrl = voiceFinalUrl + `/${Date.now()}.${ext}`;
-    }
+    voiceFinalUrl = ensureVoiceUrlExtension(voiceFinalUrl, ext);
     return voiceFinalUrl;
   } catch (error) {
     throw error;
+  }
+}
+
+/**
+ * Zalo cloud URLs often contain a query string. The synthetic filename must be
+ * added to the pathname, never after the query (which produces an invalid URL
+ * such as `...?createby=bot/123.aac`). This also repairs URLs already stored in
+ * the media cache by older versions.
+ */
+export function ensureVoiceUrlExtension(value, extension = "aac") {
+  if (!value || typeof value !== "string") return value;
+
+  const ext = String(extension).replace(/^\./, "").toLowerCase() || "aac";
+  try {
+    const url = new URL(value);
+    const brokenSuffix = url.search.match(/\/([0-9]+\.(?:aac|m4a|mp3))(?:&|$)/i);
+    if (brokenSuffix) {
+      url.pathname = `${url.pathname.replace(/\/$/, "")}/${brokenSuffix[1]}`;
+      url.search = url.search.replace(`/${brokenSuffix[1]}`, "");
+    }
+
+    if (!/\.(?:aac|m4a|mp3)$/i.test(url.pathname)) {
+      url.pathname = `${url.pathname.replace(/\/$/, "")}/${Date.now()}.${ext}`;
+    }
+    return url.toString();
+  } catch {
+    return value;
   }
 }
 
@@ -71,6 +96,7 @@ export async function downloadAndConvertAudio(url, api, message, uploadCloud = f
   const isMp3 = !isM3u8 && (url.includes(".mp3") || url.includes("sndcdn"));
   const ext = isM3u8 ? ".m4a" : (isMp3 ? ".mp3" : ".aac");
   const audioPath = path.join(tempDir, `temp_${randomIDTemp()}${ext}`);
+  let convertedAudioPath = null;
 
   try {
 
@@ -218,13 +244,18 @@ export async function downloadAndConvertAudio(url, api, message, uploadCloud = f
         response.data.on("error", reject);
       });
     }
-    const voiceFinalUrl = await uploadAudioFile(audioPath, api, message, uploadCloud);
+    // Zalo có thể nhận upload MP3 nhưng voice tạo ra lại không phát được trên
+    // client. Chuẩn hóa progressive audio thành AAC trước khi upload voice.
+    convertedAudioPath = path.join(tempDir, `voice_${randomIDTemp()}.aac`);
+    await convertToAAC(audioPath, convertedAudioPath);
+    const voiceFinalUrl = await uploadAudioFile(convertedAudioPath, api, message, uploadCloud);
 
     return voiceFinalUrl;
   } catch (error) {
     throw error;
   } finally {
     await deleteFile(audioPath);
+    if (convertedAudioPath) await deleteFile(convertedAudioPath);
   }
 }
 

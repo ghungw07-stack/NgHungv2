@@ -10,31 +10,39 @@ export async function chatAll(api, message, groupInfo, aliasCommand) {
   const threadId = message.threadId;
   const botId = api.getBotId();
   const chatMessage = content.replace(`${prefix}${aliasCommand}`, "").trim();
-  const [contentTag, countTag = 1, delayTag = 1000, ttl = 0] = chatMessage.split("|");
+  const [contentTag, , , ttl = 0] = chatMessage.split("|");
+  const countTag = 1;
+  const delayTag = 0;
   const groupAdmins = await getGroupAdmins(groupInfo);
 
   if (chatMessage) {
     for (let i = 0; i < countTag; i++) {
       if (!groupAdmins.includes(botId)) {
         let newChatMessage = contentTag;
-        const mentions = groupInfo.memVerList.map((member, index) => {
-          // newChatMessage += " ";
-          return {
-            pos: newChatMessage.length + 7, // + index,
-            uid: member.replace(/_0$/, ""),
-            len: 0
-          };
-        });
+        const memberIds = (groupInfo.memVerList || [])
+          .map((member) => {
+            const rawId = typeof member === "object" ? member.uid ?? member.id : member;
+            const memberId = String(rawId || "").replace(/_0$/, "");
+            return memberId || null;
+          })
+          .filter(Boolean);
         const style = MultiMsgStyle([
           MessageStyle(-1, newChatMessage.length, null, null, true),
         ]);
+
+        // Khi bot chưa có quyền phó nhóm, chỉ gửi một tin và gắn tối đa 3 UID.
+        const mentions = memberIds.slice(0, 3).map((memberId) => ({
+          pos: newChatMessage.length + 7,
+          uid: memberId,
+          id: memberId,
+          len: 0,
+        }));
         await api.sendMessage(
           {
             msg: newChatMessage,
-            // style: MultiMsgStyle([MessageStyle(0, newChatMessage.length, "ff3131", "18")]),
-            mentions: mentions,
-            style: style,
-            ttl
+            mentions,
+            style,
+            ttl,
           },
           threadId,
           message.type
@@ -44,7 +52,7 @@ export async function chatAll(api, message, groupInfo, aliasCommand) {
           {
             msg: contentTag,
             // style: MultiMsgStyle([MessageStyle(0, chatMessage.length, "ff3131", "18")]),
-            mentions: [{ pos: 0, uid: -1, len: contentTag.length }],
+            mentions: [{ pos: 0, uid: "-1", id: "-1", len: contentTag.length }],
             ttl
           },
           threadId,
@@ -56,9 +64,9 @@ export async function chatAll(api, message, groupInfo, aliasCommand) {
   } else {
     const object = {
       caption:
-        `Hướng dẫn dùng lệnh spam tag all:\n` +
-        `Cách Dùng:\n${prefix}${aliasCommand} <nội_dung>|<số lần tag>|<thời gian delay>|<thời gian tin tồn tại>\n` +
-        `Ví Dụ: ${prefix}${aliasCommand} <nội_dung>|10|1000|0`,
+        `Hướng dẫn dùng lệnh tag all:\n` +
+        `Cách Dùng:\n${prefix}${aliasCommand} <nội_dung>\n` +
+        `Ví Dụ: ${prefix}${aliasCommand} Mọi người chú ý`,
     };
     await sendMessageWarningRequest(api, message, object, 30000);
   }

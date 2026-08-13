@@ -12,6 +12,10 @@ class CallbacksMap extends Map {
 }
 export const createContext = (credentials, options, apiType = 30, apiVersion = 665) => ({
   uploadCallbacks: new CallbacksMap(),
+  // Upload completion events can arrive before uploadAttachment has finished
+  // processing the last chunk. Keep those events briefly instead of dropping
+  // them when no waiter has been registered yet.
+  uploadResults: new CallbacksMap(),
   imei: credentials.imei,
   userAgent: credentials.userAgent,
   language: credentials.language || "vi",
