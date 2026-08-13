@@ -1,6 +1,23 @@
 import os from "node:os";
 import { Permission } from "../../core/permissions.js";
 
+function targetIds(message, args = []) {
+  return [...new Set([
+    ...(message?.data?.mentions || []).map((item) => item.uid || item.id),
+    ...args.filter((value) => /^\d{6,}$/.test(value)),
+  ].filter(Boolean).map(String))];
+}
+
+async function editUserList(settings, scope, field, action, ids) {
+  const current = await settings.get(scope);
+  const values = new Set((current[field] || []).map(String));
+  if (action === "add") for (const id of ids) values.add(id);
+  if (action === "remove") for (const id of ids) values.delete(id);
+  if (action === "clear") values.clear();
+  await settings.patch(scope, { [field]: [...values], updatedAt: new Date() });
+  return [...values];
+}
+
 export function registerOperationCommands(registry, { settings, adminStore, botId }) {
   registry.register({
     name: "settinggroup", aliases: ["stg", "listkey"], permission: Permission.ADMIN, description: "Xem cấu hình nhóm hiện tại",
@@ -50,4 +67,53 @@ export function registerOperationCommands(registry, { settings, adminStore, botI
     name: "reloadconfig", aliases: ["reloadcfg"], permission: Permission.LEADER, description: "Nạp lại admin và cache cấu hình",
     async execute({ reply }) { await adminStore.reload(); settings.clear(); await reply(`Đã nạp lại cấu hình cho bot ${botId}. Registry lệnh dùng bản source đang chạy.`); },
   });
+
+  registry.register({
+    name: "whitelist", permission: Permission.ADMIN, description: "Miễn kiểm duyệt cho người dùng trong nhóm",
+    async execute({ args, message, threadId, type, reply }) {
+      if (type !== 1) { await reply("Lệnh này chỉ dùng trong nhóm."); return; }
+      const action = args[0]?.toLowerCase();
+      const ids = targetIds(message, args.slice(1));
+      if (!action || action === "list") {
+        const value = await settings.get(threadId);
+        await reply(`Whitelist nhóm (${(value.whitelistedUsers || []).length}):\n${(value.whitelistedUsers || []).join("\n") || "Trống"}`); return;
+      }
+      if (!["add", "remove", "clear"].includes(action) || (action !== "clear" && !ids.length)) {
+        await reply("Dùng: !whitelist add|remove @tag|UID; list; clear"); return;
+      }
+      const values = await editUserList(settings, threadId, "whitelistedUsers", action, ids);
+      await reply(`Đã cập nhật whitelist. Hiện có ${values.length} người.`);
+    },
+  });
+
+  registry.register({
+    name: "ban", permission: Permission.ADMIN, description: "Chặn người dùng sử dụng bot trong nhóm",
+    async execute({ args, message, threadId, type, reply }) {
+      if (type !== 1) { await reply("Lệnh này chỉ dùng trong nhóm."); return; }
+      const action = args[0]?.toLowerCase(); const ids = targetIds(message, args.slice(1));
+      if (!action || action === "list") {
+        const value = await settings.get(threadId);
+        await reply(`Danh sách bị chặn trong nhóm (${(value.bannedUsers || []).length}):\n${(value.bannedUsers || []).join("\n") || "Trống"}`); return;
+      }
+      if (!["add", "remove", "clear"].includes(action) || (action !== "clear" && !ids.length)) { await reply("Dùng: !ban add|remove @tag|UID; list; clear"); return; }
+      const values = await editUserList(settings, threadId, "bannedUsers", action, ids);
+      await reply(`Đã cập nhật danh sách chặn nhóm. Hiện có ${values.length} người.`);
+    },
+  });
+
+  registry.register({
+    name: "blockbot", permission: Permission.LEADER, description: "Chặn người dùng sử dụng tài khoản bot ở mọi nơi",
+    async execute({ args, message, reply }) {
+      const action = args[0]?.toLowerCase(); const ids = targetIds(message, args.slice(1)); const scope = "__global__";
+      if (!action || action === "list") {
+        const value = await settings.get(scope);
+        await reply(`Danh sách blockbot (${(value.blockedUsers || []).length}):\n${(value.blockedUsers || []).join("\n") || "Trống"}`); return;
+      }
+      if (!["add", "remove", "clear"].includes(action) || (action !== "clear" && !ids.length)) { await reply("Dùng: !blockbot add|remove @tag|UID; list; clear"); return; }
+      const values = await editUserList(settings, scope, "blockedUsers", action, ids);
+      await reply(`Đã cập nhật blockbot. Hiện có ${values.length} người.`);
+    },
+  });
 }
+
+export { targetIds, editUserList };

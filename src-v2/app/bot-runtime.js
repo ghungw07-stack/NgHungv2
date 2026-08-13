@@ -107,9 +107,15 @@ export class BotRuntime {
     this.dispatcher = new CommandDispatcher({
       prefix: this.config.prefix,
       prefixResolver: ({ threadId }) => this.groupSettings.getPrefix(threadId),
-      commandEnabledResolver: async (commandName, { threadId }) => {
+      commandEnabledResolver: async (commandName, { threadId, senderId, type }) => {
         const settings = await this.groupSettings.get(threadId);
-        const protectedCommands = ["bot", "settinggroup", "adminbot", "mybot", "thuebot"];
+        const globalSettings = await this.groupSettings.get("__global__");
+        const protectedCommands = ["bot", "settinggroup", "adminbot", "mybot", "thuebot", "ban", "blockbot"];
+        const privileged = basePermissions.isAdmin(senderId)
+          || this.services.adminStore?.isAdmin(botId, senderId)
+          || (type === 1 && await this.groups.isAdmin(threadId, senderId).catch(() => false));
+        if (!privileged && (globalSettings.blockedUsers || []).map(String).includes(String(senderId))) return false;
+        if (!privileged && (settings.bannedUsers || []).map(String).includes(String(senderId))) return false;
         if (settings.botEnabled === false && !protectedCommands.includes(commandName)) return false;
         const resolved = registry.resolve(commandName);
         if (settings.gamesEnabled === false && resolved?.category === "game") return false;
@@ -154,7 +160,10 @@ export class BotRuntime {
       groups: this.groups,
       logger: this.logger,
       isPrivileged: async (userId, threadId) =>
-        basePermissions.isAdmin(userId) || this.groups.isAdmin(threadId, userId).catch(() => false),
+        basePermissions.isAdmin(userId)
+        || this.services.adminStore?.isAdmin(botId, userId)
+        || (await this.groupSettings.get(threadId)).whitelistedUsers?.map(String).includes(String(userId))
+        || this.groups.isAdmin(threadId, userId).catch(() => false),
     });
     registerMessageArchiveEvents(this.events, { archive: this.messageArchive });
     registerModerationEvents(this.events, this.moderation, { archive: this.messageArchive });
