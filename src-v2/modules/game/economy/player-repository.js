@@ -83,6 +83,12 @@ export class PlayerRepository {
   async history(userId, limit = 10) {
     return this.transactions.find({ botId: this.botId, userId: String(userId) }).sort({ createdAt: -1 }).limit(limit).toArray();
   }
+  async resetDaily(userId = null) {
+    const filter = { botId: this.botId };
+    if (userId) filter.userId = String(userId);
+    const result = await this.players.updateMany(filter, { $unset: { dailyDate: "" }, $set: { updatedAt: new Date() } });
+    return { matched: result.matchedCount, modified: result.modifiedCount };
+  }
   async debit(userId, amount, metadata = {}) {
     const value = new Big(amount).round(0, Big.roundDown);
     if (value.lte(0)) throw new Error("Số tiền phải lớn hơn 0");

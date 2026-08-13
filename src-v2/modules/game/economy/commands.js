@@ -1,4 +1,5 @@
 import { formatMoney, parseAmount } from "./amount.js";
+import { Permission } from "../../../core/permissions.js";
 
 const MENU = `《 🎮 MENU TRÒ CHƠI 🎮 》
 
@@ -69,6 +70,14 @@ export function registerEconomyCommands(registry, { players }) {
   registry.register({ name: "saoke", category: "game", description: "Xem biến động số dư game", execute: (context) => registry.resolve("game").execute({ ...context, args: ["history"] }) });
   registry.register({ name: "nap", category: "game", description: "Lấy hướng dẫn nạp/gia hạn", async execute({ reply }) { await reply("Dùng !donate để ủng hộ game hoặc !thuebot để thanh toán thuê bot. Tiền game không quy đổi thành tiền thật."); } });
   registry.register({ name: "rut", category: "game", description: "Thông tin rút tiền game", async execute({ reply }) { await reply("Tiền game là tiền ảo miễn phí, không hỗ trợ rút hoặc quy đổi thành tiền thật."); } });
+  registry.register({
+    name: "resetdaily", category: "game", permission: Permission.LEADER, description: "Cho phép nhận lại daily",
+    async execute({ args, message, reply }) {
+      const userId = String(message?.data?.mentions?.[0]?.uid || args.find((value) => /^\d{6,}$/.test(value)) || "");
+      const result = await players.resetDaily(userId || null);
+      await reply(`Đã reset daily cho ${userId || "toàn bộ người chơi"}. Khớp ${result.matched} tài khoản, thay đổi ${result.modified}.`);
+    },
+  });
   registry.register({
     name: "tier", aliases: ["hanggame", "gametier"], description: "Xem hạng tài sản game",
     category: "game",
