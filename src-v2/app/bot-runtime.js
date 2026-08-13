@@ -143,7 +143,13 @@ export class BotRuntime {
       prefixResolver: ({ threadId }) => this.groupSettings.getPrefix(threadId),
       commandEnabledResolver: async (commandName, { threadId }) => {
         const settings = await this.groupSettings.get(threadId);
-        return !(settings.disabledCommands || []).includes(commandName);
+        if ((settings.disabledCommands || []).includes(commandName)) return false;
+        if (!this.identity.isMain && this.identity.ownerId) {
+          const botConfig = this.services.botStore?.get(this.identity.ownerId) || {};
+          const blocked = botConfig.notAllowedCommands || botConfig.notAllowedCommand || botConfig.managerCommand?.notAllowedCommand || [];
+          if (blocked.map((value) => String(value).toLowerCase()).includes(commandName)) return false;
+        }
+        return true;
       },
       registry,
       permissions,

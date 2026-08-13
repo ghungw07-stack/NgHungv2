@@ -42,7 +42,7 @@ export async function bootstrap() {
   const qr = new QrService({ http, tempFiles });
   const botStore = new BotConfigStore({ rootDir: config.rootDir, data: config.childBots });
 
-  const fleet = new BotFleet({ config, scheduler, database, media, content, ai, sourceUpdater, paymentQr, qr, logger: logger.child({ component: "fleet" }) });
+  const fleet = new BotFleet({ config, scheduler, database, media, content, ai, sourceUpdater, paymentQr, qr, botStore, logger: logger.child({ component: "fleet" }) });
   await fleet.start();
   lifecycle.add("fleet", () => fleet.stop());
 

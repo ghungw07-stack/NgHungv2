@@ -1,4 +1,5 @@
 import { Permission } from "../../core/permissions.js";
+import { isGroupChatLocked, normalizeGroupLink } from "../autojoin/service.js";
 
 function formatRemaining(value) {
   if (value === -1) return "vô thời hạn";
@@ -26,6 +27,10 @@ export function registerBotManagerCommands(registry, { fleet, identity }) {
           "• !mybot active <index>",
           "• !mybot shutdown <index>",
           "• !mybot restart <index>",
+          "• !mybot blockcmd|unblockcmd <index> <lệnh>",
+          "• !mybot gjoin <index> <link>",
+          "• !mybot gleave <index> [groupId]",
+          "• !mybot notify <nội dung>",
         ].join("\n"));
         return;
       }
@@ -35,6 +40,46 @@ export function registerBotManagerCommands(registry, { fleet, identity }) {
           `#${bot.index} ${bot.name} — ${bot.status} — ${formatRemaining(bot.timeRemaining)}`
         );
         await reply([`Danh sách bot con (${children.length})`, ...lines].join("\n"));
+        return;
+      }
+      if (action === "notify") {
+        const text = args.slice(1).join(" ").trim();
+        if (!text) { await reply("Dùng: !mybot notify <nội dung>"); return; }
+        const main = fleet.list().find((bot) => bot.identity.isMain);
+        const results = await Promise.allSettled(fleet.listChildren().map((bot) => main.client.sendText(bot.ownerId, 0, `📢 Thông báo từ NGH Bot:\n${text.slice(0, 1800)}`)));
+        await reply(`Đã gửi ${results.filter((item) => item.status === "fulfilled").length}/${results.length} khách thuê.`);
+        return;
+      }
+      if (["blockcmd", "unblockcmd"].includes(action)) {
+        const ownerId = fleet.resolveOwner(args[1]);
+        const command = registry.resolve(args[2]);
+        if (!ownerId || !command) { await reply("Dùng: !mybot blockcmd|unblockcmd <index> <lệnh>"); return; }
+        if (["thuebot", "mybot"].includes(command.name)) { await reply("Không thể chặn lệnh cốt lõi này."); return; }
+        const config = fleet.botStore.get(ownerId) || {};
+        const blocked = new Set((config.notAllowedCommands || config.notAllowedCommand || []).map((value) => String(value).toLowerCase()));
+        if (action === "blockcmd") blocked.add(command.name); else blocked.delete(command.name);
+        await fleet.botStore.patch(ownerId, { notAllowedCommands: [...blocked].sort() });
+        await reply(`Đã ${action === "blockcmd" ? "chặn" : "bỏ chặn"} ${command.name} trên bot #${args[1]}.`);
+        return;
+      }
+      if (action === "gjoin") {
+        const ownerId = fleet.resolveOwner(args[1]);
+        const bot = ownerId && fleet.getByOwner(ownerId);
+        const link = normalizeGroupLink(args[2]);
+        if (!bot || !link) { await reply("Dùng: !mybot gjoin <index> <link nhóm>"); return; }
+        const info = await bot.client.api.getGroupInfoByLink(link);
+        if (isGroupChatLocked(info)) { await reply("Không join vì nhóm đang khóa chat."); return; }
+        await bot.client.api.joinGroup(link);
+        await reply(`Bot #${args[1]} đã gửi yêu cầu tham gia.`);
+        return;
+      }
+      if (action === "gleave") {
+        const ownerId = fleet.resolveOwner(args[1]);
+        const bot = ownerId && fleet.getByOwner(ownerId);
+        const groupId = args[2];
+        if (!bot || !groupId) { await reply("Dùng: !mybot gleave <index> <groupId>"); return; }
+        await bot.client.api.leaveGroup(groupId, true);
+        await reply(`Bot #${args[1]} đã rời nhóm ${groupId}.`);
         return;
       }
       if (!["active", "shutdown", "restart"].includes(action)) {
