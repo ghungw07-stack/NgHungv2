@@ -98,6 +98,7 @@ export class BotRuntime {
       ai: this.services.ai, aiConversations: this.aiConversations, botId,
       sourceUpdater: this.services.sourceUpdater, paymentQr: this.services.paymentQr,
       qr: this.services.qr, reminders: this.reminders,
+      messageArchive: this.messageArchive,
     });
     this.dispatcher = new CommandDispatcher({
       prefix: this.config.prefix,

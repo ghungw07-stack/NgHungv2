@@ -32,4 +32,11 @@ export class MessageArchiveRepository {
     if (!messageId) return null;
     return this.collection.findOne({ botId: this.botId, threadId: String(threadId), messageId: String(messageId) });
   }
+  async topActivity(threadId, limit = 10) {
+    return this.collection.aggregate([
+      { $match: { botId: this.botId, threadId: String(threadId) } },
+      { $group: { _id: "$senderId", name: { $last: "$senderName" }, messages: { $sum: 1 } } },
+      { $sort: { messages: -1 } }, { $limit: Math.min(20, limit) },
+    ]).toArray();
+  }
 }

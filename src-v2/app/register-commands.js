@@ -21,6 +21,10 @@ import { registerPaymentCommands } from "../modules/payments/commands.js";
 import { registerQrCommands } from "../modules/qr/commands.js";
 import { registerReminderCommands } from "../modules/reminders/commands.js";
 import { registerBasicToolCommands } from "../modules/basic-tools/commands.js";
+import { registerContactCommands } from "../modules/contact-tools/commands.js";
+import { registerConversationCommands } from "../modules/conversation-tools/commands.js";
+import { registerStickerCommands } from "../modules/stickers/commands.js";
+import { registerEngagementCommands } from "../modules/engagement/commands.js";
 
 export function registerRuntimeCommands(registry, dependencies) {
   const d = dependencies;
@@ -47,5 +51,9 @@ export function registerRuntimeCommands(registry, dependencies) {
   registerQrCommands(registry, { qr: d.qr, client: d.client });
   registerReminderCommands(registry, { reminders: d.reminders });
   registerBasicToolCommands(registry);
+  registerContactCommands(registry, { client: d.client, qr: d.qr });
+  registerConversationCommands(registry, { client: d.client });
+  registerStickerCommands(registry, { client: d.client });
+  registerEngagementCommands(registry, { archive: d.messageArchive });
   return registry;
 }

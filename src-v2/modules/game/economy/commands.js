@@ -64,4 +64,15 @@ export function registerEconomyCommands(registry, { players }) {
   });
   registry.register({ name: "bank", description: "Xem số dư game", execute: (context) => registry.resolve("game").execute({ ...context, args: ["bank"] }) });
   registry.register({ name: "daily", description: "Nhận thưởng hằng ngày", execute: (context) => registry.resolve("game").execute({ ...context, args: ["daily"] }) });
+  registry.register({ name: "rank", description: "Xem bảng xếp hạng tài sản game", execute: (context) => registry.resolve("game").execute({ ...context, args: ["top"] }) });
+  registry.register({
+    name: "tier", aliases: ["hanggame", "gametier"], description: "Xem hạng tài sản game",
+    async execute({ senderId, message, reply }) {
+      const balance = await players.balance(senderId, message?.data?.dName);
+      const amount = BigInt(balance);
+      const tiers = [[10n ** 15n, "Kim Cương"], [10n ** 12n, "Bạch Kim"], [10n ** 9n, "Vàng"], [10n ** 6n, "Bạc"], [0n, "Đồng"]];
+      const tier = tiers.find(([minimum]) => amount >= minimum)[1];
+      await reply(`Hạng game: ${tier}\nTài sản: ${formatMoney(balance)} coin`);
+    },
+  });
 }

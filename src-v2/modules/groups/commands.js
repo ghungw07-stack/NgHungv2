@@ -20,7 +20,7 @@ function groupIdsFromList(response) {
 export function registerGroupCommands(registry, { groups, client }) {
   registry.register({
     name: "groupinfo",
-    aliases: ["grinfo"],
+    aliases: ["grinfo", "group", "infogr", "gr"],
     description: "Xem thông tin nhóm",
     async execute({ args, threadId, type, reply }) {
       const groupId = args[0] || (type === 1 ? threadId : null);

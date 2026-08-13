@@ -9,7 +9,7 @@ export function registerSystemCommands(registry, { startedAt, scheduler, runtime
   });
   registry.register({
     name: "status",
-    aliases: ["uptime"],
+    aliases: ["uptime", "detail"],
     permission: Permission.ADMIN,
     description: "Xem trạng thái bot",
     async execute({ reply }) {
