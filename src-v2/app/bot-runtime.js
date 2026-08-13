@@ -8,6 +8,9 @@ import { EventBus } from "../core/events/event-bus.js";
 import { registerMessageEvents } from "../modules/messages/events.js";
 import { GroupSettingsRepository } from "../modules/group-settings/repository.js";
 import { registerGroupSettingsCommands } from "../modules/group-settings/commands.js";
+import { GroupService } from "../modules/groups/service.js";
+import { registerGroupCommands } from "../modules/groups/commands.js";
+import { Permission } from "../core/permissions.js";
 
 export class BotRuntime {
   constructor({ client, config, scheduler, logger, identity = {}, services = {} }) {
@@ -17,7 +20,7 @@ export class BotRuntime {
   }
   async start() {
     const botId = String(this.client.botId);
-    const permissions = createPermissionService({
+    const basePermissions = createPermissionService({
       botId,
       mainBotId: this.identity.mainBotId || botId,
       ownerIds: [
@@ -27,6 +30,15 @@ export class BotRuntime {
       ],
       adminIds: this.config.admins[botId] || [],
     });
+    this.groups = new GroupService(this.client);
+    const permissions = {
+      allows: async (permission, userId, context) => {
+        if (basePermissions.allows(permission, userId)) return true;
+        return permission === Permission.ADMIN && context?.type === 1
+          ? this.groups.isAdmin(context.threadId, userId).catch(() => false)
+          : false;
+      },
+    };
     const registry = new CommandRegistry();
     this.groupSettings = new GroupSettingsRepository({
       database: this.services.database,
@@ -38,6 +50,7 @@ export class BotRuntime {
     registerSystemCommands(registry, { startedAt: this.startedAt, scheduler: this.scheduler });
     registerBotManagerCommands(registry, { fleet: this.services.fleet, identity: this.identity });
     registerGroupSettingsCommands(registry, { repository: this.groupSettings });
+    registerGroupCommands(registry, { groups: this.groups, client: this.client });
     this.dispatcher = new CommandDispatcher({
       prefix: this.config.prefix,
       prefixResolver: ({ threadId }) => this.groupSettings.getPrefix(threadId),
@@ -66,5 +79,10 @@ export class BotRuntime {
     this.client.listen();
     this.logger.info("NGH Bot v2 đã sẵn sàng", { botId, commands: registry.list().length });
   }
-  async stop() { this.disposeMessageEvents?.(); this.groupSettings?.clear(); await this.client.stop(); }
+  async stop() {
+    this.disposeMessageEvents?.();
+    this.groupSettings?.clear();
+    this.groups?.clear();
+    await this.client.stop();
+  }
 }

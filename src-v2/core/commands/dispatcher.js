@@ -14,7 +14,7 @@ export class CommandDispatcher {
     if (!parsed) return false;
     const command = this.registry.resolve(parsed.name);
     if (!command) return false;
-    if (!this.permissions.allows(command.permission, context.senderId)) {
+    if (!(await this.permissions.allows(command.permission, context.senderId, context))) {
       await context.reply("Bạn không có quyền sử dụng lệnh này.");
       return true;
     }
