@@ -31,6 +31,7 @@ import { createListImage } from "../utils/canvas/list-form-v1.js";
 import { createManagerBotInfoImage } from "../utils/canvas/info.js";
 import { BotChildrenStore } from "./bot-children-store.js";
 import { handleNotifyParentOnPM } from "./notify-parent-pm.js";
+import { updateSourceOnGithub } from "./github-update.js";
 import fs from "fs/promises";
 import path from "path";
 import nodeFetch from "node-fetch";
@@ -536,6 +537,19 @@ export async function handleManagerBot(api, message, aliasCommand, isAdminLevelH
 
   if (action === "sendimck") {
     await handleSendImeiCookie(api, message, isAdminLevelHighest);
+    return;
+  }
+
+  if (action === "github" || action === "pushcode") {
+    if (!isMainBot || !isBotLeader(botId, senderId)) {
+      await sendMessageWarning(api, message, "Chỉ Bot Leader của bot mẹ mới được dùng lệnh này!", false, TIME_TO_LIVE);
+      return;
+    }
+
+    await sendMessageComplete(api, message, "Đang kiểm tra code và cập nhật GitHub...", false, TIME_TO_LIVE);
+    const result = await updateSourceOnGithub(params.join(" "));
+    const sendResult = result.ok ? sendMessageComplete : sendMessageWarning;
+    await sendResult(api, message, result.message, false, TIME_TO_LIVE);
     return;
   }
   
@@ -2171,7 +2185,8 @@ async function handleHelpBot(api, message, prefix, aliasCommand) {
     `➤『${prefix}${aliasCommand} shutdown』 - Tắt bot\n\n` +
     `2️⃣ Lệnh Bot Leader trong nhóm\n\n` +
     `➤『${prefix}${aliasCommand} gjoin [index|all]』 - Mời bot con vào nhóm hiện tại (ví dụ: 1,2,4)\n` +
-    `➤『${prefix}${aliasCommand} gleave [index|all]』 - Cho bot con rời nhóm hiện tại\n\n` +
+    `➤『${prefix}${aliasCommand} gleave [index|all]』 - Cho bot con rời nhóm hiện tại\n` +
+    `➤『${prefix}${aliasCommand} github [ghi chú]』 - Kiểm tra, commit và đẩy source lên GitHub\n\n` +
     `3️⃣ Đối với quản trị viên\n\n` +
     `➤『${prefix}${aliasCommand} manager』 - Xem danh sách lệnh quản lý bot\n` +
     `➤『${prefix}${aliasCommand} sendimck』 - Nhận IMEI/Cookie của bot đang dùng qua tin nhắn riêng\n`;
