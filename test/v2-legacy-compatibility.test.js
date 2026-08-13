@@ -7,5 +7,10 @@ test("legacy compatibility import cannot execute production bootstrap", () => {
   assert.match(source, /process\.env\.NGH_LEGACY_LIBRARY !== "1"/);
   const bridge = fs.readFileSync(new URL("../src-v2/compatibility/legacy-commands.js", import.meta.url), "utf8");
   assert.match(bridge, /initializeLegacyCompatibility/);
+  assert.match(bridge, /apiInstance = \{ api: this\.client\.api, config: this\.botConfig, schedule: \{\} \}/);
+  assert.match(bridge, /job\?\.cancel\?\.\(\)/);
   assert.doesNotMatch(bridge, /createBot\(/);
+  const client = fs.readFileSync(new URL("../src-v2/infrastructure/zalo/zalo-client.js", import.meta.url), "utf8");
+  assert.match(client, /api\.accountInfo =/);
+  assert.match(client, /rawProfile\.zaloName/);
 });

@@ -518,7 +518,7 @@ export async function createBot(config) {
 // Lỗi đã được bắt ở từng handler sẽ không làm chết tiến trình. Chỉ những lỗi
 // lọt ra ngoài toàn bộ lớp bảo vệ mới buộc process thoát để PM2/bot.js dựng lại
 // một trạng thái sạch, tránh process treo nhưng vẫn mang trạng thái hỏng.
-if (!globalThis.__NGHUNG_FATAL_GUARD__) {
+if (process.env.NGH_LEGACY_LIBRARY !== "1" && !globalThis.__NGHUNG_FATAL_GUARD__) {
   globalThis.__NGHUNG_FATAL_GUARD__ = true;
   let exitingOnFatal = false;
   const exitOnFatal = (kind, reason) => {

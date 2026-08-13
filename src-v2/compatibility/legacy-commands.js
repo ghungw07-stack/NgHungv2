@@ -13,8 +13,10 @@ export class LegacyCommandCompatibility {
       this.reactionEvents = reactions.reactionEvents;
       this.groupEvents = groups.gruopEvents;
       this.undoEvents = undos.undoMessageEvents;
+      this.client.api.apiInstance = { api: this.client.api, config: this.botConfig, schedule: {} };
       this.client.api.apiManager = await legacy.initApiManager(this.client.botId, this.client.api, this.botConfig);
-      await legacy.initializeLegacyCompatibility(this.client.api);
+      try { await legacy.initializeLegacyCompatibility(this.client.api); }
+      catch (error) { this.cancelSchedules(); throw error; }
       this.ready = true;
     } finally {
       if (previous === undefined) delete process.env.NGH_LEGACY_LIBRARY; else process.env.NGH_LEGACY_LIBRARY = previous;
@@ -34,5 +36,14 @@ export class LegacyCommandCompatibility {
     ];
     return () => disposers.forEach((dispose) => dispose());
   }
-  stop() { this.ready = false; this.messagesUser = null; this.reactionEvents = null; this.groupEvents = null; this.undoEvents = null; }
+  cancelSchedules() {
+    const jobs = this.client.api.apiInstance?.schedule || {};
+    for (const job of Object.values(jobs)) {
+      try { job?.cancel?.(); } catch {}
+      try { clearInterval(job); } catch {}
+      try { clearTimeout(job); } catch {}
+    }
+    if (this.client.api.apiInstance) this.client.api.apiInstance.schedule = {};
+  }
+  stop() { this.cancelSchedules(); this.ready = false; this.messagesUser = null; this.reactionEvents = null; this.groupEvents = null; this.undoEvents = null; }
 }
