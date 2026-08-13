@@ -31,7 +31,7 @@ test("tagall uses Zalo all-members mention", async () => {
   assert.deepEqual(payload.mentions, [{ uid: "-1", pos: 0, len: 4 }]);
 });
 
-test("getlink extracts nested links from a quoted attachment", async () => {
+test("getlink preserves legacy href-only behavior", async () => {
   let output;
   const registry = new CommandRegistry();
   registerMessageActionCommands(registry, { client: {}, groups: {} });
@@ -39,11 +39,10 @@ test("getlink extracts nested links from a quoted attachment", async () => {
     message: { data: { quote: { content: "x https://ngh.dev/a", attach: JSON.stringify({ href: "https://zalo.me/1" }) } } },
     reply: async (text) => { output = text; },
   });
-  assert.match(output, /https:\/\/ngh\.dev\/a/);
-  assert.match(output, /https:\/\/zalo\.me\/1/);
+  assert.equal(output, "Link: https://zalo.me/1");
 });
 
-test("getmessage formats quoted metadata and clips large attachments", async () => {
+test("getmessage preserves legacy quoted field names", async () => {
   let output;
   const registry = new CommandRegistry();
   registerMessageActionCommands(registry, { client: {}, groups: {} });
@@ -51,10 +50,9 @@ test("getmessage formats quoted metadata and clips large attachments", async () 
     message: { data: { quote: { ownerId: "u1", cliMsgId: "m1", msg: "hello", attach: { value: "x".repeat(4_000) } } } },
     reply: async (text) => { output = text; },
   });
-  assert.match(output, /UID: u1/);
-  assert.match(output, /Message ID: m1/);
-  assert.match(output, /đã rút gọn/);
-  assert.ok(output.length < 4_500);
+  assert.match(output, /ID Người Gửi: u1/);
+  assert.match(output, /cliMsgId: m1/);
+  assert.match(output, /Đính kèm:/);
 });
 
 test("quickmessage validates and sends normalized Zalo payload", async () => {
@@ -67,22 +65,32 @@ test("quickmessage validates and sends normalized Zalo payload", async () => {
   assert.deepEqual(payload, { keyword: "ok", title: "Đồng ý" });
 });
 
-test("undo refuses quoted messages owned by another user", async () => {
-  let called = false; let output;
+test("undo preserves legacy quoted-message API call", async () => {
+  let called = false;
   const registry = new CommandRegistry();
   registerMessageActionCommands(registry, { client: { botId: "bot", api: { async undoMessage() { called = true; } } }, groups: {} });
-  await registry.resolve("undo").execute({ message: { data: { quote: { ownerId: "user" } } }, reply: async (value) => { output = value; } });
-  assert.equal(called, false);
-  assert.match(output, /chính bot/);
+  await registry.resolve("undo").execute({ message: { data: { quote: { ownerId: "user" } } }, reply: async () => {} });
+  assert.equal(called, true);
 });
 
-test("todo sends one task instead of a repeated spam loop", async () => {
-  let call;
+test("todo preserves underscore syntax and repeat count", async () => {
+  const calls = [];
   const registry = new CommandRegistry();
-  registerMessageActionCommands(registry, { client: { api: { async sendTodo(...args) { call = args; } } }, groups: {} });
+  registerMessageActionCommands(registry, { client: { api: { async sendTodo(...args) { calls.push(args); } } }, groups: {} });
   await registry.resolve("todo").execute({
-    args: ["Kiểm", "tra", "hệ", "thống"], senderId: "123456", message: { data: {} }, reply: async () => {},
+    content: "!todo_Kiểm tra hệ thống_2_123456", prefix: "!", message: { data: {} }, reply: async () => {},
   });
-  assert.equal(call[1], "Kiểm tra hệ thống");
-  assert.deepEqual(call[2], ["123456"]);
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0][1], "Kiểm tra hệ thống");
+  assert.deepEqual(calls[0][2], ["123456"]);
+});
+
+test("sendp preserves underscore syntax and repeat count", async () => {
+  const calls = [];
+  const registry = new CommandRegistry();
+  registerMessageActionCommands(registry, { client: { api: { async sendMessageForward(...args) { calls.push(args); } } }, groups: {} });
+  await registry.resolve("sendp").execute({ content: "!sendp_Xin chào_3_123456", prefix: "!", message: { data: {} }, reply: async () => {} });
+  assert.equal(calls.length, 3);
+  assert.equal(calls[0][0].msg, "Xin chào");
+  assert.equal(calls[0][1], "123456");
 });
