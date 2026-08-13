@@ -40,9 +40,13 @@ export class PaymentService {
     const current = this.botStore.get(payment.targetId);
     if (!current) throw new Error("Không tìm thấy bot cần gia hạn");
     const durationMs = Number(new Big(payment.amount).div(this.price).times(this.durationDays * 86_400_000).round(0));
-    const wasActive = current.status === "active" && Number(current.timeRemaining) > 1000;
+    const now = Date.now();
+    if (current.timeRemaining === -1) return { kind: "bot", ownerId: payment.targetId, durationMs: 0, unlimited: true };
+    const currentExpiry = Number(current.leaseExpiresAt) || (Number(current.timeRemaining) > 0 ? now + Number(current.timeRemaining) : 0);
+    const leaseExpiresAt = Math.max(now, currentExpiry) + durationMs;
+    const wasActive = current.status === "active" && (current.timeRemaining === -1 || currentExpiry > now);
     await this.botStore.patch(payment.targetId, {
-      timeRemaining: durationMs, approvedAt: Date.now(), approvedBy: "AUTO_PAYMENT_V2",
+      timeRemaining: durationMs, leaseExpiresAt, approvedAt: now, approvedBy: "AUTO_PAYMENT_V2",
       paymentRef: payment.reference, status: wasActive ? "active" : "inactive",
       renewalReminder1DaySent: false, renewalReminder5MinSent: false,
     });
@@ -50,7 +54,7 @@ export class PaymentService {
     await main?.client.sendText(payment.targetId, 0,
       `Thanh toán thành công ${Number(payment.amount).toLocaleString("vi-VN")}đ. Thời hạn mới: ${(durationMs / 86_400_000).toFixed(1)} ngày.`
     ).catch(() => {});
-    return { kind: "bot", ownerId: payment.targetId, durationMs };
+    return { kind: "bot", ownerId: payment.targetId, durationMs, leaseExpiresAt };
   }
   async #donate(payment) {
     const main = this.fleet.list().find((bot) => bot.identity.isMain);

@@ -1,8 +1,14 @@
 import { BotRuntime } from "./bot-runtime.js";
 import { ZaloClient } from "../infrastructure/zalo/zalo-client.js";
 
-function canRunChild(bot) {
-  return bot?.status === "active" && (bot.timeRemaining === -1 || Number(bot.timeRemaining) > 0);
+function remainingLease(bot, now = Date.now()) {
+  if (bot?.timeRemaining === -1) return -1;
+  if (Number(bot?.leaseExpiresAt) > 0) return Math.max(0, Number(bot.leaseExpiresAt) - now);
+  return Math.max(0, Number(bot?.timeRemaining) || 0);
+}
+
+function canRunChild(bot, now = Date.now()) {
+  return bot?.status === "active" && remainingLease(bot, now) !== 0;
 }
 
 export class BotFleet {
@@ -32,6 +38,11 @@ export class BotFleet {
   }
 
   async start() {
+    for (const [ownerId, bot] of Object.entries(this.config.childBots)) {
+      if (bot.timeRemaining !== -1 && !Number(bot.leaseExpiresAt) && Number(bot.timeRemaining) > 0) {
+        await this.botStore.patch(ownerId, { leaseExpiresAt: Date.now() + Number(bot.timeRemaining) });
+      }
+    }
     const main = await this.#startBot(this.config.bot, { isMain: true });
     const mainBotId = String(main.client.botId);
     const children = Object.entries(this.config.childBots).filter(([, bot]) => canRunChild(bot));
@@ -51,6 +62,7 @@ export class BotFleet {
       }
     }
     this.logger.info("Fleet đã khởi động", { total: this.#bots.size, failed: failures.length });
+    this.cancelLeaseJob = this.scheduler.every("fleet:leases", 60_000, () => this.enforceLeases());
     return { total: this.#bots.size, failures };
   }
 
@@ -66,7 +78,7 @@ export class BotFleet {
       ownerId,
       name: config.nameBot || config.infoOwner?.name || ownerId,
       status: this.getByOwner(ownerId) ? "online" : config.status || "inactive",
-      timeRemaining: config.timeRemaining,
+      timeRemaining: remainingLease(config),
     }));
   }
   resolveOwner(selector) {
@@ -79,7 +91,7 @@ export class BotFleet {
     if (this.getByOwner(ownerId)) return { started: false, reason: "Bot đang chạy" };
     const botConfig = this.config.childBots[ownerId];
     if (!botConfig) return { started: false, reason: "Không tìm thấy bot" };
-    if (!(botConfig.timeRemaining === -1 || Number(botConfig.timeRemaining) > 0)) {
+    if (!remainingLease(botConfig)) {
       return { started: false, reason: "Bot đã hết hạn" };
     }
     const main = this.list().find((bot) => bot.identity.isMain);
@@ -107,8 +119,18 @@ export class BotFleet {
     return true;
   }
   async stop() {
+    this.cancelLeaseJob?.();
     for (const bot of [...this.#bots.values()].reverse()) await bot.runtime.stop();
     this.#bots.clear();
     this.#owners.clear();
   }
+  async enforceLeases(now = Date.now()) {
+    for (const [ownerId, config] of Object.entries(this.config.childBots)) {
+      if (remainingLease(config, now) !== 0) continue;
+      if (this.getByOwner(ownerId)) await this.stopChild(ownerId);
+      if (config.status !== "inactive") await this.botStore.patch(ownerId, { status: "inactive", expiredAt: now });
+    }
+  }
 }
+
+export { remainingLease };
