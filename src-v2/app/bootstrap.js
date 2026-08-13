@@ -16,6 +16,7 @@ import { GeminiProvider } from "../modules/ai/gemini-provider.js";
 import { AiGateway } from "../modules/ai/gateway.js";
 import { SourceUpdateService } from "../modules/source-update/service.js";
 import { PaymentQrService } from "../modules/payments/qr-service.js";
+import { QrService } from "../modules/qr/service.js";
 
 export async function bootstrap() {
   const logger = createLogger({ context: { app: "ngh-bot-v2" } });
@@ -38,9 +39,10 @@ export async function bootstrap() {
   const ai = new AiGateway({ provider: new GeminiProvider(), concurrency: 2, maxQueue: 20 });
   const sourceUpdater = new SourceUpdateService({ rootDir: config.rootDir, logger: logger.child({ component: "source-update" }) });
   const paymentQr = new PaymentQrService({ rootDir: config.rootDir, http, tempFiles, price: 80_000 });
+  const qr = new QrService({ http, tempFiles });
   const botStore = new BotConfigStore({ rootDir: config.rootDir, data: config.childBots });
 
-  const fleet = new BotFleet({ config, scheduler, database, media, content, ai, sourceUpdater, paymentQr, logger: logger.child({ component: "fleet" }) });
+  const fleet = new BotFleet({ config, scheduler, database, media, content, ai, sourceUpdater, paymentQr, qr, logger: logger.child({ component: "fleet" }) });
   await fleet.start();
   lifecycle.add("fleet", () => fleet.stop());
 

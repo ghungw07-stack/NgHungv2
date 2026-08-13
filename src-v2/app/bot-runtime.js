@@ -37,6 +37,7 @@ import { registerMessageActionCommands } from "../modules/message-actions/comman
 import { ParentRelayService } from "../modules/parent-relay/service.js";
 import { registerParentRelayEvents } from "../modules/parent-relay/events.js";
 import { registerPaymentCommands } from "../modules/payments/commands.js";
+import { registerQrCommands } from "../modules/qr/commands.js";
 
 export class BotRuntime {
   constructor({ client, config, scheduler, logger, identity = {}, services = {} }) {
@@ -116,6 +117,7 @@ export class BotRuntime {
     registerCommandManagerCommands(registry, { settings: this.groupSettings });
     registerMessageActionCommands(registry, { client: this.client, groups: this.groups });
     registerPaymentCommands(registry, { qr: this.services.paymentQr, client: this.client, identity: this.identity });
+    registerQrCommands(registry, { qr: this.services.qr, client: this.client });
     this.dispatcher = new CommandDispatcher({
       prefix: this.config.prefix,
       prefixResolver: ({ threadId }) => this.groupSettings.getPrefix(threadId),
