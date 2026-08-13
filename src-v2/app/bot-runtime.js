@@ -104,6 +104,7 @@ export class BotRuntime {
       bankAccounts: this.bankAccounts,
       adminStore: this.services.adminStore,
       diagnostics: this.services.diagnostics,
+      accessControl: permissions,
     });
     this.dispatcher = new CommandDispatcher({
       prefix: this.config.prefix,

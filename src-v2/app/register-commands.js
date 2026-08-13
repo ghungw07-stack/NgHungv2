@@ -32,6 +32,7 @@ import { registerOperationCommands } from "../modules/operations/commands.js";
 import { registerBulkGroupCommands } from "../modules/bulk-groups/commands.js";
 import { registerFunCommands } from "../modules/fun/commands.js";
 import { registerDiagnosticCommands } from "../modules/diagnostics/commands.js";
+import { registerSupportGameCommand } from "../modules/game/support/commands.js";
 
 export function registerRuntimeCommands(registry, dependencies) {
   const d = dependencies;
@@ -69,5 +70,6 @@ export function registerRuntimeCommands(registry, dependencies) {
   registerBulkGroupCommands(registry, { client: d.client, groups: d.groups });
   registerFunCommands(registry);
   registerDiagnosticCommands(registry, { diagnostics: d.diagnostics });
+  registerSupportGameCommand(registry, { settings: d.groupSettings, media: d.media, client: d.client, accessControl: d.accessControl });
   return registry;
 }
