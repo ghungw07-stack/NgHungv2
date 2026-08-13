@@ -30,6 +30,7 @@ import { registerAccountCommands } from "../modules/account/commands.js";
 import { registerAdminCommands } from "../modules/admins/commands.js";
 import { registerOperationCommands } from "../modules/operations/commands.js";
 import { registerBulkGroupCommands } from "../modules/bulk-groups/commands.js";
+import { registerFunCommands } from "../modules/fun/commands.js";
 
 export function registerRuntimeCommands(registry, dependencies) {
   const d = dependencies;
@@ -65,5 +66,6 @@ export function registerRuntimeCommands(registry, dependencies) {
   registerAdminCommands(registry, { store: d.adminStore, botId: d.botId });
   registerOperationCommands(registry, { settings: d.groupSettings, adminStore: d.adminStore, botId: d.botId });
   registerBulkGroupCommands(registry, { client: d.client, groups: d.groups });
+  registerFunCommands(registry);
   return registry;
 }
