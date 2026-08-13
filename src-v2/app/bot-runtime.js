@@ -2,49 +2,28 @@ import { CommandDispatcher } from "../core/commands/dispatcher.js";
 import { CommandRegistry } from "../core/commands/registry.js";
 import { createPermissionService } from "../core/permissions.js";
 import { TaskQueue } from "../core/task-queue.js";
-import { registerSystemCommands } from "../modules/system/commands.js";
-import { registerBotManagerCommands } from "../modules/bot-manager/commands.js";
 import { EventBus } from "../core/events/event-bus.js";
 import { registerMessageEvents } from "../modules/messages/events.js";
 import { GroupSettingsRepository } from "../modules/group-settings/repository.js";
-import { registerGroupSettingsCommands } from "../modules/group-settings/commands.js";
 import { GroupService } from "../modules/groups/service.js";
-import { registerGroupCommands } from "../modules/groups/commands.js";
 import { Permission } from "../core/permissions.js";
 import { ModerationService } from "../modules/moderation/service.js";
 import { registerModerationEvents } from "../modules/moderation/events.js";
-import { registerModerationCommands } from "../modules/moderation/commands.js";
-import { registerMediaCommands } from "../modules/media/commands.js";
-import { registerUtilityCommands } from "../modules/utilities/commands.js";
-import { registerContentCommands } from "../modules/content/commands.js";
 import { PlayerRepository } from "../modules/game/economy/player-repository.js";
-import { registerEconomyCommands } from "../modules/game/economy/commands.js";
 import { BigGameEngine } from "../modules/game/big-game/engine.js";
-import { registerBigGameCommands } from "../modules/game/big-game/commands.js";
 import { GameSessionRepository } from "../modules/game/mini-game/session-repository.js";
-import { registerMiniGameCommands } from "../modules/game/mini-game/commands.js";
-import { XiDachGame, registerXiDachCommand } from "../modules/game/card-game/xidach.js";
+import { XiDachGame } from "../modules/game/card-game/xidach.js";
 import { ConversationRepository } from "../modules/ai/conversation-repository.js";
-import { registerAiCommands } from "../modules/ai/commands.js";
 import { AutoJoinService } from "../modules/autojoin/service.js";
 import { registerAutoJoinEvents } from "../modules/autojoin/events.js";
-import { registerAutoJoinCommands } from "../modules/autojoin/commands.js";
-import { registerGroupEventCommands } from "../modules/group-events/commands.js";
 import { registerGroupEvents } from "../modules/group-events/events.js";
-import { registerSourceUpdateCommand } from "../modules/source-update/commands.js";
-import { registerCommandManagerCommands } from "../modules/command-manager/commands.js";
-import { registerMessageActionCommands } from "../modules/message-actions/commands.js";
 import { ParentRelayService } from "../modules/parent-relay/service.js";
 import { registerParentRelayEvents } from "../modules/parent-relay/events.js";
-import { registerPaymentCommands } from "../modules/payments/commands.js";
-import { registerQrCommands } from "../modules/qr/commands.js";
 import { MessageArchiveRepository } from "../modules/message-archive/repository.js";
 import { registerMessageArchiveEvents } from "../modules/message-archive/events.js";
 import { ReminderService } from "../modules/reminders/service.js";
-import { registerReminderCommands } from "../modules/reminders/commands.js";
-import { registerBasicToolCommands } from "../modules/basic-tools/commands.js";
 import { LegacyMigration } from "../modules/migrations/legacy-migration.js";
-import { registerCaroCommand } from "../modules/game/board-game/caro.js";
+import { registerRuntimeCommands } from "./register-commands.js";
 
 export class BotRuntime {
   constructor({ client, config, scheduler, logger, identity = {}, services = {} }) {
@@ -111,33 +90,15 @@ export class BotRuntime {
     await this.reminders.start();
     this.xiDach = new XiDachGame({ sessions: this.gameSessions, players: this.players, scheduler: this.scheduler, botId });
     this.xiDach.start();
-    registerSystemCommands(registry, {
-      startedAt: this.startedAt,
-      scheduler: this.scheduler,
-      runtimeStats: () => ({ queue: this.queue.stats }),
+    registerRuntimeCommands(registry, {
+      startedAt: this.startedAt, scheduler: this.scheduler, runtimeStats: () => ({ queue: this.queue.stats }),
+      fleet: this.services.fleet, identity: this.identity, groupSettings: this.groupSettings,
+      groups: this.groups, client: this.client, media: this.services.media, content: this.services.content,
+      players: this.players, bigGames: this.bigGames, gameSessions: this.gameSessions, xiDach: this.xiDach,
+      ai: this.services.ai, aiConversations: this.aiConversations, botId,
+      sourceUpdater: this.services.sourceUpdater, paymentQr: this.services.paymentQr,
+      qr: this.services.qr, reminders: this.reminders,
     });
-    registerBotManagerCommands(registry, { fleet: this.services.fleet, identity: this.identity });
-    registerGroupSettingsCommands(registry, { repository: this.groupSettings });
-    registerGroupCommands(registry, { groups: this.groups, client: this.client });
-    registerModerationCommands(registry, { repository: this.groupSettings });
-    registerMediaCommands(registry, { media: this.services.media, client: this.client });
-    registerUtilityCommands(registry, { client: this.client });
-    registerContentCommands(registry, this.services.content);
-    registerEconomyCommands(registry, { players: this.players });
-    registerBigGameCommands(registry, { engine: this.bigGames, players: this.players });
-    registerMiniGameCommands(registry, { sessions: this.gameSessions, players: this.players });
-    registerXiDachCommand(registry, { game: this.xiDach, sessions: this.gameSessions, players: this.players });
-    registerCaroCommand(registry, { sessions: this.gameSessions });
-    registerAiCommands(registry, { gateway: this.services.ai, conversations: this.aiConversations, botId });
-    registerAutoJoinCommands(registry, { settings: this.groupSettings });
-    registerGroupEventCommands(registry, { settings: this.groupSettings });
-    registerSourceUpdateCommand(registry, { updater: this.services.sourceUpdater, identity: this.identity });
-    registerCommandManagerCommands(registry, { settings: this.groupSettings });
-    registerMessageActionCommands(registry, { client: this.client, groups: this.groups });
-    registerPaymentCommands(registry, { qr: this.services.paymentQr, client: this.client, identity: this.identity });
-    registerQrCommands(registry, { qr: this.services.qr, client: this.client });
-    registerReminderCommands(registry, { reminders: this.reminders });
-    registerBasicToolCommands(registry);
     this.dispatcher = new CommandDispatcher({
       prefix: this.config.prefix,
       prefixResolver: ({ threadId }) => this.groupSettings.getPrefix(threadId),

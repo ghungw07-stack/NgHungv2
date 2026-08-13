@@ -10,6 +10,7 @@
     "start": "node src/index.js",
     "bot": "node bot.js",
     "start:v2": "node src-v2/index.js",
+    "parity:v2": "node scripts/v2-parity-report.js",
     "test": "node --test test/*.test.js"
   },
   "author": "NGH",
