@@ -28,4 +28,5 @@ export class EventBus {
     return undefined;
   }
   count(event) { return (this.#handlers.get(event) || []).length; }
+  clear() { this.#handlers.clear(); }
 }

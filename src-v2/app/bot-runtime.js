@@ -90,7 +90,11 @@ export class BotRuntime {
     await this.aiConversations.start();
     this.xiDach = new XiDachGame({ sessions: this.gameSessions, players: this.players, scheduler: this.scheduler, botId });
     this.xiDach.start();
-    registerSystemCommands(registry, { startedAt: this.startedAt, scheduler: this.scheduler });
+    registerSystemCommands(registry, {
+      startedAt: this.startedAt,
+      scheduler: this.scheduler,
+      runtimeStats: () => ({ queue: this.queue.stats }),
+    });
     registerBotManagerCommands(registry, { fleet: this.services.fleet, identity: this.identity });
     registerGroupSettingsCommands(registry, { repository: this.groupSettings });
     registerGroupCommands(registry, { groups: this.groups, client: this.client });
@@ -160,6 +164,8 @@ export class BotRuntime {
     this.logger.info("NGH Bot v2 đã sẵn sàng", { botId, commands: registry.list().length });
   }
   async stop() {
+    const discarded = this.queue.close();
+    if (discarded) this.logger.info("Đã bỏ tác vụ đang chờ khi tắt bot", { discarded });
     this.disposeMessageEvents?.();
     this.groupSettings?.clear();
     this.groups?.clear();
@@ -168,5 +174,6 @@ export class BotRuntime {
     this.xiDach?.stop();
     this.autoJoin?.stop();
     await this.client.stop();
+    this.events?.clear();
   }
 }

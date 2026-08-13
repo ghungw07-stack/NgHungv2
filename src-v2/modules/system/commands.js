@@ -1,7 +1,7 @@
 import os from "node:os";
 import { Permission } from "../../core/permissions.js";
 
-export function registerSystemCommands(registry, { startedAt, scheduler }) {
+export function registerSystemCommands(registry, { startedAt, scheduler, runtimeStats = () => ({}) }) {
   registry.register({
     name: "ping",
     description: "Kiểm tra bot",
@@ -14,14 +14,16 @@ export function registerSystemCommands(registry, { startedAt, scheduler }) {
     description: "Xem trạng thái bot",
     async execute({ reply }) {
       const memory = process.memoryUsage();
+      const runtime = runtimeStats();
       await reply([
         "Trạng thái NGH Bot v2",
         `Uptime: ${Math.floor((Date.now() - startedAt) / 1000)} giây`,
         `RAM tiến trình: ${(memory.rss / 1024 / 1024).toFixed(1)} MB`,
         `Heap: ${(memory.heapUsed / 1024 / 1024).toFixed(1)} MB`,
         `Scheduler: ${scheduler.size}`,
+        runtime.queue ? `Queue: ${runtime.queue.active} chạy, ${runtime.queue.pending} chờ` : null,
         `RAM máy trống: ${(os.freemem() / 1024 / 1024).toFixed(0)} MB`,
-      ].join("\n"));
+      ].filter(Boolean).join("\n"));
     },
   });
   registry.register({
