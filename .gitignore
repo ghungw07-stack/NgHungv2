@@ -3,3 +3,4 @@ package-lock.json
 logs/
 .env
 .env.*
+assets/config.json
