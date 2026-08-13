@@ -3,8 +3,7 @@ import { Lifecycle } from "../core/lifecycle.js";
 import { createLogger } from "../core/logger.js";
 import { Scheduler } from "../core/scheduler.js";
 import { MongoDatabase } from "../infrastructure/database/mongodb.js";
-import { ZaloClient } from "../infrastructure/zalo/zalo-client.js";
-import { BotRuntime } from "./bot-runtime.js";
+import { BotFleet } from "./bot-fleet.js";
 
 export async function bootstrap() {
   const logger = createLogger({ context: { app: "ngh-bot-v2" } });
@@ -17,11 +16,9 @@ export async function bootstrap() {
   await database.start();
   lifecycle.add("mongodb", () => database.stop());
 
-  const client = new ZaloClient(config.bot, logger.child({ component: "zalo" }));
-  await client.start();
-  const runtime = new BotRuntime({ client, config, scheduler, logger: logger.child({ component: "runtime" }) });
-  await runtime.start();
-  lifecycle.add("bot", () => runtime.stop());
+  const fleet = new BotFleet({ config, scheduler, logger: logger.child({ component: "fleet" }) });
+  await fleet.start();
+  lifecycle.add("fleet", () => fleet.stop());
 
-  return { config, database, scheduler, runtime, lifecycle, logger };
+  return { config, database, scheduler, fleet, lifecycle, logger };
 }

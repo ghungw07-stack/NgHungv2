@@ -9,8 +9,8 @@ function messageContent(message) {
 }
 
 export class BotRuntime {
-  constructor({ client, config, scheduler, logger }) {
-    Object.assign(this, { client, config, scheduler, logger });
+  constructor({ client, config, scheduler, logger, identity = {} }) {
+    Object.assign(this, { client, config, scheduler, logger, identity });
     this.startedAt = Date.now();
     this.queue = new TaskQueue({ concurrency: 6, capacity: 100 });
   }
@@ -18,8 +18,8 @@ export class BotRuntime {
     const botId = String(this.client.botId);
     const permissions = createPermissionService({
       botId,
-      mainBotId: botId,
-      ownerIds: this.config.leaders[botId] || [],
+      mainBotId: this.identity.mainBotId || botId,
+      ownerIds: [...(this.config.leaders[botId] || []), ...(this.identity.ownerIds || [])],
       adminIds: this.config.admins[botId] || [],
     });
     const registry = new CommandRegistry();
