@@ -1,5 +1,6 @@
 export class Scheduler {
   #jobs = new Map();
+  constructor(onError = (error, name) => console.error(`[scheduler:${name}]`, error)) { this.onError = onError; }
 
   every(name, intervalMs, handler) {
     if (this.#jobs.has(name)) throw new Error(`Scheduler job already exists: ${name}`);
@@ -8,7 +9,9 @@ export class Scheduler {
     const timer = setInterval(async () => {
       if (running) return;
       running = true;
-      try { await handler(); } finally { running = false; }
+      try { await handler(); }
+      catch (error) { this.onError(error, name); }
+      finally { running = false; }
     }, intervalMs);
     timer.unref?.();
     this.#jobs.set(name, timer);

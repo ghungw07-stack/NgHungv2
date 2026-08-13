@@ -19,6 +19,8 @@ import { registerUtilityCommands } from "../modules/utilities/commands.js";
 import { registerContentCommands } from "../modules/content/commands.js";
 import { PlayerRepository } from "../modules/game/economy/player-repository.js";
 import { registerEconomyCommands } from "../modules/game/economy/commands.js";
+import { BigGameEngine } from "../modules/game/big-game/engine.js";
+import { registerBigGameCommands } from "../modules/game/big-game/commands.js";
 
 export class BotRuntime {
   constructor({ client, config, scheduler, logger, identity = {}, services = {} }) {
@@ -61,6 +63,14 @@ export class BotRuntime {
       dailyReward: this.config.game?.dailyReward || "100000000",
     });
     await this.players.start();
+    this.bigGames = new BigGameEngine({
+      database: this.services.database,
+      players: this.players,
+      scheduler: this.scheduler,
+      botId,
+      logger: this.logger,
+    });
+    await this.bigGames.start();
     registerSystemCommands(registry, { startedAt: this.startedAt, scheduler: this.scheduler });
     registerBotManagerCommands(registry, { fleet: this.services.fleet, identity: this.identity });
     registerGroupSettingsCommands(registry, { repository: this.groupSettings });
@@ -70,6 +80,7 @@ export class BotRuntime {
     registerUtilityCommands(registry, { client: this.client });
     registerContentCommands(registry, this.services.content);
     registerEconomyCommands(registry, { players: this.players });
+    registerBigGameCommands(registry, { engine: this.bigGames, players: this.players });
     this.dispatcher = new CommandDispatcher({
       prefix: this.config.prefix,
       prefixResolver: ({ threadId }) => this.groupSettings.getPrefix(threadId),
@@ -112,6 +123,7 @@ export class BotRuntime {
     this.groupSettings?.clear();
     this.groups?.clear();
     this.moderation?.clear();
+    this.bigGames?.stop();
     await this.client.stop();
   }
 }

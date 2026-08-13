@@ -83,6 +83,28 @@ export class PlayerRepository {
   async history(userId, limit = 10) {
     return this.transactions.find({ botId: this.botId, userId: String(userId) }).sort({ createdAt: -1 }).limit(limit).toArray();
   }
+  async debit(userId, amount, metadata = {}) {
+    const value = new Big(amount).round(0, Big.roundDown);
+    if (value.lte(0)) throw new Error("Số tiền phải lớn hơn 0");
+    await this.ensure(userId, metadata.name);
+    const result = await this.players.updateOne(
+      { botId: this.botId, userId: String(userId), balance: { $gte: decimal(value) } },
+      { $inc: { balance: decimal(value.times(-1)) }, $set: { updatedAt: new Date() } }
+    );
+    if (!result.modifiedCount) throw new Error("Số dư không đủ");
+    return value.toFixed(0);
+  }
+  async creditOnce(userId, amount, reference, metadata = {}) {
+    const value = new Big(amount).round(0, Big.roundDown);
+    if (value.lte(0)) return false;
+    await this.ensure(userId, metadata.name);
+    const result = await this.players.updateOne(
+      { botId: this.botId, userId: String(userId), creditedRefs: { $ne: reference } },
+      { $inc: { balance: decimal(value) }, $push: { creditedRefs: { $each: [reference], $slice: -200 } }, $set: { updatedAt: new Date() } }
+    );
+    if (result.modifiedCount) await this.#record(userId, "game_payout", value.toFixed(0), { ...metadata, reference });
+    return Boolean(result.modifiedCount);
+  }
   async #record(userId, type, amount, metadata = {}) {
     await this.transactions.insertOne({
       botId: this.botId, userId: String(userId), type, amount: decimal(amount),

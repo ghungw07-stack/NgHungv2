@@ -14,7 +14,7 @@ export async function bootstrap() {
   const logger = createLogger({ context: { app: "ngh-bot-v2" } });
   const lifecycle = new Lifecycle();
   const config = await loadConfig();
-  const scheduler = new Scheduler();
+  const scheduler = new Scheduler((error, job) => logger.error("Scheduler job thất bại", { job, error: error.stack || error.message }));
   lifecycle.add("scheduler", () => scheduler.stop());
 
   const database = new MongoDatabase(config.database, logger.child({ component: "mongodb" }));
