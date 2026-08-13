@@ -12,6 +12,7 @@ registerRuntimeCommands(registry, {
   content: noop, players: noop, bigGames: noop, gameSessions: noop, xiDach: noop,
   ai: noop, aiConversations: noop, botId: "audit", sourceUpdater: noop, paymentQr: noop,
   qr: noop, reminders: noop, messageArchive: noop, bankAccounts: noop, adminStore: noop,
+  diagnostics: noop,
 });
 const report = compareCommandParity(data.commands, registry);
 console.log(`Legacy: ${report.legacyTotal}`);

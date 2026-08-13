@@ -103,6 +103,7 @@ export class BotRuntime {
       messageArchive: this.messageArchive,
       bankAccounts: this.bankAccounts,
       adminStore: this.services.adminStore,
+      diagnostics: this.services.diagnostics,
     });
     this.dispatcher = new CommandDispatcher({
       prefix: this.config.prefix,

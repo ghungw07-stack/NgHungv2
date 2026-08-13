@@ -18,6 +18,7 @@ import { SourceUpdateService } from "../modules/source-update/service.js";
 import { PaymentQrService } from "../modules/payments/qr-service.js";
 import { QrService } from "../modules/qr/service.js";
 import { AdminStore } from "../modules/admins/store.js";
+import { DiagnosticsService } from "../modules/diagnostics/service.js";
 
 export async function bootstrap() {
   const logger = createLogger({ context: { app: "ngh-bot-v2" } });
@@ -36,6 +37,7 @@ export async function bootstrap() {
   scheduler.every("temp-files:cleanup", 10 * 60_000, () => tempFiles.cleanup());
   const http = new SafeHttpClient();
   const media = new MediaService({ http, tempFiles, concurrency: 2 });
+  const diagnostics = new DiagnosticsService();
   const content = { weather: new WeatherProvider(http), translator: new TranslateProvider(http) };
   const ai = new AiGateway({ provider: new GeminiProvider(), concurrency: 2, maxQueue: 20 });
   const sourceUpdater = new SourceUpdateService({ rootDir: config.rootDir, logger: logger.child({ component: "source-update" }) });
@@ -44,7 +46,7 @@ export async function bootstrap() {
   const botStore = new BotConfigStore({ rootDir: config.rootDir, data: config.childBots });
   const adminStore = new AdminStore({ rootDir: config.rootDir, data: config.admins });
 
-  const fleet = new BotFleet({ config, scheduler, database, media, content, ai, sourceUpdater, paymentQr, qr, botStore, adminStore, logger: logger.child({ component: "fleet" }) });
+  const fleet = new BotFleet({ config, scheduler, database, media, content, ai, diagnostics, sourceUpdater, paymentQr, qr, botStore, adminStore, logger: logger.child({ component: "fleet" }) });
   await fleet.start();
   lifecycle.add("fleet", () => fleet.stop());
 
