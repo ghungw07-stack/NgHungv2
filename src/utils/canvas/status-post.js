@@ -1,9 +1,9 @@
 import { createCanvas, loadImage } from "canvas";
 import path from "path";
 import fs from "fs/promises";
-import { sendMessageFromSQL, sendMessageFromSQLImage, sendMessageImageNotQuote } from "../../service-dqt/chat-zalo/chat-style/chat-style.js";
-import { getUserInfoData } from "../../service-dqt/info-service/user-info.js";
-import { getGlobalPrefix } from "../../service-dqt/service.js";
+import { sendMessageFromSQL, sendMessageFromSQLImage, sendMessageImageNotQuote } from "../../service-ngh/chat-zalo/chat-style/chat-style.js";
+import { getUserInfoData } from "../../service-ngh/info-service/user-info.js";
+import { getGlobalPrefix } from "../../service-ngh/service.js";
 import { removeMention } from "../format-util.js";
 import { deleteFile, writeFilePromise } from "../util.js";
 import { threadId } from "worker_threads";

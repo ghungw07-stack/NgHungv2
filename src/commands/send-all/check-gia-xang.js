@@ -2,7 +2,7 @@ import axios from "axios";
 import fs from "fs";
 import path from "path";
 import { createCanvas } from "canvas";
-import { sendMessageStateQuote, sendMessageTag } from "../../service-dqt/chat-zalo/chat-style/chat-style.js";
+import { sendMessageStateQuote, sendMessageTag } from "../../service-ngh/chat-zalo/chat-style/chat-style.js";
 import { deleteFile } from "../../utils/util.js";
 import { parseFuelPriceHtml } from "../../utils/market-price-parser.js";
 

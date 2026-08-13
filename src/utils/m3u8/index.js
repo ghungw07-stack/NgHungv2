@@ -5,7 +5,7 @@ import * as cheerio from "cheerio";
 import youtubeDl from "youtube-dl-exec";
 import HttpsProxyAgent from "https-proxy-agent";
 import { asyncPool, getVideoMetadata } from "../../api-zalo/utils.js";
-import { getClientAxios } from "../../service-dqt/utilities/browser-launch.js";
+import { getClientAxios } from "../../service-ngh/utilities/browser-launch.js";
 import { readSettingConfig } from "../io-json.js";
 import { deleteFile, execAsync, measureTime } from "../util.js";
 

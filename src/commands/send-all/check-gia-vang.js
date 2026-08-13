@@ -2,9 +2,9 @@ import axios from "axios";
 import fs from "fs";
 import path from "path";
 import { createCanvas } from "canvas";
-import { sendMessageTag, sendMessageStateQuote } from "../../service-dqt/chat-zalo/chat-style/chat-style.js";
+import { sendMessageTag, sendMessageStateQuote } from "../../service-ngh/chat-zalo/chat-style/chat-style.js";
 import { removeMention } from "../../utils/format-util.js";
-import { getGlobalPrefix } from "../../service-dqt/service.js";
+import { getGlobalPrefix } from "../../service-ngh/service.js";
 import { deleteFile } from "../../utils/util.js";
 import { parseGoldPriceHtml } from "../../utils/market-price-parser.js";
 

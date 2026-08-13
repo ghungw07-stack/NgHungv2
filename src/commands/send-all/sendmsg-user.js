@@ -1,8 +1,8 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { MessageType } from "zlbotdqt";
-import { sendMessageCompleteRequest } from '../../service-dqt/chat-zalo/chat-style/chat-style.js';
+import { MessageType } from "zlbotngh";
+import { sendMessageCompleteRequest } from '../../service-ngh/chat-zalo/chat-style/chat-style.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

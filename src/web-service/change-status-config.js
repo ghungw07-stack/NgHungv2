@@ -1,7 +1,7 @@
 import { groupSettingsAll } from "../automations/event-send-msg.js";
 import { initGroupSettings } from "../commands/command.js";
-import { sendMessageState } from "../service-dqt/chat-zalo/chat-style/chat-style.js";
-import { getSettingName } from "../service-dqt/info-service/group-info.js";
+import { sendMessageState } from "../service-ngh/chat-zalo/chat-style/chat-style.js";
+import { getSettingName } from "../service-ngh/info-service/group-info.js";
 
 export const changeStatusConfig = async ({ api, groupId, groupName, command, isActive }) => {
   const groupSettings = groupSettingsAll.getByID(api.getBotId());

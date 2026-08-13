@@ -5,7 +5,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import multer from "multer";
 import chalk from "chalk";
-import { getDataAllGroup } from "../service-dqt/info-service/group-info.js";
+import { getDataAllGroup } from "../service-ngh/info-service/group-info.js";
 import fs from "fs/promises";
 import { readWebConfig, writeWebConfig } from "../utils/io-json.js";
 import { MessageType } from "../api-zalo/models/Message.js";
@@ -212,7 +212,7 @@ export async function startWebServer() {
 
       if (matchDonate) {
         const uid = matchDonate[1];
-        const { processDonatePayment } = await import("../service-dqt/game-service/index.js");
+        const { processDonatePayment } = await import("../service-ngh/game-service/index.js");
         const result = await processDonatePayment(uid, payRef, receivedAmount);
         if (result?.success && payRef) processedPaymentRefs.add(payRef);
         return res.json(result);

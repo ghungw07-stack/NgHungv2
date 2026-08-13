@@ -1,4 +1,4 @@
-import { handleMuteList, handleMuteUser, handleUnmuteUser } from "../service-dqt/anti-service/mute-user.js";
+import { handleMuteList, handleMuteUser, handleUnmuteUser } from "../service-ngh/anti-service/mute-user.js";
 import { handleWelcomeBye, handleApprove, handleUpdateGroup, handleKickImageCommand, handleBlockImageCommand, handleSendUserMemberCommand } from "./bot-manager/welcome-bye.js";
 import { handleBlock,
   handleKick,
@@ -11,70 +11,70 @@ import { handleBlock,
 import { handleUpdateProfile, handleCreatePoll, handleSpamPoll, handleSendReport } from "./bot-manager/utilities.js";
 import { handleActiveBotUser, handleActiveGameUser, handleActivePrivateBot } from "./bot-manager/active-bot.js";
 import { helpCommand, adminCommand, gameInfoCommand, gameMenuCommand } from "./instructions/help.js";
-import { askGPTCommand } from "../service-dqt/api-crawl/assistant-ai/gpt.js";
-import { askGeminiCommand } from "../service-dqt/api-crawl/assistant-ai/gemini.js";
-import { askNovaCommand, isNovaAwaitingMusic, isNovaSessionActive } from "../service-dqt/api-crawl/assistant-ai/nova.js";
+import { askGPTCommand } from "../service-ngh/api-crawl/assistant-ai/gpt.js";
+import { askGeminiCommand } from "../service-ngh/api-crawl/assistant-ai/gemini.js";
+import { askNovaCommand, isNovaAwaitingMusic, isNovaSessionActive } from "../service-ngh/api-crawl/assistant-ai/nova.js";
 import { isNovaEnabled, isNovaGroupBot, setNovaEnabled } from "../utils/nova-store.js";
-import { translateCommand } from "../service-dqt/api-crawl/content/translate.js";
-import { weatherCommand } from "../service-dqt/api-crawl/content/weather.js";
-import { handlePhatNguoiCommand } from "../service-dqt/api-crawl/content/phatnguoi.js";
+import { translateCommand } from "../service-ngh/api-crawl/content/translate.js";
+import { weatherCommand } from "../service-ngh/api-crawl/content/weather.js";
+import { handlePhatNguoiCommand } from "../service-ngh/api-crawl/content/phatnguoi.js";
 import {
   handleHoatHinh3DTrungQuocCommand,
   handleHoatHinh3DTrungQuocThuyetMinhCommand,
   handleShowLichHoatHinh3DTrungQuocCommand,
-} from "../service-dqt/api-crawl/video-content/hh3dtq.js";
-import { handleSpamSMSCommand } from "../service-dqt/api-crawl/content/spamsms.js";
-import { handleCheckTuongLienQuanCommand } from "../service-dqt/api-crawl/content/info-lien-quan.js";
-import { handleCheckTuongLMHTCommand } from "../service-dqt/api-crawl/content/info-lmht.js";
-import { handleCheckOrderDeliveryCommand } from "../service-dqt/api-crawl/content/check-giao-hang.js";
-import { handleCheckDomainNameCommand, handleCheckIPCommand } from "../service-dqt/api-crawl/content/check-host.js";
-import { handleCheckClipphotCommand } from "../service-dqt/api-crawl/video-content/cliphot.js";
-import { handleMotPhimCommand } from "../service-dqt/api-crawl/video-content/mot-phim.js";
-import { handleKhoPhimCommand } from "../service-dqt/api-crawl/video-content/kho-phim.js";
-import { handleXoSoCommand } from "../service-dqt/api-crawl/content/xo-so.js";
-import { handleAutoDownloadAndReplyCommand } from "../service-dqt/api-crawl/api-download/auto-download.js";
-import { searchImagePinterest } from "../service-dqt/api-crawl/image-content/pinterest-service.js";
-import { handleTikTokCommand } from "../service-dqt/api-crawl/tiktok/tiktok-service.js";
-import { handleMusicCommand } from "../service-dqt/api-crawl/music-content/soundcloud.js";
-import { handleMixcloudCommand } from "../service-dqt/api-crawl/music-content/mixcloud.js";
-import { handleTopChartZingMp3, handleZingMp3Command } from "../service-dqt/api-crawl/music-content/zingmp3.js";
-import { handleYoutubeCommand } from "../service-dqt/api-crawl/youtube/youtube-service.js";
-import { handleNhacCuaTuiCommand } from "../service-dqt/api-crawl/music-content/nhaccuatui.js";
-import { handleDownloadCommand } from "../service-dqt/api-crawl/api-download/aio-downlink.js";
-import { handleCapcutCommand } from "../service-dqt/api-crawl/capcut/capcut-service.js";
-import { searchImageGoogle } from "../service-dqt/api-crawl/google/google-image.js";
-import { handleGoogleCommand } from "../service-dqt/api-crawl/google/google-search.js";
-import { handleGoogleAISearchCommand } from "../service-dqt/api-crawl/google/google-ai-search.js";
-import { handleGoogleNewsCommand } from "../service-dqt/api-crawl/google/google-news.js";
-import { handleTvplCommand } from "../service-dqt/api-crawl/content/thuvien-phap-luat.js";
-import { handleHorseRaceCommand } from "../service-dqt/game-service/dua-ngua/dua-ngua.js";
-import { handleFacebookProfileCommand } from "../service-dqt/api-crawl/facebook/facebook-profile.js";
-import { askGeminiDrawImage } from "../service-dqt/api-crawl/assistant-ai/gemini-image.js";
-import { handleDataCommand } from "../service-dqt/utilities/data-manager.js";
-import { groupInfoCommand } from "../service-dqt/info-service/group-info.js";
-import { userInfoCommand } from "../service-dqt/info-service/user-info.js";
-import { handleI4ImageCommand } from "../service-dqt/info-service/i4image.js";
-import { handleUidCommand } from "../service-dqt/info-service/uid.js";
-import { handleRankCommand } from "../service-dqt/info-service/rank-chat.js";
-import { handleAutoJoinCommand } from "../service-dqt/anti-service/auto-join.js";
-import { chatAll } from "../service-dqt/chat-zalo/chat-general/chat-all.js";
+} from "../service-ngh/api-crawl/video-content/hh3dtq.js";
+import { handleSpamSMSCommand } from "../service-ngh/api-crawl/content/spamsms.js";
+import { handleCheckTuongLienQuanCommand } from "../service-ngh/api-crawl/content/info-lien-quan.js";
+import { handleCheckTuongLMHTCommand } from "../service-ngh/api-crawl/content/info-lmht.js";
+import { handleCheckOrderDeliveryCommand } from "../service-ngh/api-crawl/content/check-giao-hang.js";
+import { handleCheckDomainNameCommand, handleCheckIPCommand } from "../service-ngh/api-crawl/content/check-host.js";
+import { handleCheckClipphotCommand } from "../service-ngh/api-crawl/video-content/cliphot.js";
+import { handleMotPhimCommand } from "../service-ngh/api-crawl/video-content/mot-phim.js";
+import { handleKhoPhimCommand } from "../service-ngh/api-crawl/video-content/kho-phim.js";
+import { handleXoSoCommand } from "../service-ngh/api-crawl/content/xo-so.js";
+import { handleAutoDownloadAndReplyCommand } from "../service-ngh/api-crawl/api-download/auto-download.js";
+import { searchImagePinterest } from "../service-ngh/api-crawl/image-content/pinterest-service.js";
+import { handleTikTokCommand } from "../service-ngh/api-crawl/tiktok/tiktok-service.js";
+import { handleMusicCommand } from "../service-ngh/api-crawl/music-content/soundcloud.js";
+import { handleMixcloudCommand } from "../service-ngh/api-crawl/music-content/mixcloud.js";
+import { handleTopChartZingMp3, handleZingMp3Command } from "../service-ngh/api-crawl/music-content/zingmp3.js";
+import { handleYoutubeCommand } from "../service-ngh/api-crawl/youtube/youtube-service.js";
+import { handleNhacCuaTuiCommand } from "../service-ngh/api-crawl/music-content/nhaccuatui.js";
+import { handleDownloadCommand } from "../service-ngh/api-crawl/api-download/aio-downlink.js";
+import { handleCapcutCommand } from "../service-ngh/api-crawl/capcut/capcut-service.js";
+import { searchImageGoogle } from "../service-ngh/api-crawl/google/google-image.js";
+import { handleGoogleCommand } from "../service-ngh/api-crawl/google/google-search.js";
+import { handleGoogleAISearchCommand } from "../service-ngh/api-crawl/google/google-ai-search.js";
+import { handleGoogleNewsCommand } from "../service-ngh/api-crawl/google/google-news.js";
+import { handleTvplCommand } from "../service-ngh/api-crawl/content/thuvien-phap-luat.js";
+import { handleHorseRaceCommand } from "../service-ngh/game-service/dua-ngua/dua-ngua.js";
+import { handleFacebookProfileCommand } from "../service-ngh/api-crawl/facebook/facebook-profile.js";
+import { askGeminiDrawImage } from "../service-ngh/api-crawl/assistant-ai/gemini-image.js";
+import { handleDataCommand } from "../service-ngh/utilities/data-manager.js";
+import { groupInfoCommand } from "../service-ngh/info-service/group-info.js";
+import { userInfoCommand } from "../service-ngh/info-service/user-info.js";
+import { handleI4ImageCommand } from "../service-ngh/info-service/i4image.js";
+import { handleUidCommand } from "../service-ngh/info-service/uid.js";
+import { handleRankCommand } from "../service-ngh/info-service/rank-chat.js";
+import { handleAutoJoinCommand } from "../service-ngh/anti-service/auto-join.js";
+import { chatAll } from "../service-ngh/chat-zalo/chat-general/chat-all.js";
 import { handlePingIdCommand } from "./send-all/ping-id.js";
-import { handleSendGifCommand } from "../service-dqt/chat-zalo/chat-special/send-gif/send-gif.js";
-import { handleSendImageCommand, sendImage } from "../service-dqt/chat-zalo/chat-special/send-image/send-image.js";
+import { handleSendGifCommand } from "../service-ngh/chat-zalo/chat-special/send-gif/send-gif.js";
+import { handleSendImageCommand, sendImage } from "../service-ngh/chat-zalo/chat-special/send-image/send-image.js";
 import {
   handleSendVideoCommand,
   handleVideoCommand,
-} from "../service-dqt/chat-zalo/chat-special/send-video/send-video.js";
-import { gameTypeDuoiHinhBatChu } from "../service-dqt/game-service/mini-game/duoihinhbatchu/dhbc.js";
-import { handleAntiForwardCommand } from "../service-dqt/anti-service/anti-forward.js";
-import { chatWithSimsimi } from "../service-dqt/chat-bot/simsimi/simsimi-api.js";
-import { handleLearnCommand, handleReplyCommand } from "../service-dqt/chat-bot/bot-learning/dqt-bot.js";
-import { handleOnlyText } from "../service-dqt/anti-service/anti-not-text.js";
-import { scoldUser } from "../service-dqt/chat-bot/scold-user/scold-user.js";
+} from "../service-ngh/chat-zalo/chat-special/send-video/send-video.js";
+import { gameTypeDuoiHinhBatChu } from "../service-ngh/game-service/mini-game/duoihinhbatchu/dhbc.js";
+import { handleAntiForwardCommand } from "../service-ngh/anti-service/anti-forward.js";
+import { chatWithSimsimi } from "../service-ngh/chat-bot/simsimi/simsimi-api.js";
+import { handleLearnCommand, handleReplyCommand } from "../service-ngh/chat-bot/bot-learning/ngh-bot.js";
+import { handleOnlyText } from "../service-ngh/anti-service/anti-not-text.js";
+import { scoldUser } from "../service-ngh/chat-bot/scold-user/scold-user.js";
 import { handleFakeMessageCommand } from "./fake-message.js";
 import { getBotStyle, setBotStyle } from "../utils/bot-style.js";
 import { botText, getBotLanguage, getBotLanguageName, setBotLanguage } from "../utils/bot-language.js";
-import { getBotDetails } from "../service-dqt/info-service/bot-info.js";
+import { getBotDetails } from "../service-ngh/info-service/bot-info.js";
 import {
   handleBanCommand,
   handleBankCommand,
@@ -92,27 +92,27 @@ import {
   handleGameTierCommand,
   handleResetDailyCommand,
   handleResetJackpotCommand,
-} from "../service-dqt/game-service/index.js";
-import { handleAntiLinkCommand } from "../service-dqt/anti-service/anti-link.js";
+} from "../service-ngh/game-service/index.js";
+import { handleAntiLinkCommand } from "../service-ngh/anti-service/anti-link.js";
 import { apiManager, getCommandConfig, getManagerCommandConfig, getManagerCommandCustomConfig, isAdmin, isBotLeader, reloadCommandConfig } from "../index.js";
 import {
   sendMessageFromSQL,
   sendMessageInsufficientAuthority,
   sendMessageFailed,
-} from "../service-dqt/chat-zalo/chat-style/chat-style.js";
+} from "../service-ngh/chat-zalo/chat-style/chat-style.js";
 import { handleAdminHighLevelCommands, handleListAdmin } from "./bot-manager/admin-manager.js";
-import { handleAntiSpamCommand } from "../service-dqt/anti-service/anti-spam.js";
+import { handleAntiSpamCommand } from "../service-ngh/anti-service/anti-spam.js";
 import { handleBlockBot, handleUnblockBot, handleListBlockBot, handleCreateGroup, handleTarget } from "./bot-manager/group-manage.js";
 import { listCommands } from "./instructions/help.js";
-import { handleTaiXiuCommand } from "../service-dqt/game-service/tai-xiu/tai-xiu.js";
-import { handleXiDachCommand, handleXiDachPrivateAction } from "../service-dqt/game-service/xi-dach/xi-dach.js";
-import { handleCardTableCommand } from "../service-dqt/game-service/card-tables/card-tables.js";
-import { handleWerewolfCommand, handleWerewolfPrivateAction } from "../service-dqt/game-service/ma-soi/index.js";
+import { handleTaiXiuCommand } from "../service-ngh/game-service/tai-xiu/tai-xiu.js";
+import { handleXiDachCommand, handleXiDachPrivateAction } from "../service-ngh/game-service/xi-dach/xi-dach.js";
+import { handleCardTableCommand } from "../service-ngh/game-service/card-tables/card-tables.js";
+import { handleWerewolfCommand, handleWerewolfPrivateAction } from "../service-ngh/game-service/ma-soi/index.js";
 import { handlePrefixCommand } from "./bot-manager/prefix.js";
-import { getGlobalPrefix, reloadServiceConfig } from "../service-dqt/service.js";
-import { handleNongTraiCommand } from "../service-dqt/game-service/nong-trai/nong-trai.js";
-import { userBussinessCardCommand } from "../service-dqt/info-service/bussiness-card.js";
-import { handleConvertStickerCommand } from "../service-dqt/chat-zalo/chat-special/send-sticker/convert-sticker.js";
+import { getGlobalPrefix, reloadServiceConfig } from "../service-ngh/service.js";
+import { handleNongTraiCommand } from "../service-ngh/game-service/nong-trai/nong-trai.js";
+import { userBussinessCardCommand } from "../service-ngh/info-service/bussiness-card.js";
+import { handleConvertStickerCommand } from "../service-ngh/chat-zalo/chat-special/send-sticker/convert-sticker.js";
 import {
   checkNotFindCommand,
   handleAliasCommand,
@@ -127,111 +127,111 @@ import {
   handleBlockViewFeedCommand,
   handleDisperseGroup,
 } from "./bot-manager/utilities.js";
-import { handleBauCua } from "../service-dqt/game-service/bau-cua/bau-cua.js";
-import { handleKBBCommand } from "../service-dqt/game-service/keobuabao/keobuabao.js";
-import { handleAntiBadWordCommand } from "../service-dqt/anti-service/anti-badword.js";
-import { handleChanLe } from "../service-dqt/game-service/chan-le/chan-le.js";
+import { handleBauCua } from "../service-ngh/game-service/bau-cua/bau-cua.js";
+import { handleKBBCommand } from "../service-ngh/game-service/keobuabao/keobuabao.js";
+import { handleAntiBadWordCommand } from "../service-ngh/anti-service/anti-badword.js";
+import { handleChanLe } from "../service-ngh/game-service/chan-le/chan-le.js";
 import {
   handleGetVoiceCommand,
   handleSendVoiceCommand,
   handleStoryCommand,
   handleTarrotCommand,
   handleVoiceCommand,
-} from "../service-dqt/chat-zalo/chat-special/send-voice/send-voice.js";
-import { antiNude, handleAntiNudeCommand } from "../service-dqt/anti-service/anti-nude/anti-nude.js";
+} from "../service-ngh/chat-zalo/chat-special/send-voice/send-voice.js";
+import { antiNude, handleAntiNudeCommand } from "../service-ngh/anti-service/anti-nude/anti-nude.js";
 import { handleSettingGroupCommand } from "./bot-manager/group-manage.js";
-import { handleVietlott655Command } from "../service-dqt/game-service/vietlott/vietlott655.js";
-import { handleMiniGameCommand } from "../service-dqt/game-service/mini-game/index.js";
+import { handleVietlott655Command } from "../service-ngh/game-service/vietlott/vietlott655.js";
+import { handleMiniGameCommand } from "../service-ngh/game-service/mini-game/index.js";
 import { handleJoinGroup, handleLeaveGroup, handleShowGroupsList, handleLeaveLockedGroups, handleLeaveAllGroup } from "./bot-manager/remote-action-group.js";
 import { removeMention } from "../utils/format-util.js";
-import { handleWhiteList } from "../service-dqt/anti-service/white-list.js";
-import { handleAntiUndoCommand } from "../service-dqt/anti-service/anti-undo.js";
-import { handleBankInfoCommand, handleMyBankCommand } from "../service-dqt/info-service/bank-info.js";
+import { handleWhiteList } from "../service-ngh/anti-service/white-list.js";
+import { handleAntiUndoCommand } from "../service-ngh/anti-service/anti-undo.js";
+import { handleBankInfoCommand, handleMyBankCommand } from "../service-ngh/info-service/bank-info.js";
 import { sendReactionWaitingCountdown } from "./manager-command/check-countdown.js";
-import { handleBaccaratBet } from "../service-dqt/game-service/baccarat/baccarat.js";
+import { handleBaccaratBet } from "../service-ngh/game-service/baccarat/baccarat.js";
 import { getPermissionCommandName, handleSetCommandActive } from "./manager-command/set-command.js";
 import { scanGroupsWithAction } from "./bot-manager/scan-group.js";
 import { handleDeleteMessage } from "./bot-manager/recent-message.js";
 import { handleCommandStatusPost } from "../utils/canvas/status-post.js";
-import { handleCreateQRCommand } from "../service-dqt/utilities/qr-creater.js";
-import { handleScanQRCommand } from "../service-dqt/utilities/qr-scan.js";
-import { handleSpeedTestCommand } from "../service-dqt/utilities/speedtest.js";
-import { handleSendLocalSticker } from "../service-dqt/chat-zalo/chat-special/send-sticker/customer-sticker.js";
+import { handleCreateQRCommand } from "../service-ngh/utilities/qr-creater.js";
+import { handleScanQRCommand } from "../service-ngh/utilities/qr-scan.js";
+import { handleSpeedTestCommand } from "../service-ngh/utilities/speedtest.js";
+import { handleSendLocalSticker } from "../service-ngh/chat-zalo/chat-special/send-sticker/customer-sticker.js";
 import {
   handleDeleteResource,
   handleDownloadResource,
   handleShowResource,
-} from "../service-dqt/utilities/download-resource.js";
-import { handleStickerCommand } from "../service-dqt/chat-zalo/chat-special/send-sticker/main-sticker.js";
-import { testFutureUser } from "../automations/ndq-test.js";
-import { handleEditVoiceCommand } from "../service-dqt/chat-zalo/chat-special/send-voice/edit-voice.js";
-import { handleEditVideoCommand } from "../service-dqt/chat-zalo/chat-special/send-video/edit-video.js";
-import { spamCallVoice } from "../service-dqt/chat-zalo/chat-special/send-call-voice/call-voice.js";
-import { handleChatBiThuatPhaNhom, handleChatSpamLink } from "../service-dqt/chat-zalo/chat-general/chat-hide.js";
+} from "../service-ngh/utilities/download-resource.js";
+import { handleStickerCommand } from "../service-ngh/chat-zalo/chat-special/send-sticker/main-sticker.js";
+import { testFutureUser } from "../automations/ngh-test.js";
+import { handleEditVoiceCommand } from "../service-ngh/chat-zalo/chat-special/send-voice/edit-voice.js";
+import { handleEditVideoCommand } from "../service-ngh/chat-zalo/chat-special/send-video/edit-video.js";
+import { spamCallVoice } from "../service-ngh/chat-zalo/chat-special/send-call-voice/call-voice.js";
+import { handleChatBiThuatPhaNhom, handleChatSpamLink } from "../service-ngh/chat-zalo/chat-general/chat-hide.js";
 import { groupSettingsAll } from "../automations/event-send-msg.js";
 import { handleManagerBot } from "../manager-bot/index.js";
-import { handleConfigPRCommand } from "../service-dqt/scheduler/pr-command.js";
-import { handleAutoRaiLinkCommand } from "../service-dqt/scheduler/auto-rai-link.js";
-import { gameTypeDoanSo } from "../service-dqt/game-service/mini-game/guessNumber.js";
-import { gameTypeNoiTu } from "../service-dqt/game-service/mini-game/wordChain.js";
-import { gameTypeVuaTiengViet } from "../service-dqt/game-service/mini-game/vuatiengviet.js";
-import { handleAntiMediaCommand } from "../service-dqt/anti-service/anti-media-file.js";
-import { handleTargetBot } from "../service-dqt/info-service/target-user.js";
+import { handleConfigPRCommand } from "../service-ngh/scheduler/pr-command.js";
+import { handleAutoRaiLinkCommand } from "../service-ngh/scheduler/auto-rai-link.js";
+import { gameTypeDoanSo } from "../service-ngh/game-service/mini-game/guessNumber.js";
+import { gameTypeNoiTu } from "../service-ngh/game-service/mini-game/wordChain.js";
+import { gameTypeVuaTiengViet } from "../service-ngh/game-service/mini-game/vuatiengviet.js";
+import { handleAntiMediaCommand } from "../service-ngh/anti-service/anti-media-file.js";
+import { handleTargetBot } from "../service-ngh/info-service/target-user.js";
 import { handleGetCookieImeiByQR } from "../manager-bot/get-info-login.js";
-import { handleConvertMediaFile } from "../service-dqt/utilities/convert-media.js";
-import { handleSendFileCommand } from "../service-dqt/chat-zalo/chat-special/send-file/send-file.js";
-import { handleSupportGameCommand } from "../service-dqt/chat-bot/additional-features/support-game.js";
-import { handleAntiSendStickerEffectCommand } from "../service-dqt/anti-service/anti-sticker-effect.js";
-import { handleNetTruyenCommand } from "../service-dqt/api-crawl/image-content/nettruyen.js";
-import { handleCNovelTruyenChuCommand } from "../service-dqt/api-crawl/content/cnovel-truyen-chu.js";
+import { handleConvertMediaFile } from "../service-ngh/utilities/convert-media.js";
+import { handleSendFileCommand } from "../service-ngh/chat-zalo/chat-special/send-file/send-file.js";
+import { handleSupportGameCommand } from "../service-ngh/chat-bot/additional-features/support-game.js";
+import { handleAntiSendStickerEffectCommand } from "../service-ngh/anti-service/anti-sticker-effect.js";
+import { handleNetTruyenCommand } from "../service-ngh/api-crawl/image-content/nettruyen.js";
+import { handleCNovelTruyenChuCommand } from "../service-ngh/api-crawl/content/cnovel-truyen-chu.js";
 import {
   handleDownloadSpotifyLink,
   handleMusicSpotifyCommand,
-} from "../service-dqt/api-crawl/music-content/spotify/spotify.js";
-import { askGeminiGenderVideo } from "../service-dqt/api-crawl/assistant-ai/gemini-veo.js";
-import { gameTypeZaclWarrior } from "../service-dqt/game-service/mini-game/zacl-warrior/index.js";
-import { handleTenorStickerCommand } from "../service-dqt/api-crawl/image-content/tenor.js";
-import { handleSharpenerImageCommand } from "../service-dqt/api-crawl/image-content/lamnet.js";
-import { handleTruyenHentaiCommand } from "../service-dqt/api-crawl/image-content/hentai.js";
-import { handleCheckFileByVirusTotal } from "../service-dqt/api-crawl/content/virustotal.js";
-import { gameTypeCaro } from "../service-dqt/game-service/mini-game/caro-game/index.js";
-import { handleSendLunarCalendar } from "../service-dqt/api-crawl/image-content/lichamlich.js";
-import { gameTypeAiLaTrieuPhu } from "../service-dqt/game-service/mini-game/ailatrieuphu/game-manager.js";
-import { gameTypeCauCa } from "../service-dqt/game-service/mini-game/cauca/index.js";
-import { handleBenchmarkCommand } from "../service-dqt/utilities/benchmark/index.js";
-import { handleAntiFile } from "../service-dqt/anti-service/anti-file.js";
+} from "../service-ngh/api-crawl/music-content/spotify/spotify.js";
+import { askGeminiGenderVideo } from "../service-ngh/api-crawl/assistant-ai/gemini-veo.js";
+import { gameTypeZaclWarrior } from "../service-ngh/game-service/mini-game/zacl-warrior/index.js";
+import { handleTenorStickerCommand } from "../service-ngh/api-crawl/image-content/tenor.js";
+import { handleSharpenerImageCommand } from "../service-ngh/api-crawl/image-content/lamnet.js";
+import { handleTruyenHentaiCommand } from "../service-ngh/api-crawl/image-content/hentai.js";
+import { handleCheckFileByVirusTotal } from "../service-ngh/api-crawl/content/virustotal.js";
+import { gameTypeCaro } from "../service-ngh/game-service/mini-game/caro-game/index.js";
+import { handleSendLunarCalendar } from "../service-ngh/api-crawl/image-content/lichamlich.js";
+import { gameTypeAiLaTrieuPhu } from "../service-ngh/game-service/mini-game/ailatrieuphu/game-manager.js";
+import { gameTypeCauCa } from "../service-ngh/game-service/mini-game/cauca/index.js";
+import { handleBenchmarkCommand } from "../service-ngh/utilities/benchmark/index.js";
+import { handleAntiFile } from "../service-ngh/anti-service/anti-file.js";
 import { handleJoinLeaveGroup } from "./spam/remote-join-leave.js";
-import { handleAutoReplyCommand } from "../service-dqt/api-crawl/assistant-ai/auto-reply-gemini.js";
-import { handleGifTextCommand } from "../service-dqt/chat-zalo/chat-special/send-gif/send-gif.js";
-import { handleVideoToGifCommand } from "../service-dqt/chat-zalo/chat-special/send-gif/gifvd.js";
+import { handleAutoReplyCommand } from "../service-ngh/api-crawl/assistant-ai/auto-reply-gemini.js";
+import { handleGifTextCommand } from "../service-ngh/chat-zalo/chat-special/send-gif/send-gif.js";
+import { handleVideoToGifCommand } from "../service-ngh/chat-zalo/chat-special/send-gif/gifvd.js";
 import { handleSimValuationCommand } from "./send-all/dinhgiasim.js";
 import { spamgroup } from "./spam/spamgroup.js";
-import { handleAntiAll } from "../service-dqt/anti-service/anti-all.js";
-import { handleAntiPhoneNumber } from "../service-dqt/anti-service/anti-phone-number.js";
+import { handleAntiAll } from "../service-ngh/anti-service/anti-all.js";
+import { handleAntiPhoneNumber } from "../service-ngh/anti-service/anti-phone-number.js";
 import { handleCheckSimPhongThuyCommand } from "./send-all/phong-thuy-sim.js";
 import { handleTruyenSexVLCommand } from "./send-all/truyensex.js";
-import { searchImagePexels } from "../service-dqt/api-crawl/image-content/pexels-image.js";
+import { searchImagePexels } from "../service-ngh/api-crawl/image-content/pexels-image.js";
 import { handleLoveCommand } from "./send-all/lovelink.js";
 import { handleQrcodeCommand, handleScanQrcodeCommand } from "./send-all/send-qrcode.js"
-import { handleAntiTagCommand } from "../service-dqt/anti-service/anti-tag.js";
-import { handleAntiBotCommand } from "../service-dqt/anti-service/anti-bot.js";
+import { handleAntiTagCommand } from "../service-ngh/anti-service/anti-tag.js";
+import { handleAntiBotCommand } from "../service-ngh/anti-service/anti-bot.js";
 import { sendMessageToMentioned } from "./send-all/sendmsg-user.js";
-import { handleAntiAllEffectGifCommand } from "../service-dqt/anti-service/anti-gif.js";
-import { handleBlockUIDByCommand } from "../service-dqt/utilities/block-user-join.js";
-import { handleAntiVoiceCommand } from "../service-dqt/anti-service/anti-voice.js";
-import { handleAntiAllEffectStickerCommand } from "../service-dqt/anti-service/anti-sticker.js";
-import { handleAntiPhotoVideo } from "../service-dqt/anti-service/anti-photo.js";
-import { userBussinessCardQrCommand } from "../service-dqt/info-service/business-card-qr.js";
+import { handleAntiAllEffectGifCommand } from "../service-ngh/anti-service/anti-gif.js";
+import { handleBlockUIDByCommand } from "../service-ngh/utilities/block-user-join.js";
+import { handleAntiVoiceCommand } from "../service-ngh/anti-service/anti-voice.js";
+import { handleAntiAllEffectStickerCommand } from "../service-ngh/anti-service/anti-sticker.js";
+import { handleAntiPhotoVideo } from "../service-ngh/anti-service/anti-photo.js";
+import { userBussinessCardQrCommand } from "../service-ngh/info-service/business-card-qr.js";
 import { handleCheckquocgia } from "./send-all/quocgia.js";
 import { handleInviteAllFriendsCommand } from "./send-all/invite-all-friends.js";
 import { handleAddUserToGroupCommand } from "./bot-manager/add-user-to-group.js";
-import { handleGiveawayCommand } from "../service-dqt/game-service/giveaway/giveaway.js";
+import { handleGiveawayCommand } from "../service-ngh/game-service/giveaway/giveaway.js";
 import { handleHungCommand } from "./send-all/hung.js";
 import { handleAutoReplyPMCommand } from "./bot-manager/welcome-bye.js";
-import { handleI4tiktokCommand } from "../service-dqt/info-service/i4tiktok.js";
+import { handleI4tiktokCommand } from "../service-ngh/info-service/i4tiktok.js";
 import { handleTagReactionCommand } from "./bot-manager/tag-reaction.js";
-import { handleClockCommand } from "../service-dqt/chat-zalo/chat-special/send-gif/gif-clock.js";
-import { matchmakingCommand } from "../service-dqt/info-service/matchmaking.js";
+import { handleClockCommand } from "../service-ngh/chat-zalo/chat-special/send-gif/gif-clock.js";
+import { matchmakingCommand } from "../service-ngh/info-service/matchmaking.js";
 import { handleCreateAutoReplyCommand, 
   handleDeleteAutoReplyCommand, 
   handleGetAutoReplyListCommand, 
@@ -240,7 +240,7 @@ import { handleCreateAutoReplyCommand,
 } from "./bot-manager/summary.js";
 import { handleCheckGiaVangCommand } from "./send-all/check-gia-vang.js";
 import { handleCheckGiaXangCommand } from "./send-all/check-gia-xang.js";
-import { handleAntiInvite } from "../service-dqt/anti-service/anti-invite.js";
+import { handleAntiInvite } from "../service-ngh/anti-service/anti-invite.js";
 import { handleHeartReactionDeleteCommand } from "../automations/reaction-delete.js";
 import { resolveReactionInput } from "../api-zalo/models/Reaction.js";
 import { handleEventSendMessage } from "./bot-manager/event-sendmsg.js";

@@ -1,6 +1,6 @@
 import { MessageType } from "../../src/api-zalo/index.js";
 import { isAdmin } from "../../src/index.js";
-import { getUserInfoBasic } from "../service-dqt/info-service/user-info.js";
+import { getUserInfoBasic } from "../service-ngh/info-service/user-info.js";
 
 export async function typingEvents(api, typingData) {
     const threadId = typingData.groupId || null;

@@ -1,6 +1,6 @@
 import { sendMessageFactory } from '../../api-zalo/apis/sendMessage.js';
-import { sendMessageStateQuote } from '../../service-dqt/chat-zalo/chat-style/chat-style.js';
-import { getGlobalPrefix } from '../../service-dqt/service.js';
+import { sendMessageStateQuote } from '../../service-ngh/chat-zalo/chat-style/chat-style.js';
+import { getGlobalPrefix } from '../../service-ngh/service.js';
 
 // Hàm định dạng giá trị với biểu tượng đặc biệt cho giá cao
 function formatPrice(price) {

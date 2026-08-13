@@ -1,8 +1,8 @@
 import { initGroupSettings, updateNameGroupSetting } from "../commands/command.js";
 import { isAdmin } from "../index.js";
-import { antiSpamUndoGroup } from "../service-dqt/anti-service/anti-spam.js";
-import { antiUndoGroup } from "../service-dqt/anti-service/anti-undo.js";
-import { getGroupAdmins, getGroupInfoData } from "../service-dqt/info-service/group-info.js";
+import { antiSpamUndoGroup } from "../service-ngh/anti-service/anti-spam.js";
+import { antiUndoGroup } from "../service-ngh/anti-service/anti-undo.js";
+import { getGroupAdmins, getGroupInfoData } from "../service-ngh/info-service/group-info.js";
 import { groupSettingsAll } from "./event-send-msg.js";
 
 const undoRateByUser = new Map();

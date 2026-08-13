@@ -6,8 +6,8 @@ import {
   sendMessageInsufficientAuthority,
   sendMessageQuery,
   sendMessageWarning,
-} from "../../service-dqt/chat-zalo/chat-style/chat-style.js";
-import { getGlobalPrefix } from "../../service-dqt/service.js";
+} from "../../service-ngh/chat-zalo/chat-style/chat-style.js";
+import { getGlobalPrefix } from "../../service-ngh/service.js";
 import { FONT_MAIN, randomIDTemp, removeMention } from "../../utils/format-util.js";
 import { createCanvas, loadImage } from "canvas";
 import * as cv from "../../utils/canvas/index.js";
@@ -15,7 +15,7 @@ import fs from "fs";
 import { deleteFile } from "../../utils/util.js";
 import { groupSettingsAll } from "../../automations/event-send-msg.js";
 import { updateListAdminByIDBot } from "../../index.js";
-import { getUserInfoBasic } from "../../service-dqt/info-service/user-info.js";
+import { getUserInfoBasic } from "../../service-ngh/info-service/user-info.js";
 
 export async function handleAdminHighLevelCommands(api, message, groupAdmins, groupSettings, isAdminLevelHighest) {
   const prefix = getGlobalPrefix(api.getBotId());

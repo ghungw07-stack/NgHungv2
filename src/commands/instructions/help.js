@@ -1,9 +1,9 @@
 import { MultiMsgStyle, MessageStyle } from "../../api-zalo/index.js";
 import { getCommandConfig, getManagerCommandCustomConfig, isAdmin, reloadCommandConfig } from "../../index.js";
 import * as cv from "../../utils/canvas/index.js";
-import { checkBeforeJoinGame, checkPlayerBanned } from "../../service-dqt/game-service/index.js";
-import { getGlobalPrefix } from "../../service-dqt/service.js";
-import { COLOR_GREEN, SIZE_18, IS_BOLD, getTextStyle, sendMessageFromSQL } from "../../service-dqt/chat-zalo/chat-style/chat-style.js";
+import { checkBeforeJoinGame, checkPlayerBanned } from "../../service-ngh/game-service/index.js";
+import { getGlobalPrefix } from "../../service-ngh/service.js";
+import { COLOR_GREEN, SIZE_18, IS_BOLD, getTextStyle, sendMessageFromSQL } from "../../service-ngh/chat-zalo/chat-style/chat-style.js";
 import { LRUCache } from "lru-cache";
 import { removeMention } from "../../utils/format-util.js";
 import { findRecentMessages } from "../bot-manager/recent-message.js";

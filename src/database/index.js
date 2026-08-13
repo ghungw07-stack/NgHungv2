@@ -197,7 +197,7 @@ export async function initializeDatabase() {
     const accountTable = config.tableAccount || "account";
     const mongoClient = new MongoClient(config.uri || "mongodb://127.0.0.1:27017");
     await mongoClient.connect();
-    const db = mongoClient.db(config.database || "bot-zalo-dqt");
+    const db = mongoClient.db(config.database || "bot-zalo-ngh");
     const databaseConnection = new MongoConnection(db, playersTable, accountTable);
     configureDatabaseState({
       serverName: config.nameServer,

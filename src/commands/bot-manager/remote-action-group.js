@@ -4,10 +4,10 @@ import {
   sendMessageFromSQL,
   sendMessageResultRequest,
   sendMessageWarningRequest,
-} from "../../service-dqt/chat-zalo/chat-style/chat-style.js";
-import { getGlobalPrefix } from "../../service-dqt/service.js";
-import { getDataAllGroup, getGroupAdmins, getGroupInfoData } from "../../service-dqt/info-service/group-info.js";
-import { getUsersInfoBasic } from "../../service-dqt/info-service/user-info.js";
+} from "../../service-ngh/chat-zalo/chat-style/chat-style.js";
+import { getGlobalPrefix } from "../../service-ngh/service.js";
+import { getDataAllGroup, getGroupAdmins, getGroupInfoData } from "../../service-ngh/info-service/group-info.js";
+import { getUsersInfoBasic } from "../../service-ngh/info-service/user-info.js";
 import { removeMention } from "../../utils/format-util.js";
 import { handleCommand } from "../command.js";
 import { MessageType } from "../../api-zalo/index.js";

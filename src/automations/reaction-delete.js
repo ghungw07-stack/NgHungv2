@@ -1,11 +1,11 @@
 import { MessageType } from "../api-zalo/index.js";
 import { removeMention } from "../utils/format-util.js";
-import { sendMessageStateQuote, sendMessageWarning } from "../service-dqt/chat-zalo/chat-style/chat-style.js";
+import { sendMessageStateQuote, sendMessageWarning } from "../service-ngh/chat-zalo/chat-style/chat-style.js";
 import { managerDataCache } from "../commands/bot-manager/active-bot.js";
-import { getGlobalPrefix } from "../service-dqt/service.js";
+import { getGlobalPrefix } from "../service-ngh/service.js";
 import { getMessageByThreadAndMsgId } from "../utils/message-cache.js";
-import { getGroupInfoData } from "../service-dqt/info-service/group-info.js";
-import { getGroupAdmins } from "../service-dqt/info-service/group-info.js";
+import { getGroupInfoData } from "../service-ngh/info-service/group-info.js";
+import { getGroupAdmins } from "../service-ngh/info-service/group-info.js";
 
 export async function handleHeartReactionDelete(api, reaction) {
   try {

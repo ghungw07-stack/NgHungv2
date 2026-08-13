@@ -1,16 +1,16 @@
 import { handleReactionConfirmJoinGroup } from "../commands/bot-manager/remote-action-group.js";
-import { handleNextChapterCNovelReaction } from "../service-dqt/api-crawl/content/cnovel-truyen-chu.js";
-import { handleNextChapterTruyenHentaiReaction } from "../service-dqt/api-crawl/image-content/hentai.js";
-import { handleNextChapterNetTruyenReaction } from "../service-dqt/api-crawl/image-content/nettruyen.js";
-import { handleTikTokReaction } from "../service-dqt/api-crawl/tiktok/tiktok-service.js";
-import { handleCaroReaction } from "../service-dqt/game-service/mini-game/caro-game/caro.js";
-import { handleReactionConfirmAutoJoin } from "../service-dqt/anti-service/auto-join.js";
+import { handleNextChapterCNovelReaction } from "../service-ngh/api-crawl/content/cnovel-truyen-chu.js";
+import { handleNextChapterTruyenHentaiReaction } from "../service-ngh/api-crawl/image-content/hentai.js";
+import { handleNextChapterNetTruyenReaction } from "../service-ngh/api-crawl/image-content/nettruyen.js";
+import { handleTikTokReaction } from "../service-ngh/api-crawl/tiktok/tiktok-service.js";
+import { handleCaroReaction } from "../service-ngh/game-service/mini-game/caro-game/caro.js";
+import { handleReactionConfirmAutoJoin } from "../service-ngh/anti-service/auto-join.js";
 import { handleHeartReactionDelete } from "./reaction-delete.js";
 import { handleHungReaction } from "../commands/send-all/hung-reaction.js";
-import { handleXiDachReaction } from "../service-dqt/game-service/xi-dach/xi-dach.js";
-import { handleWerewolfReaction } from "../service-dqt/game-service/ma-soi/index.js";
-import { handleHorseRaceReaction } from "../service-dqt/game-service/dua-ngua/dua-ngua.js";
-import { handleCardTableReaction } from "../service-dqt/game-service/card-tables/card-tables.js";
+import { handleXiDachReaction } from "../service-ngh/game-service/xi-dach/xi-dach.js";
+import { handleWerewolfReaction } from "../service-ngh/game-service/ma-soi/index.js";
+import { handleHorseRaceReaction } from "../service-ngh/game-service/dua-ngua/dua-ngua.js";
+import { handleCardTableReaction } from "../service-ngh/game-service/card-tables/card-tables.js";
 //Xử Lý Sự Kiện Reaction
 export async function reactionEvents(api, reaction) {
   await Promise.all([

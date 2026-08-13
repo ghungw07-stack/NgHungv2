@@ -1,8 +1,8 @@
 import {
   sendMessageFromSQL,
   sendMessageWarningRequest,
-} from "../../service-dqt/chat-zalo/chat-style/chat-style.js";
-import { getGlobalPrefix } from "../../service-dqt/service.js";
+} from "../../service-ngh/chat-zalo/chat-style/chat-style.js";
+import { getGlobalPrefix } from "../../service-ngh/service.js";
 import { removeMention } from "../../utils/format-util.js";
 
 export async function handleJoinLeaveGroup(api, message) {

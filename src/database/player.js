@@ -1,5 +1,5 @@
 import { connection, NAME_TABLE_PLAYERS, nameServer, NAME_TABLE_ACCOUNT, DAILY_REWARD } from "./state.js";
-import { getUserInfoData } from "../service-dqt/info-service/user-info.js";
+import { getUserInfoData } from "../service-ngh/info-service/user-info.js";
 import { getTimeToString, getTimeNow, formatBigNumber } from "../utils/format-util.js";
 import { getGameTier } from "../utils/canvas/game-finance.js";
 import { Big } from "big.js";

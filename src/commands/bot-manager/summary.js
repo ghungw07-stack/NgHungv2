@@ -1,7 +1,7 @@
 import { removeMention } from "../../utils/format-util.js";
-import { sendMessageFromSQL } from "../../service-dqt/chat-zalo/chat-style/chat-style.js";
+import { sendMessageFromSQL } from "../../service-ngh/chat-zalo/chat-style/chat-style.js";
 import { ThreadType } from "../../api-zalo/apis/sendReport.js";
-import { getGlobalPrefix } from "../../service-dqt/service.js";
+import { getGlobalPrefix } from "../../service-ngh/service.js";
 
 export async function handleCreateAutoReplyCommand(api, message, aliasCommand) {
   try {

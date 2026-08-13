@@ -2,8 +2,8 @@ import schedule from "node-schedule";
 import chalk from "chalk";
 import { formatTime, randomIntFromInterval } from "./format-util.js";
 import { isAdmin } from "../index.js";
-import { getGroupAdmins, getGroupInfoData } from "../service-dqt/info-service/group-info.js";
-import { sendMessageWarning } from "../service-dqt/chat-zalo/chat-style/chat-style.js";
+import { getGroupAdmins, getGroupInfoData } from "../service-ngh/info-service/group-info.js";
+import { sendMessageWarning } from "../service-ngh/chat-zalo/chat-style/chat-style.js";
 import { connection } from "../database/index.js";
 import { LRUCache } from "lru-cache";
 

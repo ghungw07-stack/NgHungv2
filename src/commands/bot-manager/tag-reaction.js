@@ -1,4 +1,4 @@
-import { sendMessageFromSQL } from "../../service-dqt/chat-zalo/chat-style/chat-style.js";
+import { sendMessageFromSQL } from "../../service-ngh/chat-zalo/chat-style/chat-style.js";
 import { groupSettingsAll } from "../../automations/event-send-msg.js";
 import { isAdmin } from "../../index.js";
 

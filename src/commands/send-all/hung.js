@@ -1,6 +1,6 @@
-import { sendMessageStateQuote } from "../../service-dqt/chat-zalo/chat-style/chat-style.js";
-import { getGlobalPrefix } from "../../service-dqt/service.js";
-import { getUserInfoData } from "../../service-dqt/info-service/user-info.js";
+import { sendMessageStateQuote } from "../../service-ngh/chat-zalo/chat-style/chat-style.js";
+import { getGlobalPrefix } from "../../service-ngh/service.js";
+import { getUserInfoData } from "../../service-ngh/info-service/user-info.js";
 import { isAdmin } from "../../index.js";
 import { removeMention } from "../../utils/format-util.js";
 import { createTraitCheckImage } from "../../utils/canvas/trait-check-canvas.js";

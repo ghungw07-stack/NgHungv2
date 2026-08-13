@@ -1,6 +1,6 @@
 import { getCommandConfig, getManagerCommandConfig, getManagerCommandCustomConfig, isAdmin } from "../../index.js";
-import { sendMessageComplete, sendMessageWarning } from "../../service-dqt/chat-zalo/chat-style/chat-style.js";
-import { getGlobalPrefix } from "../../service-dqt/service.js";
+import { sendMessageComplete, sendMessageWarning } from "../../service-ngh/chat-zalo/chat-style/chat-style.js";
+import { getGlobalPrefix } from "../../service-ngh/service.js";
 import { writeCommandConfig } from "../../utils/io-json.js";
 import { TIME_HOUR_24 } from "../../utils/util.js";
 

@@ -1,10 +1,7 @@
 {
   "nameServer": "NgHung-Bot",
-  "host": "localhost",
-  "user": "root",
-  "password": "",
-  "database": "bot-zalo-dqt",
-  "port": 3306,
+  "uri": "mongodb://127.0.0.1:27017",
+  "database": "bot-zalo-ngh",
   "tablePlayerZalo": "players_zalo",
   "tableAccount": "account",
   "dailyReward": 100000000

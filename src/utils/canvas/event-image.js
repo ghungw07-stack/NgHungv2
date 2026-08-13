@@ -144,11 +144,11 @@ export async function getImageBackgroundDefault(userInfo, linkDefault) {
     if (userInfo && userInfo.cover && userInfo.cover !== linkBackgroundDefaultZalo) {
       backgroundImage = await loadImage(userInfo.cover);
     } else {
-      const linkBackgroundDefault = linkDefault || (await handleCheckLinkFromImageLocal("dqtbot.jpg")).fileUrl;
+      const linkBackgroundDefault = linkDefault || (await handleCheckLinkFromImageLocal("nghbot.jpg")).fileUrl;
       backgroundImage = await loadImage(linkBackgroundDefault);
     }
   } catch (error) {
-    const linkBackgroundDefault = await handleCheckLinkFromImageLocal("dqtbot.jpg");
+    const linkBackgroundDefault = await handleCheckLinkFromImageLocal("nghbot.jpg");
     backgroundImage = await loadImage(linkBackgroundDefault.fileUrl);
   }
   return backgroundImage;

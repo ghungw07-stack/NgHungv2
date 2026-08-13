@@ -1,7 +1,7 @@
 import axios from "axios";
 import { removeMention } from "../../utils/format-util.js";
-import { sendMessageComplete, sendMessageFailed, sendMessageStateQuote } from "../../service-dqt/chat-zalo/chat-style/chat-style.js";
-import { getGlobalPrefix } from "../../service-dqt/service.js";
+import { sendMessageComplete, sendMessageFailed, sendMessageStateQuote } from "../../service-ngh/chat-zalo/chat-style/chat-style.js";
+import { getGlobalPrefix } from "../../service-ngh/service.js";
 
 const TIME_TO_LIVE = 3600000;
 

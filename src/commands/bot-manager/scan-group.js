@@ -7,9 +7,9 @@ import {
   sendMessageQuery,
   sendMessageTag,
   sendMessageWarning,
-} from "../../service-dqt/chat-zalo/chat-style/chat-style.js";
-import { getGroupAdmins } from "../../service-dqt/info-service/group-info.js";
-import { getGlobalPrefix } from "../../service-dqt/service.js";
+} from "../../service-ngh/chat-zalo/chat-style/chat-style.js";
+import { getGroupAdmins } from "../../service-ngh/info-service/group-info.js";
+import { getGlobalPrefix } from "../../service-ngh/service.js";
 import { removeMention } from "../../utils/format-util.js";
 
 const TIME_WAIT_SELECTION = 60000;

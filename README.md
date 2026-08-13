@@ -29,7 +29,7 @@ Zalo ChatBot là bot đa chức năng được phát triển bằng JavaScript b
    ```json
    {
      "uri": "mongodb://127.0.0.1:27017",
-     "database": "bot-zalo-dqt"
+     "database": "bot-zalo-ngh"
    }
    ```
 

@@ -1,4 +1,4 @@
-import { getGlobalPrefix, setGlobalPrefix } from "../../service-dqt/service.js";
+import { getGlobalPrefix, setGlobalPrefix } from "../../service-ngh/service.js";
 import { commandFilePath } from "../../utils/io-json.js";
 import { readFileSync, writeFileSync } from "../../utils/util.js";
 

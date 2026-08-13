@@ -1,5 +1,5 @@
 import axios from "axios";
-import { sendMessageStateQuote } from "../../service-dqt/chat-zalo/chat-style/chat-style.js";
+import { sendMessageStateQuote } from "../../service-ngh/chat-zalo/chat-style/chat-style.js";
 import { MultiMsgStyle, MessageStyle, MessageType } from "../../api-zalo/index.js";
 
 export const COLOR_RED = "db342e";

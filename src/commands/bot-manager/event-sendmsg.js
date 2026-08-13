@@ -1,7 +1,7 @@
 import { MessageMention, MessageType } from "../../api-zalo/index.js";
 import { apiManager, getBotLeaderAliases, isBotLeader } from "../../index.js";
-import { getGlobalPrefix } from "../../service-dqt/service.js";
-import { sendMessageComplete, sendMessageWarning } from "../../service-dqt/chat-zalo/chat-style/chat-style.js";
+import { getGlobalPrefix } from "../../service-ngh/service.js";
+import { sendMessageComplete, sendMessageWarning } from "../../service-ngh/chat-zalo/chat-style/chat-style.js";
 
 const TIME_TO_LIVE = 30000;
 

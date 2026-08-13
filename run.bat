@@ -7,7 +7,7 @@ if not exist "node_modules" (
 
 :loop
 echo Starting Bot Zalo D Q T - V1.5.5 Developed by N D Q x L Q T
-start "Node - Bot Zalo DQT" /wait node bot.js
+start "Node - Bot Zalo NGH" /wait node bot.js
 echo.
 echo Bot da dung, dang khoi dong lai sau 3 giay...
 timeout /t 3 /nobreak >nul

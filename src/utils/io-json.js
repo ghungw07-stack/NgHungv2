@@ -154,8 +154,8 @@ export async function initFolderBot(api) {
     await mkdir(webPrConfigFolder, { recursive: true });
     await mkdir(imgWebPrConfigFolder, { recursive: true });
     await mkdir(videoWebPrConfigFolder, { recursive: true });
-    const defaultImagePath = path.join(resourceDir, "image", "dqtbot.jpg");
-    const destImagePath = path.join(imgWebPrConfigFolder, "dqtbot.jpg");
+    const defaultImagePath = path.join(resourceDir, "image", "nghbot.jpg");
+    const destImagePath = path.join(imgWebPrConfigFolder, "nghbot.jpg");
     if (fs.existsSync(defaultImagePath) && !fs.existsSync(destImagePath)) {
       fs.copyFileSync(defaultImagePath, destImagePath);
     }
@@ -187,10 +187,10 @@ export async function initFolderBot(api) {
       "ten": "Form 1",
       "idZalo": "-1",
       "noiDung": "Test 1",
-      "hinhAnh": [ "dqtbot.jpg" ],
+      "hinhAnh": [ "nghbot.jpg" ],
       "video": [],
       "link": {
-        "dqtbot.jpg": "https://i.postimg.cc/L5nL1ycW/nen.png"
+        "nghbot.jpg": "https://i.postimg.cc/L5nL1ycW/nen.png"
       },
       "thoiGianGui": ["03:00", "05:00", "08:00", "11:00", "13:00", "16:00", "19:00", "22:00"],
       "customContent": {}

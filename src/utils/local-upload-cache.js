@@ -20,11 +20,11 @@ import {
   VOICES_RESOURCE_PATH,
   VOICES_RESOURCE_PATH_GLOBAL,
 } from "./io-json.js";
-import { convertToWebp } from "../service-dqt/chat-zalo/chat-special/send-sticker/create-webp.js";
-import { uploadAudioFile } from "../service-dqt/chat-zalo/chat-special/send-voice/process-audio.js";
+import { convertToWebp } from "../service-ngh/chat-zalo/chat-special/send-sticker/create-webp.js";
+import { uploadAudioFile } from "../service-ngh/chat-zalo/chat-special/send-voice/process-audio.js";
 import { getFirstOtherSender } from "./message-cache.js";
 import xxhash from "xxhash-wasm";
-import { getClientAxios } from "../service-dqt/utilities/browser-launch.js";
+import { getClientAxios } from "../service-ngh/utilities/browser-launch.js";
 
 const xxhashAPI = await xxhash();
 const client = getClientAxios();

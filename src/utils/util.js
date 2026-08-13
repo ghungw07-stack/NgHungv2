@@ -13,7 +13,7 @@ import { loadImage } from "canvas";
 import { readSettingConfig, tempDir } from "./io-json.js";
 import { asyncPool, getFileSize, getVideoMetadata } from "../api-zalo/utils.js";
 import { randomIDTemp } from "./format-util.js";
-import { getClientAxios } from "../service-dqt/utilities/browser-launch.js";
+import { getClientAxios } from "../service-ngh/utilities/browser-launch.js";
 
 export const TIME_HOUR_24 = 86400000;
 

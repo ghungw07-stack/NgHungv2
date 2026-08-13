@@ -1,5 +1,5 @@
 import { apiManager, getApiManagerWithOwner, getGlobalApi, setupBotListeners } from "../index.js";
-import { getUsersInfoBasic } from "../service-dqt/info-service/user-info.js";
+import { getUsersInfoBasic } from "../service-ngh/info-service/user-info.js";
 import { formatMiliseconds } from "../utils/format-util.js";
 import { getCachedFriends, getCachedGroups } from "../web-service/web-server.js";
 import { getBotChildrenStore, getDataBotChildren, shutdownBotByOwnerId, startBotChildren } from "./index.js";

@@ -3,8 +3,8 @@ import path, { dirname } from "path";
 import os from "os";
 import { fileURLToPath } from "url";
 import fetch from "node-fetch";
-import { sendMessageStateQuote } from "../../service-dqt/chat-zalo/chat-style/chat-style.js";
-import { getGlobalPrefix } from "../../service-dqt/service.js";
+import { sendMessageStateQuote } from "../../service-ngh/chat-zalo/chat-style/chat-style.js";
+import { getGlobalPrefix } from "../../service-ngh/service.js";
 import { removeMention } from "../../utils/format-util.js";
 
 const __filename = fileURLToPath(import.meta.url);

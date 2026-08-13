@@ -5,7 +5,7 @@ import path from "path";
 import * as cv from "./index.js";
 import { FONT_MAIN, formatCurrency } from "../format-util.js";
 import { loadImageBuffer } from "../util.js";
-import { getNameServer } from "../../service-dqt/chat-zalo/chat-style/chat-style.js";
+import { getNameServer } from "../../service-ngh/chat-zalo/chat-style/chat-style.js";
 
 export function hanldeNameUser(name, maxLength = 16) {
   const words = name.split(" ");

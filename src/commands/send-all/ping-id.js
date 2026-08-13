@@ -1,8 +1,8 @@
 import { MessageMention, MessageStyle, MultiMsgStyle } from "../../api-zalo/index.js";
 import { removeMention } from "../../utils/format-util.js";
-import { getGroupAdmins } from "../../service-dqt/info-service/group-info.js";
-import { getGlobalPrefix } from "../../service-dqt/service.js";
-import { sendMessageFromSQL, sendMessageWarningRequest } from "../../service-dqt/chat-zalo/chat-style/chat-style.js";
+import { getGroupAdmins } from "../../service-ngh/info-service/group-info.js";
+import { getGlobalPrefix } from "../../service-ngh/service.js";
+import { sendMessageFromSQL, sendMessageWarningRequest } from "../../service-ngh/chat-zalo/chat-style/chat-style.js";
 import { groupSettingsAll } from "../../automations/event-send-msg.js";
 
 // Regex bắt số có đúng 6 chữ số liên tiếp, không dính vào số dài hơn (vd 1234567 sẽ không match)

@@ -1,4 +1,4 @@
-import { getGlobalPrefix } from "../../service-dqt/service.js";
+import { getGlobalPrefix } from "../../service-ngh/service.js";
 import { removeMention } from "../../utils/format-util.js";
 import { MessageType } from "../../api-zalo/models/Message.js"; 
 

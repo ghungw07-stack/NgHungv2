@@ -1,7 +1,7 @@
-import { sendMessageStateQuote, sendMessageWarning } from "../../service-dqt/chat-zalo/chat-style/chat-style.js";
-import { getGlobalPrefix } from "../../service-dqt/service.js";
+import { sendMessageStateQuote, sendMessageWarning } from "../../service-ngh/chat-zalo/chat-style/chat-style.js";
+import { getGlobalPrefix } from "../../service-ngh/service.js";
 import { removeMention } from "../../utils/format-util.js";
-import { getDataAllGroup, getGroupInfoData, updateHistorySettingGroup } from "../../service-dqt/info-service/group-info.js";
+import { getDataAllGroup, getGroupInfoData, updateHistorySettingGroup } from "../../service-ngh/info-service/group-info.js";
 import { readWebConfig } from "../../utils/io-json.js";
 import fs from "fs";
 import path from "path";

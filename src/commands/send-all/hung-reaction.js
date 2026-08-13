@@ -1,5 +1,5 @@
-import { sendMessageStateQuote } from "../../service-dqt/chat-zalo/chat-style/chat-style.js";
-import { getUserInfoData } from "../../service-dqt/info-service/user-info.js";
+import { sendMessageStateQuote } from "../../service-ngh/chat-zalo/chat-style/chat-style.js";
+import { getUserInfoData } from "../../service-ngh/info-service/user-info.js";
 import { createMarriageStatusImage } from "../../utils/canvas/marriage-status-canvas.js";
 import { loadMarriages, saveMarriages, findMarriage } from "./hung-data.js";
 

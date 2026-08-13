@@ -1,6 +1,6 @@
 import { LRUCache } from "lru-cache";
 import { removeMention } from "../../utils/format-util.js";
-import { getGlobalPrefix } from "../../service-dqt/service.js";
+import { getGlobalPrefix } from "../../service-ngh/service.js";
 import { isAdmin } from "../../index.js";
 
 const SESSION_TTL = 10 * 60 * 1000;

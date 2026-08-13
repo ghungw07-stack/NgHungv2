@@ -5,7 +5,7 @@ import {
   getUserInfoData,
   getUsersInfoBasic,
   getUsersInfoData,
-} from "../service-dqt/info-service/user-info.js";
+} from "../service-ngh/info-service/user-info.js";
 import * as cv from "../utils/canvas/index.js";
 import { isAdmin } from "../index.js";
 import fs from "fs";
@@ -14,13 +14,13 @@ import {
   getGroupInfoData,
   getHistorySettingGroup,
   updateHistorySettingGroup,
-} from "../service-dqt/info-service/group-info.js";
-import { getNameServer, sendMessageResultRequest, sendMessageWarning } from "../service-dqt/chat-zalo/chat-style/chat-style.js";
+} from "../service-ngh/info-service/group-info.js";
+import { getNameServer, sendMessageResultRequest, sendMessageWarning } from "../service-ngh/chat-zalo/chat-style/chat-style.js";
 import { logMessageToFile, readWebConfig, writeWebConfig } from "../utils/io-json.js";
 import { groupSettingsAll } from "./event-send-msg.js";
-import { enforceAntiInvite } from "../service-dqt/anti-service/anti-invite.js";
+import { enforceAntiInvite } from "../service-ngh/anti-service/anti-invite.js";
 import { getPrCard } from "../commands/bot-manager/welcome-bye.js";
-import { getDataAllGroup } from "../service-dqt/info-service/group-info.js";
+import { getDataAllGroup } from "../service-ngh/info-service/group-info.js";
 
 const blockedMembers = new Map();
 const historyJoinRequest = new Map();

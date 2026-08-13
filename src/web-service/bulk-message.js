@@ -1,4 +1,4 @@
-import { MessageType } from "zlbotdqt";
+import { MessageType } from "zlbotngh";
 import { readWebConfig } from "../utils/io-json.js";
 
 let bulkMessageInterval = null;

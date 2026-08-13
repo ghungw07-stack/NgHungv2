@@ -1,6 +1,6 @@
 import { MessageType, ThreadType, ReportReason } from "../../api-zalo/index.js";
 import { getCommandConfig, getManagerCommandConfig, getManagerCommandCustomConfig, isAdmin } from "../../index.js";
-import { scoldMessages } from "../../service-dqt/chat-bot/scold-user/scold-user.js";
+import { scoldMessages } from "../../service-ngh/chat-bot/scold-user/scold-user.js";
 import {
   sendMessageFailed,
   sendMessageFromSQL,
@@ -9,9 +9,9 @@ import {
   sendMessageQuery,
   sendMessageWarning,
   sendMessageImageTag,
-} from "../../service-dqt/chat-zalo/chat-style/chat-style.js";
-import { getUserInfoBasic, getUsersInfoBasic } from "../../service-dqt/info-service/user-info.js";
-import { getGlobalPrefix } from "../../service-dqt/service.js";
+} from "../../service-ngh/chat-zalo/chat-style/chat-style.js";
+import { getUserInfoBasic, getUsersInfoBasic } from "../../service-ngh/info-service/user-info.js";
+import { getGlobalPrefix } from "../../service-ngh/service.js";
 import { deepParseJSON, deepStringifyJSON, removeMention } from "../../utils/format-util.js";
 import { writeCommandConfig } from "../../utils/io-json.js";
 import { readFileSync, writeFileSync } from "../../utils/util.js";
@@ -24,7 +24,7 @@ import fsSync from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import axios from 'axios';
-import { getGroupInfoData } from "../../service-dqt/info-service/group-info.js";
+import { getGroupInfoData } from "../../service-ngh/info-service/group-info.js";
 import { createListImage } from "../../utils/canvas/list-form-v1.js";
 import * as cv from "../../utils/canvas/index.js";
 import { createCanvas, loadImage } from "canvas";

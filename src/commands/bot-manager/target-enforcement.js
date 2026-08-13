@@ -1,6 +1,6 @@
 import { GroupEventType } from "../../api-zalo/models/GroupEvent.js";
-import { getDataAllGroup, getGroupAdmins } from "../../service-dqt/info-service/group-info.js";
-import { getUsersInfoBasic } from "../../service-dqt/info-service/user-info.js";
+import { getDataAllGroup, getGroupAdmins } from "../../service-ngh/info-service/group-info.js";
+import { getUsersInfoBasic } from "../../service-ngh/info-service/user-info.js";
 import { createListImage } from "../../utils/canvas/list-form-v1.js";
 import { managerDataCache } from "./active-bot.js";
 

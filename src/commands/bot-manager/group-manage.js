@@ -1,19 +1,19 @@
-import { MessageType } from "zlbotdqt";
+import { MessageType } from "zlbotngh";
 import { MuteAction } from "../../api-zalo/apis/setMute.js";
 import * as cv from "../../utils/canvas/index.js";
-import { getUserInfoBasic, getUserInfoData, getUsersInfoBasic } from "../../service-dqt/info-service/user-info.js";
+import { getUserInfoBasic, getUserInfoData, getUsersInfoBasic } from "../../service-ngh/info-service/user-info.js";
 import {
   sendMessageComplete,
   sendMessageCompleteRequest,
   sendMessageWarning,
   sendMessageQuery,
-} from "../../service-dqt/chat-zalo/chat-style/chat-style.js";
+} from "../../service-ngh/chat-zalo/chat-style/chat-style.js";
 import {
   sendMessageFromSQL,
   sendMessageInsufficientAuthority,
   sendMessageStateQuote,
-} from "../../service-dqt/chat-zalo/chat-style/chat-style.js";
-import { getGlobalPrefix } from "../../service-dqt/service.js";
+} from "../../service-ngh/chat-zalo/chat-style/chat-style.js";
+import { getGlobalPrefix } from "../../service-ngh/service.js";
 import { getCommandConfig, isAdmin } from "../../index.js";
 import { FONT_MAIN, randomIDTemp, removeMention } from "../../utils/format-util.js";
 import { chunkArray } from "../../utils/util.js";
@@ -24,11 +24,11 @@ import { tempDir } from "../../utils/io-json.js";
 import { deleteFile } from "../../utils/util.js";
 import { groupSettingsAll } from "../../automations/event-send-msg.js";
 import { managerDataCache } from "./active-bot.js";
-import { getGroupInfoData } from "../../service-dqt/info-service/group-info.js";
+import { getGroupInfoData } from "../../service-ngh/info-service/group-info.js";
 import {
   getLowInteractionStats,
   resetLowInteractionStats,
-} from "../../service-dqt/info-service/rank-chat.js";
+} from "../../service-ngh/info-service/rank-chat.js";
 import {
   addBlockTarget,
   getBlockTargets,

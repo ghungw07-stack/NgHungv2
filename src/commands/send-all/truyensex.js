@@ -1,17 +1,17 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
 import { removeMention } from "../../utils/format-util.js";
-import { MessageType } from "zlbotdqt";
+import { MessageType } from "zlbotngh";
 import {
   sendMessageCompleteRequest,
   sendMessageWarningRequest,
   sendMessageProcessingRequest
-} from "../../service-dqt/chat-zalo/chat-style/chat-style.js";
+} from "../../service-ngh/chat-zalo/chat-style/chat-style.js";
 import {
   setSelectionsMapData,
   deleteSelectionsMapData,
   getSelectionsMapData,
-} from "../../service-dqt/api-crawl/index.js";
+} from "../../service-ngh/api-crawl/index.js";
 
 // Trạng thái lưu lựa chọn
 const BASE_URL = "https://truyensexvl.com";

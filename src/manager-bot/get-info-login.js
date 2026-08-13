@@ -9,7 +9,7 @@ import {
   sendMessageFailed,
   sendMessageFromSQLImage,
   sendMessageWarning,
-} from "../service-dqt/chat-zalo/chat-style/chat-style.js";
+} from "../service-ngh/chat-zalo/chat-style/chat-style.js";
 import * as toughCookie from "tough-cookie";
 import { Zalo } from "../api-zalo/zalo.js";
 import { tempDir } from "../utils/io-json.js";

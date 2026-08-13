@@ -3,11 +3,11 @@ import { fileURLToPath } from 'url';
 import path from 'path';
 import axios from "axios";
 import sharp from "sharp";
-import { getGlobalPrefix } from '../../service-dqt/service.js';
+import { getGlobalPrefix } from '../../service-ngh/service.js';
 import { removeMention } from "../../utils/format-util.js";
 import { checkExstentionFileRemote, checkLinkIsValid } from "../../utils/util.js";
-import { sendMessageStateQuote,sendMessageCompleteRequest } from '../../service-dqt/chat-zalo/chat-style/chat-style.js';
-import { scanQRCode } from "../../service-dqt/utilities/qr-scan.js";
+import { sendMessageStateQuote,sendMessageCompleteRequest } from '../../service-ngh/chat-zalo/chat-style/chat-style.js';
+import { scanQRCode } from "../../service-ngh/utilities/qr-scan.js";
 import { AwesomeQR } from "awesome-qr";
 const TIME_SHOW_SCAN_QR = 600000;
 

@@ -18,15 +18,15 @@ import {
   ALLOWED_STYLE_SIZES,
   resolveStyleColor,
   getDefaultServerStyle,
-} from "../service-dqt/chat-zalo/chat-style/chat-style.js";
+} from "../service-ngh/chat-zalo/chat-style/chat-style.js";
 import { deepParseJSON, formatSeconds, parseTime, removeMention, FONT_MAIN, randomIDTemp } from "../utils/format-util.js";
-import { getGlobalPrefix } from "../service-dqt/service.js";
+import { getGlobalPrefix } from "../service-ngh/service.js";
 import { checkAdminLevelHighest } from "../commands/command.js";
 import { MessageType, resolveReactionInput, resolveReactionKey } from "../api-zalo/index.js";
 import { notifyResetCompleteInGroup, notifyResettingInGroup, managerDataCache } from "../commands/bot-manager/active-bot.js";
 import { deleteFile, downloadFile } from "../utils/util.js";
 import { handleGetCookieImeiByQR } from "./get-info-login.js";
-import { getUserInfoBasic, getUsersInfoBasic } from "../service-dqt/info-service/user-info.js";
+import { getUserInfoBasic, getUsersInfoBasic } from "../service-ngh/info-service/user-info.js";
 import { createListImage } from "../utils/canvas/list-form-v1.js";
 import { createManagerBotInfoImage } from "../utils/canvas/info.js";
 import { BotChildrenStore } from "./bot-children-store.js";

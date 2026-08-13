@@ -44,7 +44,7 @@ try {
 
 import "./utils/shared-schedule.js";
 import { API, Zalo } from "./api-zalo/index.js";
-import { handleAutoBlockOnJoin } from "./service-dqt/utilities/block-user-join.js";
+import { handleAutoBlockOnJoin } from "./service-ngh/utilities/block-user-join.js";
 import { handleTargetEnforcementOnJoin } from "./commands/bot-manager/target-enforcement.js";
 import { gruopEvents } from "./automations/events-group.js";
 import { groupSettingsAll, messagesUser } from "./automations/event-send-msg.js";
@@ -53,18 +53,18 @@ import { undoMessageEvents } from "./automations/event-undo-msg.js";
 import { readAdmins, readConfig, readCommandConfig, writeAdmins } from "./utils/io-json.js";
 
 import { logManagerBot } from "./utils/io-json.js";
-import { initService } from "./service-dqt/service.js";
+import { initService } from "./service-ngh/service.js";
 import { reactionEvents } from "./automations/events-reaction.js";
 import { typingEvents } from "./automations/event-typing.msg.js";
 import { updateMessageCache } from "./utils/message-cache.js";
 import { activeBotChildren, getDataBotFromOwnerCache } from "./manager-bot/index.js";
 import { managerDataCache } from "./commands/bot-manager/active-bot.js";
-import { getAllInfoUser } from "./service-dqt/info-service/user-info.js";
+import { getAllInfoUser } from "./service-ngh/info-service/user-info.js";
 import { startWebServer, PortManager } from "./web-service/web-server.js";
 import { initializeDatabase } from "./database/index.js";
 import { initializeCacheLinkService } from "./utils/link-platform-cache.js";
-import { initializeGameBauCua } from "./service-dqt/game-service/bau-cua/bau-cua.js";
-import { initializeGameChanLe } from "./service-dqt/game-service/chan-le/chan-le.js";
+import { initializeGameBauCua } from "./service-ngh/game-service/bau-cua/bau-cua.js";
+import { initializeGameChanLe } from "./service-ngh/game-service/chan-le/chan-le.js";
 import { reportRuntimeError, runGuarded, setRuntimeMainApi } from "./utils/runtime-guard.js";
 
 export const portManager = new PortManager(8000);
@@ -551,7 +551,7 @@ await startWebServer();
 await activeBotChildren(api);
 
 // Khôi phục Giveaway đang quay sau restart sau khi cả bot chính và bot con đã online.
-const { resumeGiveaway } = await import("./service-dqt/game-service/giveaway/giveaway.js");
+const { resumeGiveaway } = await import("./service-ngh/game-service/giveaway/giveaway.js");
 await resumeGiveaway(api);
 
 // Self-test vận hành: `pm2 sendSignal SIGUSR2 nghung-bot` sẽ dùng đúng API

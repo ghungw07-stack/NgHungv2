@@ -11,15 +11,15 @@ import {
   ALLOWED_STYLE_SIZES,
   resolveStyleColor,
   getDefaultServerStyle,
-} from "../../service-dqt/chat-zalo/chat-style/chat-style.js";
-import { getGlobalPrefix } from "../../service-dqt/service.js";
+} from "../../service-ngh/chat-zalo/chat-style/chat-style.js";
+import { getGlobalPrefix } from "../../service-ngh/service.js";
 import { removeMention } from "../../utils/format-util.js";
 import { parseTime } from "../../utils/format-util.js";
-import { addOrUpdateMute } from "../../service-dqt/anti-service/mute-user.js";
+import { addOrUpdateMute } from "../../service-ngh/anti-service/mute-user.js";
 import { readManagerFile, writeManagerFile } from "../../utils/io-json.js";
 import { loadApiKeysMedia } from "../../utils/api-key-manager.js";
 import { getGlobalApi } from "../../index.js";
-import { getUsersInfoBasic } from "../../service-dqt/info-service/user-info.js";
+import { getUsersInfoBasic } from "../../service-ngh/info-service/user-info.js";
 import { createListImage } from "../../utils/canvas/list-form-v1.js";
 import { deleteFile } from "../../utils/util.js";
 
