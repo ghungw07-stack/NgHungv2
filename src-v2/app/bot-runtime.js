@@ -26,6 +26,9 @@ import { registerMiniGameCommands } from "../modules/game/mini-game/commands.js"
 import { XiDachGame, registerXiDachCommand } from "../modules/game/card-game/xidach.js";
 import { ConversationRepository } from "../modules/ai/conversation-repository.js";
 import { registerAiCommands } from "../modules/ai/commands.js";
+import { AutoJoinService } from "../modules/autojoin/service.js";
+import { registerAutoJoinEvents } from "../modules/autojoin/events.js";
+import { registerAutoJoinCommands } from "../modules/autojoin/commands.js";
 
 export class BotRuntime {
   constructor({ client, config, scheduler, logger, identity = {}, services = {} }) {
@@ -95,6 +98,7 @@ export class BotRuntime {
     registerMiniGameCommands(registry, { sessions: this.gameSessions, players: this.players });
     registerXiDachCommand(registry, { game: this.xiDach, sessions: this.gameSessions, players: this.players });
     registerAiCommands(registry, { gateway: this.services.ai, conversations: this.aiConversations, botId });
+    registerAutoJoinCommands(registry, { settings: this.groupSettings });
     this.dispatcher = new CommandDispatcher({
       prefix: this.config.prefix,
       prefixResolver: ({ threadId }) => this.groupSettings.getPrefix(threadId),
@@ -108,6 +112,15 @@ export class BotRuntime {
       client: this.client,
       logger: this.logger,
     });
+    this.autoJoin = new AutoJoinService({
+      database: this.services.database,
+      client: this.client,
+      scheduler: this.scheduler,
+      botId,
+      logger: this.logger,
+    });
+    await this.autoJoin.start();
+    registerAutoJoinEvents(this.events, { service: this.autoJoin, settings: this.groupSettings });
     this.moderation = new ModerationService({
       repository: this.groupSettings,
       client: this.client,
@@ -139,6 +152,7 @@ export class BotRuntime {
     this.moderation?.clear();
     this.bigGames?.stop();
     this.xiDach?.stop();
+    this.autoJoin?.stop();
     await this.client.stop();
   }
 }
