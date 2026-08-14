@@ -32,11 +32,19 @@ const NEVER_PUSH_PATHS = [
 let updateInProgress = false;
 
 async function git(args, options = {}) {
+  const localKeyPath = path.join(PROJECT_DIR, ".github", "github_deploy_key");
+  let env = { ...process.env, ...(options.env || {}) };
+  try {
+    await fs.access(localKeyPath);
+    // Ưu tiên key nằm trong thư mục bot nếu người dùng chủ động đặt vào.
+    env.GIT_SSH_COMMAND = `ssh -i "${localKeyPath}" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new`;
+  } catch {}
   return execFileAsync("git", args, {
     cwd: PROJECT_DIR,
     timeout: 120_000,
     maxBuffer: 10 * 1024 * 1024,
     ...options,
+    env,
   });
 }
 

@@ -13,6 +13,7 @@ import Big from "big.js";
 
 const GAME_DURATION = 30000;
 const WARNING_TIME = 10000;
+const BACCARAT_PAYOUT_FEE = new Big("0.95");
 const MAX_HISTORY = 90;
 const HOUSE_BIAS_CHANCE = 0.45;
 
@@ -434,9 +435,13 @@ async function endBaccaratGame(api, message) {
   for (const p of Object.values(game.players)) {
     if (p.door === resultDoor) {
       let winAmount = new Big(0);
-      if (resultDoor === 'con') winAmount = p.amount.times(1.95); // Trả cả gốc + lời 0.95
-      else if (resultDoor === 'cái') winAmount = p.amount.times(1.9); // Trả cả gốc + lời 0.90
-      else if (resultDoor === 'hòa') winAmount = p.amount.times(8); // Trả cả gốc + lời 7
+      if (resultDoor === 'con' || resultDoor === 'cái') {
+        // Tỷ lệ thắng 1:1, trả cả gốc rồi trừ phí 5% âm thầm.
+        winAmount = p.amount.times(2).times(BACCARAT_PAYOUT_FEE);
+      } else if (resultDoor === 'hòa') {
+        // Hòa 1 ăn 8, trả cả gốc theo tỷ lệ x8 rồi trừ phí 5%.
+        winAmount = p.amount.times(8).times(BACCARAT_PAYOUT_FEE);
+      }
       
       await updatePlayerBalanceByUsername(p.username, winAmount);
       winners.push(`${p.name} (${p.door === "con" ? "Con (Player)" : p.door === "cái" ? "Cái (Banker)" : "Hòa (Tie)"}): thắng +${formatCurrency(winAmount.minus(p.amount))}`);

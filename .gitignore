@@ -3,3 +3,5 @@ package-lock.json
 logs/
 .env
 .env.*
+.github/github_deploy_key
+.github/github_deploy_key.pub
