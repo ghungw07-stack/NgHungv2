@@ -1458,131 +1458,34 @@ export async function createGameMissionImage(data) {
 }
 
 export async function createVIPTierImage(data) {
-  const width = 1000;
-  const height = 940;
+  const width = 1200, height = 900, left = 300, pad = 28;
   const { tier } = getGameTierProgress(data.rankPoints);
-  const dragonImage = tier.key === "gold_dragon" ? await safeLoadImage(KIM_LONG_DRAGON_PATH) : null;
-  const canvas = createCanvas(width, height);
-  const ctx = canvas.getContext("2d");
-  
-  // Background
+  const canvas = createCanvas(width, height), ctx = canvas.getContext("2d");
   drawBackground(ctx, width, height, tier);
-  drawPanel(ctx, 30, 30, width - 60, height - 60, tier, true);
-  if (tier.key === "gold_dragon") drawDragonArtwork(ctx, dragonImage, 680, 40, 260, 161, 0.20);
-
-  // TOP SECTION: HẠN MỨC HÔM NAY
-  ctx.textAlign = "left";
+  drawPanel(ctx, 18, 18, width - 36, height - 36, tier, true);
   ctx.textBaseline = "middle";
-  ctx.fillStyle = tier.color;
-  ctx.font = `bold 16px ${FONT_MAIN}`;
-  ctx.fillText("HẠN MỨC HÔM NAY", 60, 70);
-  
-  // Hai hộp Hạn mức
-  drawPanel(ctx, 60, 100, 420, 100, tier);
-  drawPanel(ctx, 520, 100, 420, 100, tier);
-  
-  ctx.fillStyle = "rgba(255,255,255,0.5)";
-  ctx.font = `bold 14px ${FONT_MAIN}`;
-  ctx.fillText("HẠN MỨC CHUYỂN ĐI", 90, 130);
-  ctx.fillText("HẠN MỨC NHẬN VỀ", 550, 130);
-  
-  ctx.fillStyle = "#ffffff";
-  ctx.font = `bold 36px ${FONT_MAIN}`;
-  ctx.fillText(compactMoney(Number(tier.sendLimit)), 90, 170);
-  ctx.fillText(compactMoney(Number(tier.receiveLimit)), 550, 170);
 
-  // MIDDLE SECTION: HẠNG THÀNH VIÊN
-  ctx.fillStyle = tier.color;
-  ctx.font = `bold 16px ${FONT_MAIN}`;
-  ctx.fillText("HẠNG THÀNH VIÊN", 60, 240);
+  // Profile rail.
+  ctx.strokeStyle = "rgba(255,255,255,.16)"; ctx.beginPath(); ctx.moveTo(left, 18); ctx.lineTo(left, height - 18); ctx.stroke();
+  let avatarImg = data.avatarUrl ? await safeLoadImage(data.avatarUrl) : null;
+  drawAvatar(ctx, avatarImg, 150, 145, 145, tier.color);
+  ctx.textAlign = "center"; ctx.fillStyle = tier.color; ctx.font = `bold 18px ${FONT_MAIN}`; ctx.fillText("HẠNG THÀNH VIÊN", 150, 245);
+  ctx.fillStyle = "#fff"; ctx.font = fitFont(ctx, data.playerName || "Người chơi", 245, 25, 16); ctx.fillText(data.playerName || "Người chơi", 150, 295);
+  ctx.strokeStyle = `${tier.color}66`; ctx.beginPath(); ctx.moveTo(60, 325); ctx.lineTo(240, 325); ctx.stroke();
+  ctx.fillStyle = tier.color; ctx.font = `bold 42px ${FONT_MAIN}`; ctx.fillText(tier.name.replace("BẠCH KIM", "Bạch Kim").replace("HỒNG NGỌC", "Hồng Ngọc").replace("KIM CƯƠNG", "Kim Cương"), 150, 375);
+  ctx.fillStyle = "rgba(255,255,255,.75)"; ctx.font = `bold 18px ${FONT_MAIN}`; ctx.fillText("Vĩnh Viễn", 150, 415);
+  ctx.font = `bold 28px ${FONT_MAIN}`; ctx.fillText("♠   ♥   ♦   ♣", 150, 825);
 
-  drawPanel(ctx, 60, 270, 880, 140, tier);
-  
-  // Avatar
-  let avatarImg = null;
-  if (data.avatarUrl) avatarImg = await safeLoadImage(data.avatarUrl);
-  
-  if (avatarImg) {
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(120, 340, 40, 0, Math.PI * 2);
-    ctx.closePath();
-    ctx.clip();
-    ctx.drawImage(avatarImg, 80, 300, 80, 80);
-    ctx.restore();
-    
-    // Viền avatar
-    ctx.beginPath();
-    ctx.arc(120, 340, 40, 0, Math.PI * 2);
-    ctx.strokeStyle = tier.color;
-    ctx.lineWidth = 3;
-    ctx.stroke();
-  } else {
-    ctx.fillStyle = "rgba(255,255,255,0.1)";
-    ctx.beginPath();
-    ctx.arc(120, 340, 40, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  // Tên + Hạng
-  ctx.fillStyle = "#ffffff";
-  ctx.font = `bold 28px ${FONT_MAIN}`;
-  ctx.fillText(data.playerName, 180, 320);
-  
-  drawTierBadge(ctx, tier, 180, 350, 130, 28);
-  ctx.fillStyle = tier.color;
-  ctx.font = `bold 14px ${FONT_MAIN}`;
-  ctx.fillText("Vĩnh Viễn", 325, 364);
-
-  // Stats: Daily, Số dư
-  ctx.fillStyle = "rgba(255,255,255,0.5)";
-  ctx.font = `bold 14px ${FONT_MAIN}`;
-  ctx.textAlign = "right";
-  ctx.fillText("DAILY", 650, 320);
-  ctx.fillText("SỐ DƯ", 880, 320);
-
-  ctx.fillStyle = "#ffffff";
-  ctx.font = `bold 26px ${FONT_MAIN}`;
-  ctx.fillText(compactMoney(Number(tier.daily)), 650, 360);
-  ctx.fillText(compactMoney(Number(data.balance)), 880, 360);
-
-  // BOTTOM SECTION: CÁC HẠNG THÀNH VIÊN
-  ctx.textAlign = "left";
-  ctx.fillStyle = tier.color;
-  ctx.font = `bold 16px ${FONT_MAIN}`;
-  ctx.fillText("CÁC HẠNG THÀNH VIÊN", 60, 450);
-
-  TIERS.forEach((t, i) => {
-    const y = 480 + i * 70;
-    drawPanel(ctx, 60, y, 880, 56, t);
-    
-    // Icon badge mini
-    ctx.fillStyle = "rgba(255,255,255,0.1)";
-    ctx.beginPath();
-    ctx.arc(90, y + 28, 16, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = t.color;
-    ctx.font = `bold 18px ${FONT_MAIN}`;
-    ctx.fillText(t.emoji || "🏅", 80, y + 28);
-    
-    // Tên hạng
-    ctx.fillStyle = t.color;
-    ctx.font = `bold 18px ${FONT_MAIN}`;
-    ctx.fillText(t.name, 120, y + 28);
-    
-    // Thông số
-    ctx.fillStyle = "rgba(255,255,255,0.8)";
-    ctx.font = `bold 14px ${FONT_MAIN}`;
-    ctx.fillText(`Daily ${compactMoney(Number(t.daily))}  •  Chuyển ${compactMoney(Number(t.sendLimit))}  •  Nhận ${compactMoney(Number(t.receiveLimit))}`, 240, y + 28);
-
-    if (t.key === "diamond") {
-      ctx.fillStyle = "#ffcc00";
-      ctx.font = `bold 12px ${FONT_MAIN}`;
-      ctx.fillText("✨ Sinh lời 6% /ngày", 780, y + 28);
-    }
-
-  });
-
+  const x = left + pad, w = width - x - pad, gap = 18, cardW = (w - gap) / 2;
+  ctx.textAlign = "left"; ctx.fillStyle = "#fff"; ctx.font = `bold 24px ${FONT_MAIN}`; ctx.fillText("HẠN MỨC HÔM NAY", x, 62);
+  const metric = (mx, my, label, value, color = tier.color) => { drawPanel(ctx, mx, my, cardW, 100, tier); ctx.fillStyle = "#fff"; ctx.font = `bold 16px ${FONT_MAIN}`; ctx.fillText(label, mx + 20, my + 30); ctx.fillStyle = color; ctx.font = `bold 38px ${FONT_MAIN}`; ctx.fillText(value, mx + 20, my + 72); ctx.fillStyle = color; ctx.fillRect(mx + 20, my + 89, cardW - 40, 4); };
+  metric(x, 88, "HẠN MỨC CHUYỂN ĐI", compactMoney(Number(tier.sendLimit)));
+  metric(x + cardW + gap, 88, "HẠN MỨC NHẬN VỀ", compactMoney(Number(tier.receiveLimit)));
+  metric(x, 200, "DAILY", compactMoney(Number(tier.daily)), "#ffd568");
+  metric(x + cardW + gap, 200, "SỐ DƯ", compactMoney(Number(data.balance)), "#fff");
+  ctx.fillStyle = "#fff"; ctx.font = `bold 20px ${FONT_MAIN}`; ctx.fillText("CÁC HẠNG THÀNH VIÊN", x, 370);
+  TIERS.slice(0, 6).forEach((t, i) => { const y = 392 + i * 62; drawPanel(ctx, x, y, w, 52, t, t.key === tier.key); ctx.fillStyle = t.color; ctx.font = `bold 18px ${FONT_MAIN}`; ctx.fillText(t.name, x + 18, y + 27); ctx.fillStyle = "rgba(255,255,255,.78)"; ctx.font = `bold 14px ${FONT_MAIN}`; ctx.textAlign = "right"; ctx.fillText(`Daily ${compactMoney(Number(t.daily))} · Chuyển ${compactMoney(Number(t.sendLimit))} · Nhận ${compactMoney(Number(t.receiveLimit))}`, x + w - 16, y + 27); ctx.textAlign = "left"; });
+  ctx.textAlign = "center"; ctx.fillStyle = "#ffd568"; ctx.font = `bold 20px ${FONT_MAIN}`; ctx.fillText("Chúc Bạn 8386 | Mãi Đỉnh Mãi Đỉnh", left + (width - left) / 2, 850);
   const filePath = path.resolve(`./assets/temp/vip_tier_${Date.now()}.png`);
   await writeFilePromise(filePath, canvas.toBuffer());
   return filePath;

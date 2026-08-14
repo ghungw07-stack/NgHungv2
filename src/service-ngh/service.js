@@ -44,7 +44,9 @@ import { handleTruyenSexVLReply } from "../commands/send-all/truyensex.js";
 import { checkMenuPageReply } from "../commands/instructions/help.js";
 import { handleAddUserToGroupReply } from "../commands/bot-manager/add-user-to-group.js";
 
-let globalPrefix = {};
+// Dùng var để an toàn với vòng import giữa service và command trong lúc boot.
+// `let` có TDZ khiến initService bị gọi trước khi binding được khởi tạo.
+var globalPrefix = {};
 
 export function getGlobalPrefix(idBot) {
   const botId = String(idBot ?? "");

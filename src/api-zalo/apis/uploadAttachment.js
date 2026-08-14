@@ -11,7 +11,9 @@ import { measureTime } from "../../utils/util.js";
 import { readSettingConfig } from "../../utils/io-json.js";
 
 const DEFAULT_CHUNK_SIZE = 100 * 1024 * 1024;
-const LARGE_AUDIO_CHUNK_SIZE = 8 * 1024 * 1024;
+// Zalo endpoint vẫn áp giới hạn ~512KB cho audio asyncfile, kể cả nhánh file
+// lớn. Giữ 256KB để chừa overhead multipart và tránh lỗi 201 khi nhạc dài.
+const LARGE_AUDIO_CHUNK_SIZE = 256 * 1024;
 const LARGE_AUDIO_CONCURRENCY = 20;
 const MAX_VOICE_UPLOAD_CONCURRENCY = 12;
 const MAX_VOICE_UPLOAD_SIZE = DEFAULT_CHUNK_SIZE;

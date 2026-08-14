@@ -5,6 +5,7 @@ import youtubeDl from "youtube-dl-exec";
 import { deleteFile, execAsync, writeFilePromise } from "../../../../utils/util.js";
 import { tempDir } from "../../../../utils/io-json.js";
 import { randomIDTemp } from "../../../../utils/format-util.js";
+import { registerVoiceTempFile } from "../../../../utils/voice-temp-server.js";
 
 /**
  * Chuyển đổi file MP3 sang M4A
@@ -44,6 +45,18 @@ export async function convertToAAC(inputPath, outputPath = inputPath.replace(/\.
  * Upload file audio và trả về URL
  */
 export async function uploadAudioFile(mp3Path, api, message, uploadCloud = false) {
+  // Ưu tiên URL tạm do chính VPS phục vụ; không lộ dqt và không phải upload
+  // lại từng chunk lên Zalo. Bật bằng VOICE_PUBLIC_BASE_URL.
+  const publicBase = String(process.env.VOICE_PUBLIC_BASE_URL || "").replace(/\/$/, "");
+  if (publicBase) {
+    try {
+      const token = await registerVoiceTempFile(mp3Path);
+      return `${publicBase}/voice-temp/${token}`;
+    } catch (error) {
+      console.warn("Không tạo được voice URL VPS, fallback Zalo:", error?.message || error);
+    }
+  }
+
   try {
     const uploadResult = await api.uploadAttachment([mp3Path], message.threadId, message.type, {
       uploadCloud,

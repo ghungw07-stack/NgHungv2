@@ -14,6 +14,7 @@ module.exports = {
       env: {
         NODE_ENV: "production",
         FORCE_CONSOLE: "0",
+        VOICE_PUBLIC_BASE_URL: "http://103.95.196.159:3000",
       },
     },
   ],

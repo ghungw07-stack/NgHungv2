@@ -116,6 +116,9 @@ const MEDIA_TYPES = {
   "xiaohongshu.": "xiaohongshu",
   "ixigua.": "ixigua",
   "weibo.": "weibo",
+  "mp.weixin.qq.com": "wechat",
+  "channels.weixin.qq.com": "wechat",
+  "weixin.qq.com": "wechat",
   "sina.com": "sina",
   "miaopai.": "miaopai",
   "meipai.": "meipai",
@@ -133,6 +136,12 @@ const getMediaType = (url) => {
   const urlLower = url.toLowerCase();
   return Object.entries(MEDIA_TYPES).find(([domain]) => urlLower.includes(domain))?.[1] || "Unknown";
 };
+
+function normalizeDouyinUrl(input) {
+  const value = String(input || "").trim();
+  const match = value.match(/(?:douyin\.com|jingxuan\.douyin\.com)\/m\/video\/(\d+)/i);
+  return match ? `https://www.douyin.com/video/${match[1]}` : value;
+}
 
 export const getDataYoutubeVideo = async (url) => {
   let dataDownload = {
@@ -183,6 +192,62 @@ export const getDataDownloadVideoFromYtbDL = async (url, mediaType) => {
     dataDownload.reasonFalse = "Link này không hợp lệ,.. thử lại với link khác trong phần chia sẻ!";
   }
   return dataDownload;
+};
+
+// SnapTikTok không công bố SDK nhưng endpoint ajaxSearch được frontend công
+// khai sử dụng. Chỉ lấy các link MP4/MP3 trong response HTML, không chạy JS.
+export const getDataDownloadSnapTik = async (url) => {
+  try {
+    const response = await axios.post(
+      "https://snaptiktok.to/api/ajaxSearch",
+      new URLSearchParams({ q: url, cursor: "0", page: "0", lang: "vi" }).toString(),
+      { timeout: 20000, headers: { "User-Agent": "Mozilla/5.0", "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8" } }
+    );
+    const payload = response.data;
+    if (payload?.status !== "ok" || !payload.data) return null;
+    const html = String(payload.data).replace(/&amp;/g, "&").replace(/&#x2F;/g, "/");
+    const title = (html.match(/<h3[^>]*>([\s\S]*?)<\/h3>/i)?.[1] || "").replace(/<[^>]+>/g, "").trim();
+    const id = html.match(/id=["']TikTokId["'][^>]*value=["']([^"']+)/i)?.[1] || `snaptik_${Date.now()}`;
+    const thumbnail = html.match(/<img[^>]+src=["']([^"']+)/i)?.[1] || null;
+    const medias = [...html.matchAll(/<a[^>]+href=["'](https?:\/\/[^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)]
+      .map(([, link, label]) => ({ link, label: label.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim() }))
+      .filter(({ link }) => /(?:\.mp4|mime_type=video_|\.mp3|mime_type=audio_)/i.test(link))
+      .map(({ link, label }) => ({
+        url: link,
+        quality: /mp3|audio_/i.test(link) ? "audio" : (/hd/i.test(label) ? "HD" : "MP4"),
+        type: /mp3|audio_/i.test(link) ? "audio" : "video",
+        extension: /mp3|audio_/i.test(link) ? "mp3" : "mp4",
+        title,
+        thumbnail,
+      }));
+    return medias.length ? { id, title, thumbnail, author: "", duration: 0, medias, getBy: "snaptik" } : null;
+  } catch (error) {
+    console.warn("SnapTikTok fallback lỗi:", error?.message || error);
+    return null;
+  }
+};
+
+// Chuẩn hóa yt-dlp thành cùng format với AIO để dùng làm fallback đa nền tảng.
+// yt-dlp hiện có extractor cho hơn 1.000 website; các URL format là direct URL
+// nên bot không phải chờ một dịch vụ trung gian xử lý lại file.
+const normalizeYtDlpMedia = (videoInfo) => {
+  const formats = Array.isArray(videoInfo?.formats) ? videoInfo.formats : [];
+  const medias = formats
+    .filter((item) => item?.url && (item.vcodec !== "none" || item.acodec !== "none"))
+    .map((item) => ({
+      url: item.url,
+      quality: item.format_note || item.height ? `${item.format_note || ""}${item.height ? ` ${item.height}p` : ""}`.trim() : item.format_id || "default",
+      type: item.vcodec !== "none" ? "video" : "audio",
+      extension: item.ext || (item.vcodec !== "none" ? "mp4" : "mp3"),
+    }));
+  return {
+    id: videoInfo.id,
+    title: videoInfo.title,
+    author: videoInfo.uploader || videoInfo.channel,
+    thumbnail: videoInfo.thumbnail,
+    duration: Number(videoInfo.duration || 0) * 1000,
+    medias,
+  };
 };
 
 // export const getDataDownloadAIO = async (url) => {
@@ -407,6 +472,9 @@ export async function handleDownloadCommand(api, message, aliasCommand, typeCall
       }
     } catch (e) {}
 
+    // Link Jingxuan dạng /m/video thường bị provider từ chối; đổi về URL video
+    // canonical trước khi gọi API/yt-dlp.
+    query = normalizeDouyinUrl(query);
     const mediaType = getMediaType(query);
     let dataDownload;
     if (mediaType !== "Unknown") {
@@ -436,6 +504,24 @@ export async function handleDownloadCommand(api, message, aliasCommand, typeCall
           dataDownload = await getDataDownloadAIO(query);
           break;
       }
+    }
+
+    // API miễn phí là tuyến chính cho metadata; nếu hết quota/chậm/lỗi hoặc
+    // trả payload không chuẩn thì chuyển ngay sang yt-dlp local, không bỏ cuộc.
+    if (
+      mediaType !== "Unknown" &&
+      (!dataDownload || dataDownload.error || !Array.isArray(dataDownload.medias)) &&
+      mediaType !== "tiktok" &&
+      mediaType !== "facebook"
+    ) {
+      const localInfo = await getDataDownloadVideoFromYtbDL(query, mediaType);
+      if (localInfo && !localInfo.error) dataDownload = normalizeYtDlpMedia(localInfo);
+    }
+
+    if ((mediaType === "douyin" && (!dataDownload || dataDownload.error || !Array.isArray(dataDownload.medias))) ||
+        (mediaType === "tiktok" && (!dataDownload || dataDownload.error))) {
+      const snapData = await getDataDownloadSnapTik(query);
+      if (snapData) dataDownload = snapData;
     }
 
     if (typeCall === TYPE_AUTO_DETECTED && (!dataDownload || dataDownload.error))
@@ -727,6 +813,10 @@ function getMediaDownloadLinks(mediaType, dataDownload, typeCall) {
   switch (mediaType) {
     case "tiktok":
       uniqueId = dataDownload.id;
+      if (dataDownload.getBy === "snaptik" && Array.isArray(dataDownload.medias)) {
+        dataDownload.medias.forEach((item) => dataLink.push({ ...item, title: dataDownload.title, thumbnail: item.thumbnail || dataDownload.thumbnail }));
+        break;
+      }
       let dataDownloadTiktokSelectList;
       if (dataDownload.images) {
         dataDownloadTiktokSelectList = [

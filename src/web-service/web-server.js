@@ -7,6 +7,7 @@ import multer from "multer";
 import chalk from "chalk";
 import { getDataAllGroup } from "../service-ngh/info-service/group-info.js";
 import fs from "fs/promises";
+import fsSync from "fs";
 import { readWebConfig, writeWebConfig } from "../utils/io-json.js";
 import { MessageType } from "../api-zalo/models/Message.js";
 import { sendBulkMessage, stopBulkMessage } from "./bulk-message.js";
@@ -19,6 +20,7 @@ import crypto from "crypto";
 import { sessionMiddleware, requireAuth, checkAuth, isRateLimited, registerFailedAttempt, clearAttempts } from "./auth.js";
 import { managerBotSocket } from "../manager-bot/manager-socket.js";
 import { connection } from "../database/index.js";
+import { getVoiceTempFile, streamVoiceTempFile } from "../utils/voice-temp-server.js";
 
 export class PortManager {
   constructor(basePort = 3000) {
@@ -114,6 +116,15 @@ export async function startWebServer() {
   app.use(sessionMiddleware);
 
   app.use(express.json({ limit: "2mb" }));
+
+  // Public, short-lived voice URLs served directly from this VPS.
+  app.get("/voice-temp/:token", (req, res) => {
+    const entry = getVoiceTempFile(req.params.token);
+    if (!entry || !fsSync.existsSync(entry.path)) return res.status(404).end();
+    res.setHeader("Content-Type", path.extname(entry.path).toLowerCase() === ".mp3" ? "audio/mpeg" : "audio/aac");
+    res.setHeader("Cache-Control", "public, max-age=21600");
+    streamVoiceTempFile(entry, res);
+  });
 
 
   // ── WEBHOOK THANH TOÁN TỰ ĐỘNG DUYỆT BOT ────────────────────────

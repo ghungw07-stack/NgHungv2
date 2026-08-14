@@ -26,7 +26,7 @@ import {
   raisePlayerRank,
 } from "../../database/player.js";
 import { getUserInfoAcrossBots } from "../info-service/user-info.js";
-import { sendMessageFromSQL, sendMessageCompleteRequest } from "../../service-ngh/chat-zalo/chat-style/chat-style.js";
+import { sendMessageFromSQL, sendMessageCompleteRequest, getNameServer } from "../../service-ngh/chat-zalo/chat-style/chat-style.js";
 import * as cv from "../../utils/canvas/index.js";
 import { isAdmin, isBotLeader, getApiManager } from "../../index.js";
 import { getGlobalPrefix } from "../service.js";
@@ -93,9 +93,12 @@ export async function handleClaimDailyReward(api, message, groupSettings) {
   const result = await claimDailyReward(playerId);
   const sent = await sendMessageFromSQL(api, message, result, true, 30000);
   if (!sent) {
-    // Fallback không mention, phòng trường hợp UID global không được Zalo
-    // chấp nhận trong payload mention.
-    await api.sendMessage({ msg: result.message, ttl: 30000 }, message.threadId, message.type);
+    // Một số bot trả lỗi khi mention bằng global UID. Gửi lại có style/nameServer
+    // và vẫn quote tin nhắn gốc, chỉ bỏ mention để Zalo chấp nhận payload.
+    const retry = await sendMessageFromSQL(api, message, result, true, 30000, false);
+    if (!retry) {
+      await api.sendMessage({ msg: `${getNameServer(api)}\n${result.message}`, quote: message, ttl: 30000 }, message.threadId, message.type);
+    }
   }
 }
 

@@ -764,6 +764,14 @@ function buildGameSubMessage(message, prefix) {
   }
 }
 
+// Các lệnh này chỉ hợp lệ dưới dạng "<prefix>game <lệnh>". Nếu người dùng
+// gõ trực tiếp (vd. "!daily"), bỏ qua hoàn toàn để không thả reaction/icon.
+const GAME_COMMANDS_REQUIRING_PREFIX = new Set(["daily", "tier", "bank", "rank", "mycard"]);
+
+function isBareGameCommand(command) {
+  return GAME_COMMANDS_REQUIRING_PREFIX.has(String(command || "").toLowerCase());
+}
+
 async function handleCoreGameCommand(api, message, command, groupSettings, aliasCommand = command) {
   switch (command) {
     case "nap":
@@ -1093,6 +1101,7 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
       command = commandParts[0];
     }
     let commandLowerCase = command.toLowerCase();
+    if (isBareGameCommand(commandLowerCase)) return 1;
     if (!managerBot.onBotPrivate && !isAdminLevelHighest) {
       return 0;
     }
@@ -1635,18 +1644,13 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
           }
           case "nap":
           case "rut":
-          case "bank":
           case "saoke":
           case "donenat":
           case "donate":
-          case "tier":
-          case "mycard":
           case "testmycard":
-          case "daily":
           case "giveaway":
           case "resetdaily":
           case "resethu":
-          case "rank":
           case "baucua":
           case "bcr":
           case "taixiu":
@@ -1772,6 +1776,10 @@ export async function handleCommand(
   }
 
   let commandLowerCase = command.toLowerCase();
+
+  // Không xác nhận/reaction cho daily, tier, bank, rank, mycard nếu thiếu
+  // tiền tố "game"; các lệnh này phải được gọi như "!game daily".
+  if (isBareGameCommand(commandLowerCase)) return numHandleCommand;
 
   if (!handleChat) return;
 
@@ -2748,19 +2756,14 @@ export async function handleCommand(
               break;
             }
 
-            case "rank":
-            case "mycard":
             case "testmycard":
-            case "daily":
             case "giveaway":
             case "resetdaily":
             case "resethu":
             case "nap":
             case "rut":
-            case "bank":
             case "saoke":
             case "donenat":
-            case "tier":
             case "nongtrai":
             case "baucua":
             case "bcr":
