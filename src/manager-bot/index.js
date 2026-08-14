@@ -2342,7 +2342,16 @@ function getGenderValueFromProfile(gender) {
 }
 
 async function handleSetInfoBot(api, message, params, ownerId, isAdminLevelHighest) {
-  if (!(await checkAdminLevelHighest(api, message, isAdminLevelHighest))) return;
+  // Cho phép Bot Leader/chủ bot tự cập nhật thông tin bot của mình.
+  // Trước đây lệnh này chỉ kiểm tra adminLevelHighest nên chủ bot con
+  // thường bị từ chối dù đang thao tác trên chính bot của mình.
+  const senderId = message.data?.uidFrom;
+  const isBotOwner = !api.apiManager?.isMainBot && String(senderId) === String(ownerId);
+  const canManageInfo = isAdminLevelHighest || isBotLeader(api.getBotId(), senderId) || isBotOwner;
+  if (!canManageInfo) {
+    await sendMessageWarning(api, message, "Chỉ Bot Leader hoặc chủ bot mới được sử dụng lệnh này!", true, TIME_TO_LIVE);
+    return;
+  }
   const fieldValid = ["name", "description", "botInfo", "nameServer", "typePlatform", "avatarAccount"];
 
   const fieldCheck = params[0];
@@ -2433,10 +2442,13 @@ async function handleSetInfoBot(api, message, params, ownerId, isAdminLevelHighe
     return;
   }
 
-  const field = params[0];
+  // Tên trường không phân biệt hoa/thường để tránh lệnh bị trượt chỉ vì
+  // cách viết `nameServer`/`nameserver` khác nhau.
+  const fieldInput = params[0];
+  const field = fieldValid.find((validField) => validField.toLowerCase() === fieldInput.toLowerCase());
   const value = params.slice(1).join(" ");
 
-  if (!fieldValid.includes(field)) {
+  if (!field) {
     await sendMessageWarning(
       api,
       message,

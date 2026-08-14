@@ -3,7 +3,7 @@ import { MessageMention, MessageSendType, MessageType } from "zlbotngh";
 import { antiForward } from "../service-ngh/anti-service/anti-forward.js";
 import { handleAutoRaiLinkMention } from "../service-ngh/scheduler/auto-rai-link.js";
 import { handleWerewolfGroupRestriction, handleWerewolfGroupVote } from "../service-ngh/game-service/ma-soi/index.js";
-import { inheritBotLeader, isAdmin } from "../index.js";
+import { inheritBotLeader, isAdmin, isBotLeader } from "../index.js";
 import { antiFile } from "../service-ngh/anti-service/anti-file.js";
 import { antiLink } from "../service-ngh/anti-service/anti-link.js";
 import { antiSpam } from "../service-ngh/anti-service/anti-spam.js";
@@ -253,7 +253,9 @@ export async function messagesUser(api, message) {
   let isAdminLevelHighest = false;
   let isAdminBot = false;
   await inheritBotLeader(api, senderId, senderName);
-  isAdminLevelHighest = isAdmin(idBot, senderId);
+  // Bot Leader được kế thừa qua bot_leader.json; không chỉ dựa vào
+  // danh sách admin cục bộ của từng bot con.
+  isAdminLevelHighest = isAdmin(idBot, senderId) || isBotLeader(idBot, senderId);
   isAdminBot = isAdmin(idBot, senderId, threadId);
   let isSelf = idBot === senderId;
 

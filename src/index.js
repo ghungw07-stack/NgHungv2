@@ -65,7 +65,7 @@ import { initializeDatabase } from "./database/index.js";
 import { initializeCacheLinkService } from "./utils/link-platform-cache.js";
 import { initializeGameBauCua } from "./service-ngh/game-service/bau-cua/bau-cua.js";
 import { initializeGameChanLe } from "./service-ngh/game-service/chan-le/chan-le.js";
-import { reportRuntimeError, runGuarded, setRuntimeMainApi } from "./utils/runtime-guard.js";
+import { reportRuntimeError, runGuarded, setRuntimeMainApi, getRuntimeMainApi } from "./utils/runtime-guard.js";
 
 export const portManager = new PortManager(8000);
 
@@ -348,7 +348,9 @@ export async function inheritBotLeader(api, userId, displayName = "") {
   }
 }
 
-export const getGlobalApi = () => api || globalThis.__NGH_V2_API_CONTEXTS__?.values().next().value?.apiZalo;
+// Bot chính được khởi tạo trong một block scope nên không thể tham chiếu
+// trực tiếp biến `api` ở đây. Lấy instance đã đăng ký trong runtime context.
+export const getGlobalApi = () => getRuntimeMainApi() || globalThis.__NGH_V2_API_CONTEXTS__?.values().next().value?.apiZalo;
 
 export function setupBotListeners(api) {
   const MAX_CONCURRENT_MESSAGES = 6;

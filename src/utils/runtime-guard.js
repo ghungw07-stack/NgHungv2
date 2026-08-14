@@ -12,6 +12,10 @@ export function setRuntimeMainApi(api) {
   mainApi = api || null;
 }
 
+export function getRuntimeMainApi() {
+  return mainApi;
+}
+
 function normalizeError(error) {
   return {
     message: error?.message || String(error),
