@@ -59,7 +59,7 @@ const SYMBOL_ICON_NAME = Object.fromEntries(Object.values(SYMBOLS).map((s) => [s
 const MAX_JACKPOT_MULTIPLIER = 1000;
 const JACKPOT_CONTRIBUTION_PERCENT = 0.6;
 const JACKPOT_CHANCE = 0.07;
-const HOUSE_BIAS_CHANCE = 0.65;
+const HOUSE_BIAS_CHANCE = 0.45;
 
 // Thêm hàm khởi tạo dữ liệu
 export async function initializeGameBauCua() {

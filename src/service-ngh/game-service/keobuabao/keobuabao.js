@@ -170,11 +170,11 @@ function normalizeChoice(choice) {
 function randomChoice(playerChoice) {
   const rand = Math.random() * 100;
   
-  if (rand < 35) {
-    // 35% thua - trả về lựa chọn thắng playerChoice
+  if (rand < 45) {
+    // 45% thua - trả về lựa chọn thắng playerChoice
     return Object.values(CHOICES).find(choice => choice.beats === playerChoice.key);
   } else if (rand < 70) {
-    // 35% hòa - trả về cùng lựa chọn với player
+    // 25% hòa - trả về cùng lựa chọn với player
     return playerChoice;
   } else {
     // 30% thắng - trả về lựa chọn thua playerChoice

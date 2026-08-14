@@ -1,4 +1,3 @@
-import { sendReactionConfirmReceive } from "../../../commands/command.js";
 import { isAdmin } from "../../../index.js";
 import { removeMention } from "../../../utils/format-util.js";
 import { sendMessageComplete, sendMessageFromSQL } from "../../chat-zalo/chat-style/chat-style.js";
@@ -189,8 +188,6 @@ export async function handleMiniGameCommand(api, message, groupSettings, gameTyp
   const isGameAiLaTrieuPhu = gameType === gameTypeAiLaTrieuPhu;
   const isGameCauCa = gameType === gameTypeCauCa;
   if (isAdminLevelHighest || groupSettings[threadId]?.activeGame) {
-    await sendReactionConfirmReceive(api, message, 5);
-
     if (isGameCaro) {
       if (command === "rank" || command === "top" || command === "bxh") {
         await showDetailedRankCaro(api, message);

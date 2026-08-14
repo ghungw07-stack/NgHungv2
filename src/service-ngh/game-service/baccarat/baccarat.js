@@ -12,7 +12,7 @@ import Big from "big.js";
 const GAME_DURATION = 30000;
 const WARNING_TIME = 10000;
 const MAX_HISTORY = 90;
-const HOUSE_BIAS_CHANCE = 0.65;
+const HOUSE_BIAS_CHANCE = 0.45;
 
 // Lưu trữ các game đang diễn ra theo threadId
 const activeGames = {};
@@ -329,7 +329,7 @@ export async function handleBaccaratBet(api, message, groupSettings) {
       
       const warnMsg = `⚜️ ThuHoa Bot Team ⚜️\n⏳ BACCARAT còn 10 giây nữa là chốt cược!\nCon (Player): ${conStr.length ? conStr.join(', ') : 'chưa ai đặt'}\nCái (Banker): ${caiStr.length ? caiStr.join(', ') : 'chưa ai đặt'}\nHòa (Tie): ${hoaStr.length ? hoaStr.join(', ') : 'chưa ai đặt'}\n\n👉 Ai chưa đặt thì nhanh tay: ${prefix}bcr con / cái / hòa + tiền cược.`;
       
-      sendMessageFromSQL(api, message, { success: true, message: warnMsg }, false, 20000).catch(console.error);
+      sendMessageFromSQL(api, message, { success: true, message: warnMsg }, false, 20000, false).catch(console.error);
     }, GAME_DURATION - WARNING_TIME);
 
     // Cài đặt chốt kết quả
@@ -358,18 +358,18 @@ async function endBaccaratGame(api, message, threadId) {
   const game = activeGames[threadId];
   delete activeGames[threadId];
   if (!game) return;
+  api.addReaction("UNDO", [message]).catch(() => {});
 
   // 65% phiên ưu tiên cửa có tổng nghĩa vụ trả thưởng thấp nhất; 35% còn lại
   // chia bài hoàn toàn ngẫu nhiên theo đúng luật Baccarat.
   const { player, banker, pScore, bScore, resultDoor } = dealBaccaratForBets(game.players);
   await addRecentResult(api, threadId, resultDoor).catch((error) => console.error("Lỗi lưu cầu Baccarat:", error));
 
-  let resultMsg = `⚜️ KẾT QUẢ BACCARAT ⚜️\n\n`;
-  resultMsg += `🤵 Player (Con): ${player.map(c => c.str).join(' ')} ➜ ${pScore} điểm\n`;
-  resultMsg += `🏦 Banker (Cái): ${banker.map(c => c.str).join(' ')} ➜ ${bScore} điểm\n\n`;
-  resultMsg += `🏆 Thắng: Cửa ${resultDoor.toUpperCase()}\n\n`;
-  
-  resultMsg += `💰 Bảng thanh toán:\n`;
+  const natural = player.length === 2 && banker.length === 2 && (pScore >= 8 || bScore >= 8);
+  const winnerLabel = resultDoor === "con" ? "Con (Player)" : resultDoor === "cái" ? "Cái (Banker)" : "Hòa (Tie)";
+  let resultMsg = `🎴 KẾT QUẢ BACCARAT\n`;
+  resultMsg += `Con: ${pScore} điểm | Cái: ${bScore} điểm\n`;
+  resultMsg += `➡️ ${winnerLabel} ${resultDoor === "hòa" ? "KẾT QUẢ HÒA" : "THẮNG"}${natural ? " (natural)" : ""}\n\n`;
 
   let winners = [];
   let losers = [];
@@ -382,13 +382,13 @@ async function endBaccaratGame(api, message, threadId) {
       else if (resultDoor === 'hòa') winAmount = p.amount.times(8); // Trả cả gốc + lời 7
       
       await updatePlayerBalanceByUsername(p.username, winAmount);
-      winners.push(`${p.name}: +${formatCurrency(winAmount.minus(p.amount))}`);
+      winners.push(`${p.name} (${p.door === "con" ? "Con (Player)" : p.door === "cái" ? "Cái (Banker)" : "Hòa (Tie)"}): thắng +${formatCurrency(winAmount.minus(p.amount))}`);
     } else if (resultDoor === 'hòa') {
       // Nếu kết quả là hòa, những ai cược con hoặc cái sẽ được hoàn tiền
       await updatePlayerBalanceByUsername(p.username, p.amount);
-      losers.push(`${p.name}: Hoàn tiền cược ${formatCurrency(p.amount)}`);
+      losers.push(`${p.name}: hòa, hoàn ${formatCurrency(p.amount)}`);
     } else {
-      losers.push(`${p.name}: -${formatCurrency(p.amount)}`);
+      losers.push(`${p.name} (${p.door === "con" ? "Con (Player)" : p.door === "cái" ? "Cái (Banker)" : "Hòa (Tie)"}): thua -${formatCurrency(p.amount)}`);
     }
   }
 

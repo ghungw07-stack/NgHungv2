@@ -46,7 +46,7 @@ const TTL_IMAGE = 10800000;
 const WIN_PERCENT = 1000; // x1000
 const NORMAL_PAYOUT_MULTIPLIER = 1.9; // Trả cả gốc, nhà cái giữ lợi thế 5%
 const JACKPOT_CHANCE = 0.07;
-const HOUSE_BIAS_CHANCE = 0.65;
+const HOUSE_BIAS_CHANCE = 0.45;
 
 // Thêm biến lưu lịch sử kết quả (giới hạn 15 kết quả gần nhất)
 const MAX_HISTORY = 20;

@@ -11,6 +11,7 @@ const TIERS = [
   { key: "emerald", name: "LỤC BẢO", min: "200000", color: "#50c878", deep: "#187a38", dark: "#0a2612", glow: "rgba(80,200,120,0.30)", daily: "30000000000", sendLimit: "1200000000000", receiveLimit: "300000000000" },
   { key: "ruby", name: "HỒNG NGỌC", min: "500000", color: "#ff7388", deep: "#971d45", dark: "#290b18", glow: "rgba(255,115,136,0.30)", daily: "90000000000", sendLimit: "3600000000000", receiveLimit: "800000000000" },
   { key: "diamond", name: "KIM CƯƠNG", min: "1000000", color: "#70d3ff", deep: "#3159ad", dark: "#0a1530", glow: "rgba(112,211,255,0.30)", daily: "200000000000", sendLimit: "8000000000000", receiveLimit: "1800000000000" },
+  { key: "gold_dragon", name: "KIM LONG", min: "2000000", color: "#ffd45a", deep: "#a86408", dark: "#211204", glow: "rgba(255,212,90,0.38)", daily: "500000000000", sendLimit: "20000000000000", receiveLimit: "5000000000000" },
 ];
 
 const KIM_LONG_DRAGON_PATH = path.resolve("./assets/resources/game/kim-long-dragon.png");
@@ -84,6 +85,24 @@ export function getGameTierByName(input) {
     kimlong: "gold_dragon", gold_dragon: "gold_dragon", golddragon: "gold_dragon",
   };
   return TIERS.find((tier) => tier.key === aliases[normalized]) || null;
+}
+
+/** Danh hiệu cá nhân suy ra từ lịch sử chơi, không gắn cứng với hạng tài sản. */
+export function getPlayerTitle(playerInfo = {}) {
+  const games = Math.max(0, Number(playerInfo.totalGames) || 0);
+  const wins = Math.max(0, Number(playerInfo.totalWinGames) || 0);
+  const winRate = games ? (wins / games) * 100 : Number(playerInfo.winRate) || 0;
+  const winnings = Number(playerInfo.totalWinnings) || 0;
+  const losses = Math.abs(Number(playerInfo.totalLosses) || 0);
+  const netProfit = Number(playerInfo.netProfit) || winnings - losses;
+
+  if (games >= 50 && winRate >= 65 && netProfit > 0) return "CON NHÀ CÁI";
+  if (games >= 30 && winRate >= 55 && netProfit > 0) return "ĐỌC VỊ NHÀ CÁI";
+  if (winnings >= 1000000000 && netProfit > 0) return "THỢ SĂN LỢI NHUẬN";
+  if (games >= 100 && netProfit > 0) return "TAY CHƠI BỀN BỈ";
+  if (games >= 20 && netProfit > 0) return "KẺ SĂN KÈO";
+  if (games >= 10 && winRate >= 50) return "DÂN CHƠI CÓ SỐ";
+  return "NGƯỜI CHƠI MỚI";
 }
 
 function roundedRect(ctx, x, y, width, height, radius) {
@@ -460,7 +479,7 @@ export async function createGameRankImage(players, title = "BẢNG XẾP HẠNG 
     ctx.fillStyle = tier.color;
     ctx.beginPath(); ctx.arc(198, y + 63, 4, 0, Math.PI * 2); ctx.fill();
     ctx.font = `bold 12px ${FONT_MAIN}`;
-    ctx.fillText(tier.key === "gold_dragon" ? `KIM LONG  •  LONG VƯƠNG` : `HẠNG ${tier.name}`, 208, y + 64);
+    ctx.fillText(`HẠNG ${tier.name}`, 208, y + 64);
 
     ctx.textAlign = "right";
     ctx.fillStyle = "rgba(255,255,255,0.48)";
@@ -558,7 +577,7 @@ export async function createGamePlayerCard(playerInfo) {
   }
   ctx.fillStyle = tier.color;
   ctx.font = `bold 14px ${FONT_MAIN}`;
-  ctx.fillText(tier.key === "gold_dragon" ? "LONG VƯƠNG TÀI PHÚ" : `HẠNG ${tier.name}`, 186, 636);
+  ctx.fillText(getPlayerTitle(playerInfo), 186, 636);
 
   const rightX = 374;
   ctx.textAlign = "left";
@@ -616,7 +635,7 @@ export async function createGamePlayerCard(playerInfo) {
   ctx.textAlign = "right";
   ctx.fillStyle = tier.color;
   ctx.font = `bold 15px ${FONT_MAIN}`;
-  ctx.fillText(tier.key === "gold_dragon" ? "KIM LONG • ĐỈNH CAO TÀI PHÚ" : `${tier.name} • CHINH PHỤC HẠNG TIẾP THEO`, 1002, 650);
+  ctx.fillText(`${getPlayerTitle(playerInfo)} • ${tier.name}`, 1002, 650);
 
   const filePath = path.resolve(`./assets/temp/game_mycard_${Date.now()}.png`);
   await writeFilePromise(filePath, canvas.toBuffer());

@@ -62,7 +62,7 @@ const WINNING_MULTIPLIER = 1.9; // Tỷ lệ tiền thắng cược
 const MIN_JACKPOT_PERCENT = 0.0001; // 0.01% của hũ
 const MAX_JACKPOT_MULTIPLIER = 1000; // Giới hạn 1000% tiền cược (x10 thành x1000)
 const JACKPOT_CHANCE = 0.07;
-const HOUSE_BIAS_CHANCE = 0.65;
+const HOUSE_BIAS_CHANCE = 0.45;
 const TTL_IMAGE = 10800000;
 
 function getRandomJackpotContribution() {

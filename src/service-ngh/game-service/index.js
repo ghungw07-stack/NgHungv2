@@ -30,7 +30,6 @@ import * as cv from "../../utils/canvas/index.js";
 import { isAdmin, isBotLeader } from "../../index.js";
 import { getGlobalPrefix } from "../service.js";
 import { formatBigNumber, formatCurrency, parseGameAmount, removeMention } from "../../utils/format-util.js";
-import { sendReactionConfirmReceive } from "../../commands/command.js";
 
 export async function checkBeforeJoinGame(api, message, groupSettings, checkLogin = true) {
   const threadId = message.threadId;
@@ -80,7 +79,6 @@ export async function checkBeforeJoinGame(api, message, groupSettings, checkLogi
     }
   }
 
-  await sendReactionConfirmReceive(api, message, 5);
   return true;
 }
 

@@ -470,7 +470,7 @@ export async function sendMessageResultRequest(
   }
 }
 
-export async function sendMessageFromSQL(api, message, result, hasState = true, ttl = 0) {
+export async function sendMessageFromSQL(api, message, result, hasState = true, ttl = 0, mentionSender = true) {
   try {
     const threadId = message.threadId;
     const senderId = message.data.uidFrom;
@@ -495,9 +495,9 @@ export async function sendMessageFromSQL(api, message, result, hasState = true, 
     return await api.sendMessage(
       {
         msg: msg,
-        mentions: [{ pos: 0, uid: senderId, len: senderName.length }],
+        ...(mentionSender ? { mentions: [{ pos: 0, uid: senderId, len: senderName.length }] } : {}),
         style: style,
-        quote: message,
+        ...(mentionSender ? { quote: message } : {}),
         linkOn: false,
         ttl: ttl,
       },
