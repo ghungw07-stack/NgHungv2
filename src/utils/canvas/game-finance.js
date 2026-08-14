@@ -12,9 +12,11 @@ const TIERS = [
   { key: "ruby", name: "HỒNG NGỌC", min: "500000", color: "#ff7388", deep: "#971d45", dark: "#290b18", glow: "rgba(255,115,136,0.30)", daily: "90000000000", sendLimit: "3600000000000", receiveLimit: "800000000000" },
   { key: "diamond", name: "KIM CƯƠNG", min: "1000000", color: "#70d3ff", deep: "#3159ad", dark: "#0a1530", glow: "rgba(112,211,255,0.30)", daily: "200000000000", sendLimit: "8000000000000", receiveLimit: "1800000000000" },
   { key: "gold_dragon", name: "KIM LONG", min: "2000000", color: "#ffd45a", deep: "#a86408", dark: "#211204", glow: "rgba(255,212,90,0.38)", daily: "500000000000", sendLimit: "20000000000000", receiveLimit: "5000000000000" },
+  { key: "angel", name: "MỸ NHÂN", min: "2500000", color: "#ffa3d1", deep: "#a84576", dark: "#2e0f1d", glow: "rgba(255,163,209,0.38)", daily: "500000000000", sendLimit: "20000000000000", receiveLimit: "5000000000000" },
 ];
 
 const KIM_LONG_DRAGON_PATH = path.resolve("./assets/resources/game/kim-long-dragon.png");
+const MY_NHAN_BG_PATH = path.resolve("./assets/resources/game/my-nhan-bg.jpg");
 
 function drawDragonArtwork(ctx, image, x, y, width, height, alpha = 0.32) {
   if (!image) return;
@@ -406,10 +408,48 @@ export async function createGameRankImage(players, title = "BẢNG XẾP HẠNG 
   const topTier = getGameTier(players[0]?.rankPoints || 0);
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext("2d");
-  drawBackground(ctx, width, height, topTier);
+  
+  // Background Global Premium Style
+  ctx.fillStyle = "#0A0A0C"; 
+  ctx.fillRect(0, 0, width, height);
+  
+  ctx.save();
+  const bgGrad = ctx.createLinearGradient(0, 0, width, height);
+  bgGrad.addColorStop(0, "#080B10");
+  bgGrad.addColorStop(1, "#030406");
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, width, height);
 
-  // Header kiểu bảng tài phú trong ảnh mẫu.
-  drawPanel(ctx, 30, 24, 840, 108, topTier, true);
+  const drawOrb = (x, y, r, alpha, color) => {
+    const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
+    grad.addColorStop(0, `${color}${Math.round(alpha*255).toString(16).padStart(2,'0')}`);
+    grad.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, width, height);
+  };
+  
+  drawOrb(width * 0.2, height * 0.1, width * 0.7, 0.2, topTier.color);
+  drawOrb(width * 0.8, height * 0.9, width * 0.7, 0.15, topTier.color);
+
+  ctx.fillStyle = "rgba(255, 255, 255, 0.015)";
+  for (let i = 0; i < width; i += 4) {
+    for (let j = 0; j < height; j += 4) {
+      if (Math.random() > 0.5) ctx.fillRect(i, j, 2, 2);
+    }
+  }
+  ctx.restore();
+
+  // Header
+  ctx.save();
+  ctx.beginPath();
+  roundedRect(ctx, 30, 24, 840, 108, 20);
+  ctx.fillStyle = "rgba(20, 22, 28, 0.65)";
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.1)";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.restore();
+
   ctx.textBaseline = "middle";
   ctx.strokeStyle = topTier.color;
   ctx.lineWidth = 4;
@@ -431,31 +471,99 @@ export async function createGameRankImage(players, title = "BẢNG XẾP HẠNG 
   ctx.fillText(new Date().toLocaleDateString("vi-VN"), 838, 84);
 
   const topTen = players.slice(0, 10);
-  const [avatars, dragonImage] = await Promise.all([
+  const [avatars, dragonImage, beautyImage] = await Promise.all([
     Promise.all(topTen.map((player) => safeLoadImage(player.avatar))),
     topTen.some((player) => getGameTier(player.rankPoints).key === "gold_dragon") || getGameTier(viewer?.rankPoints).key === "gold_dragon"
       ? safeLoadImage(KIM_LONG_DRAGON_PATH)
       : null,
+    topTen.some((player) => getGameTier(player.rankPoints).key === "angel") || getGameTier(viewer?.rankPoints).key === "angel"
+      ? safeLoadImage(MY_NHAN_BG_PATH)
+      : null,
   ]);
+  
   const rowX = 42;
   const rowWidth = 816;
   const rowHeight = 86;
   const rowGap = 12;
-  topTen.forEach((player, index) => {
+
+  const drawRow = (ctx, y, player, index, avatar, isViewer = false) => {
     const tier = getGameTier(player.rankPoints);
-    const y = 154 + index * (rowHeight + rowGap);
-    drawPanel(ctx, rowX, y, rowWidth, rowHeight, tier, index < 3 || tier.key === "gold_dragon");
+    const isPremium = ["emerald", "ruby", "diamond", "angel"].includes(tier.key);
+    const isDragon = tier.key === "gold_dragon";
+    
+    ctx.save();
+    ctx.beginPath();
+    roundedRect(ctx, rowX, y, rowWidth, rowHeight, 20);
 
-    // Dải màu riêng theo hạng, Kim Long có đầu rồng lớn làm watermark.
-    const wash = ctx.createLinearGradient(rowX, y, rowX + rowWidth, y);
-    wash.addColorStop(0, `${tier.color}${index < 3 ? "22" : "10"}`);
-    wash.addColorStop(0.62, "rgba(0,0,0,0)");
-    wash.addColorStop(1, `${tier.color}0d`);
-    roundedRect(ctx, rowX, y, rowWidth, rowHeight, 16);
-    ctx.fillStyle = wash;
-    ctx.fill();
-    if (tier.key === "gold_dragon") drawDragonRankBackground(ctx, dragonImage, rowX, y, rowWidth, rowHeight);
+    // Nền row
+    if (tier.key === "angel") {
+      ctx.fillStyle = "rgba(20, 22, 28, 0.85)";
+      ctx.fill();
+      ctx.clip();
+      if (beautyImage) {
+        ctx.globalAlpha = 0.5;
+        const sh = rowWidth * (beautyImage.height/beautyImage.width);
+        ctx.drawImage(beautyImage, rowX, y - sh/2 + rowHeight/2, rowWidth, sh);
+        ctx.globalAlpha = 1;
+      }
+      const wash = ctx.createLinearGradient(rowX, y, rowX + rowWidth, y);
+      wash.addColorStop(0, `${tier.color}66`);
+      wash.addColorStop(0.5, "rgba(0,0,0,0.2)");
+      wash.addColorStop(1, `${tier.color}22`);
+      ctx.fillStyle = wash;
+      ctx.fill();
+      ctx.shadowColor = tier.color;
+      ctx.shadowBlur = 15;
+      ctx.strokeStyle = `${tier.color}AA`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    } else if (isPremium) {
+      ctx.fillStyle = "rgba(20, 22, 28, 0.75)";
+      ctx.fill();
+      const wash = ctx.createLinearGradient(rowX, y, rowX + rowWidth, y);
+      wash.addColorStop(0, `${tier.color}33`);
+      wash.addColorStop(0.5, "rgba(0,0,0,0)");
+      wash.addColorStop(1, `${tier.color}11`);
+      ctx.fillStyle = wash;
+      ctx.fill();
+      
+      // Viền Neon Aurora
+      ctx.shadowColor = tier.color;
+      ctx.shadowBlur = 15;
+      ctx.strokeStyle = tier.color;
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+    } else if (isDragon) {
+      ctx.fillStyle = "rgba(10, 10, 12, 0.85)";
+      ctx.fill();
+      ctx.clip();
+      if (dragonImage) {
+        ctx.globalAlpha = 0.4;
+        ctx.drawImage(dragonImage, rowX, y - rowHeight, rowWidth, rowWidth * (dragonImage.height/dragonImage.width));
+        ctx.globalAlpha = 1;
+      }
+      ctx.shadowColor = tier.color;
+      ctx.shadowBlur = 15;
+      ctx.strokeStyle = `${tier.color}AA`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = "rgba(25, 27, 33, 0.65)";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      if (index < 3) {
+        ctx.shadowColor = tier.color;
+        ctx.shadowBlur = 10;
+        ctx.strokeStyle = `${tier.color}88`;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
 
+    // Số hạng
     ctx.textAlign = "center";
     ctx.beginPath();
     ctx.arc(82, y + rowHeight / 2, 25, 0, Math.PI * 2);
@@ -466,39 +574,93 @@ export async function createGameRankImage(players, title = "BẢNG XẾP HẠNG 
     ctx.stroke();
     ctx.fillStyle = index === 0 ? tier.color : "#ffffff";
     ctx.font = `bold 18px ${FONT_MAIN}`;
-    ctx.fillText(String(player.rank || index + 1), 82, y + 44);
+    ctx.fillText(String(player.rank || (isViewer ? "–" : index + 1)), 82, y + 44);
 
-    drawAvatar(ctx, avatars[index], 143, y + 43, 62, tier.color);
+    // Avatar
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(143, y + 43, 31, 0, Math.PI * 2);
+    ctx.clip();
+    if (avatar) ctx.drawImage(avatar, 143 - 31, y + 43 - 31, 62, 62);
+    ctx.restore();
+    ctx.beginPath();
+    ctx.arc(143, y + 43, 33, 0, Math.PI * 2);
+    ctx.strokeStyle = tier.color;
+    ctx.lineWidth = 2;
+    if (isPremium || isDragon) {
+      ctx.save();
+      ctx.shadowColor = tier.color;
+      ctx.shadowBlur = 10;
+      ctx.stroke();
+      ctx.restore();
+    } else {
+      ctx.stroke();
+    }
+
+    // Tên
     ctx.textAlign = "left";
     ctx.fillStyle = "#ffffff";
     ctx.font = fitFont(ctx, player.playerName || "Người chơi", 355, 25, 16);
     ctx.fillText(player.playerName || "Người chơi", 187, y + 30);
-    roundedRect(ctx, 187, y + 52, Math.max(112, ctx.measureText(tier.name).width + 42), 23, 7);
-    ctx.fillStyle = "rgba(3,6,10,0.72)";
-    ctx.fill();
-    ctx.fillStyle = tier.color;
-    ctx.beginPath(); ctx.arc(198, y + 63, 4, 0, Math.PI * 2); ctx.fill();
-    ctx.font = `bold 12px ${FONT_MAIN}`;
-    ctx.fillText(`HẠNG ${tier.name}`, 208, y + 64);
+    
+    // Badge danh hiệu
+    const titleText = `${tier.name.toUpperCase()} • ${getPlayerTitle(player)}`;
+    ctx.font = fitFont(ctx, titleText, 300, 13, 9);
+    const badgeW = ctx.measureText(titleText).width + 24;
+    roundedRect(ctx, 187, y + 52, badgeW, 23, 11);
+    if (isPremium) {
+      ctx.fillStyle = `${tier.color}33`;
+      ctx.fill();
+      ctx.strokeStyle = `${tier.color}`;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = tier.color;
+    } else {
+      ctx.fillStyle = "rgba(3,6,10,0.72)";
+      ctx.fill();
+      ctx.fillStyle = tier.color;
+    }
+    ctx.fillText(titleText, 199, y + 64);
 
+    // Tài sản
     ctx.textAlign = "right";
     ctx.fillStyle = "rgba(255,255,255,0.48)";
     ctx.font = `bold 11px ${FONT_MAIN}`;
     ctx.fillText("TÀI SẢN", 826, y + 24);
     ctx.fillStyle = tier.color;
     ctx.font = fitFont(ctx, compactMoney(player.balance), 245, 28, 10);
-    ctx.fillText(compactMoney(player.balance), 826, y + 57);
+    if (isPremium || isDragon) {
+      ctx.save();
+      ctx.shadowColor = tier.color;
+      ctx.shadowBlur = 10;
+      ctx.fillText(compactMoney(player.balance), 826, y + 57);
+      ctx.restore();
+    } else {
+      ctx.fillText(compactMoney(player.balance), 826, y + 57);
+    }
+  };
+
+  topTen.forEach((player, index) => {
+    const y = 154 + index * (rowHeight + rowGap);
+    drawRow(ctx, y, player, index, avatars[index], false);
   });
 
   if (topTen.length === 0) {
-    drawPanel(ctx, 42, 170, 816, 180, TIERS[0]);
+    ctx.save();
+    ctx.beginPath();
+    roundedRect(ctx, 42, 170, 816, 180, 20);
+    ctx.fillStyle = "rgba(20,22,28,0.65)";
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,0.1)";
+    ctx.stroke();
     ctx.fillStyle = "rgba(255,255,255,0.55)";
     ctx.textAlign = "center";
     ctx.font = `bold 23px ${FONT_MAIN}`;
     ctx.fillText("CHƯA CÓ DỮ LIỆU XẾP HẠNG", width / 2, 260);
+    ctx.restore();
   }
 
-  // Vị trí của người gọi lệnh, giống phần cuối ảnh mẫu.
+  // Vị trí của người gọi lệnh
   const viewerY = 1167;
   ctx.strokeStyle = `${(viewer ? getGameTier(viewer.rankPoints) : topTier).color}70`;
   ctx.lineWidth = 1;
@@ -509,133 +671,352 @@ export async function createGameRankImage(players, title = "BẢNG XẾP HẠNG 
   ctx.fillText("VỊ TRÍ CỦA BẠN", width / 2, viewerY);
 
   if (viewer) {
-    const tier = getGameTier(viewer.rankPoints);
     const viewerAvatar = await safeLoadImage(viewer.avatar);
-    const y = 1192;
-    drawPanel(ctx, 42, y, 816, 92, tier, true);
-    if (tier.key === "gold_dragon") drawDragonRankBackground(ctx, dragonImage, 42, y, 816, 92);
-    ctx.textAlign = "center";
-    ctx.beginPath(); ctx.arc(82, y + 46, 26, 0, Math.PI * 2); ctx.fillStyle = "rgba(3,7,10,0.80)"; ctx.fill();
-    ctx.strokeStyle = tier.color; ctx.lineWidth = 2; ctx.stroke();
-    ctx.fillStyle = tier.color; ctx.font = `bold 16px ${FONT_MAIN}`; ctx.fillText(String(viewer.rank || "–"), 82, y + 47);
-    drawAvatar(ctx, viewerAvatar, 145, y + 46, 64, tier.color);
-    ctx.textAlign = "left";
-    ctx.fillStyle = "#ffffff"; ctx.font = fitFont(ctx, viewer.playerName || "Người chơi", 360, 24, 16);
-    ctx.fillText(viewer.playerName || "Người chơi", 190, y + 33);
-    ctx.fillStyle = tier.color; ctx.font = `bold 12px ${FONT_MAIN}`; ctx.fillText(`HẠNG ${tier.name}`, 190, y + 66);
-    ctx.textAlign = "right";
-    ctx.fillStyle = "rgba(255,255,255,0.46)"; ctx.font = `bold 11px ${FONT_MAIN}`; ctx.fillText("TÀI SẢN", 826, y + 30);
-    ctx.fillStyle = tier.color; ctx.font = fitFont(ctx, compactMoney(viewer.balance), 245, 27, 10); ctx.fillText(compactMoney(viewer.balance), 826, y + 62);
+    drawRow(ctx, 1192, viewer, 0, viewerAvatar, true);
   }
 
   ctx.textAlign = "center";
   ctx.fillStyle = "rgba(255,255,255,0.28)";
   ctx.font = `bold 11px ${FONT_MAIN}`;
-  ctx.fillText("BẠC  •  VÀNG  •  BẠCH KIM  •  KIM CƯƠNG  •  HỒNG NGỌC  •  KIM LONG", width / 2, 1310);
+  ctx.fillText("LỤC BẢO  •  HỒNG NGỌC  •  KIM CƯƠNG  •  KIM LONG", width / 2, 1310);
 
   const filePath = path.resolve(`./assets/temp/game_rank_${Date.now()}.png`);
   await writeFilePromise(filePath, canvas.toBuffer());
   return filePath;
 }
-
 export async function createGamePlayerCard(playerInfo) {
-  const width = 1080;
-  const height = 720;
+  const W = 1100;
+  const H = 720;
   const tier = getGameTier(playerInfo.rankPoints);
-  const dragonImage = tier.key === "gold_dragon" ? await safeLoadImage(KIM_LONG_DRAGON_PATH) : null;
-  const canvas = createCanvas(width, height);
+  const { nextTier, progress: tierProgress } = getGameTierProgress(playerInfo.rankPoints);
+  const isDragon = tier.key === "gold_dragon";
+  const isPremium = ["emerald", "ruby", "diamond", "angel"].includes(tier.key);
+  
+  const dragonImage = isDragon ? await safeLoadImage(KIM_LONG_DRAGON_PATH) : null;
+  const beautyImage = tier.key === "angel" ? await safeLoadImage(MY_NHAN_BG_PATH) : null;
+  const canvas = createCanvas(W, H);
   const ctx = canvas.getContext("2d");
-  drawBackground(ctx, width, height, tier);
-  drawPanel(ctx, 36, 36, 1008, 648, tier, true);
-  if (tier.key === "gold_dragon") drawDragonArtwork(ctx, dragonImage, 654, 62, 360, 222, 0.18);
-
-  ctx.strokeStyle = `${tier.color}3d`;
-  ctx.beginPath();
-  ctx.moveTo(336, 36);
-  ctx.lineTo(336, 684);
-  ctx.stroke();
-
-  const avatar = await safeLoadImage(playerInfo.avatarFull || playerInfo.avatar);
-  drawAvatar(ctx, avatar, 186, 158, 148, tier.color);
-  ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillStyle = tier.color;
-  ctx.font = `bold 14px ${FONT_MAIN}`;
-  ctx.fillText("THÔNG TIN NGƯỜI CHƠI", 186, 263);
-  ctx.fillStyle = "#ffffff";
-  ctx.font = fitFont(ctx, playerInfo.playerName || "Người chơi", 260, 27, 18);
-  ctx.fillText(playerInfo.playerName || "Người chơi", 186, 304);
-  drawTierBadge(ctx, tier, 115, 336, 142, 32);
-  ctx.fillStyle = "rgba(255,255,255,0.42)";
-  ctx.font = `bold 12px ${FONT_MAIN}`;
-  ctx.fillText(`THAM GIA • ${playerInfo.registrationTime || "N/A"}`, 186, 397);
-  if (tier.key === "gold_dragon") drawDragonArtwork(ctx, dragonImage, 58, 447, 256, 158, 0.54);
-  else {
-    ctx.fillStyle = `${tier.color}24`;
-    ctx.font = `bold 112px ${FONT_MAIN}`;
-    ctx.fillText(tier.name.slice(0, 1), 186, 543);
+
+  // NỀN CƠ BẢN
+  ctx.fillStyle = "#0A0A0C"; 
+  ctx.fillRect(0, 0, W, H);
+
+  // BACKGROUND
+  if (isDragon && dragonImage) {
+    ctx.save();
+    const scale = Math.max(W / dragonImage.width, H / dragonImage.height) * 1.2;
+    const dw = dragonImage.width * scale;
+    const dh = dragonImage.height * scale;
+    const dx = (W - dw) / 2;
+    const dy = (H - dh) / 2;
+    ctx.globalAlpha = 0.5;
+    ctx.drawImage(dragonImage, dx, dy, dw, dh);
+    ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+  } else if (tier.key === "angel" && beautyImage) {
+    ctx.save();
+    const isW = typeof W !== 'undefined' ? W : width;
+    const isH = typeof H !== 'undefined' ? H : height;
+    const scale = Math.max(isW / beautyImage.width, isH / beautyImage.height);
+    const dw = beautyImage.width * scale;
+    const dh = beautyImage.height * scale;
+    const dx = (isW - dw) / 2;
+    const dy = (isH - dh) / 2;
+    ctx.globalAlpha = 0.55;
+    ctx.drawImage(beautyImage, dx, dy, dw, dh);
+    ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+    ctx.fillRect(0, 0, isW, isH);
+    ctx.restore();
+  } else if (isPremium) {
+    // Premium Aurora Background
+    ctx.save();
+    const bgGrad = ctx.createLinearGradient(0, 0, W, H);
+    bgGrad.addColorStop(0, "#080B10");
+    bgGrad.addColorStop(1, "#030406");
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, W, H);
+
+    // Aurora Orbs
+    const drawOrb = (x, y, r, alpha) => {
+      const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
+      grad.addColorStop(0, `${tier.color}${Math.round(alpha*255).toString(16).padStart(2,'0')}`);
+      grad.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, W, H);
+    };
+    
+    // Smooth blended lights
+    drawOrb(W * 0.1, H * 0.2, W * 0.5, 0.25);
+    drawOrb(W * 0.9, H * 0.8, W * 0.6, 0.15);
+    drawOrb(W * 0.5, H * 0.5, W * 0.8, 0.08);
+
+    // Subtle noise texture overlay
+    ctx.fillStyle = "rgba(255, 255, 255, 0.015)";
+    for (let i = 0; i < W; i += 4) {
+      for (let j = 0; j < H; j += 4) {
+        if (Math.random() > 0.5) ctx.fillRect(i, j, 2, 2);
+      }
+    }
+    ctx.restore();
+  } else {
+    const bgGlow = ctx.createRadialGradient(W * 0.5, H * 0.5, 0, W * 0.5, H * 0.5, W * 0.7);
+    bgGlow.addColorStop(0, `${tier.color}15`);
+    bgGlow.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = bgGlow;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // HÀM VẼ THẺ KÍNH (Glassmorphism)
+  const drawCardBg = (x, y, w, h) => {
+    ctx.save();
+    ctx.beginPath();
+    roundedRect(ctx, x, y, w, h, 28);
+    
+    if (isPremium) {
+      // Elegant Frosted Glass
+      ctx.fillStyle = "rgba(20, 22, 28, 0.65)";
+      ctx.fill();
+      
+      // Viền glow mỏng cao cấp
+      ctx.shadowColor = tier.color;
+      ctx.shadowBlur = 20;
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.15)";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    } else if (isDragon) {
+      ctx.fillStyle = "rgba(10, 10, 12, 0.65)";
+      ctx.fill();
+      ctx.shadowColor = tier.color;
+      ctx.shadowBlur = 15;
+      ctx.strokeStyle = `${tier.color}AA`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    } else {
+      ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+      ctx.shadowBlur = 20;
+      ctx.fillStyle = "#1C1C1E";
+      ctx.fill();
+    }
+    ctx.restore();
+  };
+
+  const textPrimary = "#FFFFFF";
+  const textSecondary = "#EBEBF599"; 
+  const pad = 40;
+  
+  // 2. PROFILE CARD
+  const leftW = 350;
+  const leftH = H - pad * 2;
+  const lX = pad;
+  const lY = pad;
+
+  drawCardBg(lX, lY, leftW, leftH);
+
+  const avX = lX + leftW / 2;
+  const avY = lY + 140;
+  const avR = 85;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(avX, avY, avR, 0, Math.PI * 2);
+  ctx.clip();
+  const avatar = await safeLoadImage(playerInfo.avatarFull || playerInfo.avatar);
+  ctx.drawImage(avatar, avX - avR, avY - avR, avR * 2, avR * 2);
+  ctx.restore();
+
+  // Viền avatar (Đẹp, thanh lịch)
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(avX, avY, avR + 6, 0, Math.PI * 2);
+  ctx.strokeStyle = tier.color;
+  ctx.lineWidth = 3;
+  if (isPremium || isDragon) {
+    ctx.shadowColor = tier.color;
+    ctx.shadowBlur = 15;
+  }
+  ctx.stroke();
+  
+  // Viền siêu mỏng lót trong
+  if (isPremium) {
+    ctx.beginPath();
+    ctx.arc(avX, avY, avR + 2, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(255,255,255,0.3)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // Name
+  ctx.textAlign = "center";
+  ctx.fillStyle = textPrimary;
+  ctx.font = `bold 30px ${FONT_MAIN}`;
+  ctx.fillText(playerInfo.playerName || "Player", avX, avY + 140);
+
+  // Tier Badge
+  const title = getPlayerTitle(playerInfo);
+  const badgeText = `${tier.name.toUpperCase()} • ${title}`;
+  ctx.font = `bold 13px ${FONT_MAIN}`;
+  const badgeW = ctx.measureText(badgeText).width + 36;
+  const badgeH = 34;
+  
+  roundedRect(ctx, avX - badgeW / 2, avY + 180, badgeW, badgeH, badgeH / 2);
+  if (isPremium) {
+    ctx.fillStyle = `${tier.color}33`; 
+    ctx.fill();
+    ctx.strokeStyle = tier.color;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  } else {
+    ctx.fillStyle = `${tier.color}33`; 
+    ctx.fill();
   }
   ctx.fillStyle = tier.color;
-  ctx.font = `bold 14px ${FONT_MAIN}`;
-  ctx.fillText(getPlayerTitle(playerInfo), 186, 636);
+  ctx.fillText(badgeText, avX, avY + 180 + badgeH / 2);
 
-  const rightX = 374;
-  ctx.textAlign = "left";
-  ctx.fillStyle = "rgba(255,255,255,0.55)";
-  ctx.font = `bold 15px ${FONT_MAIN}`;
-  ctx.fillText("SỐ DƯ", rightX, 82);
-  ctx.fillStyle = tier.color;
-  const balanceText = compactMoney(playerInfo.balance);
-  ctx.font = fitFont(ctx, balanceText, 580, 58, 16);
-  ctx.fillText(balanceText, rightX, 137);
-  const balanceWidth = ctx.measureText(balanceText).width;
-  ctx.font = `bold 18px ${FONT_MAIN}`;
-  ctx.fillText("VNĐ", rightX + balanceWidth + 14, 147);
+  // Player ID
+  ctx.fillStyle = textSecondary;
+  ctx.font = `14px ${FONT_MAIN}`;
+  ctx.fillText(`Mã người chơi: ${playerInfo.idUser || "N/A"}`, avX, avY + 240);
 
-  const profit = new Big(playerInfo.netProfit || 0);
-  const profitColor = profit.gte(0) ? "#5ee4b4" : "#ff7185";
-  ctx.fillStyle = "rgba(255,255,255,0.55)";
-  ctx.font = `bold 17px ${FONT_MAIN}`;
-  ctx.fillText("LỢI NHUẬN", rightX, 205);
-  ctx.fillStyle = profitColor;
-  const profitText = `${profit.gte(0) ? "▲ +" : "▼ −"}${fullNumber(profit.abs())} VNĐ`;
-  ctx.font = fitFont(ctx, profitText, 490, 28, 17);
-  ctx.fillText(profitText, rightX + 132, 205);
+  // Progress Bar
+  const pbW = leftW - 80;
+  const pbH = 14;
+  const pbX = lX + 40;
+  const pbY = lY + leftH - 90;
 
-  const stats = [
-    { label: "TỔNG THẮNG", value: fullNumber(playerInfo.totalWinnings), color: "#5ee4b4" },
-    { label: "TỔNG THUA", value: fullNumber(new Big(playerInfo.totalLosses || 0).abs()), color: "#ff7185" },
-    { label: "TỈ LỆ THẮNG", value: `${playerInfo.winRate || 0}%`, color: tier.color },
-    { label: "LƯỢT CHƠI", value: `${playerInfo.totalGames || 0}  •  ${playerInfo.totalWinGames || 0}W`, color: "#ffffff" },
-  ];
-  stats.forEach((stat, index) => {
-    const col = index % 2;
-    const row = Math.floor(index / 2);
-    const x = rightX + col * 326;
-    const y = 244 + row * 142;
-    drawPanel(ctx, x, y, 302, 120, tier);
-    ctx.fillStyle = "rgba(255,255,255,0.48)";
-    ctx.font = `bold 13px ${FONT_MAIN}`;
-    ctx.fillText(stat.label, x + 20, y + 30);
-    ctx.fillStyle = stat.color;
-    ctx.font = fitFont(ctx, stat.value, 262, 27, 16);
-    ctx.fillText(stat.value, x + 20, y + 76);
-    if (index < 2) {
-      ctx.fillStyle = "rgba(255,255,255,0.35)";
-      ctx.font = `bold 11px ${FONT_MAIN}`;
-      ctx.fillText("VNĐ", x + 20, y + 101);
-    }
-  });
-
-  roundedRect(ctx, rightX, 542, 628, 74, 18);
-  ctx.fillStyle = `${tier.color}12`;
+  roundedRect(ctx, pbX, pbY, pbW, pbH, pbH / 2);
+  ctx.fillStyle = "rgba(255, 255, 255, 0.1)";
   ctx.fill();
-  drawLabelValue(ctx, "TỔNG TIỀN ĐÃ NẠP", `${fullNumber(playerInfo.rankPoints)} VNĐ`, rightX + 20, 568, 588, tier, tier.color);
-  drawLabelValue(ctx, "MÃ NGƯỜI CHƠI", String(playerInfo.idUser || "N/A"), rightX + 20, 596, 588, tier, "rgba(255,255,255,0.72)");
-  ctx.textAlign = "right";
+
+  const fW = Math.max(pbH, pbW * tierProgress);
+  roundedRect(ctx, pbX, pbY, fW, pbH, pbH / 2);
+  ctx.save();
+  if (isPremium || isDragon) {
+    ctx.shadowColor = tier.color;
+    ctx.shadowBlur = 12;
+  }
   ctx.fillStyle = tier.color;
-  ctx.font = `bold 15px ${FONT_MAIN}`;
-  ctx.fillText(`${getPlayerTitle(playerInfo)} • ${tier.name}`, 1002, 650);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.font = `bold 13px ${FONT_MAIN}`;
+  ctx.textAlign = "left";
+  ctx.fillStyle = textSecondary;
+  ctx.fillText(tier.name, pbX, pbY - 20);
+  ctx.textAlign = "right";
+  ctx.fillText(nextTier ? nextTier.name : "MAX", pbX + pbW, pbY - 20);
+
+  // 3. RIGHT SECTION
+  const rX = lX + leftW + 30;
+  const rW = W - rX - pad;
+
+  // BALANCE CARD
+  const balH = 220;
+  drawCardBg(rX, lY, rW, balH);
+
+  ctx.textAlign = "left";
+  ctx.fillStyle = textSecondary;
+  ctx.font = `bold 16px ${FONT_MAIN}`;
+  ctx.fillText("Tổng Số Dư", rX + 40, lY + 50);
+
+  const balanceText = compactMoney(playerInfo.balance);
+  ctx.fillStyle = textPrimary;
+  ctx.font = fitFont(ctx, balanceText, rW - 200, 72, 40);
+  if (isPremium) {
+    ctx.save();
+    ctx.shadowColor = "rgba(255,255,255,0.2)";
+    ctx.shadowBlur = 10;
+    ctx.fillText(balanceText, rX + 40, lY + 110);
+    ctx.restore();
+  } else {
+    ctx.fillText(balanceText, rX + 40, lY + 110);
+  }
+  
+  const bW = ctx.measureText(balanceText).width;
+  ctx.fillStyle = tier.color;
+  ctx.font = `bold 24px ${FONT_MAIN}`;
+  ctx.fillText("VNĐ", rX + 40 + bW + 12, lY + 110);
+
+  // Profit Pill
+  const profit = new Big(playerInfo.netProfit || 0);
+  const isProfit = profit.gte(0);
+  const pColor = isProfit ? "#32D74B" : "#FF453A"; 
+  const pBg = isProfit ? "rgba(50, 215, 75, 0.2)" : "rgba(255, 69, 58, 0.2)";
+  const pTxt = `${isProfit ? "+" : "-"}${compactMoney(profit.abs())} VNĐ`;
+
+  ctx.font = `bold 16px ${FONT_MAIN}`;
+  const pTxtW = ctx.measureText(pTxt).width + 32;
+  roundedRect(ctx, rX + 40, lY + 155, pTxtW, 36, 18);
+  ctx.fillStyle = pBg;
+  ctx.fill();
+  if (isPremium) {
+    ctx.strokeStyle = pColor;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+  
+  ctx.textAlign = "center";
+  ctx.fillStyle = pColor;
+  ctx.fillText(pTxt, rX + 40 + pTxtW / 2, lY + 155 + 18);
+
+  ctx.textAlign = "right";
+  ctx.fillStyle = textSecondary;
+  ctx.font = `14px ${FONT_MAIN}`;
+  ctx.fillText("Tổng tiền đã nạp", rX + rW - 40, lY + 145);
+  ctx.fillStyle = textPrimary;
+  ctx.font = `bold 22px ${FONT_MAIN}`;
+  ctx.fillText(`${compactMoney(playerInfo.rankPoints)} VNĐ`, rX + rW - 40, lY + 175);
+
+  // 4 STAT CARDS
+  const statY = lY + balH + 30;
+  const statH = H - pad - statY; 
+  const colW = (rW - 30) / 2;
+  const rowH = (statH - 30) / 2;
+
+  const statData = [
+    { label: "Tổng Thắng",  value: compactMoney(playerInfo.totalWinnings), color: "#32D74B", sub: "VNĐ" },
+    { label: "Tổng Thua",   value: compactMoney(new Big(playerInfo.totalLosses||0).abs()), color: "#FF453A", sub: "VNĐ" },
+    { label: "Tỉ lệ Thắng", value: `${playerInfo.winRate || 0}%`, color: tier.color, sub: `${playerInfo.totalWinGames||0} trận` },
+    { label: "Tổng Trận",   value: String(playerInfo.totalGames || 0), color: "#0A84FF", sub: "trận" }, 
+  ];
+
+  statData.forEach((s, i) => {
+    const col = i % 2;
+    const row = Math.floor(i / 2);
+    const boxX = rX + col * (colW + 30);
+    const boxY = statY + row * (rowH + 30);
+
+    drawCardBg(boxX, boxY, colW, rowH);
+
+    ctx.beginPath();
+    ctx.arc(boxX + 35, boxY + 35, 6, 0, Math.PI * 2);
+    ctx.fillStyle = s.color;
+    if (isPremium || isDragon) {
+      ctx.save();
+      ctx.shadowColor = s.color;
+      ctx.shadowBlur = 10;
+      ctx.fill();
+      ctx.restore();
+    } else {
+      ctx.fill();
+    }
+
+    ctx.textAlign = "left";
+    ctx.fillStyle = textSecondary;
+    ctx.font = `15px ${FONT_MAIN}`;
+    ctx.fillText(s.label, boxX + 50, boxY + 35);
+
+    ctx.fillStyle = textPrimary;
+    ctx.font = fitFont(ctx, s.value, colW - 60, 42, 24);
+    const valW = ctx.measureText(s.value).width;
+    ctx.fillText(s.value, boxX + 30, boxY + 85);
+    
+    ctx.fillStyle = textSecondary;
+    ctx.font = `13px ${FONT_MAIN}`;
+    ctx.fillText(s.sub, boxX + 30 + valW + 8, boxY + 82);
+  });
 
   const filePath = path.resolve(`./assets/temp/game_mycard_${Date.now()}.png`);
   await writeFilePromise(filePath, canvas.toBuffer());
@@ -647,70 +1028,267 @@ export async function createGameBankTransferImage(data) {
   const height = 980;
   const tier = getGameTier(data.sender.rankPoints);
   const receiverTier = getGameTier(data.receiver.rankPoints);
+  const isDragon = tier.key === "gold_dragon";
+  const isPremium = ["emerald", "ruby", "diamond", "angel"].includes(tier.key);
+
+  const dragonImage = isDragon ? await safeLoadImage(KIM_LONG_DRAGON_PATH) : null;
+  const beautyImage = tier.key === "angel" ? await safeLoadImage(MY_NHAN_BG_PATH) : null;
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext("2d");
-  drawBackground(ctx, width, height, tier);
+  
+  ctx.fillStyle = "#0A0A0C"; 
+  ctx.fillRect(0, 0, width, height);
+
+  if (isDragon && dragonImage) {
+    ctx.save();
+    const scale = Math.max(width / dragonImage.width, height / dragonImage.height) * 1.2;
+    const dw = dragonImage.width * scale;
+    const dh = dragonImage.height * scale;
+    const dx = (width - dw) / 2;
+    const dy = (height - dh) / 2;
+    ctx.globalAlpha = 0.5;
+    ctx.drawImage(dragonImage, dx, dy, dw, dh);
+    ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+    ctx.fillRect(0, 0, width, height);
+    ctx.restore();
+  } else if (tier.key === "angel" && beautyImage) {
+    ctx.save();
+    const isW = typeof W !== 'undefined' ? W : width;
+    const isH = typeof H !== 'undefined' ? H : height;
+    const scale = Math.max(isW / beautyImage.width, isH / beautyImage.height);
+    const dw = beautyImage.width * scale;
+    const dh = beautyImage.height * scale;
+    const dx = (isW - dw) / 2;
+    const dy = (isH - dh) / 2;
+    ctx.globalAlpha = 0.55;
+    ctx.drawImage(beautyImage, dx, dy, dw, dh);
+    ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+    ctx.fillRect(0, 0, isW, isH);
+    ctx.restore();
+  } else if (isPremium) {
+    ctx.save();
+    const bgGrad = ctx.createLinearGradient(0, 0, width, height);
+    bgGrad.addColorStop(0, "#080B10");
+    bgGrad.addColorStop(1, "#030406");
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, width, height);
+
+    const drawOrb = (x, y, r, alpha) => {
+      const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
+      grad.addColorStop(0, `${tier.color}${Math.round(alpha*255).toString(16).padStart(2,'0')}`);
+      grad.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, width, height);
+    };
+    
+    drawOrb(width * 0.1, height * 0.2, width * 0.5, 0.25);
+    drawOrb(width * 0.9, height * 0.8, width * 0.6, 0.15);
+    drawOrb(width * 0.5, height * 0.5, width * 0.8, 0.08);
+
+    ctx.fillStyle = "rgba(255, 255, 255, 0.015)";
+    for (let i = 0; i < width; i += 4) {
+      for (let j = 0; j < height; j += 4) {
+        if (Math.random() > 0.5) ctx.fillRect(i, j, 2, 2);
+      }
+    }
+    ctx.restore();
+  } else {
+    const bgGlow = ctx.createRadialGradient(width * 0.5, height * 0.5, 0, width * 0.5, height * 0.5, width * 0.7);
+    bgGlow.addColorStop(0, `${tier.color}15`);
+    bgGlow.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = bgGlow;
+    ctx.fillRect(0, 0, width, height);
+  }
+
+  const drawCardBg = (x, y, w, h, t = tier) => {
+    ctx.save();
+    ctx.beginPath();
+    roundedRect(ctx, x, y, w, h, 28);
+    if (isPremium) {
+      ctx.fillStyle = "rgba(20, 22, 28, 0.65)";
+      ctx.fill();
+      ctx.shadowColor = t.color;
+      ctx.shadowBlur = 20;
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.15)";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    } else if (isDragon) {
+      ctx.fillStyle = "rgba(10, 10, 12, 0.65)";
+      ctx.fill();
+      ctx.shadowColor = t.color;
+      ctx.shadowBlur = 15;
+      ctx.strokeStyle = `${t.color}AA`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    } else {
+      ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+      ctx.shadowBlur = 20;
+      ctx.fillStyle = "#1C1C1E";
+      ctx.fill();
+    }
+    ctx.restore();
+  };
+
   const [senderAvatar, receiverAvatar] = await Promise.all([
     safeLoadImage(data.sender.avatar),
     safeLoadImage(data.receiver.avatar),
   ]);
 
-  drawPanel(ctx, 22, 20, 856, 940, tier, true);
-  ctx.textAlign = "left";
+  // Title
+  ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillStyle = tier.color;
-  ctx.font = `bold 14px ${FONT_MAIN}`;
-  ctx.fillText("GAME BANKING", 52, 54);
-  ctx.fillStyle = "#ffffff";
-  ctx.font = `bold 38px ${FONT_MAIN}`;
-  ctx.fillText("BIẾN ĐỘNG SỐ DƯ", 52, 92);
-  ctx.fillStyle = "rgba(255,255,255,0.54)";
-  ctx.font = `bold 14px ${FONT_MAIN}`;
-  ctx.fillText(`GIAO DỊCH THÀNH CÔNG  •  ${formatDate(data.createdAt)}`, 52, 127);
-
-  drawPanel(ctx, 44, 158, 812, 246, tier);
-  drawAvatar(ctx, senderAvatar, 113, 223, 92, "#ff7185");
-  ctx.fillStyle = "#ff8294";
-  ctx.font = `bold 13px ${FONT_MAIN}`;
-  ctx.fillText("NGƯỜI CHUYỂN", 176, 195);
-  ctx.fillStyle = "#ffffff";
-  ctx.font = fitFont(ctx, data.sender.name, 390, 28, 18);
-  ctx.fillText(data.sender.name, 176, 229);
-  drawTierBadge(ctx, tier, 176, 255, 122, 24);
-  drawLabelValue(ctx, "SỐ DƯ TRƯỚC", `${compactMoney(data.sender.balanceBefore)} VNĐ`, 76, 337, 310, tier);
-  drawLabelValue(ctx, "SỐ DƯ SAU", `${compactMoney(data.sender.balanceAfter)} VNĐ`, 485, 337, 310, tier, "#ff8294");
-
-  ctx.textAlign = "center";
-  ctx.fillStyle = "rgba(255,255,255,0.45)";
-  ctx.font = `bold 14px ${FONT_MAIN}`;
-  ctx.fillText("SỐ TIỀN CHUYỂN", 450, 456);
-  ctx.fillStyle = tier.color;
-  ctx.font = fitFont(ctx, compactMoney(data.amount), 720, 72, 38);
-  ctx.fillText(compactMoney(data.amount), 450, 520);
-  ctx.fillStyle = "rgba(255,255,255,0.50)";
   ctx.font = `bold 16px ${FONT_MAIN}`;
-  ctx.fillText(`${fullNumber(data.amount)} VNĐ`, 450, 570);
-  ctx.fillStyle = tier.color;
-  ctx.font = `bold 30px ${FONT_MAIN}`;
-  ctx.fillText("↓", 450, 620);
+  ctx.fillText("GAME BANKING", width / 2, 70);
+  ctx.fillStyle = "#ffffff";
+  ctx.font = `bold 42px ${FONT_MAIN}`;
+  ctx.fillText("BIẾN ĐỘNG SỐ DƯ", width / 2, 115);
+  ctx.fillStyle = "rgba(255,255,255,0.6)";
+  ctx.font = `bold 16px ${FONT_MAIN}`;
+  ctx.fillText(`GIAO DỊCH THÀNH CÔNG  •  ${formatDate(data.createdAt)}`, width / 2, 160);
 
-  drawPanel(ctx, 44, 660, 812, 246, receiverTier, true);
-  drawAvatar(ctx, receiverAvatar, 787, 725, 92, receiverTier.color);
+  // SENDER (Top)
+  const pad = 44;
+  const cardW = width - pad * 2;
+  const cardH = 246;
+  const sY = 200;
+  
+  drawCardBg(pad, sY, cardW, cardH, tier);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(120, sY + 80, 50, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.drawImage(senderAvatar, 70, sY + 30, 100, 100);
+  ctx.restore();
+  
+  ctx.beginPath();
+  ctx.arc(120, sY + 80, 53, 0, Math.PI * 2);
+  ctx.strokeStyle = tier.color;
+  ctx.lineWidth = 3;
+  if (isPremium) {
+    ctx.shadowColor = tier.color;
+    ctx.shadowBlur = 15;
+  }
+  ctx.stroke();
+
+  ctx.textAlign = "left";
+  ctx.fillStyle = tier.color;
+  ctx.font = `bold 14px ${FONT_MAIN}`;
+  ctx.fillText("NGƯỜI CHUYỂN", 190, sY + 50);
+  
+  ctx.fillStyle = "#ffffff";
+  ctx.font = fitFont(ctx, data.sender.name, 500, 36, 20);
+  ctx.fillText(data.sender.name, 190, sY + 90);
+
+  const badgeText = `${tier.name.toUpperCase()}`;
+  ctx.font = `bold 13px ${FONT_MAIN}`;
+  const badgeW = ctx.measureText(badgeText).width + 36;
+  roundedRect(ctx, 190, sY + 115, badgeW, 28, 14);
+  ctx.fillStyle = `${tier.color}33`;
+  ctx.fill();
+  if (isPremium) {
+    ctx.strokeStyle = tier.color;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+  ctx.fillStyle = tier.color;
+  ctx.fillText(badgeText, 190 + badgeW / 2, sY + 115 + 14);
+  ctx.textAlign = "left";
+
+  // Balances sender
+  ctx.fillStyle = "rgba(255,255,255,0.6)";
+  ctx.font = `14px ${FONT_MAIN}`;
+  ctx.fillText("SỐ DƯ TRƯỚC", 80, sY + 180);
+  ctx.fillText("SỐ DƯ SAU", 420, sY + 180);
+  
+  ctx.fillStyle = "#ffffff";
+  ctx.font = `bold 24px ${FONT_MAIN}`;
+  ctx.fillText(`${compactMoney(data.sender.balanceBefore)} VNĐ`, 80, sY + 210);
+  ctx.fillStyle = "#FF453A";
+  ctx.fillText(`${compactMoney(data.sender.balanceAfter)} VNĐ`, 420, sY + 210);
+
+  // AMOUNT (Middle)
+  const mY = sY + cardH + 20;
+  ctx.textAlign = "center";
+  ctx.fillStyle = "rgba(255,255,255,0.6)";
+  ctx.font = `bold 16px ${FONT_MAIN}`;
+  ctx.fillText("SỐ TIỀN CHUYỂN", width / 2, mY + 20);
+  
+  ctx.fillStyle = tier.color;
+  ctx.font = fitFont(ctx, compactMoney(data.amount), 800, 64, 40);
+  if (isPremium) {
+    ctx.save();
+    ctx.shadowColor = "rgba(255,255,255,0.15)";
+    ctx.shadowBlur = 10;
+    ctx.fillText(compactMoney(data.amount), width / 2, mY + 80);
+    ctx.restore();
+  } else {
+    ctx.fillText(compactMoney(data.amount), width / 2, mY + 80);
+  }
+  
+  ctx.fillStyle = "rgba(255,255,255,0.6)";
+  ctx.font = `bold 18px ${FONT_MAIN}`;
+  ctx.fillText(`${fullNumber(data.amount)} VNĐ`, width / 2, mY + 130);
+  
+  ctx.fillStyle = tier.color;
+  ctx.font = `bold 32px ${FONT_MAIN}`;
+  ctx.fillText("↓", width / 2, mY + 175);
+
+  // RECEIVER (Bottom)
+  const rY = mY + 200;
+  drawCardBg(pad, rY, cardW, cardH, receiverTier);
+  
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(width - 120, rY + 80, 50, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.drawImage(receiverAvatar, width - 170, rY + 30, 100, 100);
+  ctx.restore();
+  
+  ctx.beginPath();
+  ctx.arc(width - 120, rY + 80, 53, 0, Math.PI * 2);
+  ctx.strokeStyle = receiverTier.color;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
   ctx.textAlign = "right";
   ctx.fillStyle = receiverTier.color;
-  ctx.font = `bold 13px ${FONT_MAIN}`;
-  ctx.fillText("NGƯỜI NHẬN", 722, 697);
+  ctx.font = `bold 14px ${FONT_MAIN}`;
+  ctx.fillText("NGƯỜI NHẬN", width - 190, rY + 50);
+  
   ctx.fillStyle = "#ffffff";
-  ctx.font = fitFont(ctx, data.receiver.name, 390, 28, 18);
-  ctx.fillText(data.receiver.name, 722, 731);
-  drawTierBadge(ctx, receiverTier, 600, 757, 122, 24);
-  drawLabelValue(ctx, "SỐ DƯ TRƯỚC", `${compactMoney(data.receiver.balanceBefore)} VNĐ`, 76, 839, 310, receiverTier);
-  drawLabelValue(ctx, "SỐ DƯ SAU", `${compactMoney(data.receiver.balanceAfter)} VNĐ`, 485, 839, 310, receiverTier, receiverTier.color);
+  ctx.font = fitFont(ctx, data.receiver.name, 500, 36, 20);
+  ctx.fillText(data.receiver.name, width - 190, rY + 90);
 
+  const rBadgeText = `${receiverTier.name.toUpperCase()}`;
+  ctx.font = `bold 13px ${FONT_MAIN}`;
+  const rBadgeW = ctx.measureText(rBadgeText).width + 36;
+  roundedRect(ctx, width - 190 - rBadgeW, rY + 115, rBadgeW, 28, 14);
+  ctx.fillStyle = `${receiverTier.color}33`; 
+  ctx.fill();
+  ctx.fillStyle = receiverTier.color;
   ctx.textAlign = "center";
-  ctx.fillStyle = "rgba(255,255,255,0.32)";
-  ctx.font = `bold 11px ${FONT_MAIN}`;
-  ctx.fillText(`MÃ GIAO DỊCH  •  ${data.referenceCode}`, 450, 936);
+  ctx.fillText(rBadgeText, width - 190 - rBadgeW / 2, rY + 115 + 14);
+
+  // Balances receiver
+  ctx.textAlign = "left";
+  ctx.fillStyle = "rgba(255,255,255,0.6)";
+  ctx.font = `14px ${FONT_MAIN}`;
+  ctx.fillText("SỐ DƯ TRƯỚC", 80, rY + 180);
+  ctx.fillText("SỐ DƯ SAU", 420, rY + 180);
+  
+  ctx.fillStyle = "#ffffff";
+  ctx.font = `bold 24px ${FONT_MAIN}`;
+  ctx.fillText(`${compactMoney(data.receiver.balanceBefore)} VNĐ`, 80, rY + 210);
+  ctx.fillStyle = "#32D74B";
+  ctx.fillText(`${compactMoney(data.receiver.balanceAfter)} VNĐ`, 420, rY + 210);
+
+  // Trans id
+  ctx.textAlign = "center";
+  ctx.fillStyle = "rgba(255,255,255,0.4)";
+  ctx.font = `bold 12px ${FONT_MAIN}`;
+  ctx.fillText(`MÃ GIAO DỊCH  •  ${data.referenceCode}`, width / 2, height - 30);
 
   const filePath = path.resolve(`./assets/temp/game_bank_${Date.now()}.png`);
   await writeFilePromise(filePath, canvas.toBuffer());

@@ -16,6 +16,20 @@ export const deleteMessageFactory = apiFactory()((api, appContext, utils) => {
    */
   return async function deleteMessage(message, onlyMe = true, myGlobalMsgId) {
     if (!message) throw new ZaloApiError("Missing message");
+    // Khi gọi delete từ một tin reply, ID cần xóa nằm trong quote chứ không
+    // nằm ở message.data của chính lệnh reply (đặc biệt khi reply có tag).
+    if (message.data?.quote && !message.data?.msgId) {
+      const quote = message.data.quote;
+      message = {
+        ...message,
+        data: {
+          ...quote,
+          msgId: quote.msgId || quote.globalMsgId,
+          cliMsgId: quote.cliMsgId || quote.clientId,
+          uidFrom: quote.uidFrom || quote.ownerId || message.data.uidFrom,
+        },
+      };
+    }
     const isGroupMessage = message.type === MessageType.GroupMessage;
     // const params = {
     //   toid: !isGroupMessage ? message.threadId : undefined,

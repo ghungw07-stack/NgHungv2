@@ -61,7 +61,6 @@ const MAX_HISTORY = 20; // Giữ tối đa 20 kết quả gần nhất
 const WINNING_MULTIPLIER = 1.9; // Tỷ lệ tiền thắng cược
 const MIN_JACKPOT_PERCENT = 0.0001; // 0.01% của hũ
 const MAX_JACKPOT_MULTIPLIER = 1000; // Giới hạn 1000% tiền cược (x10 thành x1000)
-const JACKPOT_CHANCE = 0.07;
 const HOUSE_BIAS_CHANCE = 0.45;
 const TTL_IMAGE = 10800000;
 
@@ -159,10 +158,10 @@ export async function handleChanLe(api, message, groupSettings) {
   const result = total % 2 === 0 ? CHOICES.CHAN : CHOICES.LE;
   const isWin = result.key === playerChoice.key;
 
-  let isJackpot = false;
+  // Ba mặt xúc xắc giống nhau là jackpot (1-1-1 đến 6-6-6).
+  const isTriple = dice1 === dice2 && dice2 === dice3;
+  let isJackpot = isTriple && isWin;
   let isMissedJackpot = false;
-  // Hũ quay độc lập với số dư; chỉ người đoán đúng mới có 7% cơ hội nổ hũ.
-  isJackpot = isWin && Math.random() < JACKPOT_CHANCE;
 
   let winnings;
   let jackpotAmount = new Big(0);

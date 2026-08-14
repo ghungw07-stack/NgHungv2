@@ -354,7 +354,7 @@ async function sendGameUpdate(api, remainingSeconds) {
     }
 
     const betTypeText = player.betType === "tai" ? "Tài" : "Xỉu";
-    playerInfo += `${player.playerName}: đặt ${betTypeText} ${playerBet.toNumber().toLocaleString("vi-VN")} VNĐ\n`;
+    playerInfo += `${player.playerName} [${player.groupName || player.threadId}]: đặt ${betTypeText} ${playerBet.toNumber().toLocaleString("vi-VN")} VNĐ\n`;
 
     activeThreadsWithPlayers.add(player.threadId);
   }
@@ -395,7 +395,7 @@ async function sendGameUpdate(api, remainingSeconds) {
   await clearImagePath(waitingImagePath);
 }
 
-async function placeBet(api, message, threadId, senderId, betType, amount) {
+async function placeBet(api, message, threadId, senderId, betType, amount, groupSettings) {
   const botId = api.getBotId();
   const username = await getUsernameByIdZalo(senderId);
   if (!username) {
@@ -477,6 +477,7 @@ async function placeBet(api, message, threadId, senderId, betType, amount) {
   }
 
   const playerName = message.data.dName || senderId;
+  const groupName = groupSettings?.[threadId]?.nameGroup || String(threadId);
 
   // Nhóm đã qua kiểm tra gameactive ở handleTaiXiuCommand, tự đăng ký luồng gửi
   // ảnh chờ/kết quả cho đúng tài khoản bot đang nhận cược.
@@ -492,6 +493,7 @@ async function placeBet(api, message, threadId, senderId, betType, amount) {
     betType,
     amount: betAmount.toNumber(),
     playerName,
+    groupName,
     threadId,
     username,
   };
@@ -501,6 +503,7 @@ async function placeBet(api, message, threadId, senderId, betType, amount) {
     betType,
     amount: betAmount.toNumber(),
     playerName,
+    groupName,
     threadId,
     username,
   };
@@ -592,7 +595,7 @@ export async function handleTaiXiuCommand(api, message, groupSettings) {
     const betType = normalizeSymbolName(betMatch[2]);
     const amount = betMatch[3].trim();
 
-    await placeBet(api, message, threadId, senderId, betType, amount);
+    await placeBet(api, message, threadId, senderId, betType, amount, groupSettings);
   } else {
     const result = {
       success: false,

@@ -1,6 +1,7 @@
 import * as cv from "../../utils/canvas/index.js";
 import { deepParseJSON, deepStringifyJSON, removeMention } from "../../utils/format-util.js";
 import { getGlobalPrefix } from "../service.js";
+import { apiManager } from "../../index.js";
 
 export async function userInfoCommand(api, message, aliasCommand) {
   const threadId = message.threadId;
@@ -22,7 +23,7 @@ export async function userInfoCommand(api, message, aliasCommand) {
       targetUserId = senderId;
     }
 
-    const userInfo = await getUserInfoData(api, targetUserId);
+    const userInfo = await getUserInfoAcrossBots(api, targetUserId);
     if (!userInfo) {
       await sendErrorMessage(api, message, threadId, "❌ Không thể lấy thông tin người dùng này.");
       return;
@@ -60,7 +61,7 @@ export async function userInfoCommandText(api, message, aliasCommand) {
     if (targetUserId === threadId && message.type === 1) {
       targetUserId = senderId;
     }
-    const userInfo = await getUserInfoData(api, targetUserId);
+    const userInfo = await getUserInfoAcrossBots(api, targetUserId);
     if (!userInfo) {
       await sendErrorMessage(api, message, threadId, "❌ Không thể lấy thông tin người dùng này.");
       return;
@@ -119,6 +120,7 @@ export async function getUsersInfoData(api, userIds) {
     const avatarFull = getBestAvatarUrl(avatarResponse, true);
     objDataUser[userId] = getAllInfoUser({
       ...userInfo,
+      globalId: userInfo?.globalId || userInfo?.global_id || basicInfo?.globalId || basicInfo?.global_id,
       avatarFull: avatarFull || userInfo?.avatar || basicInfo?.avatar,
       avatarFallback: basicInfo?.avatar || userInfo?.avatar,
     });
@@ -144,17 +146,48 @@ export async function getUserInfoData(api, userId) {
     avatarResponse = await api.getUserAvatar(realUserId);
   } catch {}
   const userInfo = userInfoResponse.unchanged_profiles?.[realUserId] || userInfoResponse.changed_profiles?.[realUserId];
+  if (!userInfo) return null;
   let basicInfo = null;
   try {
     const basicInfoResponse = await api.getInfoMembers([realUserId]);
-    basicInfo = basicInfoResponse.profiles?.[realUserId] || Object.values(basicInfoResponse.profiles || {})[0];
+    basicInfo = basicInfoResponse.profiles?.[realUserId] || null;
   } catch {}
   const avatarFull = getBestAvatarUrl(avatarResponse, true);
   return getAllInfoUser({
     ...userInfo,
+    globalId: userInfo?.globalId || userInfo?.global_id || basicInfo?.globalId || basicInfo?.global_id,
     avatarFull: avatarFull || userInfo?.avatar || basicInfo?.avatar,
     avatarFallback: basicInfo?.avatar || userInfo?.avatar,
   });
+}
+
+// UID người dùng có thể chỉ hợp lệ với một bot cụ thể. Khi bot hiện tại
+// không tra được, thử các bot đang chạy trong cùng hệ thống.
+export async function getUserInfoAcrossBots(api, userId) {
+  try {
+    const direct = await getUserInfoData(api, userId);
+    if (direct) return direct;
+  } catch {}
+  try {
+    const response = await api.getInfoMembers([userId]);
+    const profile = response?.profiles?.[userId] || Object.values(response?.profiles || {})[0];
+    if (profile) return getAllInfoUser(profile);
+  } catch {}
+  const managers = Object.values(apiManager?.apiManagerObject || {});
+  for (const manager of managers) {
+    const otherApi = manager?.apiZalo;
+    if (!otherApi || otherApi === api) continue;
+    try {
+      const info = await getUserInfoData(otherApi, userId);
+      if (info) return info;
+    } catch {}
+    try {
+      const response = await otherApi.getInfoMembers([userId]);
+      const profile = response?.profiles?.[userId] || Object.values(response?.profiles || {})[0];
+      if (profile) return getAllInfoUser(profile);
+    } catch {}
+  }
+  return null;
 }
 
 function getBestAvatarUrl(data, acceptAnyImageUrl = false) {
@@ -197,6 +230,7 @@ export function getAllInfoUser(userInfo) {
   return {
     title: "Thông Tin Người Dùng",
     uid: userInfo.userId || "Không xác định",
+    globalId: userInfo.globalId || userInfo.global_id || null,
     name: formatName(userInfo.zaloName),
     avatar: bestAvatar,
     avatarFallback: userInfo.avatarFallback,

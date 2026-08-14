@@ -79,8 +79,10 @@ import {
   handleBanCommand,
   handleBankCommand,
   handleBuffCommand,
+  handleSetTierCommand,
   handleClaimDailyReward,
   handleMyCard,
+  handleTestMyCard,
   handleNapCommand,
   handleRutCommand,
   handleSetVNDCommand,
@@ -92,6 +94,7 @@ import {
   handleGameTierCommand,
   handleResetDailyCommand,
   handleResetJackpotCommand,
+  handleResetAllGameDataCommand,
 } from "../service-ngh/game-service/index.js";
 import { handleAntiLinkCommand } from "../service-ngh/anti-service/anti-link.js";
 import { apiManager, getCommandConfig, getManagerCommandConfig, getManagerCommandCustomConfig, isAdmin, isBotLeader, reloadCommandConfig } from "../index.js";
@@ -787,6 +790,9 @@ async function handleCoreGameCommand(api, message, command, groupSettings, alias
     case "mycard":
       await handleMyCard(api, message, groupSettings);
       return true;
+    case "testmycard":
+      await handleTestMyCard(api, message, groupSettings);
+      return true;
     case "daily":
       await handleClaimDailyReward(api, message, groupSettings);
       return true;
@@ -798,6 +804,9 @@ async function handleCoreGameCommand(api, message, command, groupSettings, alias
       return true;
     case "resethu":
       await handleResetJackpotCommand(api, message);
+      return true;
+    case "resetgame":
+      await handleResetAllGameDataCommand(api, message);
       return true;
     case "rank":
       await handleTopPlayers(api, message, groupSettings);
@@ -1518,8 +1527,19 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
             isAdminLevelHighest
           );
           return 0;
-        case "buff":
+        case "settier":
+        await handleSetTierCommand(api, message, groupSettings);
+        break;
+
+      case "settier":
+        await handleSetTierCommand(api, message, groupSettings);
+        break;
+
+      case "buff":
           await handleBuffCommand(api, message);
+          break;
+        case "settier":
+          await handleSetTierCommand(api, message);
           return 0;
         case "join":
           await handleJoinGroup(api, message);
@@ -1621,6 +1641,7 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
           case "donate":
           case "tier":
           case "mycard":
+          case "testmycard":
           case "daily":
           case "giveaway":
           case "resetdaily":
@@ -2110,6 +2131,10 @@ export async function handleCommand(
         await handleSendMessagePrivate(api, message, isAdminLevelHighest);
         break;
 
+      case "settier":
+        await handleSetTierCommand(api, message, groupSettings);
+        break;
+
       case "buff":
         await handleBuffCommand(api, message, groupSettings);
         break;
@@ -2205,6 +2230,7 @@ export async function handleCommand(
               case "uid":
                 await handleUidCommand(api, message);
                 break;
+
 
               case "matchmaking":
                 await matchmakingCommand(api, message, aliasCommand);
@@ -2724,6 +2750,7 @@ export async function handleCommand(
 
             case "rank":
             case "mycard":
+            case "testmycard":
             case "daily":
             case "giveaway":
             case "resetdaily":

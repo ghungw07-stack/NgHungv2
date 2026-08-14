@@ -498,7 +498,8 @@ export const sendMessageFactory = apiFactory()((api, appContext, utils) => {
       const canBeDesc = isSingleFile && ["jpg", "jpeg", "png", "webp"].includes(firstExtFile);
       if ((!canBeDesc && msg.length > 0) || (msg.length > 0 && quote)) {
         await handleMessage(message, threadId, type, ttl).then(async (data) => {
-          responses.message = (await send(data))[0];
+          const sent = (await send(data))[0];
+          responses.message = { ...sent, cliMsgId: sent?.cliMsgId ?? data?.params?.clientId };
         });
         msg = "";
         mentions = undefined;
@@ -529,11 +530,13 @@ export const sendMessageFactory = apiFactory()((api, appContext, utils) => {
           responses.link = await api.sendLink(message.msg, linkData.links[0], threadId, type, ttl);
         } catch (error) {
           handledData = await handleMessage(message, threadId, type, ttl);
-          responses.message = (await send(handledData))[0];
+          const sent = (await send(handledData))[0];
+          responses.message = { ...sent, cliMsgId: sent?.cliMsgId ?? handledData?.params?.clientId };
         }
       } else {
         handledData = await handleMessage(message, threadId, type, ttl);
-        responses.message = (await send(handledData))[0];
+        const sent = (await send(handledData))[0];
+        responses.message = { ...sent, cliMsgId: sent?.cliMsgId ?? handledData?.params?.clientId };
       }
     }
     return responses;

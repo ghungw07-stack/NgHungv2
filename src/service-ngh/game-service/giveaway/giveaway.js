@@ -16,6 +16,14 @@ const STATE_PATH = path.resolve("./assets/json-data/giveaway.json");
 const DRAW_DELAY = 15_000;
 const WHEEL_DURATION = 3_200;
 let drawing = false;
+const participantListMessages = new Map();
+
+function parseDuration(value) {
+  const match = String(value || "").match(/^(\d+)(?:p|m|min|ph|phut)$/iu);
+  if (!match) return null;
+  const minutes = Number(match[1]);
+  return minutes >= 1 && minutes <= 24 * 60 ? minutes * 60_000 : null;
+}
 
 function loadState() {
   try { return JSON.parse(fs.readFileSync(STATE_PATH, "utf8")); } catch { return null; }
@@ -28,7 +36,25 @@ function saveState(state) {
 
 function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
 
-function isMainBotAccount(senderId) {
+function formatDrawTime(timestamp) {
+  return new Date(timestamp).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+}
+
+async function sendParticipantList(api, state, threadId, messageType) {
+  const key = String(threadId);
+  const previous = participantListMessages.get(key);
+  if (previous) await api.deleteMessage(previous, false).catch(() => {});
+  const participantList = state.participants.map((item) => `${item.number}: ${item.name}`).join("\n");
+  const sent = await api.sendMessage(
+    { msg: `💖 Thả tim vào tin nhắn này để tham gia hoặc gõ ${getGlobalPrefix(api.getBotId())}game giveaway\n\n✅ Đã tham gia Giveaway\n👥 Số người tham gia: ${state.participants.length}/${state.capacity}\n\n📋 DANH SÁCH:\n${participantList}`, ttl: 60_000 },
+    threadId,
+    messageType
+  );
+  if (sent) participantListMessages.set(key, sent);
+}
+
+function isMainBotAccount(api, senderId) {
+  if (isBotLeader(api.getBotId(), senderId)) return true;
   const mainManager = Object.values(apiManager.apiManagerObject).find((manager) => manager.isMainBot);
   const mainBotId = mainManager?.id || mainManager?.apiZalo?.getBotId?.();
   return mainBotId != null && String(senderId) === String(mainBotId);
@@ -228,9 +254,23 @@ export async function resumeGiveaway(api) {
   if (!state) return;
   if (state.status === "drawing") {
     void runDraw(api, state);
+  } else if (state.status === "waiting" && state.drawAt) {
+    scheduleDraw(api, state);
   } else if (state.status === "completed" && state.groups?.some((group) => group.previousLock != null)) {
     await setGroupsLocked(api, state, false);
   }
+}
+
+function scheduleDraw(api, state) {
+  const delay = Math.max(0, Number(state.drawAt) - Date.now());
+  setTimeout(() => {
+    const latest = loadState();
+    if (!latest || latest.id !== state.id || latest.status !== "waiting") return;
+    latest.status = "drawing";
+    latest.drawingStartedAt = Date.now();
+    saveState(latest);
+    void runDraw(api, latest);
+  }, delay);
 }
 
 export async function handleGiveawayCommand(api, message) {
@@ -240,7 +280,7 @@ export async function handleGiveawayCommand(api, message) {
   let state = loadState();
 
   if (["test", "thu", "thử"].includes((parts[0] || "").toLowerCase())) {
-    if (!isMainBotAccount(message.data.uidFrom)) return;
+    if (!isMainBotAccount(api, message.data.uidFrom)) return;
     if (message.type !== MessageType.GroupMessage) return true;
     const participants = await getTestParticipants(api, message.threadId);
     if (participants.length < 2) {
@@ -266,7 +306,7 @@ export async function handleGiveawayCommand(api, message) {
   }
 
   if (["huy", "hủy", "cancel"].includes((parts[0] || "").toLowerCase())) {
-    if (!isMainBotAccount(message.data.uidFrom)) return;
+    if (!isMainBotAccount(api, message.data.uidFrom)) return;
     if (!state || !["waiting", "drawing"].includes(state.status)) {
       await api.sendMessage({ msg: "❌ Không có Giveaway nào đang hoạt động để hủy.", quote: message }, message.threadId, message.type); return true;
     }
@@ -278,7 +318,7 @@ export async function handleGiveawayCommand(api, message) {
   }
 
   if (["tao", "tạo", "create"].includes((parts[0] || "").toLowerCase())) {
-    if (!isMainBotAccount(message.data.uidFrom)) return;
+    if (!isMainBotAccount(api, message.data.uidFrom)) return;
     if (message.type !== MessageType.GroupMessage) {
       await api.sendMessage({ msg: "❌ Hãy tạo Giveaway trực tiếp trong nhóm muốn tổ chức.", quote: message }, message.threadId, message.type); return true;
     }
@@ -291,8 +331,9 @@ export async function handleGiveawayCommand(api, message) {
     }
     const reward = parseGameAmount(parts[1], Number.MAX_SAFE_INTEGER);
     const match = String(parts[2] || "").match(/^(\d+)\/(\d+)$/u);
-    if (!(reward instanceof Big) || reward.lte(0) || !match) {
-      await api.sendMessage({ msg: `Cú pháp: ${prefix}giveaway tạo 15b 36/64`, quote: message }, message.threadId, message.type); return true;
+    const durationMs = parseDuration(parts[3]);
+    if (!(reward instanceof Big) || reward.lte(0) || !match || !durationMs) {
+      await api.sendMessage({ msg: `Cú pháp: ${prefix}giveaway tạo 10b 3/10 30p`, quote: message }, message.threadId, message.type); return true;
     }
     const winnerCount = Number(match[1]), capacity = Number(match[2]);
     if (winnerCount < 1 || capacity < 2 || winnerCount > capacity || capacity > 200) {
@@ -303,9 +344,10 @@ export async function handleGiveawayCommand(api, message) {
       botId: String(api.getBotId()),
       name: currentSettings.nameGroup || String(message.threadId),
     }];
-    state = { id: Date.now(), creatorBotId: String(api.getBotId()), reward: reward.round(0).toString(), winnerCount, capacity, participants: [], winners: [], paidUids: [], groups, status: "waiting", createdAt: Date.now() };
+    state = { id: Date.now(), creatorBotId: String(api.getBotId()), reward: reward.round(0).toString(), winnerCount, capacity, durationMs, drawAt: Date.now() + durationMs, participants: [], winners: [], paidUids: [], groups, status: "waiting", createdAt: Date.now() };
     saveState(state);
-    await broadcast(api, state, `🎁 GIVEAWAY NHÓM ${groups[0].name}\n💰 ${winnerCount} người thắng, mỗi người ${formatCurrency(state.reward)} VNĐ\n👥 Tối đa ${capacity} người tham gia\n\nGõ ${prefix}game giveaway để lấy số dự thưởng.`);
+    await broadcast(api, state, `🎁 GIVEAWAY NHÓM ${groups[0].name}\n💰 ${winnerCount} người thắng, mỗi người ${formatCurrency(state.reward)} VNĐ\n👥 Tối đa ${capacity} người tham gia\n🕒 Bắt đầu quay lúc ${formatDrawTime(state.drawAt)}\n\nGõ ${prefix}game giveaway để lấy số dự thưởng hoặc thả ❤️ vào tin nhắn này.`);
+    scheduleDraw(api, state);
     return true;
   }
 
@@ -329,15 +371,26 @@ export async function handleGiveawayCommand(api, message) {
   await ensurePlayerAccount(uid, message.data.dName || uid, api.getBotId());
   const participant = { uid, name: message.data.dName || uid, number: state.participants.length + 1, threadId: String(message.threadId) };
   state.participants.push(participant); saveState(state);
-  const participantList = state.participants.map((item) => `${item.number}: ${item.name}`).join("\n");
-  await api.sendMessage(
-    { msg: `✅ Đã tham gia Giveaway (${state.participants.length}/${state.capacity})\n\n📋 DANH SÁCH:\n${participantList}`, quote: message, ttl: 60_000 },
-    message.threadId,
-    message.type
-  );
-  if (state.participants.length === state.capacity) {
-    state.status = "drawing"; saveState(state);
-    void runDraw(api, state);
-  }
+  await sendParticipantList(api, state, message.threadId, message.type);
+  // Không quay sớm khi đủ người; luôn chờ đúng thời lượng đã đặt.
+  return true;
+}
+
+// Thả ❤️ vào tin nhắn Giveaway cũng được tính là tham gia.
+export async function handleGiveawayReaction(api, reaction) {
+  const icon = reaction.data?.content?.rIcon;
+  if (icon !== "/-heart") return false;
+  const state = loadState();
+  if (!state || state.status !== "waiting") return false;
+  const threadId = String(reaction.threadId || reaction.data?.idTo || "");
+  const group = state.groups?.find((item) => String(item.threadId) === threadId);
+  if (!group) return false;
+  const uid = String(reaction.data?.uidFrom || "");
+  if (!uid || state.participants.some((item) => item.uid === uid) || state.participants.length >= state.capacity) return true;
+  const name = reaction.data?.dName || uid;
+  await ensurePlayerAccount(uid, name, api.getBotId());
+  state.participants.push({ uid, name, number: state.participants.length + 1, threadId });
+  saveState(state);
+  await sendParticipantList(api, state, threadId, MessageType.GroupMessage);
   return true;
 }

@@ -15,10 +15,11 @@ export const undoMessageFactory = apiFactory()((api, appContext, utils) => {
    */
   return async function undo(message) {
     if (!message.data.quote) throw new ZaloApiError("Message does not have quote");
+    const quote = message.data.quote;
     const params = {
-      msgId: message.data.quote.globalMsgId,
+      msgId: quote.globalMsgId || quote.msgId,
       clientId: Date.now(),
-      cliMsgIdUndo: message.data.quote.cliMsgId,
+      cliMsgIdUndo: quote.cliMsgId || quote.clientId,
     };
 
     if (message.type === MessageType.GroupMessage) {

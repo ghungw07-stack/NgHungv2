@@ -7,6 +7,8 @@ import path from "path";
 import { parseGameAmount, formatCurrency } from "../../../utils/format-util.js";
 import { checkBeforeJoinGame } from "../index.js";
 import { connection } from "../../../database/state.js";
+import { getApiManager } from "../../../index.js";
+import { sendReactionWaitingCountdown } from "../../../commands/manager-command/check-countdown.js";
 import Big from "big.js";
 
 const GAME_DURATION = 30000;
@@ -14,12 +16,13 @@ const WARNING_TIME = 10000;
 const MAX_HISTORY = 90;
 const HOUSE_BIAS_CHANCE = 0.45;
 
-// Lưu trữ các game đang diễn ra theo threadId
-const activeGames = {};
+// Baccarat dùng một phiên chung cho toàn server (mọi group cùng tham gia).
+const GLOBAL_GAME_KEY = "__global__";
+const activeGames = { [GLOBAL_GAME_KEY]: null };
 const recentResults = new Map();
 
 function historyKey(api, threadId) {
-  return `${api.getBotId()}_${threadId}`;
+  return `${api.getBotId()}_global`;
 }
 
 async function addRecentResult(api, threadId, door) {
@@ -243,7 +246,7 @@ export async function handleBaccaratBet(api, message, groupSettings) {
   if (isSoiCau) {
     if (!(await checkBeforeJoinGame(api, message, groupSettings, true))) return true;
     const history = await getRecentResults(api, threadId);
-    const groupName = groupSettings?.[threadId]?.nameGroup || "Nhóm Baccarat";
+    const groupName = "Baccarat toàn server";
     const imagePath = await createSoiCauCanvas(history, groupName);
     try {
       await sendMessageFromSQLImage(api, message, { success: true, message: "🔎 Cầu Baccarat gần đây" }, false, imagePath);
@@ -303,67 +306,121 @@ export async function handleBaccaratBet(api, message, groupSettings) {
   // Trừ tiền ngay
   await updatePlayerBalanceByUsername(username, betAmount.neg());
 
-  if (!activeGames[threadId]) {
+  const gameKey = GLOBAL_GAME_KEY;
+  if (!activeGames[gameKey]) {
     // Bắt đầu game mới
-    activeGames[threadId] = {
+    activeGames[gameKey] = {
       players: {},
+      threads: new Set(),
       timeout: null,
       warningTimeout: null,
     };
-    
-    activeGames[threadId].players[senderId] = { door: betDoor, amount: betAmount, name: playerName, username };
+    activeGames[gameKey].threads.add(threadId);
+    activeGames[gameKey].threadBots = { [String(threadId)]: api.getBotId() };
+    const groupName = groupSettings?.[threadId]?.nameGroup || String(threadId);
+    activeGames[gameKey].players[senderId] = { door: betDoor, amount: betAmount, name: playerName, username, threadId, groupName, botId: api.getBotId() };
 
     const startMsg = `⚜️ ThuHoa Bot Team ⚜️\n🎴 ${playerName} vừa khởi động ván cược Baccarat trong 30s và đặt ${formatCurrency(betAmount)} vào cửa ${betDoor === 'con' ? 'Con (Player)' : betDoor === 'cái' ? 'Cái (Banker)' : 'Hòa (Tie)'}\n\n👉 Lệnh đặt cửa cược:\n- ${prefix}bcr con <tiền>: Cửa Con\n- ${prefix}bcr cái <tiền>: Cửa Cái\n- ${prefix}bcr hòa <tiền>: Cửa Hòa\n\n📊 Tỷ lệ trả thưởng:\n- Con: 1 ăn 0.95\n- Cái: 1 ăn 0.90\n- Hòa: 1 ăn 7`;
     
     await sendMessageFromSQL(api, message, { success: true, message: startMsg }, false, GAME_DURATION);
 
     // Cài đặt cảnh báo 10s
-    activeGames[threadId].warningTimeout = setTimeout(() => {
-      if (!activeGames[threadId]) return;
+    activeGames[gameKey].warningTimeout = setTimeout(() => {
+      if (!activeGames[gameKey]) return;
       let conStr = [], caiStr = [], hoaStr = [];
-      for (const p of Object.values(activeGames[threadId].players)) {
-        if (p.door === 'con') conStr.push(`${p.name} ${formatCurrency(p.amount)}`);
-        if (p.door === 'cái') caiStr.push(`${p.name} ${formatCurrency(p.amount)}`);
-        if (p.door === 'hòa') hoaStr.push(`${p.name} ${formatCurrency(p.amount)}`);
+      const currentGroup = activeGames[gameKey].players[message.data.uidFrom]?.groupName;
+      const otherGroups = new Map();
+      for (const p of Object.values(activeGames[gameKey].players)) {
+        const line = `${p.name}: ${formatCurrency(p.amount)}`;
+        if (p.groupName !== currentGroup) {
+          if (!otherGroups.has(p.groupName)) otherGroups.set(p.groupName, []);
+          const door = p.door === 'con' ? 'Con' : p.door === 'cái' ? 'Cái' : 'Hòa';
+          otherGroups.get(p.groupName).push(`- ${line} cửa ${door}`);
+          continue;
+        }
+        if (p.door === 'con') conStr.push(line);
+        if (p.door === 'cái') caiStr.push(line);
+        if (p.door === 'hòa') hoaStr.push(line);
       }
       
-      const warnMsg = `⚜️ ThuHoa Bot Team ⚜️\n⏳ BACCARAT còn 10 giây nữa là chốt cược!\nCon (Player): ${conStr.length ? conStr.join(', ') : 'chưa ai đặt'}\nCái (Banker): ${caiStr.length ? caiStr.join(', ') : 'chưa ai đặt'}\nHòa (Tie): ${hoaStr.length ? hoaStr.join(', ') : 'chưa ai đặt'}\n\n👉 Ai chưa đặt thì nhanh tay: ${prefix}bcr con / cái / hòa + tiền cược.`;
+      const otherSession = [...otherGroups.entries()]
+        .map(([groupName, players]) => `\n📌 Phiên khác: ${groupName}\n${players.join("\n")}`)
+        .join("");
+      const warnMsg = `⚜️ ThuHoa Bot Team ⚜️\n⏳ BACCARAT còn 10 giây nữa là chốt cược!\nCon (Player): ${conStr.length ? conStr.join(', ') : 'chưa ai đặt'}\nCái (Banker): ${caiStr.length ? caiStr.join(', ') : 'chưa ai đặt'}\nHòa (Tie): ${hoaStr.length ? hoaStr.join(', ') : 'chưa ai đặt'}${otherSession}\n\n👉 Ai chưa đặt thì nhanh tay: ${prefix}bcr con / cái / hòa + tiền cược.`;
       
-      sendMessageFromSQL(api, message, { success: true, message: warnMsg }, false, 20000, false).catch(console.error);
+      api.sendMessage({ msg: warnMsg, ttl: 20000 }, message.threadId, message.type)
+        .then((sentWarning) => {
+          // sendMessage trả về { message, attachment, link }; reaction cần
+          // message object thật, không phải wrapper response.
+          const warningMessage = sentWarning?.message || sentWarning;
+          const reactionMessage = warningMessage?.data
+            ? warningMessage
+            : warningMessage && {
+                data: {
+                  msgId: warningMessage.msgId || warningMessage.messageId || warningMessage.gMsgID,
+                  cliMsgId: warningMessage.cliMsgId || warningMessage.clientId,
+                },
+                threadId: message.threadId,
+                type: message.type,
+              };
+          const target = reactionMessage?.data?.msgId || reactionMessage?.data?.cliMsgId ? reactionMessage : message;
+          api.addReaction("CLOCK", [target]).catch((error) => {
+            console.warn("[baccarat] Không thả được reaction CLOCK:", error?.message || error);
+          });
+          // Một số phiên bản API không trả msgId của tin bot vừa gửi;
+          // thả thêm vào tin lệnh gốc để countdown vẫn luôn nhìn thấy được.
+          if (target !== message) {
+            api.addReaction("CLOCK", [message]).catch(() => {});
+          }
+        })
+        .catch(console.error);
+
+      // Hiển thị countdown 10 giây giống các lệnh CD: CLOCK bật/tắt mỗi giây
+      // trên tin lệnh gốc để người chơi biết thời gian còn lại để cược.
+      sendReactionWaitingCountdown(api, message, WARNING_TIME / 1000, "baccarat-warning").catch((error) => {
+        console.warn("[baccarat] Countdown reaction lỗi:", error?.message || error);
+      });
     }, GAME_DURATION - WARNING_TIME);
 
     // Cài đặt chốt kết quả
-    activeGames[threadId].timeout = setTimeout(() => {
-      endBaccaratGame(api, message, threadId);
+    activeGames[gameKey].timeout = setTimeout(() => {
+      endBaccaratGame(api, message);
     }, GAME_DURATION);
 
   } else {
-    if (activeGames[threadId].players[senderId]) {
+    const game = activeGames[gameKey];
+    if (game.players[senderId]) {
       // Hoàn tiền và báo lỗi nếu đã cược
       await updatePlayerBalanceByUsername(username, betAmount);
       await sendMessageFromSQL(api, message, { success: false, message: "Bạn đã cược trong ván này rồi!" }, true, 10000);
       return true;
     }
     
-    activeGames[threadId].players[senderId] = { door: betDoor, amount: betAmount, name: playerName, username };
+    game.threads.add(threadId);
+    game.threadBots[String(threadId)] = api.getBotId();
+    const groupName = groupSettings?.[threadId]?.nameGroup || String(threadId);
+    game.players[senderId] = { door: betDoor, amount: betAmount, name: playerName, username, threadId, groupName, botId: api.getBotId() };
     
-    const joinMsg = `⚜️ ThuHoa Bot Team ⚜️\n✅ Đặt ${formatCurrency(betAmount)} cửa ${betDoor === 'con' ? 'Con (Player)' : betDoor === 'cái' ? 'Cái (Banker)' : 'Hòa (Tie)'}.`;
+    const currentPlayers = Object.values(game.players)
+      .map((p) => `${p.name} [${p.groupName}]`)
+      .join(", ");
+    const joinMsg = `⚜️ ThuHoa Bot Team ⚜️\n✅ Đặt ${formatCurrency(betAmount)} cửa ${betDoor === 'con' ? 'Con (Player)' : betDoor === 'cái' ? 'Cái (Banker)' : 'Hòa (Tie)'}.\n👥 Cùng phiên toàn server: ${currentPlayers}`;
     await sendMessageFromSQL(api, message, { success: true, message: joinMsg }, true, 15000);
   }
 
   return true;
 }
 
-async function endBaccaratGame(api, message, threadId) {
-  const game = activeGames[threadId];
-  delete activeGames[threadId];
+async function endBaccaratGame(api, message) {
+  const game = activeGames[GLOBAL_GAME_KEY];
+  activeGames[GLOBAL_GAME_KEY] = null;
   if (!game) return;
   api.addReaction("UNDO", [message]).catch(() => {});
 
   // 65% phiên ưu tiên cửa có tổng nghĩa vụ trả thưởng thấp nhất; 35% còn lại
   // chia bài hoàn toàn ngẫu nhiên theo đúng luật Baccarat.
   const { player, banker, pScore, bScore, resultDoor } = dealBaccaratForBets(game.players);
-  await addRecentResult(api, threadId, resultDoor).catch((error) => console.error("Lỗi lưu cầu Baccarat:", error));
+  await addRecentResult(api, GLOBAL_GAME_KEY, resultDoor).catch((error) => console.error("Lỗi lưu cầu Baccarat:", error));
 
   const natural = player.length === 2 && banker.length === 2 && (pScore >= 8 || bScore >= 8);
   const winnerLabel = resultDoor === "con" ? "Con (Player)" : resultDoor === "cái" ? "Cái (Banker)" : "Hòa (Tie)";
@@ -596,7 +653,38 @@ async function endBaccaratGame(api, message, threadId) {
     const buffer = await canvas.toBuffer("image/png");
     await fs.writeFile(imagePath, buffer);
     
-    await sendMessageFromSQLImage(api, message, { success: true, message: resultMsg }, false, imagePath);
+    const groupsByThread = new Map();
+    for (const player of Object.values(game.players)) {
+      groupsByThread.set(String(player.threadId), player.groupName);
+    }
+    const messageForThread = (targetThreadId) => {
+      const currentGroup = groupsByThread.get(String(targetThreadId));
+      const otherPlayers = Object.values(game.players).filter((player) => player.groupName && player.groupName !== currentGroup);
+      if (!otherPlayers.length) return resultMsg;
+      const grouped = new Map();
+      for (const player of otherPlayers) {
+        if (!grouped.has(player.groupName)) grouped.set(player.groupName, []);
+        const door = player.door === "con" ? "Con" : player.door === "cái" ? "Cái" : "Hòa";
+        grouped.get(player.groupName).push(`- ${player.name}: ${formatCurrency(player.amount)} cửa ${door}`);
+      }
+      const otherSession = [...grouped.entries()]
+        .map(([groupName, players]) => `📌 Phiên khác: ${groupName}\n${players.join("\n")}`)
+        .join("\n");
+      return `${resultMsg}\n${otherSession}`;
+    };
+
+    await api.sendMessage(
+      { msg: messageForThread(message.threadId), attachments: [imagePath], ttl: 60000, isUseProphylactic: true },
+      message.threadId,
+      message.type
+    );
+
+    // Báo kết quả cho các group khác đã tham gia cùng phiên toàn server.
+    for (const targetThreadId of game.threads) {
+      if (String(targetThreadId) === String(message.threadId)) continue;
+      const targetApi = getApiManager(game.threadBots?.[String(targetThreadId)])?.apiZalo || api;
+      await targetApi.sendMessage({ msg: messageForThread(targetThreadId), ttl: 60000 }, targetThreadId, message.type).catch(() => {});
+    }
     
     setTimeout(() => fs.unlink(imagePath).catch(() => {}), 60000); // Xóa ảnh sau 1p
   } catch (error) {

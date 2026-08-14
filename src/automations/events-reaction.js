@@ -11,6 +11,7 @@ import { handleXiDachReaction } from "../service-ngh/game-service/xi-dach/xi-dac
 import { handleWerewolfReaction } from "../service-ngh/game-service/ma-soi/index.js";
 import { handleHorseRaceReaction } from "../service-ngh/game-service/dua-ngua/dua-ngua.js";
 import { handleCardTableReaction } from "../service-ngh/game-service/card-tables/card-tables.js";
+import { handleGiveawayReaction } from "../service-ngh/game-service/giveaway/giveaway.js";
 //Xử Lý Sự Kiện Reaction
 export async function reactionEvents(api, reaction) {
   await Promise.all([
@@ -27,5 +28,6 @@ export async function reactionEvents(api, reaction) {
     handleWerewolfReaction(api, reaction),
     handleHorseRaceReaction(api, reaction),
     handleCardTableReaction(api, reaction),
+    handleGiveawayReaction(api, reaction),
   ]);
 }

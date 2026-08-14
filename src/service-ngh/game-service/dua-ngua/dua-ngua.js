@@ -12,7 +12,7 @@ import { createHorseRaceGif, createHorseRaceLobbyImage } from "../../../utils/ca
 import { formatCurrency, parseGameAmount, removeMention } from "../../../utils/format-util.js";
 import { deleteFile } from "../../../utils/util.js";
 import { getGlobalPrefix } from "../../service.js";
-import { getUserInfoData } from "../../info-service/user-info.js";
+import { getUserInfoAcrossBots } from "../../info-service/user-info.js";
 
 const TIME_TO_LIVE = 10 * 60 * 1000;
 const LOBBY_TIMEOUT_MS = 5 * 60 * 1000;
@@ -85,7 +85,7 @@ async function reply(api, message, msg, ttl = TIME_TO_LIVE) {
 }
 
 async function resolvePlayer(api, uid, fallbackName) {
-  const info = await getUserInfoData(api, uid).catch(() => null);
+  const info = await getUserInfoAcrossBots(api, uid).catch(() => null);
   const name = info?.name || fallbackName || "Tay đua";
   return {
     uid: normalizeId(uid),

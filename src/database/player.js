@@ -1,16 +1,70 @@
 import { connection, NAME_TABLE_PLAYERS, nameServer, NAME_TABLE_ACCOUNT, DAILY_REWARD } from "./state.js";
-import { getUserInfoData } from "../service-ngh/info-service/user-info.js";
+import { getUserInfoAcrossBots } from "../service-ngh/info-service/user-info.js";
 import { getTimeToString, getTimeNow, formatBigNumber } from "../utils/format-util.js";
 import { getGameTier } from "../utils/canvas/game-finance.js";
 import { Big } from "big.js";
+import crypto from "node:crypto";
+
+// UID Zalo có thể khác nhau tùy bot. Cache alias giúp các hàm số dư (vốn là
+// synchronous ở bước chuẩn hóa đầu vào) luôn dùng cùng một hồ sơ chính.
+const playerAliasCache = new Map();
+const canonicalPlayerId = (id) => {
+  const normalized = String(id || "").replace(/_0$/u, "");
+  return playerAliasCache.get(normalized) || normalized;
+};
+
+function rememberPlayerAlias(alias, playerId) {
+  const normalizedAlias = String(alias || "").replace(/_0$/u, "");
+  const normalizedPlayer = String(playerId || "").replace(/_0$/u, "");
+  if (normalizedAlias && normalizedPlayer) playerAliasCache.set(normalizedAlias, normalizedPlayer);
+}
+
+async function persistPlayerAlias(alias, playerId) {
+  rememberPlayerAlias(alias, playerId);
+  try {
+    await connection.collection("player_identity").updateOne(
+      { aliasId: String(alias) },
+      { $set: { aliasId: String(alias), playerId: String(playerId), updatedAt: new Date() } },
+      { upsert: true }
+    );
+  } catch {}
+}
 
 /**
  * Tự động tạo/đồng bộ tài khoản người chơi theo UID Zalo — không cần đăng ký/đăng nhập.
  * Nếu UID Zalo đã có bản ghi thì chỉ cập nhật lại tên hiển thị (nếu đổi tên).
  * Nếu chưa có thì tạo mới ngay với số dư mặc định của bảng (10.000).
  */
-export async function ensurePlayerAccount(idUserZalo, senderName, botId) {
+export async function ensurePlayerAccount(idUserZalo, senderName, botId, api = null) {
   try {
+    idUserZalo = canonicalPlayerId(idUserZalo);
+    let identityKey = null;
+    let avatarUrl = null;
+    if (api) {
+      try {
+        const info = await getUserInfoAcrossBots(api, idUserZalo);
+        avatarUrl = info?.avatarFull || info?.avatar || null;
+        const identity = [info?.name, info?.avatarFull || info?.avatar, info?.cover, info?.bio,
+          info?.username, info?.genderId, info?.birthday, info?.phone]
+          .map((v) => String(v || "").trim().toLowerCase()).join("|");
+        
+        if (info?.globalId) {
+          identityKey = "GLOBAL:" + info.globalId;
+        } else if (identity.replace(/\|/g, "")) {
+          identityKey = crypto.createHash("sha256").update(identity).digest("hex");
+        }
+      } catch {}
+    }
+    if (identityKey) {
+      const identityDoc = await connection.collection("player_identity").findOne({ identityKey });
+      if (identityDoc?.playerId && identityDoc.playerId !== idUserZalo) {
+        const [linked] = await connection.execute(`SELECT username FROM ${NAME_TABLE_PLAYERS} WHERE idUserZalo = ?`, [identityDoc.playerId]);
+        if (linked.length) {
+          await persistPlayerAlias(idUserZalo, identityDoc.playerId);
+          return { success: true, isNew: false, playerId: identityDoc.playerId };
+        }
+      }
+    }
     const [rows] = await connection.execute(
       `SELECT id, playerName FROM ${NAME_TABLE_PLAYERS} WHERE idUserZalo = ?`,
       [idUserZalo]
@@ -23,17 +77,20 @@ export async function ensurePlayerAccount(idUserZalo, senderName, botId) {
           idUserZalo,
         ]);
       }
-      return { success: true, isNew: false };
+      if (avatarUrl) await connection.execute(`UPDATE ${NAME_TABLE_PLAYERS} SET avatar = ? WHERE idUserZalo = ?`, [avatarUrl, idUserZalo]);
+    if (identityKey) await connection.collection("player_identity").updateOne({ identityKey }, { $set: { identityKey, playerId: idUserZalo, updatedAt: new Date() } }, { upsert: true });
+    await persistPlayerAlias(idUserZalo, idUserZalo);
+    return { success: true, isNew: false, playerId: idUserZalo };
     }
 
-    // username không còn dùng để đăng nhập nữa, chỉ giữ để tương thích các hàm *ByUsername cũ.
-    // Dùng luôn idUserZalo làm username vì mỗi UID Zalo là duy nhất.
     await connection.execute(
-      `INSERT INTO ${NAME_TABLE_PLAYERS} (username, idUserZalo, playerName, serverId, registrationTime) VALUES (?, ?, ?, ?, NOW())`,
-      [idUserZalo, idUserZalo, senderName || idUserZalo, botId]
+      `INSERT INTO ${NAME_TABLE_PLAYERS} (username, idUserZalo, playerName, serverId, avatar, registrationTime) VALUES (?, ?, ?, ?, ?, NOW())`,
+      [idUserZalo, idUserZalo, senderName || idUserZalo, botId, avatarUrl]
     );
 
-    return { success: true, isNew: true };
+    if (identityKey) await connection.collection("player_identity").updateOne({ identityKey }, { $set: { identityKey, playerId: idUserZalo, updatedAt: new Date() } }, { upsert: true });
+    await persistPlayerAlias(idUserZalo, idUserZalo);
+    return { success: true, isNew: true, playerId: idUserZalo };
   } catch (error) {
     console.error("Lỗi khi tự động tạo tài khoản người chơi theo UID Zalo:", error);
     return { success: false };
@@ -108,6 +165,7 @@ export async function isPlayerActive(idUserZalo) {
 
 export async function claimDailyReward(idUser) {
   try {
+    idUser = canonicalPlayerId(idUser);
     const [rows] = await connection.execute(`SELECT * FROM ${NAME_TABLE_PLAYERS} WHERE idUserZalo = ?`, [idUser]);
 
     if (rows.length === 0) {
@@ -169,6 +227,7 @@ export async function claimDailyReward(idUser) {
 
 export async function getMyCard(api, idUser) {
   try {
+    idUser = canonicalPlayerId(idUser);
     const [rows] = await connection.execute(`SELECT * FROM ${NAME_TABLE_PLAYERS} WHERE idUserZalo = ?`, [idUser]);
 
     if (rows.length === 0) {
@@ -179,7 +238,12 @@ export async function getMyCard(api, idUser) {
     }
 
     const player = rows[0];
-    const dataPlayerZalo = await getUserInfoData(api, idUser);
+    let dataPlayerZalo = {};
+    try {
+      dataPlayerZalo = (await getUserInfoAcrossBots(api, idUser)) || {};
+    } catch {
+      // UID có thể thuộc bot khác; dữ liệu game vẫn hiển thị được.
+    }
 
     const totalWinnings = new Big(player.totalWinnings);
     const totalLosses = new Big(player.totalLosses);
@@ -204,6 +268,7 @@ export async function getMyCard(api, idUser) {
       account: player.username,
       idUser: player.idUserZalo,
       playerName: player.playerName,
+      avatar: dataPlayerZalo.avatarFull || dataPlayerZalo.avatar || player.avatar || null,
       balance: balance.toString(),
       rankPoints: Number(player.rankPoints || 0),
       registrationTime: getTimeToString(player.registrationTime),
@@ -232,6 +297,7 @@ function formatWinRate(winRate) {
 
 export async function setLoserGame(idUser, amount) {
   try {
+    idUser = canonicalPlayerId(idUser);
     const [playerRows] = await connection.execute(`SELECT balance FROM ${NAME_TABLE_PLAYERS} WHERE idUserZalo = ?`, [
       idUser,
     ]);
@@ -284,6 +350,7 @@ export async function setLoserGameByUsername(username, amount) {
 
 export async function updatePlayerBalance(idUser, amount, isWin = null, numAmountWin) {
   try {
+    idUser = canonicalPlayerId(idUser);
     const [playerRows] = await connection.execute(`SELECT balance FROM ${NAME_TABLE_PLAYERS} WHERE idUserZalo = ?`, [
       idUser,
     ]);
@@ -380,6 +447,7 @@ export async function setPlayerBalance(idUser, amount) {
 
 export async function getPlayerBalance(idUser) {
   try {
+    idUser = canonicalPlayerId(idUser);
     const [rows] = await connection.execute(`SELECT balance FROM ${NAME_TABLE_PLAYERS} WHERE idUserZalo = ?`, [idUser]);
 
     if (rows.length > 0) {
@@ -399,6 +467,7 @@ export async function getPlayerBalance(idUser) {
 
 export async function getPlayerInfo(idUserZalo) {
   try {
+    idUserZalo = canonicalPlayerId(idUserZalo);
     const [rows] = await connection.execute(`SELECT * FROM ${NAME_TABLE_PLAYERS} WHERE idUserZalo = ?`, [idUserZalo]);
 
     if (rows.length > 0) {
@@ -412,7 +481,7 @@ export async function getPlayerInfo(idUserZalo) {
   }
 }
 
-/** Hạng không còn tăng từ kết quả chơi game. Giữ hàm no-op để tương thích các mini game cũ. */
+/** Hạng tài khoản không tăng từ kết quả chơi game; giữ hàm để tương thích các game cũ. */
 export async function addGameRankPoints(idUserZalo, { won = false, jackpot = false } = {}) {
   void idUserZalo; void won; void jackpot;
   return { success: true, points: 0 };
@@ -473,7 +542,8 @@ export async function raisePlayerRank(idUserZalo, targetPoints) {
     }
     const result = await collection.updateOne(
       { _id: player._id, $or: [{ rankPoints: { $lt: newPoints } }, { rankPoints: { $exists: false } }] },
-      { $set: { rankPoints: newPoints } }
+      // Lên hạng là một mốc Daily mới: cho nhận lại một lần ngay lập tức.
+      { $set: { rankPoints: newPoints, lastDailyReward: null } }
     );
     if (result.modifiedCount !== 1) return { success: false, message: "Điểm hạng vừa thay đổi, vui lòng thử lại." };
     return { success: true, oldPoints, newPoints };
@@ -570,6 +640,7 @@ export async function updateAccountVND(username, amount) {
 
 export async function getUsernameByIdZalo(idUserZalo) {
   try {
+    idUserZalo = canonicalPlayerId(idUserZalo);
     const [rows] = await connection.execute(`SELECT username FROM ${NAME_TABLE_PLAYERS} WHERE idUserZalo = ?`, [
       idUserZalo,
     ]);

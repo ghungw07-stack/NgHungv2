@@ -135,7 +135,9 @@ export function getNameServer(api) {
 export async function sendMessageInsufficientAuthority(api, message, caption, hasState = true) {
   try {
     const senderName = message.data.dName;
-    const senderId = message.data.uidFrom;
+    // uidFrom có thể là globalId dùng cho database; khi mention trên Zalo
+    // phải dùng UID gốc của bot hiện tại.
+    const senderId = message.data.gameUid || message.data.uidFrom;
     const threadId = message.threadId;
     const iconState = "\n🚫🚫🚫";
     const isGroup = message.type === MessageType.GroupMessage;
@@ -473,7 +475,7 @@ export async function sendMessageResultRequest(
 export async function sendMessageFromSQL(api, message, result, hasState = true, ttl = 0, mentionSender = true) {
   try {
     const threadId = message.threadId;
-    const senderId = message.data.uidFrom;
+    const senderId = message.data.gameUid || message.data.uidFrom;
     const senderName = message.data.dName;
     const isGroup = message.type === MessageType.GroupMessage;
     const nameServer = getNameServer(api);
