@@ -8,6 +8,7 @@
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
+    "start:legacy": "node src/index.js",
     "bot": "node bot.js",
     "test": "node --test test/*.test.js"
   },

@@ -47,7 +47,7 @@ async function clearOurStaging() {
 async function runTests() {
   const entries = await fs.readdir(path.join(PROJECT_DIR, "test"), { withFileTypes: true });
   const tests = entries
-    .filter((entry) => entry.isFile() && entry.name.endsWith(".test.js"))
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".test.js") && !entry.name.startsWith("v2-"))
     .map((entry) => path.join("test", entry.name));
   if (tests.length === 0) return;
   await execFileAsync(process.execPath, ["--test", ...tests], {

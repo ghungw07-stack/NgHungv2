@@ -93,7 +93,7 @@ class ApiManager {
   }
 
   get(idBot) {
-    return this.apiManagerObject[idBot];
+    return this.apiManagerObject[idBot] || globalThis.__NGH_V2_API_CONTEXTS__?.get(String(idBot));
   }
 
   delete(idBot) {
@@ -348,9 +348,7 @@ export async function inheritBotLeader(api, userId, displayName = "") {
   }
 }
 
-export const getGlobalApi = () => {
-  return api;
-};
+export const getGlobalApi = () => api || globalThis.__NGH_V2_API_CONTEXTS__?.values().next().value?.apiZalo;
 
 export function setupBotListeners(api) {
   const MAX_CONCURRENT_MESSAGES = 6;
@@ -518,7 +516,7 @@ export async function createBot(config) {
 // Lỗi đã được bắt ở từng handler sẽ không làm chết tiến trình. Chỉ những lỗi
 // lọt ra ngoài toàn bộ lớp bảo vệ mới buộc process thoát để PM2/bot.js dựng lại
 // một trạng thái sạch, tránh process treo nhưng vẫn mang trạng thái hỏng.
-if (process.env.NGH_LEGACY_LIBRARY !== "1" && !globalThis.__NGHUNG_FATAL_GUARD__) {
+if (process.env.NGH_LEGACY_LIBRARY !== "1" && process.env.NGH_SERVICE_LIBRARY !== "1" && !globalThis.__NGHUNG_FATAL_GUARD__) {
   globalThis.__NGHUNG_FATAL_GUARD__ = true;
   let exitingOnFatal = false;
   const exitOnFatal = (kind, reason) => {
@@ -536,17 +534,18 @@ if (process.env.NGH_LEGACY_LIBRARY !== "1" && !globalThis.__NGHUNG_FATAL_GUARD__
 }
 
 let configBotMain = readConfig();
-let legacyCompatibilityInfrastructure;
-export function initializeLegacyCompatibility(api) {
-  legacyCompatibilityInfrastructure ||= Promise.all([
+let sharedServiceInfrastructure;
+export function initializeSharedServices(api) {
+  sharedServiceInfrastructure ||= Promise.all([
     initializeDatabase(), initializeCacheLinkService(), initializeGameBauCua(), initializeGameChanLe(),
   ]);
-  return legacyCompatibilityInfrastructure.then(() => initService(api));
+  return sharedServiceInfrastructure.then(() => initService(api));
 }
+export const initializeLegacyCompatibility = initializeSharedServices;
 
 // Khi được v2 import làm thư viện tương thích, tuyệt đối không khởi động thêm
 // database/web/listener hoặc đăng nhập bot lần thứ hai.
-if (process.env.NGH_LEGACY_LIBRARY !== "1") {
+if (process.env.NGH_LEGACY_LIBRARY !== "1" && process.env.NGH_SERVICE_LIBRARY !== "1") {
   await Promise.all([initializeDatabase(), initializeCacheLinkService()]);
   await Promise.all([initializeGameBauCua(), initializeGameChanLe()]);
   const api = await createBot(configBotMain);

@@ -47,7 +47,17 @@ import { handleAddUserToGroupReply } from "../commands/bot-manager/add-user-to-g
 let globalPrefix = {};
 
 export function getGlobalPrefix(idBot) {
-  return globalPrefix[idBot] || "";
+  const botId = String(idBot ?? "");
+  if (globalPrefix[botId]) return globalPrefix[botId];
+  // Nạp prefix từ command.json khi bot khởi động. Trước đây map runtime rỗng
+  // khiến prefix trở thành chuỗi rỗng, làm mọi tin nhắn bị coi như lệnh game.
+  let configured = "";
+  try {
+    const config = readCommandConfig();
+    configured = String(config?.prefix?.[botId] || "");
+  } catch {}
+  globalPrefix[botId] = configured || "!";
+  return globalPrefix[botId];
 }
 
 export function setGlobalPrefix(idBot, newPrefix) {
