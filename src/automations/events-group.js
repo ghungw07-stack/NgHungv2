@@ -1,5 +1,6 @@
 import schedule from "node-schedule";
 import { GroupEventType, MessageType, typeToString } from "../api-zalo/models/index.js";
+import { MessageStyle, MultiMsgStyle } from "../api-zalo/models/Message.js";
 import {
   getUserInfoBasic,
   getUserInfoData,
@@ -77,17 +78,20 @@ async function sendJoinLeaveBlockNotice(api, threadId, userId, member) {
     } catch {}
   }
 
+  const msg =
+    `╭───────────────⟡\n` +
+    `│ 🤖 ${serverName}\n` +
+    `├───────────────\n` +
+    `│ 🚫 TỰ ĐỘNG CHẶN\n` +
+    `│ 👤 ${blockedName}\n` +
+    `│ 🆔 [ ${userId} ]\n` +
+    `│ 📌 Lý do: Vào/rời nhóm 3 lần trong vòng 12h\n` +
+    `╰───────────────⟡`;
+  const serverLineLength = `│ 🤖 ${serverName}`.length;
   await api.sendMessage(
     {
-      msg:
-        `╭───────────────⟡\n` +
-        `│ 🤖 ${serverName}\n` +
-        `├───────────────\n` +
-        `│ 🚫 TỰ ĐỘNG CHẶN\n` +
-        `│ 👤 ${blockedName}\n` +
-        `│ 🆔 [ ${userId} ]\n` +
-        `│ 📌 Lý do: Vào/rời nhóm 3 lần trong vòng 12h\n` +
-        `╰───────────────⟡`,
+      msg,
+      style: MultiMsgStyle([MessageStyle(0, serverLineLength, "db342e", "18", true, false, false, false)]),
       ttl: 300000,
     },
     threadId,
