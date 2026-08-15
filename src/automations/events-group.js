@@ -80,9 +80,14 @@ async function sendJoinLeaveBlockNotice(api, threadId, userId, member) {
   await api.sendMessage(
     {
       msg:
-        `${serverName}\n` +
-        `Tự động chặn ${blockedName} - [ ${userId} ]\n` +
-        `Lý do: Vào/rời nhóm 3 lần trong vòng 12h`,
+        `╭───────────────⟡\n` +
+        `│ 🤖 ${serverName}\n` +
+        `├───────────────\n` +
+        `│ 🚫 TỰ ĐỘNG CHẶN\n` +
+        `│ 👤 ${blockedName}\n` +
+        `│ 🆔 [ ${userId} ]\n` +
+        `│ 📌 Lý do: Vào/rời nhóm 3 lần trong vòng 12h\n` +
+        `╰───────────────⟡`,
       ttl: 300000,
     },
     threadId,
