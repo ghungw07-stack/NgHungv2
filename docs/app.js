@@ -8,6 +8,7 @@ if (all) {
 }
 document.querySelector('.menu')?.addEventListener('click', () => document.querySelector('.nav')?.classList.toggle('open'));
 const music = document.querySelector('#bgMusic'), musicToggle = document.querySelector('#musicToggle');
+if (music) { music.volume = .65; music.play().catch(() => {}); const startOnTouch = () => { music.play().catch(() => {}); document.removeEventListener('pointerdown', startOnTouch); }; document.addEventListener('pointerdown', startOnTouch, {once:true}); }
 musicToggle?.addEventListener('click', async () => { if (!music) return; if (music.paused) { try { await music.play(); musicToggle.textContent='❚❚'; } catch { musicToggle.textContent='♪'; } } else { music.pause(); musicToggle.textContent='▶'; } });
 music?.addEventListener('ended', () => { if (musicToggle) musicToggle.textContent='▶'; });
 if ('IntersectionObserver' in window) { const observer=new IntersectionObserver(entries=>entries.forEach(e=>{if(e.isIntersecting)e.target.classList.add('visible')}),{threshold:.1}); document.querySelectorAll('.reveal').forEach(el=>observer.observe(el)); }
