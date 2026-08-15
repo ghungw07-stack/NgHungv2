@@ -18,7 +18,7 @@
     <nav aria-label="Điều hướng chính">
       <a href="#features">Tính năng</a><a href="#process">Quy trình</a><a href="#deposit">Nạp tiền</a>
     </nav>
-    <a class="nav-cta" href="tel:0904554385">Liên hệ ngay <span>↗</span></a>
+    <div class="nav-actions"><a class="nav-login" href="#account">Đăng nhập</a><a class="nav-cta" href="#account">Đăng ký miễn phí <span>↗</span></a></div>
     <button class="menu" aria-label="Mở menu">☰</button>
   </header>
 
@@ -70,8 +70,16 @@
       <div class="steps"><article class="reveal"><b>01</b><div class="step-icon">⌁</div><h3>Chọn gói phù hợp</h3><p>Trao đổi nhu cầu và số lượng nhóm cần vận hành.</p></article><article class="reveal"><b>02</b><div class="step-icon">▣</div><h3>Kết nối tài khoản</h3><p>Quét mã an toàn để bot nhận diện và khởi tạo.</p></article><article class="reveal"><b>03</b><div class="step-icon">↗</div><h3>Bot online</h3><p>Tự động duyệt, cấu hình và đưa bot vào hoạt động.</p></article></div></div>
     </section>
 
+    <section id="account" class="account wrap">
+      <div class="section-head reveal"><div><span class="kicker">03 — BẢNG ĐIỀU KHIỂN</span><h2>Quản lý bot ngay trên web.</h2></div><p>Tài khoản riêng cho từng khách hàng: theo dõi số dư, nạp tiền bằng QR, tạo bot và xem trạng thái hoạt động.</p></div>
+      <div class="account-grid">
+        <article class="account-card reveal"><span class="card-label">KHÁCH HÀNG</span><h3>Một nơi cho mọi bot</h3><div class="dash-row"><b>Số dư khả dụng</b><strong>0 ₫</strong></div><div class="dash-row"><b>Bot đang chạy</b><strong class="green">0 / 3</strong></div><a class="button primary" href="https://zalo.me/0904554385" target="_blank" rel="noopener">Nhận tài khoản <span>↗</span></a></article>
+        <article class="account-card dark reveal"><span class="card-label">GÓI DỊCH VỤ</span><h3>Chọn gói phù hợp</h3><div class="plans"><div><b>Basic</b><strong>80K<span>/tháng</span></strong><small>1 bot · hỗ trợ cơ bản</small></div><div class="plan-hot"><b>Pro</b><strong>150K<span>/tháng</span></strong><small>3 bot · ưu tiên hỗ trợ</small></div><div><b>Business</b><strong>Liên hệ</strong><small>Không giới hạn · tuỳ chỉnh</small></div></div></article>
+      </div>
+    </section>
+
     <section id="deposit" class="deposit wrap">
-      <div class="deposit-copy reveal"><span class="kicker">03 — NẠP TIỀN NHANH</span><h2>Sẵn sàng kích hoạt bot?</h2><p>Tạo nội dung chuyển khoản, quét mã và gửi xác nhận. Hưng sẽ kiểm tra và kích hoạt dịch vụ cho bạn.</p><div class="safe"><i>✓</i><span><b>Minh bạch & an toàn</b><small>Không yêu cầu mật khẩu hay mã OTP của bạn.</small></span></div></div>
+      <div class="deposit-copy reveal"><span class="kicker">04 — NẠP TIỀN NHANH</span><h2>Sẵn sàng kích hoạt bot?</h2><p>Tạo nội dung chuyển khoản, quét mã và gửi xác nhận. Hệ thống sẽ cộng số dư sau khi giao dịch được đối soát.</p><div class="safe"><i>✓</i><span><b>Minh bạch & an toàn</b><small>Không yêu cầu mật khẩu hay mã OTP của bạn.</small></span></div></div>
       <form class="payment-card reveal" id="paymentForm">
         <div class="card-head"><div><small>SỐ DƯ DEMO</small><strong>0 ₫</strong></div><span>SECURE ◉</span></div>
         <label>Số điện thoại / Zalo<input id="customerPhone" inputmode="tel" placeholder="Nhập số của bạn" required></label>
