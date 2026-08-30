@@ -25,6 +25,7 @@ export async function handlePrefixCommand(api, message, threadId, isAdmin) {
     await api.sendMessage(
       {
         msg: withServerName(api, currentPrefix ? `Prefix hiện tại của bot là: ${currentPrefix}` : `Bot hiện tại không có prefix`),
+        quote: message,
         ttl: 300000,
       },
       threadId,
@@ -37,6 +38,7 @@ export async function handlePrefixCommand(api, message, threadId, isAdmin) {
     await api.sendMessage(
       {
         msg: withServerName(api, "❌ Bạn không có quyền thay đổi prefix của bot!"),
+        quote: message,
         ttl: 300000,
       },
       threadId,
@@ -49,6 +51,7 @@ export async function handlePrefixCommand(api, message, threadId, isAdmin) {
     await api.sendMessage(
       {
         msg: withServerName(api, "❌ Prefix không được chứa khoảng trắng!"),
+        quote: message,
         ttl: 300000,
       },
       threadId,
