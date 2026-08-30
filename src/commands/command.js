@@ -1914,6 +1914,18 @@ export async function handleCommand(
     return numHandleCommand;
   }
 
+  // Chặn toàn bộ lệnh nhóm khi bot đang tắt trước cả nhánh prefix. Nếu để
+  // sau, `prefix` sẽ được xử lý và trả lời trước khi kiểm tra activeBot.
+  // Bot Leader/admin cấp cao và admin bot vẫn được dùng lệnh bật lại bot.
+  if (
+    message.type === MessageType.GroupMessage &&
+    groupSettings?.[threadId]?.activeBot !== true &&
+    !isAdminLevelHighest &&
+    !isAdminBot
+  ) {
+    return numHandleCommand;
+  }
+
   if (
     (content.startsWith(`${prefix}prefix`) || content.startsWith(`prefix`))
   ) {
