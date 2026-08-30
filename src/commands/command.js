@@ -1976,9 +1976,10 @@ export async function handleCommand(
   if (typeof content === "string") {
     const isGroupActiveBot = groupSettings[threadId]?.activeBot === true;
     const isGroupActiveGame = groupSettings[threadId]?.activeGame === true;
-    // Khi bot nhóm OFF, chỉ admin cấp cao của bot được tiếp tục dùng lệnh.
-    // Admin nhóm/admin bot thông thường và thành viên đều phải im lặng.
-    if (!isGroupActiveBot && !isAdminLevelHighest) {
+    // Khi bot nhóm OFF, chỉ Bot Leader/admin cấp cao hoặc admin bot được
+    // tiếp tục dùng lệnh (đặc biệt là lệnh bật bot lại). Thành viên thường
+    // phải được im lặng hoàn toàn, kể cả khi gọi bare prefix.
+    if (!isGroupActiveBot && !isAdminLevelHighest && !isAdminBot) {
       return numHandleCommand;
     }
     const groupCommandInfo = getCommand(botId, commandLowerCase);
