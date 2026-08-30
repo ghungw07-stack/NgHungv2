@@ -327,6 +327,7 @@ export async function antiBadWord(api, message, groupSettings, isAdminBox, botIs
         await api.sendMessage(
           {
             msg: warningMsg,
+            quote: message,
             mentions: [MessageMention(senderId, senderName.length, 0)],
             ttl: 30000,
           },

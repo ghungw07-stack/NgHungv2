@@ -92,12 +92,13 @@ export const deleteMessageFactory = apiFactory()((api, appContext, utils) => {
     const globalMsgId = String(message.data.msgId);
     let result = null;
 
-    // Case 1: Sử dụng cliMsgId và globalMsgId
-    result = await attemptRequest(cliMsgId, cliMsgId, globalMsgId);
+    // Za-go dùng timestamp mới cho cliMsgId ngoài cùng; hai ID trong `msgs`
+    // vẫn là ID gốc của tin nhắn cần xóa.
+    result = await attemptRequest(cliMsgIdNow, cliMsgId, globalMsgId);
     if (!result.error) return result.data;
 
-    // Case 2: Sử dụng cliMsgIdNow, message.data.cliMsgId và message.data.msgId
-    result = await attemptRequest(cliMsgIdNow, cliMsgId, globalMsgId);
+    // Fallback cho các phiên Zalo cũ chấp nhận cliMsgId gốc ở ngoài cùng.
+    result = await attemptRequest(cliMsgId, cliMsgId, globalMsgId);
     if (!result.error) return result.data;
 
     // Case 3: Sử dụng cliMsgIdNow = Date.now().toString() và globalMsgId

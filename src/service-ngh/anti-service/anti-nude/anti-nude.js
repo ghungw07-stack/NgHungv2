@@ -351,6 +351,7 @@ export async function antiNude(api, message, isAdminBox, groupSettings, botIsAdm
                   nsfw_prob,
                   50
                 )}%).`,
+                quote: message,
                 mentions: [MessageMention(senderId, senderName.length, "⚠️ ".length)],
                 ttl: 30000,
               },
@@ -368,6 +369,7 @@ export async function antiNude(api, message, isAdminBox, groupSettings, botIsAdm
                   `⚠️ Cảnh cáo ${senderName}!\n` +
                   `Ở đây cấm gửi nội dung nhạy cảm!!! (Độ nhạy cảm: ${Math.max(nsfw_prob, 50)}%).` +
                   `\nVi phạm nhiều lần, tao đá khỏi box!`,
+                quote: message,
                 mentions: [MessageMention(senderId, senderName.length, "⚠️ Cảnh cáo ".length)],
                 ttl: 30000,
               },

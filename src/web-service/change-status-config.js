@@ -83,6 +83,9 @@ export const changeStatusConfig = async ({ api, groupId, groupName, command, isA
     case "antiPhoneNumber":
       groupSettings[groupId].antiPhoneNumber = isActive;
       break;
+    case "antiAds":
+      groupSettings[groupId].antiAds = isActive;
+      break;
     case "antigif":
       groupSettings[groupId].antigif = isActive;
       break;

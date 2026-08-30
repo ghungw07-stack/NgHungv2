@@ -11,7 +11,7 @@ import { antiBadWord } from "../service-ngh/anti-service/anti-badword.js";
 import { antiNotText } from "../service-ngh/anti-service/anti-not-text.js";
 import { handleMute } from "../service-ngh/anti-service/mute-user.js";
 import { Reactions, ReactionMap } from "../api-zalo/index.js";
-import { handleOnChatUser, handleOnReplyFromUser } from "../service-ngh/service.js";
+import { getGlobalPrefix, handleOnChatUser, handleOnReplyFromUser } from "../service-ngh/service.js";
 import { chatWithSimsimi } from "../service-ngh/chat-bot/simsimi/simsimi-api.js";
 import { handleChatBot } from "../service-ngh/chat-bot/bot-learning/ngh-bot.js";
 import { autoJoinGroup } from "../service-ngh/anti-service/auto-join.js";
@@ -22,8 +22,7 @@ import { handleCommand, initGroupSettings, handleCommandPrivate, updateNameGroup
 import { logMessageToFile, readGroupSettings } from "../utils/io-json.js";
 import { canvasTest, checkIsValidContext, superCheckBox, testFutureGroup, testFutureUser } from "./ngh-test.js";
 import { antiNude } from "../service-ngh/anti-service/anti-nude/anti-nude.js";
-import { isUserBlocked } from "../commands/bot-manager/group-manage.js";
-import { getUserInfoBasic } from "../service-ngh/info-service/user-info.js";
+import { handleBlockListReply, isUserBlocked } from "../commands/bot-manager/group-manage.js";
 import { check } from "diskusage";
 import { antiMedia } from "../service-ngh/anti-service/anti-media-file.js";
 import { antiStickerEffect } from "../service-ngh/anti-service/anti-sticker-effect.js";
@@ -33,6 +32,7 @@ import { antiAllEffectSticker } from "../service-ngh/anti-service/anti-sticker.j
 import { antiVoice } from "../service-ngh/anti-service/anti-voice.js";
 import { handleAutoReplyGemini } from "../service-ngh/api-crawl/assistant-ai/auto-reply-gemini.js";
 import { antiPhoneNumber } from "../service-ngh/anti-service/anti-phone-number.js";
+import { antiAds } from "../service-ngh/anti-service/anti-ads.js";
 import { antiBot } from "../service-ngh/anti-service/anti-bot.js";
 import { pushMessageToWebLog } from "../web-service/web-server.js";
 import { antiAllEffectGif } from "../service-ngh/anti-service/anti-gif.js";
@@ -40,11 +40,16 @@ import { getAutoReplyPMConfig, getPrCard } from "../commands/bot-manager/welcome
 import { sendMessageFromSQL } from "../service-ngh/chat-zalo/chat-style/chat-style.js";
 import { handleNotifyParentOnPM, handleParentReplyToPM } from "../manager-bot/notify-parent-pm.js";
 import { checkAutoPingId } from "../commands/send-all/ping-id.js";
+import { isUserSilenced } from "../utils/user-antispam.js";
+import { checkAutoVoiceTriggers } from "../service-ngh/chat-bot/auto-voice-reply.js";
+import { isInteractiveCommandContent } from "../utils/message-routing.js";
 
 class GroupsSettingsAll {
   constructor() {
     this.groupsList = {};
     this.hasChanges = false;
+    this.saveInFlight = null;
+    this.saveRequested = false;
   }
 
   load() {
@@ -67,15 +72,66 @@ class GroupsSettingsAll {
     return this.groupsList[idBot];
   }
 
-  save() {
-    if (this.hasChanges) {
-      writeGroupSettings(this.groupsList);
-      this.hasChanges = false;
+  async deleteByID(idBot) {
+    if (!Object.prototype.hasOwnProperty.call(this.groupsList, idBot)) return false;
+    delete this.groupsList[idBot];
+    this.setChanged();
+    await this.save();
+    return true;
+  }
+
+  async save() {
+    if (this.saveInFlight) {
+      this.saveRequested = true;
+      return this.saveInFlight;
     }
+    if (!this.hasChanges) return false;
+
+    this.hasChanges = false;
+    this.saveRequested = false;
+    this.saveInFlight = writeGroupSettings(this.groupsList)
+      .catch((error) => {
+        this.hasChanges = true;
+        console.error("Lỗi khi lưu group settings:", error);
+        return false;
+      })
+      .finally(() => {
+        this.saveInFlight = null;
+        if (this.hasChanges || this.saveRequested) setImmediate(() => void this.save());
+      });
+    return this.saveInFlight;
   }
 }
 
 export const groupSettingsAll = new GroupsSettingsAll();
+
+/** Remove settings for groups this bot no longer belongs to. */
+export function pruneMissingGroupSettings(api, activeGroups) {
+  const activeIds = new Set(
+    (activeGroups?.activeGroupIds || activeGroups || [])
+      .map((group) => String(group?.groupId || group?.id || group))
+      .filter(Boolean)
+  );
+  if (activeIds.size === 0) return 0;
+  const settings = groupSettingsAll.getByID(api.getBotId());
+  let removed = 0;
+  for (const groupId of Object.keys(settings)) {
+    if (!activeIds.has(String(groupId))) {
+      delete settings[groupId];
+      removed++;
+    }
+  }
+  if (removed > 0) {
+    groupSettingsAll.setChanged();
+    console.log(`[group-settings] Bot ${api.getBotId()}: removed ${removed} stale groups`);
+  }
+  return removed;
+}
+
+function isRentalAdmin(botId, userId, threadId) {
+  const rental = groupSettingsAll.getByID(botId)?.[threadId]?.rentalBot;
+  return Boolean(rental && String(rental.userId) === String(userId) && Number(rental.expiresAt) > Date.now());
+}
 
 let contentTempThread;
 
@@ -100,6 +156,39 @@ const AUTO_REPLY_COOLDOWN = 1 * 60 * 60 * 1000; // 1 hour to prevent spam
 // key: `${idBot}_${cliMsgId}` -> timestamp. Trùng 1 lần là bỏ qua luôn, không delay.
 const processedCliMsgIds = new Map();
 const CLI_MSG_DEDUPE_TTL = 30 * 1000; // giữ 30s rồi tự dọn, đủ để chặn spam dồn dập
+const rentalExpiryJobs = new Map();
+
+function ensureRentalExpiryJob(api, threadId) {
+  const botId = api.getBotId();
+  const setting = groupSettingsAll.getByID(botId)?.[threadId];
+  const rental = setting?.rentalBot;
+  if (!rental?.expiresAt) return;
+  const key = `${botId}:${threadId}:${rental.expiresAt}`;
+  if (rentalExpiryJobs.has(key)) return;
+  if (Number(rental.expiresAt) <= Date.now()) {
+    api.leaveGroup(threadId, true).catch((error) =>
+      console.error(`[thuebot] Không thể tự out nhóm ${threadId}:`, error?.message || error)
+    );
+    delete setting.rentalBot;
+    groupSettingsAll.setChanged();
+    return;
+  }
+  const job = schedule.scheduleJob(new Date(Number(rental.expiresAt)), async () => {
+    try {
+      await api.leaveGroup(threadId, true);
+    } catch (error) {
+      console.error(`[thuebot] Không thể tự out nhóm ${threadId}:`, error?.message || error);
+    } finally {
+      const current = groupSettingsAll.getByID(botId)?.[threadId];
+      if (current?.rentalBot && Number(current.rentalBot.expiresAt) === Number(rental.expiresAt)) {
+        delete current.rentalBot;
+        groupSettingsAll.setChanged();
+      }
+      rentalExpiryJobs.delete(key);
+    }
+  });
+  rentalExpiryJobs.set(key, job);
+}
 
 function isDuplicateCliMsg(idBot, message) {
   const cliMsgId = message?.data?.cliMsgId ?? message?.data?.msgId;
@@ -232,32 +321,64 @@ schedule.scheduleJob("*/10 * * * * *", () => {
       processedCliMsgIds.delete(key);
     }
   }
-  groupSettingsAll.save();
+  void groupSettingsAll.save();
 });
 
 export async function messagesUser(api, message) {
   const idBot = api.getBotId();
+  // Một số bot con không có accountInfo (đặc biệt tài khoản không tên),
+  // nhưng event vẫn phải tiếp tục để command có thể phản hồi.
+  const accountName = api.accountInfo?.name || String(idBot);
 
   // Chặn ngay từ đầu nếu tin nhắn này (cùng cliMsgId) đã được xử lý rồi cho bot này.
   // Trùng 1 lần là bỏ qua luôn, không delay, không trả lời, không ảnh hưởng bot khác.
   if (isDuplicateCliMsg(idBot, message)) {
-    console.log(`[ ${api.accountInfo.name} ] Bỏ qua tin nhắn trùng cliMsgId (chống flood)`);
+    if (process.env.NGH_VERBOSE_MESSAGE_LOG === "1") {
+      console.log(`[ ${accountName} ] Bỏ qua tin nhắn trùng cliMsgId (chống flood)`);
+    }
     return;
   }
 
   const senderId = message.data.uidFrom;
   const threadId = message.threadId;
+  ensureRentalExpiryJob(api, threadId);
   let content = message.data.content;
   const isPlainText = typeof message.data.content === "string";
   const senderName = message.data.dName;
   let isAdminLevelHighest = false;
   let isAdminBot = false;
-  await inheritBotLeader(api, senderId, senderName);
+  const prefix = getGlobalPrefix(idBot);
+  const shouldResolveLeaderIdentity =
+    message.type === MessageType.DirectMessage ||
+    (typeof content === "string" && isInteractiveCommandContent(content, prefix));
+  if (shouldResolveLeaderIdentity) {
+    // Identity discovery can require one or more Zalo profile requests for a
+    // previously unseen user. Give it a small budget for the owner fast-path,
+    // then let its internal cache finish warming without delaying every normal
+    // command by several seconds.
+    let identityBudgetTimer;
+    await Promise.race([
+      inheritBotLeader(api, senderId, senderName),
+      new Promise((resolve) => {
+        identityBudgetTimer = setTimeout(resolve, 250);
+        identityBudgetTimer.unref?.();
+      }),
+    ]);
+    clearTimeout(identityBudgetTimer);
+  }
   // Bot Leader được kế thừa qua bot_leader.json; không chỉ dựa vào
   // danh sách admin cục bộ của từng bot con.
-  isAdminLevelHighest = isAdmin(idBot, senderId) || isBotLeader(idBot, senderId);
+  // Người thuê chỉ có quyền admin cấp cao trong đúng nhóm đã thuê.
+  isAdminLevelHighest = isAdmin(idBot, senderId) || isRentalAdmin(idBot, senderId, threadId) || isBotLeader(idBot, senderId);
   isAdminBot = isAdmin(idBot, senderId, threadId);
   let isSelf = idBot === senderId;
+
+  // Nếu user bị block (và không phải bot leader / self / bot owner), dừng mọi xử lý ngay lập tức
+  if (!isSelf && !isBotLeader(idBot, senderId) && isUserBlocked(idBot, senderId)) {
+    return;
+  }
+
+  const isSilenced = !isSelf && !isAdminLevelHighest && !isBotLeader(idBot, senderId) && isUserSilenced(senderId);
 
   const contentText = isPlainText
     ? content
@@ -268,6 +389,8 @@ export async function messagesUser(api, message) {
         : content.catId
           ? "Sticker ID: " + content.id + " | " + content.catId + " | " + content.type
           : null;
+  const isSensitiveAttack = message.type === MessageType.DirectMessage &&
+    typeof content === "string" && /^\s*\S*attack\s+(?!send\b)/i.test(content);
 
   if (
     message.data?.quote &&
@@ -283,19 +406,32 @@ export async function messagesUser(api, message) {
       // Bot mẹ reply thông báo của bot con: chuyển thẳng nội dung tới người gửi gốc.
       if (await handleParentReplyToPM(api, message)) return;
 
-      const uidFrom = message.data.uidFrom;
-      const idTo = message.data.idTo;
-      const userInfoResponse = await api.getInfoMembers([uidFrom, idTo]);
-      const userInfo = userInfoResponse.profiles[uidFrom];
-      const targetInfo = userInfoResponse.profiles[idTo] || { zaloName: 'Unknown User' };
-      pushMessageToWebLog(idBot, message, { source: userInfo, target: targetInfo });
-      if (contentText) {
-        const logMessage = `[ ${api.accountInfo.name} ] Có Mesage Riêng Tư Mới:
+      // The message already carries both identities. Calling getInfoMembers on
+      // every private message adds a network round-trip before command parsing
+      // and was one of the largest sources of visible reply latency.
+      const userInfo = {
+        id: senderId,
+        uid: senderId,
+        dName: senderName,
+        zaloName: senderName,
+        avatar: message.data?.avatar,
+      };
+      const targetInfo = {
+        id: message.data.idTo || idBot,
+        uid: message.data.idTo || idBot,
+        dName: accountName,
+        zaloName: accountName,
+        avatar: api.accountInfo?.avatar,
+      };
+      if (!isSensitiveAttack) pushMessageToWebLog(idBot, message, { source: userInfo, target: targetInfo });
+      if (contentText && !isSensitiveAttack) {
+        const logMessage = `[ ${accountName} ] Có Mesage Riêng Tư Mới:
             - Sender Name: [ ${senderName} ] -> [ ${targetInfo.zaloName || 'Unknown User'} ] | ID: ${threadId}
             - Content: ${contentText}\n`;
         logMessageToFile(idBot, logMessage, "message");
       }
-      // if (isPlainText) {
+      if (isSilenced) return;
+
       let continueProcessingChat = true;
       continueProcessingChat = !isUserBlocked(idBot, senderId);
       // continueProcessingChat = continueProcessingChat && (isAdminLevelHighest && !isSelf) && !(await testFutureUser(api, message));
@@ -342,7 +478,7 @@ export async function messagesUser(api, message) {
         }
       }
       // Notify parent bot when child bot receives PM
-      if (!isSelf) {
+      if (!isSelf && !isSensitiveAttack) {
         await handleNotifyParentOnPM(api, message);
       }
     }
@@ -350,16 +486,33 @@ export async function messagesUser(api, message) {
     break;
     }
     case MessageType.GroupMessage: {
+      const groupMessageLogEnabled = process.env.NGH_GROUP_MESSAGE_LOG === "1";
       let nameGroup = "";
       let isAdminBox = false;
       let botIsAdminBox = false;
       let groupAdmins = [];
       let groupInfo = {};
-      let senderInfo = {};
-      [senderInfo, groupInfo] = await Promise.all([getUserInfoBasic(api, senderId), getGroupInfoData(api, threadId)]);
+      // uid/name/avatar are already present in the websocket event. Avoid a
+      // second Zalo request for every newly seen sender just to feed the web log.
+      const senderInfo = {
+        id: senderId,
+        uid: senderId,
+        dName: senderName,
+        zaloName: senderName,
+        avatar: message.data?.avatar,
+      };
+      groupInfo = await getGroupInfoData(api, threadId).catch((error) => {
+        console.error("Lỗi lấy thông tin nhóm:", error?.message || error);
+        return {};
+      });
+      // Một số bot con đôi lúc chưa lấy được metadata nhóm; không để lỗi
+      // groupInfo.name làm chết toàn bộ handler tin nhắn nhóm.
+      groupInfo = groupInfo || {};
       initGroupSettings(groupSettings, threadId);
-      pushMessageToWebLog(idBot, message, { source: senderInfo, target: groupInfo });
-      nameGroup = groupInfo.name;
+      if (groupMessageLogEnabled) {
+        pushMessageToWebLog(idBot, message, { source: senderInfo, target: groupInfo });
+      }
+      nameGroup = groupInfo.name || "Nhóm không tên";
       updateNameGroupSetting(groupSettings, threadId, nameGroup);
       groupAdmins = await getGroupAdmins(groupInfo);
       botIsAdminBox = groupAdmins.includes(idBot.toString());
@@ -370,16 +523,18 @@ export async function messagesUser(api, message) {
         return;
       }
 
-      if (contentText) {
+      if (groupMessageLogEnabled && contentText) {
         let keyCheck = contentText + nameGroup;
-        const logMessage = `[ ${api.accountInfo.name} ] Có Mesage Nhóm Mới:
+        const logMessage = `[ ${accountName} ] Có Mesage Nhóm Mới:
               - Tên Nhóm: ${nameGroup} | Group ID: ${threadId}
               - Người Gửi: ${senderName} | Sender ID: ${senderId}
               - Nội Dung: ${contentText}\n`;
         if (contentTempThread === keyCheck) {
-          console.log(
-            `[ ${api.accountInfo.name} ] Có Mesage Tương Tự Bên Trên | Group ID: ${threadId} | Sender ID: ${senderId}`
-          );
+          if (process.env.NGH_VERBOSE_MESSAGE_LOG === "1") {
+            console.log(
+              `[ ${accountName} ] Có Mesage Tương Tự Bên Trên | Group ID: ${threadId} | Sender ID: ${senderId}`
+            );
+          }
           logMessageToFile(idBot, logMessage, "message", false);
         } else {
           contentTempThread = keyCheck;
@@ -425,6 +580,9 @@ export async function messagesUser(api, message) {
           ? await handleWerewolfGroupRestriction(api, message, isAdminLevelHighest || isAdminBot || isAdminBox)
           : false;
       if (werewolfRestricted) return;
+      if (isPlainText && !isSelf && handleChat && message.data?.quote && (await handleBlockListReply(api, message))) {
+        return;
+      }
       const werewolfVoteHandled =
         isPlainText && !isSelf && handleChat && groupSettings[threadId]?.activeBot === true
           ? await handleWerewolfGroupVote(api, message)
@@ -453,13 +611,13 @@ export async function messagesUser(api, message) {
         // numberHandleCommand = 5: Đã Xử Lý Lệnh Game
         // numberHandleCommand = 99: Phát Hiện Dùng Lệnh, Check Lệnh Hiện Tại (Nếu Không Có Lệnh Nào Được Xử Lý -> Đưa Ra Gợi Ý)
         handleChat = handleChat && groupSettings[threadId].activeBot === true;
-        handleChat = handleChat && !isSelf;
-        if (handleChat || (!isSelf && isAdminBot)) {
+        handleChat = handleChat && !isSelf && !isSilenced;
+        if (handleChat || (!isSelf && isAdminBot && !isSilenced)) {
           await handleOnChatUser(api, message, numberHandleCommand === 5, groupSettings, groupInfo);
         }
       }
 
-      if ((handleChat || isAdminBot) && numberHandleCommand === -1) {
+      if ((handleChat || isAdminBot) && numberHandleCommand === -1 && !isSilenced) {
         handleChat = await handleOnReplyFromUser(
           api,
           message,
@@ -473,17 +631,20 @@ export async function messagesUser(api, message) {
         );
       }
 
-      if (isPlainText && !autoRaiLinkHandled) {
+      if (isPlainText && !autoRaiLinkHandled && !isSilenced) {
         if (!isSelf && !isBlocked) {
           await handleChatBot(api, message, threadId, groupSettings, nameGroup, numberHandleCommand === 2);
         }
       }
 
-      if (isPlainText && !isSelf && !isBlocked && !autoRaiLinkHandled && numberHandleCommand === -1) {
+      // Auto PID also supports image messages with a text caption containing
+      // a six-digit code; do not gate it on string-only message content.
+      if (!isSelf && !isBlocked && !autoRaiLinkHandled && numberHandleCommand === -1 && !isSilenced) {
         await checkAutoPingId(api, message, groupSettings, groupInfo);
+        if (isPlainText) await checkAutoVoiceTriggers(api, message, groupSettings);
       }
 
-      if (!isBlocked && numberHandleCommand === -1) {
+      if (!isBlocked && !isSilenced && numberHandleCommand === -1) {
         const mentions = message.data.mentions || null;
         if (mentions && groupSettings[threadId].tagReaction) {
           const tagMe = mentions.find((mention) => mention.uid === idBot);
@@ -515,23 +676,25 @@ export async function messagesUser(api, message) {
 
       let remainingAntiHandled = false;
       if (canRunRemainingAnti) {
+        const settings = groupSettings[threadId] || {};
         const antiChecks = [
-          () => antiBadWord(api, message, groupSettings, isAdminBox, botIsAdminBox, isSelf),
-          () => antiNude(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf),
-          () => antiMedia(api, message, groupSettings, isAdminBox, botIsAdminBox, isSelf),
-          () => antiForward(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf),
-          () => antiFile(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf),
-          () => antiVoice(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf),
-          () => antiTag(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf),
-          () => antiAllEffectSticker(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf),
-          () => antiPhotoVideo(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf),
-          () => antiPhoneNumber(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf),
-          () => antiStickerEffect(api, message, groupInfo, isAdminBox, groupSettings, botIsAdminBox, isSelf),
-          () => antiAllEffectGif(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf),
-          () => antiNotText(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf),
-        ];
+          ["filterBadWords", () => antiBadWord(api, message, groupSettings, isAdminBox, botIsAdminBox, isSelf)],
+          ["antiNude", () => antiNude(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf)],
+          ["antiMediaFile", () => antiMedia(api, message, groupSettings, isAdminBox, botIsAdminBox, isSelf)],
+          ["antiforward", () => antiForward(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf)],
+          ["antiFile", () => antiFile(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf)],
+          ["antiVoice", () => antiVoice(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf)],
+          ["antiTag", () => antiTag(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf)],
+          ["antiSticker", () => antiAllEffectSticker(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf)],
+          ["antiPhotoVideo", () => antiPhotoVideo(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf)],
+          ["antiPhoneNumber", () => antiPhoneNumber(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf)],
+          ["antiAds", () => antiAds(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf)],
+          ["antiStickerEffect", () => antiStickerEffect(api, message, groupInfo, isAdminBox, groupSettings, botIsAdminBox, isSelf)],
+          ["antigif", () => antiAllEffectGif(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf)],
+          ["onlyText", () => antiNotText(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf)],
+        ].filter(([setting]) => settings[setting] === true);
         for (const checkAnti of antiChecks) {
-          if (await checkAnti()) {
+          if (await checkAnti[1]()) {
             remainingAntiHandled = true;
             break;
           }

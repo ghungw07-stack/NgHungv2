@@ -2,7 +2,8 @@ import { apiManager, getApiManagerWithOwner, getGlobalApi, setupBotListeners } f
 import { getUsersInfoBasic } from "../service-ngh/info-service/user-info.js";
 import { formatMiliseconds } from "../utils/format-util.js";
 import { getCachedFriends, getCachedGroups } from "../web-service/web-server.js";
-import { getBotChildrenStore, getDataBotChildren, shutdownBotByOwnerId, startBotChildren } from "./index.js";
+import { clearExpiredRetention } from "../utils/bot-expiry-policy.js";
+import { getBotChildrenStore, getDataBotChildren, purgeRemovedBotData, shutdownBotByOwnerId, startBotChildren } from "./index.js";
 
 class ManagerBotSocket {
   constructor() {
@@ -150,7 +151,10 @@ class ManagerBotSocket {
         return { success: true, message: `Khởi động lại bot ${dataBotRestart.nameBot || idBot} thành công!` };
       }
     } catch (error) {
-      return { success: false, message: "Có lỗi xảy ra khi khởi động lại bot: " + error.message };
+      // startBotChildren đã báo trực tiếp cho chủ bot ngay tại thời điểm login
+      // thất bại. Phản hồi socket chỉ dùng cho giao diện, không phát thêm một
+      // cảnh báo trễ mang nội dung "khởi động lại bot".
+      return { success: false, message: "Không thể khởi động bot. Chủ bot đã được thông báo ngay." };
     }
   }
 
@@ -161,6 +165,7 @@ class ManagerBotSocket {
       const dataBotApprove = this.botChildrenStore.get(ownerId);
       if (!dataBotApprove) return { success: false, message: "Bot không tồn tại" };
       dataBotApprove.timeRemaining = milisecond;
+      if (milisecond === -1 || milisecond > 0) clearExpiredRetention(dataBotApprove);
       dataBotApprove.approvedAt = Date.now();
       dataBotApprove.approvedBy = apiGlobal.getBotId();
       dataBotApprove.status = "inactive";
@@ -209,6 +214,9 @@ class ManagerBotSocket {
       const dataBotAddTime = this.botChildrenStore.get(ownerId);
       if (!dataBotAddTime) return { success: false, message: "Bot không tồn tại" };
       dataBotAddTime.timeRemaining += milisecond;
+      if (dataBotAddTime.timeRemaining === -1 || dataBotAddTime.timeRemaining > 0) {
+        clearExpiredRetention(dataBotAddTime);
+      }
       this.botChildrenStore.markDirty();
       const nameBot = `${dataBotAddTime.createdBy || ownerId} ${
         dataBotAddTime.nameBot ? `- [${dataBotAddTime.nameBot}]` : ""
@@ -247,6 +255,7 @@ class ManagerBotSocket {
       const dataBotSetTime = this.botChildrenStore.get(ownerId);
       if (!dataBotSetTime) return { success: false, message: "Bot không tồn tại" };
       dataBotSetTime.timeRemaining = milisecond;
+      if (milisecond === -1 || milisecond > 0) clearExpiredRetention(dataBotSetTime);
       this.botChildrenStore.markDirty();
       const nameBot = `${dataBotSetTime.createdBy || ownerId} ${
         dataBotSetTime.nameBot ? `- [${dataBotSetTime.nameBot}]` : ""
@@ -269,6 +278,7 @@ class ManagerBotSocket {
       const nameBot = `${dataBotRemove.createdBy || ownerId} ${
         dataBotRemove.nameBot ? `- [${dataBotRemove.nameBot}]` : ""
       }`;
+      await purgeRemovedBotData(ownerId, dataBotRemove);
       this.botChildrenStore.delete(ownerId);
       this.botChildrenStore.markDirty();
       return { success: true, message: `Đã xóa bot ${nameBot} thành công!` };

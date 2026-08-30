@@ -3,7 +3,8 @@ import path from "path";
 import { removeMention } from "../../../utils/format-util.js";
 import { getGlobalPrefix } from "../../service.js";
 import { sendMessageStateQuote } from "../../chat-zalo/chat-style/chat-style.js";
-import { askGeminiCommand } from "./gemini.js";
+import { askNovaCommand } from "./nova.js";
+import { setNovaEnabled } from "../../../utils/nova-store.js";
 import { sendReactionWaitingCountdown } from "../../../commands/manager-command/check-countdown.js";
 import { sleep } from "../../../utils/util.js";
 
@@ -70,10 +71,13 @@ export async function handleAutoReplyCommand(api, message, aliasCommand, groupSe
 
   if (command === "on") {
     groupSettings[threadId].autoReplyCommand = true;
+    setNovaEnabled(api.getBotId(), threadId, true);
   } else if (command === "off") {
     groupSettings[threadId].autoReplyCommand = false;
+    setNovaEnabled(api.getBotId(), threadId, false);
   } else {
     groupSettings[threadId].autoReplyCommand = !groupSettings[threadId].autoReplyCommand;
+    setNovaEnabled(api.getBotId(), threadId, groupSettings[threadId].autoReplyCommand);
   }
 
   const status = groupSettings[threadId].autoReplyCommand;
@@ -114,15 +118,8 @@ export async function handleAutoReplyGemini(api, message, groupSettings, isSelf)
   commandUsage[cooldownKey] = Date.now();
 
   try {
-    const reply = await askGeminiCommand(api, message);
-    if (reply) {
-      const isQuoteSupported = !["webchat", "group.poll"].includes(message?.data?.msgType);
-      const payload = { msg: reply, ttl: 60000 }; // TTL 60s
-      if (isQuoteSupported) {
-        payload.quote = message;
-      }
-      await api.sendMessage(payload, threadId, message.type);
-    }
+    // Dùng chung Nova với lệnh `nova`, tránh hai AI trả lời trùng nhau.
+    await askNovaCommand(api, message, "nova");
   } catch (err) {
     console.error("Lỗi gọi Gemini:", err);
     await api.sendMessage({ msg: "Lỗi xử lý AI", ttl: 60000 }, threadId, message.type);

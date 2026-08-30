@@ -147,5 +147,40 @@
       "totalSpent": 0
     },
     "redeemedCodes": {}
+  },
+  "730692876347902359": {
+    "uid": "730692876347902359",
+    "name": "Hoàng Tùng",
+    "level": 0,
+    "exp": 0,
+    "money": 200,
+    "currentArea": 1,
+    "inventory": {
+      "fish": {},
+      "baits": {
+        "bait_rice": 50
+      },
+      "rods": [],
+      "tools": [],
+      "pets": [],
+      "potions": {},
+      "tickets": 0,
+      "skillCards": {}
+    },
+    "equipment": {
+      "rod": null,
+      "bait": null
+    },
+    "stats": {
+      "totalFishCaught": 0,
+      "rareCaught": 0,
+      "legendaryCaught": 0,
+      "mythicalCaught": 0,
+      "bossAttacks": 0,
+      "bossKills": 0,
+      "rodsBroken": 0,
+      "totalSpent": 0
+    },
+    "redeemedCodes": {}
   }
 }

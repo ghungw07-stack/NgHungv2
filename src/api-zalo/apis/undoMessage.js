@@ -3,8 +3,8 @@ import { apiFactory } from "../utils.js";
 
 export const undoMessageFactory = apiFactory()((api, appContext, utils) => {
   const URLType = {
-    [MessageType.DirectMessage]: utils.makeURL(`${api.zpwServiceMap.chat[0]}/api/message/undo?`),
-    [MessageType.GroupMessage]: utils.makeURL(`${api.zpwServiceMap.group[0]}/api/group/undomsg?`),
+    [MessageType.DirectMessage]: utils.makeURL(`${api.zpwServiceMap.chat[0]}/api/message/undo`, { nretry: 0 }),
+    [MessageType.GroupMessage]: utils.makeURL(`${api.zpwServiceMap.group[0]}/api/group/undomsg`, { nretry: 0 }),
   };
   /**
    * Undo a message | Hoàn tác tin nhắn

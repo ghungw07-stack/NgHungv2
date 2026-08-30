@@ -4,14 +4,18 @@ import chalk from "chalk";
 import { mkdir } from "fs/promises";
 
 import { getTimeToString, getTimeNow } from "./format-util.js";
+import { enqueueSqlLog } from "./sql-logger.js";
 
-export const MANAGER_BOTS_FILE_PATH = path.join(process.cwd(), "assets", "data", "manager-bots.json");
-const configFilePath = path.resolve("./assets/config.json");
-const groupSettingsPath = path.resolve("./assets/data/group_settings.json");
-const adminFilePath = path.resolve("./assets/data/list_admin.json");
-export const commandFilePath = path.resolve("./assets/data/command.json");
+export const DATA_ROOT = path.resolve(process.env.NGH_DATA_ROOT || path.join(process.cwd(), "assets"));
+export const MANAGER_BOTS_FILE_PATH = path.resolve(
+  process.env.NGH_MANAGER_BOTS_FILE || path.join(DATA_ROOT, "data", "manager-bots.json")
+);
+const configFilePath = path.resolve(process.env.NGH_CONFIG_FILE || path.join(DATA_ROOT, "config.json"));
+const groupSettingsPath = path.join(DATA_ROOT, "data", "group_settings.json");
+const adminFilePath = path.join(DATA_ROOT, "data", "list_admin.json");
+export const commandFilePath = path.join(DATA_ROOT, "data", "command.json");
 
-export const JSON_DATA_PATH = path.join(process.cwd(), "assets", "json-data");
+export const JSON_DATA_PATH = path.join(DATA_ROOT, "json-data");
 export const DATA_GAME_FILE_PATH = path.join(JSON_DATA_PATH, "data-game.json");
 export const DATA_API_FILE_PATH = path.join(JSON_DATA_PATH, "api-key.json");
 export const SETTING_CONFIG_FILE_PATH = path.join(JSON_DATA_PATH, "setting-config.json");
@@ -87,7 +91,8 @@ export const GIFS_RESOURCE_PATH_GLOBAL = path.join(resourceDir, "gifs");
 export const BACKGROUND_RESOURCE_PATH_TEMP = path.join(resourceDir, "background");
 export const tempDir = path.join(process.cwd(), "assets", "temp");
 
-const logDir = path.join(process.cwd(), "logs");
+export const LOG_ROOT = path.resolve(process.env.NGH_LOG_ROOT || path.join(process.cwd(), "logs"));
+const logDir = LOG_ROOT;
 const logManagerBotFilePath = path.join(logDir, "bot-manager.log");
 
 export async function ensureLogFiles() {
@@ -228,18 +233,49 @@ export function mkdirRecursive(dirPath) {
 }
 
 export function logManagerBot(message) {
-  const timestamp = getTimeToString(getTimeNow());
-  const logEntry = `${timestamp} - ${message}\n`;
-  fs.appendFileSync(logManagerBotFilePath, logEntry);
+  enqueueSqlLog("error", message);
+  if (process.env.NGH_LEGACY_MANAGER_FILE_LOG === "1") {
+    const timestamp = getTimeToString(getTimeNow());
+    const logEntry = `${timestamp} - ${message}\n`;
+    fs.appendFile(logManagerBotFilePath, logEntry, "utf8", () => {});
+  }
+}
+
+const messageLogBuffers = new Map();
+const messageLogTimers = new Map();
+const MESSAGE_LOG_FLUSH_MS = Math.max(10, Number(process.env.NGH_MESSAGE_LOG_FLUSH_MS) || 100);
+const MESSAGE_LOG_BUFFER_LIMIT = Math.max(100, Number(process.env.NGH_MESSAGE_LOG_BUFFER_LIMIT) || 10000);
+
+function flushMessageLog(filePath) {
+  messageLogTimers.delete(filePath);
+  const entries = messageLogBuffers.get(filePath);
+  if (!entries?.length) return;
+  messageLogBuffers.set(filePath, []);
+  fs.appendFile(filePath, entries.join(""), "utf8", (error) => {
+    if (error) console.error("Lỗi ghi message log:", error);
+  });
 }
 
 export function logMessageToFile(idBot, data, type = "message", isLogCommand = true) {
+  // Group-event logs are noisy and may contain member details. Keep this sink
+  // disabled unless it is explicitly needed for a short diagnostic session.
+  if (type === "group" && process.env.NGH_GROUP_FILE_LOG !== "1") return;
+  // File message logs can grow by gigabytes on busy bots. Keep this legacy
+  // sink opt-in; structured logs already go to MongoDB.
+  if (process.env.NGH_MESSAGE_FILE_LOG !== "1") return;
   const timestamp = getTimeToString(getTimeNow());
   const logData = `\n${data}`;
-
-  fs.appendFileSync(loggingMessageFilePath(idBot), logData, "utf8");
+  const filePath = loggingMessageFilePath(idBot);
+  const entries = messageLogBuffers.get(filePath) || [];
+  if (entries.length < MESSAGE_LOG_BUFFER_LIMIT) entries.push(logData);
+  messageLogBuffers.set(filePath, entries);
+  if (!messageLogTimers.has(filePath)) {
+    const timer = setTimeout(() => flushMessageLog(filePath), MESSAGE_LOG_FLUSH_MS);
+    timer.unref?.();
+    messageLogTimers.set(filePath, timer);
+  }
   // if (idBot === getGlobalApi.getBotId()) {}
-  if (isLogCommand) {
+  if (isLogCommand && process.env.NGH_VERBOSE_MESSAGE_LOG === "1") {
     if (type === "group") {
       console.log(chalk.yellowBright.bold(`\n[${timestamp}]`), chalk.yellowBright(logData));
     } else {
@@ -258,11 +294,17 @@ export function readGroupSettings() {
   }
 }
 
-export function writeGroupSettings(settings) {
+export async function writeGroupSettings(settings) {
+  const temporaryPath = `${groupSettingsPath}.tmp`;
   try {
-    fs.writeFileSync(groupSettingsPath, JSON.stringify(settings, null, 2), "utf-8");
+    // Disk I/O must not block every listener when this file grows with the
+    // number of groups. Atomic rename also avoids a partial JSON file on exit.
+    await fs.promises.writeFile(temporaryPath, JSON.stringify(settings), "utf-8");
+    await fs.promises.rename(temporaryPath, groupSettingsPath);
+    return true;
   } catch (error) {
     console.error("Lỗi khi ghi file group_settings.json:", error);
+    throw error;
   }
 }
 

@@ -297,6 +297,7 @@ async function handleIncomingMessageAntibot(api, uid, threadId, messageObject, g
       await api.sendMessage(
         {
           msg: `⚠️ @${senderName}!\nĐại ca tui không cho bot khác ở đây.`,
+          quote: messageObject,
           mentions: [MessageMention(String(uid), senderName.length + 1, "⚠️ ".length)],
           ttl: 300000,
         },

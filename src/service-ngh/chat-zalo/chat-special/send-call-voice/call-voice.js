@@ -6,6 +6,7 @@ export async function spamCallVoice(api, message, aliasCommand) {
   const content = removeMention(message);
   const prefix = getGlobalPrefix(api.getBotId());
   const keyContent = content.replace(`${prefix}${aliasCommand}`, "").trim();
+
   let [countNumberCall, delayBetweenCall, idTarget = ""] = keyContent.split("|");
   countNumberCall = parseInt(countNumberCall) || 1;
   delayBetweenCall = parseInt(delayBetweenCall) || 1000;

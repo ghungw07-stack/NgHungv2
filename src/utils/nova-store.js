@@ -1,6 +1,7 @@
 import path from "path";
 import { DatabaseSync } from "node:sqlite";
-const db = new DatabaseSync(path.join(process.cwd(), "assets", "data", "nova.sqlite"));
+import { DATA_ROOT } from "./io-json.js";
+const db = new DatabaseSync(path.join(DATA_ROOT, "data", "nova.sqlite"));
 db.exec(`
   PRAGMA journal_mode = WAL;
   CREATE TABLE IF NOT EXISTS nova_group_settings (

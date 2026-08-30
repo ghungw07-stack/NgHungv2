@@ -72,6 +72,7 @@ export const sendImageFactory = apiFactory()((api, appContext, utils) => {
       jcp: JSON.stringify({
         sendSource: 1,
         convertible: "jxl",
+        is_original: 1,
       }),
       ttl: ttl,
       imei: appContext.imei,

@@ -1,4 +1,5 @@
 import schedule from "node-schedule";
+import fs from "fs";
 import { MessageStyle, MessageType } from "../../api-zalo/index.js";
 import {
   sendMessageComplete,
@@ -16,7 +17,7 @@ import { getGlobalPrefix } from "../../service-ngh/service.js";
 import { removeMention } from "../../utils/format-util.js";
 import { parseTime } from "../../utils/format-util.js";
 import { addOrUpdateMute } from "../../service-ngh/anti-service/mute-user.js";
-import { readManagerFile, writeManagerFile } from "../../utils/io-json.js";
+import { readManagerFile, writeManagerFile, MANAGER_FILE_PATH, logManagerBot } from "../../utils/io-json.js";
 import { loadApiKeysMedia } from "../../utils/api-key-manager.js";
 import { getGlobalApi } from "../../index.js";
 import { getUsersInfoBasic } from "../../service-ngh/info-service/user-info.js";
@@ -27,41 +28,57 @@ class ManagerDataCache {
   constructor() {
     this.cache = {};
     this.hasChanges = {};
+    this.lastMtime = {};
   }
 
   get(idBot) {
     if (!this.cache[idBot]) {
-      // Tự load từ file nếu chưa có trong cache,
-      // đảm bảo getDataManager() luôn trả về đúng object trong cache
-      const fromFile = readManagerFile(idBot);
-      this.cache[idBot] = {
-        msgRequestReset: {},
-        onBotPrivate: false,
-        onGamePrivate: true,
-        ...fromFile,
-      };
+      this.load(idBot);
     }
     return this.cache[idBot];
   }
 
   load(idBot) {
     const fromFile = readManagerFile(idBot);
-    this.cache[idBot] = {
-      msgRequestReset: {},
-      onBotPrivate: false,
-      onGamePrivate: true,
-      ...fromFile,
-    };
+    if (!this.cache[idBot]) {
+      this.cache[idBot] = {
+        msgRequestReset: {},
+        onBotPrivate: false,
+        onGamePrivate: true,
+      };
+    }
+    Object.assign(this.cache[idBot], fromFile);
+    try {
+      this.lastMtime[idBot] = fs.statSync(MANAGER_FILE_PATH(idBot)).mtimeMs;
+    } catch {
+      this.lastMtime[idBot] = 0;
+    }
   }
 
   setChanged(idBot) {
     this.hasChanges[idBot] = true;
   }
 
-  save(idBot) {
-    if (this.hasChanges[idBot]) {
-      writeManagerFile(idBot, this.get(idBot));
-      this.hasChanges[idBot] = false;
+  save(idBotToSave) {
+    for (const idBot of Object.keys(this.cache)) {
+      if (this.hasChanges[idBot]) {
+        writeManagerFile(idBot, this.cache[idBot]);
+        this.hasChanges[idBot] = false;
+        try {
+          this.lastMtime[idBot] = fs.statSync(MANAGER_FILE_PATH(idBot)).mtimeMs;
+        } catch {
+          this.lastMtime[idBot] = 0;
+        }
+      } else {
+        try {
+          const currentMtime = fs.statSync(MANAGER_FILE_PATH(idBot)).mtimeMs;
+          if (currentMtime > (this.lastMtime[idBot] || 0)) {
+            this.load(idBot);
+          }
+        } catch {
+          // ignore
+        }
+      }
     }
   }
 }
@@ -162,6 +179,7 @@ export async function notifyResettingInGroup(api, message) {
 
 export async function exitRestartBot(api, message) {
   try {
+    logManagerBot(`[manual-restart] bot=${api?.getBotId?.() || "unknown"} thread=${message?.threadId || "unknown"} by=${message?.data?.uidFrom || "unknown"}`);
     await notifyResettingInGroup(api, message);
     await new Promise((resolve) => setTimeout(resolve, 1000));
     process.exit(0);
@@ -177,7 +195,7 @@ export async function handleActiveBotUser(api, message, aliasCommand, groupSetti
   const threadId = message.threadId;
   const senderId = message.data.uidFrom;
   const prefix = getGlobalPrefix(idBot);
-  const botCommand = content.replace(`${prefix}bot`, "").trim();
+  const botCommand = content.replace(`${prefix}${aliasCommand}`, "").trim();
   const managerData = api.apiManager.getDataManager();
 
   if (!botCommand) {
@@ -196,7 +214,7 @@ export async function handleActiveBotUser(api, message, aliasCommand, groupSetti
       `\n ➤  ${prefix}${aliasCommand} check - Kiểm tra cấu hình anti` +
       `\n\n🔹 *Bật tắt gửi đĩa xoay:*` +
       `\n ➤  ${prefix}${aliasCommand} spindisk on|off` +
-      `\n\n🔹 *Bật|tắt tự xóa khi thả tym:*` +
+      `\n\n🔹 *Bật|tắt tự xóa khi thả like:*` +
       `\n ➤  ${prefix}${aliasCommand} autodelete on|off` +
       `\n\n🔹 *Bật|tắt chống bị kéo vào nhóm:*` +
       `\n ➤  ${prefix}${aliasCommand} antiinvite on|off` +
@@ -293,8 +311,8 @@ export async function handleActiveBotUser(api, message, aliasCommand, groupSetti
     } else {
       await sendMessageFailed(api, message, caption);
     }
-  } else if (botCommand.includes("autodelete")) {
-    const privateCommand = botCommand.replace("autodelete", "").trim();
+  } else if (botCommand === "delete" || botCommand.startsWith("delete ") || botCommand.includes("autodelete")) {
+    const privateCommand = botCommand.replace("autodelete", "").replace("delete", "").trim();
     let newStatus;
     if (!privateCommand) {
       newStatus = !managerData.heartReactionDelete;
@@ -305,7 +323,7 @@ export async function handleActiveBotUser(api, message, aliasCommand, groupSetti
     managerDataCache.setChanged(idBot);
 
     const statusMessage = newStatus ? "kích hoạt" : "vô hiệu hóa";
-    const caption = `Đã ${statusMessage} tự động xóa tin nhắn khi có reaction thả tym.`;
+    const caption = `Đã ${statusMessage} tự động xóa tin nhắn khi có reaction thả like.`;
     if (newStatus) {
       await sendMessageComplete(api, message, caption);
     } else {
@@ -373,11 +391,13 @@ export async function handleActiveBotUser(api, message, aliasCommand, groupSetti
         `\n➤ italic: ${currentStyle.italic ? "true" : "false"}` +
         `\n➤ underline: ${currentStyle.underline ? "true" : "false"}` +
         `\n➤ strike: ${currentStyle.strike ? "true" : "false"}` +
+        `\n➤ rainbow: ${currentStyle.rainbow ? "true" : "false"}` +
         `\n\n[Text Body]` +
         textSizeView +
         textStyleInfo +
         `\n\nCú pháp nameServer: ${prefix}${aliasCommand} style color:r;size:16;italic:true;bold:true` +
         `\nCú pháp text body: ${prefix}${aliasCommand} style textsize:14;textbold:true;textitalic:false` +
+        `\nStyle cầu vồng: ${prefix}${aliasCommand} style rainbow:true;textrainbow:true;italic:true;textitalic:true` +
         `\nMàu hỗ trợ: đỏ, xanh lá, vàng, đen` +
         `\nSize hỗ trợ: ${ALLOWED_STYLE_SIZES.join(", ")}` +
         `\nDùng "${prefix}${aliasCommand} style reset" để về mặc định.`;
@@ -396,7 +416,7 @@ export async function handleActiveBotUser(api, message, aliasCommand, groupSetti
     const pairs = styleArg.split(";").map((p) => p.trim()).filter(Boolean);
     const newStyle = { ...currentStyle };
     const errors = [];
-    const boolKeys = ["bold", "italic", "underline", "strike"];
+    const boolKeys = ["bold", "italic", "underline", "strike", "rainbow"];
 
     for (const pair of pairs) {
       const [rawKey, rawValue] = pair.split(":").map((s) => s?.trim());
@@ -433,6 +453,13 @@ export async function handleActiveBotUser(api, message, aliasCommand, groupSetti
           errors.push(`textsize "${rawValue}" không hợp lệ! Các size hỗ trợ: ${ALLOWED_STYLE_SIZES.join(", ")}`);
         } else {
           newStyle.textSize = sizeValue;
+        }
+      } else if (key === "textrainbow") {
+        const boolValue = rawValue.toLowerCase();
+        if (boolValue !== "true" && boolValue !== "false") {
+          errors.push(`Giá trị "${key}:${rawValue}" không hợp lệ! Chỉ nhận true|false.`);
+        } else {
+          newStyle.textRainbow = boolValue === "true";
         }
       } else if (["textbold", "textitalic", "textunderline", "textstrike"].includes(key)) {
         const boolValue = rawValue.toLowerCase();
@@ -474,8 +501,10 @@ export async function handleActiveBotUser(api, message, aliasCommand, groupSetti
       `\n➤ italic: ${newStyle.italic ? "true" : "false"}` +
       `\n➤ underline: ${newStyle.underline ? "true" : "false"}` +
       `\n➤ strike: ${newStyle.strike ? "true" : "false"}` +
+      `\n➤ rainbow: ${newStyle.rainbow ? "true" : "false"}` +
       `\n\n[Text Body]` +
       textSizeInfo +
+      `\n➤ textrainbow: ${newStyle.textRainbow ? "true" : "false"}` +
       textInfo;
     await sendMessageComplete(api, message, caption);
   } else if (botCommand === "all on" || botCommand === "all off") {
@@ -598,6 +627,7 @@ export async function handleActiveBotUser(api, message, aliasCommand, groupSetti
       ["Anti File", threadSettings.antiFile],
       ["Anti Media", threadSettings.antiMediaFile],
       ["Anti SĐT", threadSettings.antiPhoneNumber],
+      ["Anti Ads", threadSettings.antiAds],
       ["Anti Ảnh/Video", threadSettings.antiPhotoVideo],
       ["Anti Spam", threadSettings.antiSpam],
       ["Anti Sticker", threadSettings.antiSticker],

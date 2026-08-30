@@ -276,7 +276,46 @@ export const getDataDownloadAIO = async (url) => {
     const response = await axios.get(apiUrl, { timeout: 30000 });
     return response.data;
   } catch (err) {
-    console.error(`AIO gặp lỗi:`, err);
+    console.warn(`AIO Zeidteam lỗi, chuyển sang DownAll:`, err?.message || err);
+    return await getDataDownloadVNV(url);
+  }
+};
+
+// Fallback DownAll của VNV. API trả `data.media`, trong khi luồng tải của bot
+// dùng `medias`, nên chuẩn hóa tại đây để mọi nền tảng dùng chung một pipeline.
+export const getDataDownloadVNV = async (url) => {
+  try {
+    const response = await axios.get("https://nqduan.id.vn/api/downall", {
+      params: { url },
+      timeout: 45000,
+      headers: { Accept: "application/json", "User-Agent": "Mozilla/5.0 NGH-Bot/1.5.7" },
+    });
+    const payload = response.data;
+    const data = payload?.data || payload?.result || payload;
+    const medias = data?.media || data?.medias || [];
+    if (payload?.success === false || !Array.isArray(medias) || medias.length === 0) return null;
+
+    return {
+      error: false,
+      id: data.id || `${data.source || "vnv"}_${Date.now()}`,
+      url,
+      title: data.title || "Media tải từ liên kết",
+      author: data.author || "Không rõ",
+      thumbnail: data.thumbnail || data.cover || null,
+      duration: Number(data.duration || 0),
+      medias: medias
+        .filter((item) => item?.url)
+        .map((item) => ({
+          ...item,
+          type: String(item.type || "video").toLowerCase(),
+          quality: item.quality || "default",
+          extension: item.extension || (item.type === "audio" ? "mp3" : item.type === "image" ? "jpg" : "mp4"),
+          thumbnail: item.thumbnail || data.thumbnail || data.cover || null,
+        })),
+      getBy: "vnv-downall",
+    };
+  } catch (error) {
+    console.warn("VNV DownAll fallback lỗi:", error?.response?.data?.message || error?.message || error);
     return null;
   }
 };
@@ -499,11 +538,25 @@ export async function handleDownloadCommand(api, message, aliasCommand, typeCall
               dataDownload.getBy = "aio-download";
             }
           }
+          if ((!dataDownload || dataDownload.error || !Array.isArray(dataDownload.medias)) && dataDownload?.getBy !== "ytb-dl") {
+            dataDownload = await getDataDownloadVNV(query);
+          }
           break;
         default:
           dataDownload = await getDataDownloadAIO(query);
           break;
       }
+    }
+
+    // DownAll hỗ trợ thêm các dạng link mà provider cũ không nhận ra, gồm cả
+    // link story/reel Facebook nếu phía API bóc tách được nội dung công khai.
+    if (
+      mediaType !== "tiktok" &&
+      mediaType !== "youtube" &&
+      (!dataDownload || dataDownload.error || !Array.isArray(dataDownload.medias))
+    ) {
+      const vnvData = await getDataDownloadVNV(query);
+      if (vnvData) dataDownload = vnvData;
     }
 
     // API miễn phí là tuyến chính cho metadata; nếu hết quota/chậm/lỗi hoặc

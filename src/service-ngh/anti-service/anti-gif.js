@@ -195,6 +195,7 @@ async function updateAllGifWarnings(
     await api.sendMessage(
       {
         msg: caption,
+        quote: message,
         mentions: [
           MessageMention(senderId, senderName.length, "⚠️ Cảnh cáo ".length),
         ],

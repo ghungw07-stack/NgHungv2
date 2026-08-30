@@ -11,7 +11,28 @@ import { handleDownloadCommand } from "./aio-downlink.js";
 import { sendReactionWaitingCountdown } from "../../../commands/manager-command/check-countdown.js";
 
 const playerCooldowns = new Map();
+// Prevent duplicate provider calls when the same URL is reposted rapidly.
+const autoDownloadInFlight = new Map();
 export const typePlatform = "AutoDownload";
+
+async function runAutoDownload(api, message, link) {
+  const key = `${api.getBotId?.() || "bot"}:${message.threadId}:${link}`;
+  if (autoDownloadInFlight.has(key)) return { noAction: true, duplicate: true };
+
+  const originalContent = message.data.content;
+  message.data.content = link;
+  autoDownloadInFlight.set(key, true);
+  // Reactions are UI feedback only; never block the network download on them.
+  void api.addReaction("CLOCK", message).catch(() => {});
+  try {
+    const result = await handleDownloadCommand(api, message, null, "autodetected");
+    void api.addReaction(result?.noAction ? "UNDO" : "LIKE", message).catch(() => {});
+    return result;
+  } finally {
+    message.data.content = originalContent;
+    autoDownloadInFlight.delete(key);
+  }
+}
 
 export async function handleDetectContentDownload(api, message, isAdminLevelHighest, groupSettings) {
   const threadId = message.threadId;
@@ -37,13 +58,7 @@ export async function handleDetectContentDownload(api, message, isAdminLevelHigh
       if (lastGuessTime && currentTime - lastGuessTime < duration) {
         const remainingTime = Math.ceil((duration - (currentTime - lastGuessTime)) / 1000);
         const fnAfterCountdown = async () => {
-          await api.addReaction("CLOCK", message);
-          const result = await handleDownloadCommand(api, message, null, "autodetected");
-          await api.addReaction("UNDO", message);
-          if (result.noAction) {
-          } else {
-            await api.addReaction("LIKE", message);
-          }
+          await runAutoDownload(api, message, detectedLinkInContent.links[0]);
         };
         await sendReactionWaitingCountdown(api, message, remainingTime, typePlatform, fnAfterCountdown);
         return false;
@@ -51,10 +66,7 @@ export async function handleDetectContentDownload(api, message, isAdminLevelHigh
       playerCooldowns.set(`${threadId}-${senderId}`, Date.now());
     }
     const firstLink = detectedLinkInContent.links[0];
-    message.data.content = firstLink;
-    await api.addReaction("CLOCK", message);
-    const result = await handleDownloadCommand(api, message, null, "autodetected");
-    await api.addReaction("UNDO", message);
+    const result = await runAutoDownload(api, message, firstLink);
     if (result) {
       if (result.noAction) {
         return false;

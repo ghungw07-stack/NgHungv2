@@ -5,6 +5,8 @@ import { connect } from "puppeteer-real-browser";
 let browser = null;
 let browserReal = null;
 let pageReal = null;
+let browserLaunchPromise = null;
+let browserRealLaunchPromise = null;
 let client = axios.create({
   headers: {
     accept: "*/*",
@@ -53,19 +55,29 @@ function scheduleBrowserIdleClose() {
 }
 
 export async function launchBrowser() {
-  if (!browser) {
-    browser = await puppeteer.launch({
+  if (!browser?.connected) browser = null;
+  if (!browser && !browserLaunchPromise) {
+    browserLaunchPromise = puppeteer.launch({
       headless: true,
       args: MEMORY_SAVING_ARGS,
+    }).then((launchedBrowser) => {
+      browser = launchedBrowser;
+      launchedBrowser.once("disconnected", () => {
+        if (browser === launchedBrowser) browser = null;
+      });
+      return launchedBrowser;
+    }).finally(() => {
+      browserLaunchPromise = null;
     });
   }
+  if (!browser) await browserLaunchPromise;
   scheduleBrowserIdleClose();
   return browser;
 }
 
 export async function launchBrowserReal() {
-  if (!browserReal) {
-    const { browser, page } = await connect({
+  if (!browserReal && !browserRealLaunchPromise) {
+    browserRealLaunchPromise = connect({
       headless: false,
       args: ["--window-size=1920,1080", "--disable-blink-features=AutomationControlled"],
       customConfig: {},
@@ -73,10 +85,15 @@ export async function launchBrowserReal() {
       connectOption: {},
       disableXvfb: false,
       ignoreAllFlags: false,
+    }).then(({ browser: launchedBrowser, page }) => {
+      browserReal = launchedBrowser;
+      pageReal = page;
+      return launchedBrowser;
+    }).finally(() => {
+      browserRealLaunchPromise = null;
     });
-    browserReal = browser;
-    pageReal = page;
   }
+  if (!browserReal) await browserRealLaunchPromise;
   return browserReal;
 }
 
@@ -85,7 +102,7 @@ export async function launchPageBrowserReal() {
     browserReal = await launchBrowserReal();
   }
   if (!pageReal) {
-    pageReal = browserReal.newPage();
+    pageReal = await browserReal.newPage();
   }
   return pageReal;
 }
@@ -94,10 +111,15 @@ export async function closeBrowserReal() {
   if (browserReal) {
     await browserReal.close();
     browserReal = null;
+    pageReal = null;
   }
 }
 
 export async function closeBrowser() {
+  if (browserIdleTimer) {
+    clearTimeout(browserIdleTimer);
+    browserIdleTimer = null;
+  }
   if (browser) {
     await browser.close();
     browser = null;

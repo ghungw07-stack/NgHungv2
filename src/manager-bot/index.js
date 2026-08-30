@@ -1,11 +1,15 @@
 import schedule from "node-schedule";
-import { MANAGER_BOTS_FILE_PATH, writeConfig, tempDir, writeCommandConfig } from "../utils/io-json.js";
+import { DATA_ROOT, MANAGER_BOTS_FILE_PATH, writeConfig, tempDir, writeCommandConfig } from "../utils/io-json.js";
+import { groupSettingsAll } from "../automations/event-send-msg.js";
+import { purgeBotDataFiles } from "../utils/bot-data-purge.js";
+import { clearExpiredRetention, shouldPurgeExpiredBot } from "../utils/bot-expiry-policy.js";
 import {
   createBot,
   deleteApiManager,
   getApiManagerWithOwner,
   getGlobalApi,
   getCommandConfig,
+  getMainBotCommandConfig,
   getManagerCommandConfig,
   isBotLeader,
 } from "../index.js";
@@ -16,6 +20,7 @@ import {
   sendMessageStatePrivate,
   sendMessageWarning,
   ALLOWED_STYLE_SIZES,
+  COLOR_GREEN,
   resolveStyleColor,
   getDefaultServerStyle,
 } from "../service-ngh/chat-zalo/chat-style/chat-style.js";
@@ -48,7 +53,34 @@ const PAYMENT_CONFIG = {
   durationDays: 30,
 };
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+const SEVEN_DAYS_MS = 7 * ONE_DAY_MS;
 const FIVE_MINUTES_MS = 5 * 60 * 1000;
+const RENEWAL_REMINDER_RETRY_MS = 5 * 60 * 1000;
+const childFailureNotifications = new Map();
+
+function isInvalidCookieError(error) {
+  return /cookie|đăng nhập|login|session|phiên/i.test(error?.message || String(error));
+}
+
+async function notifyChildStartFailure(mainApi, ownerId, botData, error) {
+  if (!mainApi || !ownerId) return false;
+  const reason = error?.message || String(error);
+  const kind = isInvalidCookieError(error) ? "COOKIE/PHIÊN ĐĂNG NHẬP KHÔNG HỢP LỆ" : "BOT CON KHÔNG KHỞI ĐỘNG ĐƯỢC";
+  const fingerprint = `${ownerId}:${kind}:${reason}`;
+  // Một lỗi liên tục chỉ báo đúng một lần. Latch chỉ được xóa sau khi bot đã
+  // đăng nhập thành công, không tự hết hạn rồi gửi lại theo cooldown.
+  if (childFailureNotifications.get(String(ownerId)) === fingerprint) return false;
+  childFailureNotifications.set(String(ownerId), fingerprint);
+  const botLabel = botData?.nameBot || botData?.numberPhone || botData?.idBot || ownerId;
+  await sendMessageStatePrivate(
+    mainApi,
+    ownerId,
+    `⚠️ ${kind}\n🤖 Bot: ${botLabel}\n📝 Lỗi: ${reason}\n⏱ Phát hiện lúc: ${new Date().toLocaleString("vi-VN")}`,
+    true,
+    TIME_TO_LIVE
+  );
+  return true;
+}
 
 async function createPaymentQRCard(qrBuffer, { price, durationDays, transferContent, isExtend }) {
   const width = 1080;
@@ -178,6 +210,24 @@ async function sendPaymentQRToOwner(api, message, ownerId, isExtend = false, rem
   }
 }
 
+async function sendRenewalReminderToOwner(api, ownerId, reminderText) {
+  try {
+    await api.sendMessage(
+      {
+        msg:
+          `${reminderText}\n\n` +
+          "ℹ️ Hệ thống hiện duyệt/gia hạn thủ công, không cần chuyển khoản ngân hàng. Vui lòng liên hệ quản trị viên.",
+      },
+      String(ownerId),
+      MessageType.DirectMessage
+    );
+    return true;
+  } catch (error) {
+    console.error(`[RenewalReminder] Không gửi được tới owner ${ownerId}:`, error?.message || error);
+    return false;
+  }
+}
+
 /**
  * Tự động phê duyệt bot khi webhook Sepay xác nhận nhận tiền
  */
@@ -206,6 +256,7 @@ export async function autoApproveByPayment(ownerId, payRef = "", receivedAmount 
   botData.approvedBy = "AUTO_PAYMENT";
   botData.paymentRef = payRef;
   botData.status = wasActive ? "active" : "inactive";
+  clearExpiredRetention(botData);
   delete botData.renewalReminder1DaySent;
   delete botData.renewalReminder5MinSent;
   delete botData.rejectAt;
@@ -230,9 +281,7 @@ export async function autoApproveByPayment(ownerId, payRef = "", receivedAmount 
           `⏳ Thời hạn mới từ hiện tại: ${actualDays} ngày\n` +
           `📅 Hết hạn: ${expireDate}\n` +
           `🧾 Mã GD: ${payRef || "N/A"}\n\n` +
-          (wasActive
-            ? `🤖 Bot vẫn đang hoạt động bình thường.`
-            : `➤ Dùng lệnh ${prefix}mybot active để khởi chạy bot!`),
+          `➤ Dùng ${prefix}mybot active để khởi chạy bot!`,
       },
       ownerId,
       MessageType.DirectMessage
@@ -250,12 +299,26 @@ botChildrenStore.load();
 const TIME_TO_LIVE = 6000000;
 const PERMANENT_TIME = -1;
 
-schedule.scheduleJob("*/1 * * * * *", async () => {
-  checkTimeRemainingBot();
-});
+// manager-bot và index.js import lẫn nhau. Không đăng ký job ngay trong lúc
+// module còn evaluate vì job theo giây có thể chạy trước khi binding từ
+// index.js được khởi tạo, làm runtime crash/restart liên tục.
+let checkingBotExpiry = false;
+setImmediate(() => {
+  schedule.scheduleJob("*/1 * * * * *", async () => {
+    if (checkingBotExpiry) return;
+    checkingBotExpiry = true;
+    try {
+      await checkTimeRemainingBot();
+    } catch (error) {
+      console.error(`[mybot-expiry] Lỗi kiểm tra thời hạn: ${error?.message || error}`);
+    } finally {
+      checkingBotExpiry = false;
+    }
+  });
 
-schedule.scheduleJob("*/30 * * * * *", async () => {
-  botChildrenStore.saveIfDirty();
+  schedule.scheduleJob("*/30 * * * * *", async () => {
+    botChildrenStore.saveIfDirty();
+  });
 });
 
 export const getBotChildrenStore = () => botChildrenStore;
@@ -266,38 +329,77 @@ export const getDataBotFromOwnerCache = (owner) => botChildrenStore.get(owner);
 
 async function checkTimeRemainingBot() {
   for (const [ownerId, botData] of Object.entries(botChildrenStore.getAll())) {
+    if (botData.timeRemaining !== PERMANENT_TIME && botData.timeRemaining <= 0 && !botData.expiredAt) {
+      botData.timeRemaining = 0;
+      botData.expiredAt = Date.now();
+      await shutdownBotByOwnerId(ownerId);
+      botChildrenStore.markDirty();
+    }
+    if (shouldPurgeExpiredBot(botData)) {
+      await purgeRemovedBotData(ownerId, botData);
+      botChildrenStore.delete(ownerId);
+      botChildrenStore.saveIfDirty();
+      console.log(`[mybot-expiry] Đã tự xóa toàn bộ dữ liệu bot ${botData.idBot || ownerId} sau 7 ngày hết hạn`);
+      continue;
+    }
     if (botData.status === "active" && botData.timeRemaining > 0) {
       botData.timeRemaining -= 1000;
 
-      if (botData.timeRemaining > ONE_DAY_MS) {
-        if (botData.renewalReminder1DaySent || botData.renewalReminder5MinSent) {
+      if (botData.timeRemaining > SEVEN_DAYS_MS) {
+        if (
+          botData.renewalReminder7DaySent ||
+          botData.renewalReminder1DaySent ||
+          botData.renewalReminder5MinSent
+        ) {
+          delete botData.renewalReminder7DaySent;
+          delete botData.renewalReminder7DayLastAttempt;
           delete botData.renewalReminder1DaySent;
           delete botData.renewalReminder5MinSent;
         }
-      } else if (botData.timeRemaining > 0 && botData.timeRemaining <= FIVE_MINUTES_MS) {
-        if (!botData.renewalReminder5MinSent) {
-          botData.renewalReminder5MinSent = Date.now();
-          await sendPaymentQRToOwner(
-            getGlobalApi(),
-            null,
-            ownerId,
-            true,
-            "⚠️ Bot của bạn chỉ còn khoảng 5 phút sử dụng và sẽ tự tắt nếu chưa gia hạn."
-          );
-        }
-      } else if (!botData.renewalReminder1DaySent) {
-        botData.renewalReminder1DaySent = Date.now();
-        await sendPaymentQRToOwner(
+      } else if (
+        !botData.renewalReminder7DaySent &&
+        Date.now() - (botData.renewalReminder7DayLastAttempt || 0) >= RENEWAL_REMINDER_RETRY_MS
+      ) {
+        // Chỉ nhắc một lần trong mỗi kỳ hạn. Khi khách được gia hạn lên trên
+        // 7 ngày, nhánh phía trên sẽ xóa cờ để kỳ hạn sau có thể nhắc lại.
+        botData.renewalReminder7DayLastAttempt = Date.now();
+        delete botData.renewalReminder1DaySent;
+        delete botData.renewalReminder5MinSent;
+        const reminderSent = await sendRenewalReminderToOwner(
           getGlobalApi(),
-          null,
           ownerId,
-          true,
+          "⚠️ Bot của bạn còn dưới 7 ngày sử dụng. Vui lòng gia hạn sớm để tránh gián đoạn."
+        );
+        if (reminderSent) botData.renewalReminder7DaySent = Date.now();
+      }
+
+      if (
+        botData.timeRemaining > FIVE_MINUTES_MS &&
+        botData.timeRemaining <= ONE_DAY_MS &&
+        !botData.renewalReminder1DaySent
+      ) {
+        const reminderSent = await sendRenewalReminderToOwner(
+          getGlobalApi(),
+          ownerId,
           "⏰ Bot của bạn còn khoảng 1 ngày sử dụng. Gia hạn sớm để bot không bị gián đoạn."
         );
+        if (reminderSent) botData.renewalReminder1DaySent = Date.now();
+      } else if (
+        botData.timeRemaining > 0 &&
+        botData.timeRemaining <= FIVE_MINUTES_MS &&
+        !botData.renewalReminder5MinSent
+      ) {
+        const reminderSent = await sendRenewalReminderToOwner(
+          getGlobalApi(),
+          ownerId,
+          "⚠️ Bot của bạn chỉ còn khoảng 5 phút sử dụng và sẽ tự tắt nếu chưa gia hạn."
+        );
+        if (reminderSent) botData.renewalReminder5MinSent = Date.now();
       }
 
       if (botData.timeRemaining <= 0) {
         botData.timeRemaining = 0;
+        botData.expiredAt ||= Date.now();
         await shutdownBotByOwnerId(ownerId);
         await sendMessageResultRequest(
           getGlobalApi(),
@@ -314,9 +416,13 @@ async function checkTimeRemainingBot() {
 }
 
 export async function startBotChildren(api, ownerId) {
+  const dataBotChildren = botChildrenStore.get(ownerId);
   try {
-    const dataBotChildren = botChildrenStore.get(ownerId);
+    if (!hasApprovedRuntime(dataBotChildren) || dataBotChildren.status === "pending") {
+      throw new Error("Bot chưa được thanh toán hoặc Bot Leader phê duyệt");
+    }
     const apiBot = await createBot(dataBotChildren);
+    childFailureNotifications.delete(String(ownerId));
     dataBotChildren.status = "active";
     botChildrenStore.markDirty();
     dataBotChildren.idBot = apiBot.getBotId();
@@ -361,9 +467,61 @@ export async function startBotChildren(api, ownerId) {
     botChildrenStore.markDirty();
     return { dataOfBot, apiBot };
   } catch (error) {
+    if (dataBotChildren) {
+      dataBotChildren.lastStartError = error?.message || String(error);
+      dataBotChildren.lastStartErrorAt = Date.now();
+      botChildrenStore.markDirty();
+    }
+    try {
+      await notifyChildStartFailure(api || getGlobalApi(), ownerId, dataBotChildren, error);
+    } catch (notifyError) {
+      console.error(`Không thể báo lỗi bot con ngay cho owner ${ownerId}: ${notifyError?.message || notifyError}`);
+    }
     await shutdownBotByOwnerId(ownerId);
     throw error;
   }
+}
+
+const activatingApprovedBots = new Map();
+const hasApprovedRuntime = (botData) => Boolean(
+  botData?.approvedAt &&
+  botData?.approvedBy &&
+  (botData.timeRemaining === PERMANENT_TIME || botData.timeRemaining > 1000)
+);
+
+/** Chỉ cấp runtime sau khi bot đã được thanh toán hoặc Bot Leader duyệt. */
+export async function activateApprovedBot(api, ownerId, source = "APPROVAL") {
+  const key = String(ownerId);
+  if (activatingApprovedBots.has(key)) return activatingApprovedBots.get(key);
+  const activation = (async () => {
+    const botData = botChildrenStore.get(ownerId);
+    if (!botData) return { started: false, reason: "Không tìm thấy bot" };
+    if (!hasApprovedRuntime(botData) || botData.status === "pending") {
+      return { started: false, reason: "Bot chưa được thanh toán hoặc phê duyệt" };
+    }
+    if (getApiManagerWithOwner(ownerId)) {
+      return { started: false, alreadyRunning: true };
+    }
+    try {
+      botData.runtimeAssignedAt = Date.now();
+      botData.runtimeAssignedBy = source;
+      botChildrenStore.markDirty();
+      const { apiBot } = await startBotChildren(api, ownerId);
+      delete botData.lastStartError;
+      delete botData.lastStartErrorAt;
+      botChildrenStore.saveIfDirty();
+      return { started: true, botId: apiBot.getBotId() };
+    } catch (error) {
+      botData.status = "inactive";
+      botData.lastStartError = error?.message || String(error);
+      botData.lastStartErrorAt = Date.now();
+      botChildrenStore.markDirty();
+      botChildrenStore.saveIfDirty();
+      return { started: false, reason: botData.lastStartError };
+    }
+  })().finally(() => activatingApprovedBots.delete(key));
+  activatingApprovedBots.set(key, activation);
+  return activation;
 }
 
 async function checkActiveAllBot(api) {
@@ -415,12 +573,10 @@ export async function activeBotChildren(api) {
   for (const [ownerId, botData] of Object.entries(botChildrenStore.getAll())) {
     statsBot.totalBot++;
     const apiManager = getApiManagerWithOwner(ownerId);
-    const canRun = botData.timeRemaining > 0 || botData.timeRemaining === -1;
+    const canRun = hasApprovedRuntime(botData);
 
     if (botData.status === "active" && canRun) {
       if (apiManager) {
-        // Bot đã được active từ trước cũng phải được tính vào thống kê.
-        statsBot.totalBotActive++;
         continue;
       }
       try {
@@ -428,7 +584,6 @@ export async function activeBotChildren(api) {
         delete botData.lastStartError;
         delete botData.lastStartErrorAt;
         botChildrenStore.markDirty();
-        statsBot.totalBotActive++;
       } catch (error) {
         const reason = error?.message || String(error);
         botData.lastStartError = reason;
@@ -437,41 +592,56 @@ export async function activeBotChildren(api) {
         console.error(`Có lỗi khi khởi động bot của ${ownerId}: ${reason}`);
         await shutdownBotByOwnerId(ownerId);
 
-        // UID owner có thể không tồn tại trong phạm vi tài khoản bot chính
-        // (Zalo trả về "Không tìm thấy"). Việc thông báo thất bại
-        // không được phép thoát ra ngoài và làm sập toàn bộ bot chính.
-        try {
-          await sendMessageStatePrivate(
-            api,
-            ownerId,
-            "Có lỗi xảy ra khi khởi động lại bot: " + reason,
-            true,
-            TIME_TO_LIVE
-          );
-        } catch (notifyError) {
-          console.error(
-            `Không thể gửi thông báo lỗi khởi động tới owner ${ownerId}: ` +
-              (notifyError?.message || String(notifyError))
-          );
-        }
-
-        // Ghi ngay trạng thái inactive/lastStartError. Nếu process gặp
-        // sự cố khác trước lịch autosave 30 giây, bot lỗi sẽ không
-        // bị thử khởi động lại vô hạn sau mỗi lần restart.
         botChildrenStore.saveIfDirty();
-        statsBot.totalBotRunError++;
       }
-    } else if (botData.lastStartError) {
-      statsBot.totalBotRunError++;
-    } else if (botData.status === "inactive" || !canRun) {
-      statsBot.totalBotInactive++;
-    } else if (botData.status === "pending") {
-      statsBot.totalBotPending++;
     }
   }
+
   if (grRqReset && grRqReset.threadId) {
+    const statsBot = {
+      totalBot: 0,
+      totalBotActive: 0,
+      totalBotInactive: 0,
+      totalBotRunError: 0,
+      totalBotPending: 0,
+    };
+
+    let allBots = {};
+    try {
+      const configPaths = [
+        path.join(process.cwd(), "assets", "data", "manager-bots.json"),
+        path.join(process.cwd(), "shards", "shard2", "assets", "data", "manager-bots.json")
+      ];
+      for (const cp of configPaths) {
+        try {
+          const botsRaw = await fs.readFile(cp, "utf8");
+          Object.assign(allBots, JSON.parse(botsRaw));
+        } catch (err) {}
+      }
+    } catch (e) {
+      allBots = botChildrenStore.getAll();
+    }
+
+    for (const [oId, bData] of Object.entries(allBots)) {
+      statsBot.totalBot++;
+      const canRun = hasApprovedRuntime(bData);
+      if (bData.status === "active" && canRun) {
+        if (bData.lastStartError) {
+          statsBot.totalBotRunError++;
+        } else {
+          statsBot.totalBotActive++;
+        }
+      } else if (bData.lastStartError) {
+        statsBot.totalBotRunError++;
+      } else if (bData.status === "inactive" || !canRun) {
+        statsBot.totalBotInactive++;
+      } else if (bData.status === "pending") {
+        statsBot.totalBotPending++;
+      }
+    }
+
     const caption =
-      "Thống kê hệ thống bot con:\n" +
+      "Thống kê hệ thống bot con (Toàn Server):\n" +
       `• Tổng số bot: ${statsBot.totalBot}\n` +
       `• Bot đang hoạt động: ${statsBot.totalBotActive}\n` +
       `• Bot đã tắt: ${statsBot.totalBotInactive}\n` +
@@ -500,6 +670,7 @@ export async function shutdownBotByOwnerId(ownerId) {
         }
       }
       if (api.apiInstance?.schedule) api.apiInstance.schedule = {};
+      api.__NGH_EXPECTED_SHUTDOWN__ = true;
       api.listener.stop();
     } catch (error) {
       console.error(error);
@@ -596,7 +767,13 @@ export async function handleManagerBot(api, message, aliasCommand, isAdminLevelH
         await handleShowInfoBot(api, message, ownerId, aliasCommand, prefix);
         break;
       case "extend":
-        await sendPaymentQRToOwner(api, message, ownerId, true);
+        await sendMessageComplete(
+          api,
+          message,
+          "Bot dùng duyệt thủ công, không cần chuyển khoản ngân hàng. Vui lòng liên hệ quản trị để được cấp/gia hạn thời hạn sử dụng.",
+          true,
+          TIME_TO_LIVE
+        );
         break;
       default:
         await handleHelpBotWithBotChildren(api, message, prefix, aliasCommand);
@@ -807,6 +984,10 @@ export async function handleManagerBot(api, message, aliasCommand, isAdminLevelH
 
     case "blockcmd":
       await handleBlockCommand(api, message, params, prefix, aliasCommand, isAdminLevelHighest);
+      break;
+
+    case "maincmd":
+      await handleMainBotCommand(api, message, params, prefix, aliasCommand, isAdminLevelHighest);
       break;
 
     case "notifypm":
@@ -1246,8 +1427,8 @@ async function handleCreateBotWithQR(api, message, ownerId, senderName) {
         botChildrenStore.set(ownerId, dataBotChildren);
         botChildrenStore.markDirty();
 
-        // Tự động gửi QR banking ngay sau khi login thành công
-        await sendPaymentQRToOwner(api, message, ownerId);
+        // Không yêu cầu thanh toán ngân hàng khi đăng ký. Quản trị viên sẽ
+        // duyệt và cấp thời hạn bằng lệnh mybot approve/addtime/settime.
       } else {
         // Đổi tài khoản/IMEI chỉ thay thông tin đăng nhập; không được làm mất
         // thời hạn đã được duyệt trước đó.
@@ -1270,8 +1451,8 @@ async function handleCreateBotWithQR(api, message, ownerId, senderName) {
           api,
           message,
           `Cập nhật dữ liệu thành công, ${
-            timeRemaining > 0
-              ? `➤ Dùng lệnh ${prefix}mybot active để khởi chạy bot`
+            timeRemaining === PERMANENT_TIME || timeRemaining > 1000
+              ? `dùng ${prefix}mybot active để khởi chạy lại bot`
               : isAdminAskCommand
               ? "bot đã hết hạn kích hoạt, quản trị hãy gia hạn lại để có thể kích hoạt bot này"
               : "vui lòng liên hệ quản trị để gia hạn mới có thể kích hoạt bot"
@@ -1282,6 +1463,7 @@ async function handleCreateBotWithQR(api, message, ownerId, senderName) {
       }
 
       botChildrenStore.markDirty();
+      botChildrenStore.saveIfDirty();
     }
   } catch (error) {
     await sendMessageWarning(api, message, `Có lỗi xảy ra: ` + (error.message || error.error), false, TIME_TO_LIVE);
@@ -1351,8 +1533,7 @@ async function handleCreateInfoBot(api, message, params, ownerId, senderName) {
       );
       botChildrenStore.set(ownerId, dataBotChildren);
     } else {
-      // Cập nhật cookie/IMEI không phải là đăng ký bot mới, nên giữ nguyên
-      // thời hạn cũ để khách chỉ cần chạy lại lệnh active.
+      // Cập nhật cookie/IMEI không phải đăng ký mới, nên giữ nguyên kỳ hạn.
       const previousTimeRemaining = dataBotChildren.timeRemaining;
       const apiManager = getApiManagerWithOwner(ownerId);
 
@@ -1372,8 +1553,8 @@ async function handleCreateInfoBot(api, message, params, ownerId, senderName) {
         api,
         message,
         `Cập nhật dữ liệu thành công, ${
-            timeRemaining > 0
-            ? `➤ Dùng lệnh ${prefix}mybot active để khởi chạy bot`
+            timeRemaining === PERMANENT_TIME || timeRemaining > 1000
+            ? `dùng ${prefix}mybot active để khởi chạy lại bot`
             : isAdminAskCommand
             ? "bot đã hết hạn kích hoạt, quản trị hãy gia hạn lại để có thể kích hoạt bot này"
             : "vui lòng liên hệ quản trị để gia hạn mới có thể kích hoạt bot"
@@ -1383,6 +1564,7 @@ async function handleCreateInfoBot(api, message, params, ownerId, senderName) {
       );
     }
     botChildrenStore.markDirty();
+    botChildrenStore.saveIfDirty();
   } catch (error) {
     console.error("Lỗi khi tạo bot:", error);
     await sendMessageWarning(api, message, caption, false, TIME_TO_LIVE);
@@ -1409,6 +1591,11 @@ async function handleActiveBot(api, message, ownerId, isAdminLevelHighest) {
   }
 
   if (dataBot.status === "pending") {
+    await sendMessageWarning(api, message, pendingMsg, true, TIME_TO_LIVE);
+    return false;
+  }
+
+  if (!dataBot.approvedAt || !dataBot.approvedBy) {
     await sendMessageWarning(api, message, pendingMsg, true, TIME_TO_LIVE);
     return false;
   }
@@ -1559,16 +1746,19 @@ async function handleApproveBot(api, message, params, prefix, aliasCommand, isAd
   dataBotChildren.approvedAt = Date.now();
   dataBotChildren.approvedBy = message.data.uidFrom;
   dataBotChildren.status = "inactive";
+  clearExpiredRetention(dataBotChildren);
   delete dataBotChildren.rejectAt;
   delete dataBotChildren.rejectBy;
   botChildrenStore.markDirty();
+  botChildrenStore.saveIfDirty();
 
   const timeDisplay = timeInMs === PERMANENT_TIME ? "vô thời hạn" : formatSeconds(Math.floor(timeInMs / 1000));
 
   await sendMessageComplete(
     api,
     message,
-    `Đã phê duyệt bot ${botToApprove} thành công!\nThời hạn sử dụng: ${timeDisplay}`
+    `Đã phê duyệt bot ${botToApprove} thành công!\nThời hạn sử dụng: ${timeDisplay}\n` +
+      "Khách cần dùng lệnh mybot active để khởi chạy."
   );
 }
 
@@ -1627,6 +1817,10 @@ async function handleAddTimeBot(api, message, params, prefix, aliasCommand, isAd
     dataBotChildren.timeRemaining = PERMANENT_TIME;
   } else if (dataBotChildren.timeRemaining !== PERMANENT_TIME) {
     dataBotChildren.timeRemaining += timeInMs;
+  }
+
+  if (dataBotChildren.timeRemaining === PERMANENT_TIME || dataBotChildren.timeRemaining > 0) {
+    clearExpiredRetention(dataBotChildren);
   }
 
   delete dataBotChildren.rejectAt;
@@ -1772,6 +1966,7 @@ async function handleSetTimeBot(api, message, params, prefix, aliasCommand, isAd
   const oldTimeRemaining = botData.timeRemaining;
 
   botData.timeRemaining = timeInMs;
+  if (timeInMs === PERMANENT_TIME || timeInMs > 0) clearExpiredRetention(botData);
 
   botData.approvedAt = Date.now();
   botData.approvedBy = message.data.uidFrom;
@@ -1829,7 +2024,18 @@ async function handleRemoveBot(api, message, ownerId, isAdminLevelHighest) {
   // Tắt bot trước khi xóa
   await shutdownBotByOwnerId(ownerId);
 
-  // Xóa bot khỏi hệ thống
+  const botIdentifiers = [ownerId, botData.idBot];
+  if (botData.idBot) await groupSettingsAll.deleteByID(String(botData.idBot));
+  await purgeBotDataFiles(DATA_ROOT, botIdentifiers);
+
+  // Xóa bot khỏi hệ thống và xóa thư mục log nếu có
+  if (botData.idBot) {
+    try {
+      await fs.rm(path.join(process.cwd(), "logs", String(botData.idBot)), { recursive: true, force: true });
+    } catch (e) {
+      console.error("Lỗi xoá thư mục log:", e);
+    }
+  }
   botChildrenStore.delete(ownerId);
   botChildrenStore.markDirty();
 
@@ -1843,6 +2049,12 @@ async function handleRemoveBot(api, message, ownerId, isAdminLevelHighest) {
       `📅 Ngày tạo: ${new Date(botData.createdAt).toLocaleString("vi-VN")}\n\n` +
       `⚠️ Lưu ý: Dữ liệu bot đã bị xóa vĩnh viễn!`
   );
+}
+
+export async function purgeRemovedBotData(ownerId, botData = {}) {
+  await shutdownBotByOwnerId(ownerId);
+  if (botData.idBot) await groupSettingsAll.deleteByID(String(botData.idBot));
+  return purgeBotDataFiles(DATA_ROOT, [ownerId, botData.idBot]);
 }
 
 async function handleListBot(api, message) {
@@ -1915,7 +2127,7 @@ async function handleListBot(api, message) {
 }
 
 // ─────────────────────────────────────────────────────────────────
-// STYLE BOT: !mybot style size|color|type|icon|reset
+// STYLE BOT: !mybot style size|color|type|rainbow|icon|reset
 // size  [nameServer|text|all] [10-24]
 // color [tên màu / hex]
 // type  [nameServer|text|all] [bold,italic,underline,strike|none]
@@ -1929,6 +2141,8 @@ function normalizeStyleTarget(input) {
     .replace(/[\s_-]+/g, "");
   if (["nameserver", "server", "name", "ns"].includes(value)) return "nameserver";
   if (["text", "body", "noidung"].includes(value)) return "text";
+  if (["command", "cmd", "lenh", "tenlenh"].includes(value)) return "command";
+  if (["description", "desc", "mota"].includes(value)) return "description";
   if (["all", "tatca"].includes(value)) return "all";
   return value;
 }
@@ -1938,17 +2152,21 @@ async function handleStyleBot(api, message, params, aliasCommand, prefix) {
   const managerData = api.apiManager.getDataManager();
   const sub = (params[0] || "").toLowerCase();
 
-  if (!sub || !["size", "color", "type", "icon", "reset"].includes(sub)) {
+  if (!sub || !["size", "color", "type", "rainbow", "icon", "reset"].includes(sub)) {
     const guide =
       `📖 *Hướng dẫn style bot:*\n\n` +
       `🔷 *Cỡ chữ (10→24):*\n` +
       ` ➤  ${prefix}${aliasCommand} style size [nameServer|text|all] [10→24]\n\n` +
       `🔷 *Màu sắc:*\n` +
-      ` ➤  ${prefix}${aliasCommand} style color [nameServer|text|all] [màu]\n` +
+      ` ➤  ${prefix}${aliasCommand} style color [nameServer|text|command|description|all] [màu]\n` +
+      `   command: tên lệnh trong cmd map · description: mô tả lệnh\n` +
       `   Màu sẵn: đỏ, xanh lá, vàng, đen\n\n` +
       `🔷 *Kiểu chữ:*\n` +
       ` ➤  ${prefix}${aliasCommand} style type [nameServer|text|all] [bold,italic,underline,strike|none]\n` +
       `   Hỗ trợ kết hợp: bold,italic,underline,strike\n\n` +
+      `🌈 *Style 2:*\n` +
+      ` ➤  ${prefix}${aliasCommand} style rainbow [nameServer|text|all] [on|off]\n` +
+      `   VD: ${prefix}${aliasCommand} style rainbow all on\n\n` +
       `🔷 *Icon bot thả khi nhận lệnh:*\n` +
       ` ➤  ${prefix}${aliasCommand} style icon [emoji hoặc tên reaction]\n` +
       `   Dùng reaction Zalo, emoji hỗ trợ hoặc ký tự bàn phím như :d, :), :p...\n\n` +
@@ -1994,19 +2212,60 @@ async function handleStyleBot(api, message, params, aliasCommand, prefix) {
     return;
   }
 
+  if (sub === "rainbow") {
+    const requestedTarget = normalizeStyleTarget(params[1]);
+    const validTargets = ["nameserver", "text", "all"];
+    const target = validTargets.includes(requestedTarget) ? requestedTarget : "all";
+    const stateInput = (validTargets.includes(requestedTarget) ? params[2] : params[1] || "on")
+      ?.toLowerCase();
+    const enabled = !["off", "false", "0", "tat", "tắt"].includes(stateInput);
+
+    if (target === "nameserver" || target === "all") {
+      managerData.chatStyle.rainbow = enabled;
+      // Mẫu người dùng gửi là chữ nghiêng.
+      managerData.chatStyle.italic = enabled;
+    }
+    if (target === "text" || target === "all") {
+      managerData.chatStyle.textRainbow = enabled;
+      if (!managerData.chatStyle.text) managerData.chatStyle.text = {};
+      managerData.chatStyle.text.italic = enabled;
+    }
+
+    managerDataCache.setChanged(idBot);
+    await sendMessageComplete(
+      api,
+      message,
+      `${enabled ? "✅ Đã bật" : "✅ Đã tắt"} Style 2 cho ${target === "all" ? "nameServer & text" : target}!`,
+      false,
+      TIME_TO_LIVE
+    );
+    return;
+  }
+
   if (sub === "color") {
     const requestedTarget = normalizeStyleTarget(params[1]);
-    const target = ["nameserver", "text", "all"].includes(requestedTarget) ? requestedTarget : "nameserver";
-    const colorInput = (target === "nameserver" && !["nameserver", "text", "all"].includes(requestedTarget)
+    const colorTargets = ["nameserver", "text", "command", "description", "all"];
+    const target = colorTargets.includes(requestedTarget) ? requestedTarget : "nameserver";
+    const colorInput = (target === "nameserver" && !colorTargets.includes(requestedTarget)
       ? params.slice(1).join(" ")
       : params.slice(2).join(" ")).trim();
-    const hex = resolveStyleColor(colorInput);
-    if (!hex) {
-      await sendMessageComplete(api, message, `Màu không hợp lệ!\nChỉ hỗ trợ: đỏ, xanh lá, vàng, đen.`, false, TIME_TO_LIVE);
+    const isRainbow = ["rainbow", "cau vong", "cầu vồng"].includes(colorInput.toLowerCase());
+    const hex = isRainbow ? null : resolveStyleColor(colorInput);
+    if (!hex && !isRainbow) {
+      await sendMessageComplete(api, message, `Màu không hợp lệ!\nHỗ trợ: đỏ, xanh lá, vàng, đen, rainbow.`, false, TIME_TO_LIVE);
+      return;
+    }
+    if (isRainbow) {
+      if (target === "nameserver" || target === "all") managerData.chatStyle.rainbow = true;
+      if (target === "text" || target === "all") managerData.chatStyle.textRainbow = true;
+      managerDataCache.setChanged(idBot);
+      await sendMessageComplete(api, message, `✅ Đã bật Style 2 cho ${target}!`, false, TIME_TO_LIVE);
       return;
     }
     if (target === "nameserver" || target === "all") managerData.chatStyle.color = hex;
     if (target === "text" || target === "all") managerData.chatStyle.textColor = hex;
+    if (target === "command" || target === "all") managerData.chatStyle.commandColor = hex;
+    if (target === "description" || target === "all") managerData.chatStyle.descriptionColor = hex;
     managerDataCache.setChanged(idBot);
     await sendMessageComplete(api, message, `✅ Đã đổi màu ${target} thành #${hex}`, false, TIME_TO_LIVE);
     return;
@@ -2124,6 +2383,8 @@ async function handleShowInfoBot(api, message, ownerId, aliasCommand, prefix) {
   const def = getDefaultServerStyle();
   const styleText =
     `🎨 Màu: #${style.color || def.color}\n` +
+    `🟢 Tên lệnh: #${style.commandColor || COLOR_GREEN}\n` +
+    `📝 Mô tả lệnh: #${style.descriptionColor || style.textColor || def.color}\n` +
     `📐 Cỡ chữ nameServer: ${style.size || def.size} | text: ${style.textSize || style.size || def.size}\n` +
     `✏️ Kiểu: ${[
       style.bold ? "bold" : null,
@@ -2160,7 +2421,7 @@ async function handleHelpBotWithBotChildren(api, message, prefix, aliasCommand) 
     `   • ${prefix}${aliasCommand} set typePlatform [đăng nhập bot]\n` +
     `➤『${prefix}${aliasCommand} style』 - Định dạng kiểu chữ, cỡ chữ, màu sắc\n` +
     `   • ${prefix}${aliasCommand} style size [nameServer|text|all] [10->24]\n` +
-      `   • ${prefix}${aliasCommand} style color [nameServer|text|all] [màu]\n` +
+    `   • ${prefix}${aliasCommand} style color [nameServer|text|command|description|all] [màu]\n` +
     `   • ${prefix}${aliasCommand} style type [nameServer|text|all] [bold,italic,underline,strike|none]\n` +
     `      └ Hỗ trợ kết hợp: bold,italic,underline,strike\n` +
     `   • ${prefix}${aliasCommand} style icon [tên icon/emoji]\n` +
@@ -2222,9 +2483,17 @@ async function handleManagerCommands(api, message, prefix, aliasCommand, isAdmin
     `• ${prefix}${aliasCommand} shutdownall - Tắt tất cả bot\n` +
     `• ${prefix}${aliasCommand} sendimck - Gửi riêng IMEI/Cookie của bot nhận lệnh\n\n` +
     "➤ Quản lý chặn lệnh:\n" +
-    `• ${prefix}${aliasCommand} blockcmd add [index/ID] [tên lệnh] - Chặn lệnh của bot\n` +
+    `• ${prefix}${aliasCommand} blockcmd add [index/ID/all] [tên lệnh/all] - Chặn lệnh của bot\n` +
+    `   Ví dụ: ${prefix}${aliasCommand} blockcmd add all help\n` +
+    `   Chặn toàn bộ lệnh: ${prefix}${aliasCommand} blockcmd add 1 all\n` +
     `• ${prefix}${aliasCommand} blockcmd remove [index/ID] [tên lệnh] - Bỏ chặn lệnh của bot\n` +
     `• ${prefix}${aliasCommand} blockcmd list [index/ID] - Xem danh sách lệnh bị chặn\n\n` +
+    "➤ Lệnh riêng của mainbot:\n" +
+    `• ${prefix}${aliasCommand} maincmd add [tên lệnh...] - Đưa lệnh lên quyền mainbot\n` +
+    `• ${prefix}${aliasCommand} maincmd remove [tên lệnh...] - Gỡ quyền mainbot\n` +
+    `• ${prefix}${aliasCommand} maincmd grant [index/ID] [tên lệnh...] - Cấp lệnh cho bot con\n` +
+    `• ${prefix}${aliasCommand} maincmd revoke [index/ID] [tên lệnh...] - Thu hồi khỏi bot con\n` +
+    `• ${prefix}${aliasCommand} maincmd list [index/ID] - Xem cấu hình\n\n` +
     "➤ Quản lý thông báo:\n" +
     `• ${prefix}${aliasCommand} notifypm [index/ID] [on/off] - Bật/tắt thông báo tin nhắn riêng cho bot mẹ\n` +
     `   Ví dụ: ${prefix}${aliasCommand} notifypm 1 on\n` +
@@ -2574,10 +2843,29 @@ async function handleNotifyCustomer(api, message, params, isAdminLevelHighest) {
 }
 
 export async function createBotListFromChildren(api, PERMANENT_TIME = -1) {
-  const botList = Object.entries(botChildrenStore.getAll());
+  let allBots = {};
+  try {
+    const configPaths = [
+      path.join(process.cwd(), "assets", "data", "manager-bots.json"),
+      path.join(process.cwd(), "shards", "shard2", "assets", "data", "manager-bots.json")
+    ];
+    for (const cp of configPaths) {
+      try {
+        const botsRaw = await fs.readFile(cp, "utf8");
+        Object.assign(allBots, JSON.parse(botsRaw));
+      } catch (err) {
+        // File không tồn tại hoặc lỗi đọc file
+      }
+    }
+  } catch (e) {
+    console.error("Lỗi đọc manager-bots.json toàn hệ thống:", e);
+    allBots = botChildrenStore.getAll(); // Fallback
+  }
+
+  const botList = Object.entries(allBots);
   if (botList.length === 0) return [];
 
-  const listIds = Object.keys(botChildrenStore.getAll());
+  const listIds = Object.keys(allBots);
   let infoListBot = {};
   try {
     infoListBot = (await getUsersInfoBasic(api, listIds)) || {};
@@ -2643,7 +2931,16 @@ function parseBotIdentifier(botIdentifier) {
   return { botId, targetOwnerId, botName, isNotStarted };
 }
 
-function parseMultipleBotIdentifiers(botIdentifiersStr) {
+function parseMultipleBotIdentifiers(botIdentifiersStr, allowAll = false) {
+  if (allowAll && String(botIdentifiersStr).trim().toLowerCase() === "all") {
+    const botInfos = Object.keys(botChildrenStore.getAll())
+      .map((ownerId) => parseBotIdentifier(ownerId))
+      .filter((botInfo) => !botInfo.error);
+    return {
+      botInfos,
+      errors: botInfos.length === 0 ? ["Chưa có bot con nào được đăng ký!"] : [],
+    };
+  }
   const identifiers = botIdentifiersStr.split(',').map(id => id.trim()).filter(id => id);
   const botInfos = [];
   const errors = [];
@@ -2660,6 +2957,141 @@ function parseMultipleBotIdentifiers(botIdentifiersStr) {
   return { botInfos, errors };
 }
 
+function normalizeManagedCommandName(commandName) {
+  const input = String(commandName || "").trim().toLowerCase();
+  if (!input) return null;
+  const commands = getCommandConfig().commands || [];
+  const found = commands.find((command) =>
+    String(command.name).toLowerCase() === input ||
+    (Array.isArray(command.alias) && command.alias.some((alias) => String(alias).toLowerCase() === input))
+  );
+  return found ? String(found.name).toLowerCase() : null;
+}
+
+async function handleMainBotCommand(api, message, params, prefix, aliasCommand, isAdminLevelHighest) {
+  if (!api.apiManager?.isMainBot || !(await checkAdminLevelHighest(api, message, isAdminLevelHighest))) {
+    if (!api.apiManager?.isMainBot) {
+      await sendMessageWarning(api, message, "Chỉ quản trị Bot Leader trên mainbot mới được quản lý quyền lệnh!", false, TIME_TO_LIVE);
+    }
+    return;
+  }
+
+  const usage =
+    `Cú pháp:\n` +
+    `• ${prefix}${aliasCommand} maincmd add [tên lệnh...]\n` +
+    `• ${prefix}${aliasCommand} maincmd remove [tên lệnh...]\n` +
+    `• ${prefix}${aliasCommand} maincmd grant [index/ID/all] [tên lệnh...]\n` +
+    `• ${prefix}${aliasCommand} maincmd revoke [index/ID/all] [tên lệnh...]\n` +
+    `• ${prefix}${aliasCommand} maincmd list [index/ID]`;
+  const action = String(params[0] || "").toLowerCase();
+  const mainConfig = getMainBotCommandConfig();
+
+  if (action === "list") {
+    const protectedList = mainConfig.commands.length ? mainConfig.commands.join(", ") : "Không có";
+    if (!params[1]) {
+      await sendMessageComplete(api, message, `🔐 Lệnh đang yêu cầu quyền mainbot:\n${protectedList}\n\n${usage}`, false, TIME_TO_LIVE);
+      return;
+    }
+    const botInfo = parseBotIdentifier(params[1]);
+    if (botInfo.error) {
+      await sendMessageWarning(api, message, botInfo.error);
+      return;
+    }
+    const grantKeys = [...new Set([botInfo.botId, botInfo.targetOwnerId].filter(Boolean).map(String))];
+    const granted = [...new Set(grantKeys.flatMap((key) => {
+      const values = getManagerCommandConfig(key).grantedMainBotCommands;
+      return Array.isArray(values) ? values : [];
+    }))];
+    await sendMessageComplete(
+      api,
+      message,
+      `🤖 ${botInfo.botName} (${botInfo.targetOwnerId})\n` +
+        `🔐 Lệnh mainbot: ${protectedList}\n` +
+        `✅ Được cấp riêng: ${granted.length ? granted.join(", ") : "Không có"}`,
+      false,
+      TIME_TO_LIVE
+    );
+    return;
+  }
+
+  if (action === "add" || action === "remove") {
+    const requested = params.slice(1);
+    if (!requested.length) {
+      await sendMessageWarning(api, message, usage);
+      return;
+    }
+    const valid = [...new Set(requested.map(normalizeManagedCommandName).filter(Boolean))];
+    const invalid = requested.filter((name) => !normalizeManagedCommandName(name));
+    if (!valid.length) {
+      await sendMessageWarning(api, message, `Không tìm thấy lệnh hợp lệ.\n${usage}`);
+      return;
+    }
+    if (action === "add") {
+      mainConfig.commands = [...new Set([...mainConfig.commands, ...valid])];
+    } else {
+      mainConfig.commands = mainConfig.commands.filter((name) => !valid.includes(name));
+      // Gỡ quyền mainbot cũng dọn các quyền cấp riêng không còn cần thiết.
+      for (const manager of Object.values(getCommandConfig().managerCommand || {})) {
+        if (Array.isArray(manager.grantedMainBotCommands)) {
+          manager.grantedMainBotCommands = manager.grantedMainBotCommands.filter((name) => !valid.includes(name));
+        }
+      }
+    }
+    writeCommandConfig(getCommandConfig());
+    await sendMessageComplete(
+      api,
+      message,
+      `${action === "add" ? "✅ Đã đưa lên quyền mainbot" : "✅ Đã gỡ quyền mainbot"}: ${valid.join(", ")}` +
+        (invalid.length ? `\n⚠️ Không tìm thấy: ${invalid.join(", ")}` : ""),
+      false,
+      TIME_TO_LIVE
+    );
+    return;
+  }
+
+  if (action === "grant" || action === "revoke") {
+    if (!params[1] || params.length < 3) {
+      await sendMessageWarning(api, message, usage);
+      return;
+    }
+    const { botInfos, errors } = parseMultipleBotIdentifiers(params[1], true);
+    const requested = params.slice(2);
+    const valid = [...new Set(requested.map(normalizeManagedCommandName).filter(Boolean))];
+    const protectedCommands = valid.filter((name) => mainConfig.commands.includes(name));
+    const invalid = requested.filter((name) => !normalizeManagedCommandName(name));
+    const notProtected = valid.filter((name) => !mainConfig.commands.includes(name));
+    if (!botInfos.length || !protectedCommands.length) {
+      const details = [...errors, ...(notProtected.length ? [`Chưa lên quyền mainbot: ${notProtected.join(", ")}`] : [])];
+      await sendMessageWarning(api, message, `${details.join("\n") || "Không có lệnh hợp lệ để xử lý."}\n${usage}`);
+      return;
+    }
+
+    for (const botInfo of botInfos) {
+      // Lưu theo ownerId vì khóa này ổn định cả trước và sau khi bot khởi động.
+      const manager = getManagerCommandConfig(String(botInfo.targetOwnerId));
+      const current = Array.isArray(manager.grantedMainBotCommands) ? manager.grantedMainBotCommands : [];
+      manager.grantedMainBotCommands = action === "grant"
+        ? [...new Set([...current, ...protectedCommands])]
+        : current.filter((name) => !protectedCommands.includes(name));
+    }
+    writeCommandConfig(getCommandConfig());
+    await sendMessageComplete(
+      api,
+      message,
+      `${action === "grant" ? "✅ Đã cấp" : "✅ Đã thu hồi"} lệnh ${protectedCommands.join(", ")} ` +
+        `cho ${botInfos.length} bot con.` +
+        (notProtected.length ? `\n⚠️ Chưa lên quyền mainbot: ${notProtected.join(", ")}` : "") +
+        (invalid.length ? `\n⚠️ Không tìm thấy: ${invalid.join(", ")}` : "") +
+        (errors.length ? `\n⚠️ ${errors.join("\n")}` : ""),
+      false,
+      TIME_TO_LIVE
+    );
+    return;
+  }
+
+  await sendMessageWarning(api, message, usage);
+}
+
 async function handleBlockCommand(api, message, params, prefix, aliasCommand, isAdminLevelHighest) {
   if (!(await checkAdminLevelHighest(api, message, isAdminLevelHighest))) return;
 
@@ -2668,11 +3100,13 @@ async function handleBlockCommand(api, message, params, prefix, aliasCommand, is
       api,
       message,
       `Cú pháp không đúng!\n` +
-        `• ${prefix}${aliasCommand} blockcmd add [ID/index] [tên lệnh] - Chặn lệnh\n` +
+        `• ${prefix}${aliasCommand} blockcmd add [ID/index/all] [tên lệnh/all] - Chặn lệnh\n` +
         `• ${prefix}${aliasCommand} blockcmd remove [ID/index] [tên lệnh] - Bỏ chặn lệnh\n` +
         `• ${prefix}${aliasCommand} blockcmd list [ID/index] - Xem danh sách lệnh bị chặn\n\n` +
         `Ví dụ:\n` +
         `• ${prefix}${aliasCommand} blockcmd add 1 help\n` +
+        `• ${prefix}${aliasCommand} blockcmd add all help\n` +
+        `• ${prefix}${aliasCommand} blockcmd add 1 all\n` +
         `• ${prefix}${aliasCommand} blockcmd remove 1 help\n` +
         `• ${prefix}${aliasCommand} blockcmd list 1`
     );
@@ -2688,8 +3122,10 @@ async function handleBlockCommand(api, message, params, prefix, aliasCommand, is
         await sendMessageWarning(
           api,
           message,
-          `Cú pháp không đúng!\nVui lòng sử dụng: ${prefix}${aliasCommand} blockcmd add [ID/index] [tên lệnh]\n` +
-            `Ví dụ: ${prefix}${aliasCommand} blockcmd add 1 help`
+          `Cú pháp không đúng!\nVui lòng sử dụng: ${prefix}${aliasCommand} blockcmd add [ID/index/all] [tên lệnh/all]\n` +
+            `Ví dụ: ${prefix}${aliasCommand} blockcmd add 1 help\n` +
+            `Tất cả bot: ${prefix}${aliasCommand} blockcmd add all help\n` +
+            `Tất cả lệnh: ${prefix}${aliasCommand} blockcmd add 1 all`
         );
         return;
       }
@@ -2697,7 +3133,7 @@ async function handleBlockCommand(api, message, params, prefix, aliasCommand, is
       const botIdentifiersStr = remainingParams[0];
       const commandNames = remainingParams.slice(1);
       
-      const { botInfos, errors } = parseMultipleBotIdentifiers(botIdentifiersStr);
+      const { botInfos, errors } = parseMultipleBotIdentifiers(botIdentifiersStr, true);
       
       if (botInfos.length === 0) {
         await sendMessageWarning(
@@ -2902,9 +3338,22 @@ async function handleBlockCommand(api, message, params, prefix, aliasCommand, is
 
           const index = managerCommand.notAllowedCommand.indexOf(commandLower);
           if (index === -1) {
-            notBlocked.push(commandName);
+            if (commandLower === "attack") {
+              if (!managerCommand.customerCommand) managerCommand.customerCommand = {};
+              if (!managerCommand.customerCommand.attack) managerCommand.customerCommand.attack = {};
+              managerCommand.customerCommand.attack.defaultChildBlockInitialized = true;
+              removedCommands.push(commandName);
+              hasChanges = true;
+            } else {
+              notBlocked.push(commandName);
+            }
           } else {
             managerCommand.notAllowedCommand.splice(index, 1);
+            if (commandLower === "attack") {
+              if (!managerCommand.customerCommand) managerCommand.customerCommand = {};
+              if (!managerCommand.customerCommand.attack) managerCommand.customerCommand.attack = {};
+              managerCommand.customerCommand.attack.defaultChildBlockInitialized = true;
+            }
             removedCommands.push(commandName);
             hasChanges = true;
           }

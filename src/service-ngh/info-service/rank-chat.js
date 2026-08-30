@@ -1,13 +1,13 @@
 import schedule from "node-schedule";
 import path from "path";
+import fs from "node:fs";
 import { MessageType } from "zlbotngh";
 import { RANK_LIEN_QUAN_RESOURCE_PATH_GLOBAL, rankInfoJsonPath } from "../../utils/io-json.js";
 import { removeMention } from "../../utils/format-util.js";
 import { getGlobalPrefix } from "../service.js";
 import { getMessageCache } from "../../utils/message-cache.js";
 import { sendMessageFromSQL } from "../chat-zalo/chat-style/chat-style.js";
-import { deleteFile, readFileSync, writeFileSync } from "../../utils/util.js";
-import { groupSettingsAll } from "../../automations/event-send-msg.js";
+import { deleteFile, readFileSync } from "../../utils/util.js";
 import { gameTypeCaro } from "../game-service/mini-game/caro-game/index.js";
 import { createRankLeaderboard, createRankLeaderboardTotal, createPersonalRankCard, createPersonalRankCardTotal, calculateRank, getRankText } from "../../utils/canvas/rank-leaderboard.js";
 import { getUserInfoBasic } from "./user-info.js";
@@ -16,12 +16,32 @@ import { getUserInfoBasic } from "./user-info.js";
 let rankInfoCache = {};
 let hasChanges = {};
 let lastDailyStatsPruneAt = {};
+const rankUserIndexes = new Map();
+const rankJournalSeq = new Map();
+const rankJournalWriters = new Map();
 
 const TIME_TO_LIVE = 86400000;
 const TOP_USERS_LIMIT = 10;
 const DAILY_STATS_KEEP_DAYS = 45;
 const LOW_INTERACTION_RESET_MS = 15 * 24 * 60 * 60 * 1000;
 const VN_TIME_ZONE = "Asia/Ho_Chi_Minh";
+const VN_DATE_FORMATTER = new Intl.DateTimeFormat("en-CA", {
+  timeZone: VN_TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+let cachedCurrentDateKey = "";
+let cachedCurrentDateKeyUntil = 0;
+// A flush every 50 ms made each active account issue up to 20 append syscalls
+// per second. With several accounts on the same disk this created enough I/O
+// contention to delay the websocket listener, even though every append was
+// asynchronous. Keep the immediate batch-size flush for bursts, but coalesce
+// normal chat traffic into one append per second. At most one second of rank
+// counters can be lost on an unclean process/host crash; graceful checkpoints
+// and high-volume traffic still flush sooner.
+const JOURNAL_FLUSH_MS = Math.max(100, Number(process.env.NGH_RANK_JOURNAL_FLUSH_MS) || 1000);
+const JOURNAL_BATCH_SIZE = Math.max(10, Number(process.env.NGH_RANK_JOURNAL_BATCH_SIZE) || 500);
 const RANK_MESSAGES = {
   NO_DATA: "Chưa có dữ liệu xếp hạng cho nhóm này.",
   HEADER: "🏆 Bảng xếp hạng tương tác top 10:\n\n",
@@ -91,16 +111,19 @@ function pad2(n) {
  * @returns {string}
  */
 function getDateKeyVN(date = new Date()) {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: VN_TIME_ZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(date);
+  const now = Date.now();
+  const isCurrentTime = Math.abs(date.getTime() - now) < 1000;
+  if (isCurrentTime && now < cachedCurrentDateKeyUntil) return cachedCurrentDateKey;
+  const parts = VN_DATE_FORMATTER.formatToParts(date);
   const year = parts.find((p) => p.type === "year").value;
   const month = parts.find((p) => p.type === "month").value;
   const day = parts.find((p) => p.type === "day").value;
-  return `${year}-${month}-${day}`;
+  const key = `${year}-${month}-${day}`;
+  if (isCurrentTime) {
+    cachedCurrentDateKey = key;
+    cachedCurrentDateKeyUntil = now + 60_000;
+  }
+  return key;
 }
 
 /**
@@ -246,16 +269,78 @@ export const getRankInfoCache = (idBot) =>
 
 function loadRankInfoCache(idBot) {
   rankInfoCache[idBot] = readRankInfo(idBot);
+  replayRankJournal(idBot);
 }
 
 export function setHasChange(idBot) {
   hasChanges[idBot] = true;
 }
 
-function saveRankInfoCache(idBot) {
+function getRankJournalWriter(idBot) {
+  const botKey = String(idBot);
+  let writer = rankJournalWriters.get(botKey);
+  if (!writer) {
+    writer = { entries: [], timer: null, chain: Promise.resolve(), snapshotting: false };
+    rankJournalWriters.set(botKey, writer);
+  }
+  return writer;
+}
+
+function flushRankJournal(idBot) {
+  const writer = getRankJournalWriter(idBot);
+  if (writer.timer) {
+    clearTimeout(writer.timer);
+    writer.timer = null;
+  }
+  if (writer.snapshotting || writer.entries.length === 0) return writer.chain;
+  const batch = writer.entries.splice(0, JOURNAL_BATCH_SIZE).join("");
+  writer.chain = writer.chain
+    .then(() => fs.promises.appendFile(getRankJournalPath(idBot), batch))
+    .catch((error) => console.error("Lỗi ghi journal dự phòng topchat:", error));
+  if (writer.entries.length > 0) scheduleRankJournalFlush(idBot);
+  return writer.chain;
+}
+
+function scheduleRankJournalFlush(idBot) {
+  const writer = getRankJournalWriter(idBot);
+  if (writer.timer || writer.snapshotting) return;
+  writer.timer = setTimeout(() => void flushRankJournal(idBot), JOURNAL_FLUSH_MS);
+  writer.timer.unref?.();
+}
+
+function enqueueRankJournal(idBot, event) {
+  const writer = getRankJournalWriter(idBot);
+  writer.entries.push(`${JSON.stringify(event)}\n`);
+  if (writer.entries.length >= JOURNAL_BATCH_SIZE) void flushRankJournal(idBot);
+  else scheduleRankJournalFlush(idBot);
+}
+
+async function saveRankInfoCache(idBot) {
   if (hasChanges[idBot]) {
-    writeRankInfo(idBot, getRankInfoCache(idBot));
-    hasChanges[idBot] = false;
+    const writer = getRankJournalWriter(idBot);
+    writer.snapshotting = true;
+    if (writer.timer) {
+      clearTimeout(writer.timer);
+      writer.timer = null;
+    }
+    // Flush everything queued before the checkpoint. New events stay buffered
+    // while the compact snapshot is being committed.
+    writer.snapshotting = false;
+    await flushRankJournal(idBot);
+    writer.snapshotting = true;
+    await writer.chain;
+    const rankInfo = getRankInfoCache(idBot);
+    rankInfo._journalSeq = rankJournalSeq.get(String(idBot)) || Number(rankInfo._journalSeq) || 0;
+    if (await writeRankInfo(idBot, rankInfo)) {
+      try {
+        await fs.promises.writeFile(getRankJournalPath(idBot), "");
+        hasChanges[idBot] = false;
+      } catch (error) {
+        console.error("Lỗi khi dọn journal topchat:", error);
+      }
+    }
+    writer.snapshotting = false;
+    if (writer.entries.length > 0) scheduleRankJournalFlush(idBot);
   }
 }
 
@@ -269,46 +354,91 @@ function readRankInfo(idBot) {
   }
 }
 
-function writeRankInfo(idBot, data) {
+async function writeRankInfo(idBot, data) {
   try {
-    writeFileSync(rankInfoJsonPath(idBot), JSON.stringify(data, null, 2));
+    const targetPath = rankInfoJsonPath(idBot);
+    const temporaryPath = `${targetPath}.tmp`;
+    await fs.promises.writeFile(temporaryPath, JSON.stringify(data));
+    await fs.promises.rename(temporaryPath, targetPath);
+    return true;
   } catch (error) {
     console.error("Lỗi khi ghi file rank-info.json:", error);
+    return false;
   }
 }
 
-export function updateUserRank(idBot, groupId, userId, userName, nameGroup) {
+function getRankJournalPath(idBot) {
+  return `${rankInfoJsonPath(idBot)}.journal`;
+}
+
+function applyRankEvent(idBot, event) {
+  const { groupId, userId, userName, nameGroup, dateKey } = event;
   const rankInfo = getRankInfoCache(idBot);
-  if (!rankInfo) rankInfo = {};
   if (!rankInfo.groups) rankInfo.groups = {};
   if (!rankInfo.groups[groupId]) rankInfo.groups[groupId] = { users: [] };
   if (rankInfo.groups[groupId].nameGroup !== nameGroup) rankInfo.groups[groupId].nameGroup = nameGroup;
 
-  const userIndex = rankInfo.groups[groupId].users.findIndex((user) => user.UID === userId);
+  const indexKey = `${idBot}:${groupId}`;
+  let userIndexMap = rankUserIndexes.get(indexKey);
+  const users = rankInfo.groups[groupId].users;
+  if (!userIndexMap || userIndexMap.size > users.length || users[userIndexMap.get(userId)]?.UID !== userId) {
+    userIndexMap = new Map(users.map((user, index) => [user.UID, index]));
+    rankUserIndexes.set(indexKey, userIndexMap);
+  }
+  const userIndex = userIndexMap.get(userId) ?? -1;
   if (userIndex !== -1) {
-    rankInfo.groups[groupId].users[userIndex].Rank++;
-    rankInfo.groups[groupId].users[userIndex].UserName = userName;
+    users[userIndex].Rank++;
+    users[userIndex].UserName = userName;
   } else {
-    rankInfo.groups[groupId].users.push({
-      UserName: userName,
-      UID: userId,
-      Rank: 1,
-    });
+    users.push({ UserName: userName, UID: userId, Rank: 1 });
+    userIndexMap.set(userId, users.length - 1);
   }
 
-  // Ghi nhận thống kê theo ngày để phục vụ tính tuần/tháng
   const groupData = rankInfo.groups[groupId];
   if (!groupData.dailyStats) groupData.dailyStats = {};
-  const dateKey = getDateKeyVN();
   if (!groupData.dailyStats[dateKey]) groupData.dailyStats[dateKey] = {};
   const dayBucket = groupData.dailyStats[dateKey];
-  if (!dayBucket[userId]) {
-    dayBucket[userId] = { name: userName, count: 0 };
-  }
+  if (!dayBucket[userId]) dayBucket[userId] = { name: userName, count: 0 };
   dayBucket[userId].count++;
   dayBucket[userId].name = userName;
+}
+
+function replayRankJournal(idBot) {
+  const botKey = String(idBot);
+  const rankInfo = getRankInfoCache(idBot);
+  const checkpoint = Number(rankInfo._journalSeq) || 0;
+  let latestSeq = checkpoint;
+  try {
+    const journal = fs.readFileSync(getRankJournalPath(idBot), "utf8");
+    for (const line of journal.split("\n")) {
+      if (!line.trim()) continue;
+      try {
+        const event = JSON.parse(line);
+        const seq = Number(event.seq) || 0;
+        latestSeq = Math.max(latestSeq, seq);
+        if (seq > checkpoint) applyRankEvent(idBot, event);
+      } catch (error) {
+        console.error("Bỏ qua một dòng journal topchat bị lỗi:", error.message);
+      }
+    }
+  } catch (error) {
+    if (error?.code !== "ENOENT") console.error("Lỗi khi đọc journal topchat:", error);
+  }
+  rankJournalSeq.set(botKey, latestSeq);
+  if (latestSeq > checkpoint) setHasChange(idBot);
+}
+
+export function updateUserRank(idBot, groupId, userId, userName, nameGroup) {
+  const dateKey = getDateKeyVN();
+  const botKey = String(idBot);
+  const seq = (rankJournalSeq.get(botKey) || Number(getRankInfoCache(idBot)._journalSeq) || 0) + 1;
+  const event = { seq, groupId: String(groupId), userId: String(userId), userName, nameGroup, dateKey };
+  enqueueRankJournal(idBot, event);
+  rankJournalSeq.set(botKey, seq);
+  applyRankEvent(idBot, event);
 
   const now = Date.now();
+  const groupData = getRankInfoCache(idBot).groups[groupId];
   if (!lastDailyStatsPruneAt[idBot] || now - lastDailyStatsPruneAt[idBot] > 24 * 60 * 60 * 1000) {
     pruneDailyStats(groupData);
     lastDailyStatsPruneAt[idBot] = now;
@@ -348,6 +478,44 @@ function buildRankMessage(topUsers, prefix, isTotal = false) {
   }
 
   return message;
+}
+
+async function handleRankTextCommand(api, message, period = "today") {
+  const { threadId } = message;
+  const idBot = api.getBotId();
+  let users;
+  let periodLabel;
+
+  if (period === "total") {
+    users = getGroupUsers(idBot, threadId).map((user) => ({
+      UserName: user.UserName,
+      Rank: Number(user.Rank) || 0,
+    }));
+    periodLabel = "từ trước đến nay";
+  } else {
+    const dateKeys = period === "week"
+      ? getWeekDateKeys()
+      : period === "month"
+        ? getMonthDateKeys()
+        : [getDateKeyVN()];
+    users = getStatsForDateKeys(idBot, threadId, dateKeys).map((user) => ({
+      UserName: user.name,
+      Rank: Number(user.messageCount) || 0,
+    }));
+    periodLabel = period === "week" ? "tuần này" : period === "month" ? "tháng này" : "hôm nay";
+  }
+
+  const topUsers = getTopUsers(users.filter((user) => user.Rank > 0));
+  if (topUsers.length === 0) return sendNoDataMessage(api, message, threadId);
+
+  let text = `🏆 TOP CHAT ${periodLabel.toUpperCase()}\n\n`;
+  topUsers.forEach((user, index) => {
+    text += `${index + 1}. ${user.UserName}: ${user.Rank.toLocaleString("vi-VN")} tin nhắn\n`;
+  });
+  const total = users.reduce((sum, user) => sum + user.Rank, 0);
+  text += `\n📊 Tổng: ${total.toLocaleString("vi-VN")} tin nhắn`;
+
+  return api.sendMessage({ msg: text, ttl: 600000, quote: message }, threadId, MessageType.GroupMessage);
 }
 
 /**
@@ -391,6 +559,12 @@ export async function handleRankCommand(api, message) {
 
 🔹 ${prefix}topchat
    → Xem bảng xếp hạng tương tác hôm nay (mặc định)
+
+🔹 ${prefix}topchat text
+   → Hiện bảng xếp hạng bằng chữ
+
+🔹 ${prefix}topchat all
+   → Hiện bảng xếp hạng bằng ảnh
 
 🔹 ${prefix}topchat week
    → Xem bảng xếp hạng tương tác tuần này (Thứ 2 - Chủ nhật)
@@ -448,6 +622,11 @@ export async function handleRankCommand(api, message) {
     }
   }
 
+  if (args.includes("text")) {
+    const period = isTotal ? "total" : isWeek ? "week" : isMonth ? "month" : "today";
+    return handleRankTextCommand(api, message, period);
+  }
+
   // Xử lý bảng xếp hạng
   if (isTotal) {
     // Bảng xếp hạng tổng (dùng canvas)
@@ -475,24 +654,9 @@ export async function handlePersonalRankCommand(api, message, uid) {
   try {
     const { threadId } = message;
     const idBot = api.getBotId();
-    const messageCache = await getMessageCache(idBot, threadId);
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const startOfDay = today.getTime();
-
-    let messageCount = 0;
-
-    // Đếm tin nhắn của user trong ngày
-    if (messageCache) {
-      for (const msgId in messageCache) {
-        const msg = messageCache[msgId];
-
-        if (msg.timestamp >= startOfDay && msg.timestamp <= Date.now() && msg.uidFrom === uid) {
-          messageCount++;
-        }
-      }
-    }
+    // dailyStats được journal cục bộ theo từng tin, không phụ thuộc MongoDB.
+    const todayStats = getStatsForDateKeys(idBot, threadId, [getDateKeyVN()]);
+    const messageCount = todayStats.find((user) => String(user.id) === String(uid))?.messageCount || 0;
 
     if (messageCount === 0) {
       await api.sendMessage(
@@ -620,39 +784,8 @@ export async function handleRankTodayCommand(api, message) {
   try {
     const { threadId } = message;
     const idBot = api.getBotId();
-    const messageCache = await getMessageCache(idBot, threadId);
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const startOfDay = today.getTime();
-
-    const interactions = {};
-
-    // Đếm tin nhắn trong ngày
-    if (messageCache) {
-      for (const msgId in messageCache) {
-        const msg = messageCache[msgId];
-
-        if (msg.timestamp >= startOfDay && msg.timestamp <= Date.now()) {
-          const uidFrom = msg.uidFrom;
-          const dName = msg.dName || "Ẩn Danh";
-
-          if (uidFrom !== idBot) {
-            if (!interactions[uidFrom]) {
-              interactions[uidFrom] = {
-                name: dName,
-                messageCount: 0,
-                id: uidFrom,
-              };
-            }
-            interactions[uidFrom].messageCount++;
-          }
-        }
-      }
-    }
-
-    // Chuyển đổi sang array
-    const users = Object.values(interactions);
+    // Đọc bản dự phòng local thay vì phụ thuộc MongoDB cho bảng hôm nay.
+    const users = getStatsForDateKeys(idBot, threadId, [getDateKeyVN()]);
 
     if (users.length === 0) {
       await api.sendMessage(
@@ -733,16 +866,15 @@ export async function handleRankTotalCommand(api, message) {
 
     // Lấy dữ liệu từ rank info (tổng từ trước đến nay)
     const groupUsers = getGroupUsers(idBot, threadId);
-    if (groupUsers.length === 0) {
-      return sendNoDataMessage(api, message, threadId);
-    }
-
     // Chuyển đổi dữ liệu sang format phù hợp với canvas
     const users = groupUsers.map(user => ({
       id: user.UID,
       name: user.UserName,
       messageCount: user.Rank,
     }));
+    if (users.length === 0) {
+      return sendNoDataMessage(api, message, threadId);
+    }
 
     // Lấy thông tin nhóm
     const rankInfo = getRankInfoCache(idBot);
@@ -1141,33 +1273,20 @@ export async function analyzeGroupInteractionsByThreadId(api, threadId, caption 
 export async function initRankSystem(api) {
   const idBot = api.getBotId();
   loadRankInfoCache(idBot);
+  // Do not walk every configured group or rewrite the complete snapshot at
+  // startup. A rank bucket is created lazily by updateUserRank on the first
+  // real message, so startup cost stays independent of the number of groups.
 
-  const groupSettings = groupSettingsAll.getByID(idBot);
-  const rankInfo = getRankInfoCache(idBot);
-
-  for (const [groupId, groupData] of Object.entries(groupSettings)) {
-    if (!rankInfo.groups[groupId]) {
-      rankInfo.groups[groupId] = { users: [] };
-    }
-
-    if (groupData["adminList"]) {
-      for (const [userId, userName] of Object.entries(groupData["adminList"])) {
-        const existingUser = rankInfo.groups[groupId].users.find((user) => user.UID === userId);
-        if (!existingUser) {
-          rankInfo.groups[groupId].users.push({
-            UserName: userName,
-            UID: userId,
-            Rank: 0,
-          });
-        }
-      }
-    }
-  }
-
-  setHasChange(idBot);
-  saveRankInfoCache(idBot);
-
-  api.apiInstance.schedule.saveRankInfo = schedule.scheduleJob("*/10 * * * * *", async () => {
-    saveRankInfoCache(idBot);
+  // Multiple bot accounts used to serialize multi-megabyte snapshots on the
+  // same second. Spread them across the minute so JSON serialization and disk
+  // writes do not freeze the shared event loop in one large burst.
+  const numericBotId = BigInt(String(idBot).replace(/\D/g, "") || "0");
+  const saveSecond = Number(numericBotId % 60n);
+  const saveMinute = Number((numericBotId / 60n) % 60n);
+  // Every message is already appended to the journal. A full multi-megabyte
+  // checkpoint every minute only creates periodic CPU spikes; hourly is enough
+  // to bound journal replay while keeping the listener smooth.
+  api.apiInstance.schedule.saveRankInfo = schedule.scheduleJob(`${saveSecond} ${saveMinute} * * * *`, async () => {
+    await saveRankInfoCache(idBot);
   });
 }

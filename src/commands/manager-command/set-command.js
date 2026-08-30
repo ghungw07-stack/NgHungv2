@@ -28,6 +28,13 @@ export function getPermissionCommandName(command) {
   return permission ? permission.name : "Tất Cả Người Dùng";
 }
 
+export function isCommandDisabledInGroup(botId, commandName, threadId) {
+  if (!threadId || !commandName) return false;
+  const managerCommand = getManagerCommandConfig(botId);
+  const custom = managerCommand.customerCommand?.[String(commandName).toLowerCase()];
+  return Array.isArray(custom?.disabledGroups) && custom.disabledGroups.includes(String(threadId));
+}
+
 export async function handleSetCommandActive(api, message, commandParts) {
   const botId = api.getBotId();
   const commandConfig = getCommandConfig();
@@ -36,6 +43,7 @@ export async function handleSetCommandActive(api, message, commandParts) {
   const threadId = message.threadId;
   const isMainBot = api.apiManager.isMainBot;
   const isBotLeader = isMainBot && isAdmin(botId, senderId);
+  const isAdminLevelHigh = isAdmin(botId, senderId);
 
   if (commandParts.length < 3) {
     await api.sendMessage(
@@ -44,7 +52,9 @@ export async function handleSetCommandActive(api, message, commandParts) {
           "⚠️ Vui lòng nhập đúng cú pháp:" +
           `\n${prefix}setcmd on/off <tên_lệnh> - Bật/tắt lệnh` +
           `\n${prefix}setcmd p <tên_lệnh> <level> - Đặt quyền hạn lệnh (1-4)` +
-          `\n${prefix}setcmd cd <tên_lệnh> <giây> - Đặt thời gian chờ lệnh`,
+          `\n${prefix}setcmd pall <tên_lệnh> <level> - Đặt quyền cho tất cả bot con, kể cả bot tạo sau` +
+          `\n${prefix}setcmd cd <tên_lệnh> <giây> - Đặt thời gian chờ lệnh` +
+          `\n${prefix}setcmd group on/off <lệnh_1> <lệnh_2>... - Bật/tắt nhiều lệnh riêng trong nhóm`,
         quote: message,
         ttl: 300000,
       },
@@ -55,7 +65,73 @@ export async function handleSetCommandActive(api, message, commandParts) {
   }
 
   const action = commandParts[1].toLowerCase();
-  const cmdName = commandParts[2].toLowerCase();
+  const isGroupAction = action === "group";
+  const groupState = isGroupAction ? commandParts[2]?.toLowerCase() : null;
+  const groupCommandNames = isGroupAction
+    ? [...new Set(commandParts.slice(3).flatMap((part) => String(part).split(",")).map((name) => name.trim().toLowerCase()).filter(Boolean))]
+    : [];
+  const cmdName = (isGroupAction ? groupCommandNames[0] : commandParts[2])?.toLowerCase();
+
+  if (isGroupAction && (!isAdminLevelHigh || message.type !== 1)) {
+    await sendMessageWarning(
+      api,
+      message,
+      message.type !== 1
+        ? "Cài đặt lệnh theo nhóm chỉ thực hiện trong nhóm"
+        : "Chỉ quản trị viên cấp cao mới được bật/tắt lệnh trong nhóm"
+    );
+    return;
+  }
+
+  if (isGroupAction && (groupCommandNames.length === 0 || !["on", "off"].includes(groupState))) {
+    await sendMessageWarning(api, message, `Cú pháp: ${prefix}setcmd group on/off <lệnh_1> <lệnh_2>...`);
+    return;
+  }
+
+  if (isGroupAction) {
+    const resolved = [];
+    const missing = [];
+    for (const name of groupCommandNames) {
+      const found = commandConfig.commands.find(
+        (cmd) => cmd.name === name || (Array.isArray(cmd.alias) && cmd.alias.includes(name))
+      );
+      if (!found) missing.push(name);
+      else if (!resolved.some((item) => item.name === found.name)) resolved.push(found);
+    }
+
+    const protectedNames = resolved.filter((item) => item.name === "setcmd").map((item) => item.name);
+    const applicable = resolved.filter((item) => item.name !== "setcmd");
+    const normalizedThreadId = String(threadId);
+    const shouldDisable = groupState === "off";
+    const changed = [];
+    const unchanged = [];
+
+    for (const item of applicable) {
+      const custom = getManagerCommandCustomConfig(botId, item.name);
+      custom.disabledGroups = Array.isArray(custom.disabledGroups)
+        ? [...new Set(custom.disabledGroups.map(String))]
+        : [];
+      const currentlyDisabled = custom.disabledGroups.includes(normalizedThreadId);
+      if (currentlyDisabled === shouldDisable) {
+        unchanged.push(item.name);
+        continue;
+      }
+      if (shouldDisable) custom.disabledGroups.push(normalizedThreadId);
+      else custom.disabledGroups = custom.disabledGroups.filter((id) => id !== normalizedThreadId);
+      changed.push(item.name);
+    }
+
+    if (changed.length > 0) writeCommandConfig(commandConfig);
+    const lines = [
+      `Đã ${shouldDisable ? "tắt" : "bật"} ${changed.length} lệnh trong nhóm này: ${changed.join(", ") || "không có"}`,
+    ];
+    if (unchanged.length) lines.push(`Không đổi: ${unchanged.join(", ")}`);
+    if (missing.length) lines.push(`Không tìm thấy: ${missing.join(", ")}`);
+    if (protectedNames.length) lines.push("Bỏ qua setcmd để tránh mất quyền mở lại");
+    await sendMessageComplete(api, message, lines.join("\n"), changed.length > 0, TIME_HOUR_24);
+    return;
+  }
+
   const command = commandConfig.commands.find(
     (cmd) => cmd.name === cmdName || (cmd.alias && cmd.alias.includes(cmdName))
   );
@@ -96,6 +172,7 @@ export async function handleSetCommandActive(api, message, commandParts) {
       }
       break;
     case "p":
+    case "pall":
       if (commandParts.length < 4) {
         await api.sendMessage(
           {
@@ -110,6 +187,15 @@ export async function handleSetCommandActive(api, message, commandParts) {
           },
           threadId,
           message.type
+        );
+        return;
+      }
+
+      if (action === "pall" && !isBotLeader) {
+        await sendMessageWarning(
+          api,
+          message,
+          "Chỉ có chủ sở hữu Bot Leader mới có quyền đặt quyền hạn cho tất cả bot con"
         );
         return;
       }
@@ -134,7 +220,19 @@ export async function handleSetCommandActive(api, message, commandParts) {
         return;
       }
 
-      if (isMainBot) {
+      if (action === "pall") {
+        // Quyền ở command gốc là mặc định cho mọi bot con được tạo về sau.
+        command.permission = newPermissionObj.key;
+
+        // Xóa quyền tùy chỉnh cũ để toàn bộ bot con hiện có cũng kế thừa
+        // quyền chung vừa đặt. Giữ nguyên các tùy chỉnh khác như countdown.
+        for (const managerCommand of Object.values(commandConfig.managerCommand || {})) {
+          const customCommand = managerCommand?.customerCommand?.[command.name];
+          if (customCommand && Object.hasOwn(customCommand, "permission")) {
+            delete customCommand.permission;
+          }
+        }
+      } else if (isMainBot) {
         command.permission = newPermissionObj.key;
       } else {
         customerCommand.permission = newPermissionObj.key;
@@ -143,7 +241,9 @@ export async function handleSetCommandActive(api, message, commandParts) {
 
       await api.sendMessage(
         {
-          msg: `✅ Đã thay đổi quyền hạn của lệnh "${cmdName}":\n- Quyền hạn mới: ${newPermissionObj.name}`,
+          msg:
+            `✅ Đã thay đổi quyền hạn của lệnh "${cmdName}":\n- Quyền hạn mới: ${newPermissionObj.name}` +
+            (action === "pall" ? "\n- Phạm vi: tất cả bot con hiện tại và bot tạo sau này" : ""),
           quote: message,
           ttl: 300000,
         },
@@ -234,7 +334,9 @@ export async function handleSetCommandActive(api, message, commandParts) {
             `❌ Hành động không hợp lệ. Vui lòng sử dụng:` +
             `\n- on/off: Bật/tắt lệnh` +
             `\n- p: Đặt quyền hạn` +
-            `\n- cd: Đặt thời gian chờ`,
+            `\n- pall: Đặt quyền hạn cho tất cả bot con, kể cả bot tạo sau` +
+            `\n- cd: Đặt thời gian chờ` +
+            `\n- group on/off: Bật/tắt lệnh riêng trong nhóm`,
           quote: message,
           ttl: 300000,
         },

@@ -146,6 +146,7 @@ async function updateAllStickerWarnings(
     await api.sendMessage(
       {
         msg: caption,
+        quote: message,
         mentions: [MessageMention(senderId, senderName.length, "⚠️ Cảnh cáo ".length)],
         ttl: 300000,
       },

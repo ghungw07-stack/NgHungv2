@@ -563,7 +563,7 @@ async function createImage(userInfo, message, fileName, botId) {
   });
 }
 async function createMemberEventImage({ userInfo, groupName, groupType, userActionName, isAdmin, event }) {
-  const width = 1200, height = 420;
+  const width = 1080, height = 330;
   // Dùng cùng engine/loader với ảnh info vì Skia tải ổn định ảnh CDN của Zalo.
   const canvas = new SkiaCanvas(width, height);
   const ctx = canvas.getContext("2d");
@@ -636,7 +636,7 @@ async function createMemberEventImage({ userInfo, groupName, groupType, userActi
   ctx.fillStyle = wash;
   ctx.fillRect(0, 0, width, height);
 
-  const ambient = ctx.createRadialGradient(1000, 10, 0, 1000, 10, 430);
+  const ambient = ctx.createRadialGradient(900, 10, 0, 900, 10, 380);
   ambient.addColorStop(0, welcome ? "rgba(55,224,191,.24)" : "rgba(255,105,130,.22)");
   ambient.addColorStop(1, "rgba(0,0,0,0)");
   ctx.fillStyle = ambient;
@@ -647,31 +647,31 @@ async function createMemberEventImage({ userInfo, groupName, groupType, userActi
   ctx.shadowColor = "rgba(0,0,0,.55)";
   ctx.shadowBlur = 28;
   ctx.shadowOffsetY = 10;
-  rounded(28, 26, width - 56, height - 52, 30, "rgba(8,12,18,.30)");
+  rounded(22, 20, width - 44, height - 40, 26, "rgba(8,12,18,.30)");
   ctx.restore();
-  const panelGradient = ctx.createLinearGradient(28, 26, width - 28, height - 26);
+  const panelGradient = ctx.createLinearGradient(22, 20, width - 22, height - 20);
   panelGradient.addColorStop(0, "rgba(16,24,30,.28)");
   panelGradient.addColorStop(.52, "rgba(8,12,18,.36)");
   panelGradient.addColorStop(1, "rgba(8,10,15,.48)");
-  rounded(28, 26, width - 56, height - 52, 30, panelGradient, "rgba(255,255,255,.15)");
+  rounded(22, 20, width - 44, height - 40, 26, panelGradient, "rgba(255,255,255,.15)");
 
-  const accentGradient = ctx.createLinearGradient(64, 0, 326, 0);
+  const accentGradient = ctx.createLinearGradient(52, 0, 286, 0);
   accentGradient.addColorStop(0, primary);
   accentGradient.addColorStop(1, secondary);
 
-  const avatarSize = 270;
-  const avatarX = 66;
-  const avatarY = 76;
+  const avatarSize = 232;
+  const avatarX = 46;
+  const avatarY = 49;
   ctx.save();
   ctx.shadowColor = welcome ? "rgba(98,242,206,.28)" : "rgba(255,113,143,.25)";
   ctx.shadowBlur = 25;
-  rounded(avatarX - 4, avatarY - 4, avatarSize + 8, avatarSize + 8, 31, accentGradient);
+  rounded(avatarX - 4, avatarY - 4, avatarSize + 8, avatarSize + 8, 27, accentGradient);
   ctx.restore();
-  rounded(avatarX, avatarY, avatarSize, avatarSize, 27, "rgba(255,255,255,.10)");
+  rounded(avatarX, avatarY, avatarSize, avatarSize, 23, "rgba(255,255,255,.10)");
   if (avatar) {
     ctx.save();
     ctx.beginPath();
-    ctx.roundRect(avatarX, avatarY, avatarSize, avatarSize, 27);
+    ctx.roundRect(avatarX, avatarY, avatarSize, avatarSize, 23);
     ctx.clip();
     drawCover(avatar, avatarX, avatarY, avatarSize, avatarSize);
     const avatarShade = ctx.createLinearGradient(0, avatarY, 0, avatarY + avatarSize);
@@ -684,39 +684,39 @@ async function createMemberEventImage({ userInfo, groupName, groupType, userActi
     const fallback = ctx.createLinearGradient(avatarX, avatarY, avatarX + avatarSize, avatarY + avatarSize);
     fallback.addColorStop(0, welcome ? "#173d3c" : "#482632");
     fallback.addColorStop(1, "#121a24");
-    rounded(avatarX, avatarY, avatarSize, avatarSize, 27, fallback);
+    rounded(avatarX, avatarY, avatarSize, avatarSize, 23, fallback);
     ctx.fillStyle = primary;
-    ctx.font = "700 100px " + EVENT_FONT;
+    ctx.font = "700 88px " + EVENT_FONT;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(safe(userInfo?.name, "?").charAt(0).toUpperCase(), avatarX + avatarSize / 2, avatarY + avatarSize / 2 + 4);
     ctx.textBaseline = "alphabetic";
   }
 
-  const textX = 382;
-  const maxWidth = 748;
+  const textX = 326;
+  const maxWidth = 700;
   ctx.textAlign = "left";
   ctx.fillStyle = primary;
   ctx.font = "700 14px " + EVENT_FONT;
-  ctx.fillText(welcome ? "WELCOME TO THE COMMUNITY" : "THANK YOU FOR BEING WITH US", textX, 91);
+  ctx.fillText(welcome ? "WELCOME TO THE COMMUNITY" : "THANK YOU FOR BEING WITH US", textX, 59);
 
   ctx.fillStyle = "#ffffff";
-  ctx.font = "700 50px " + EVENT_FONT;
+  ctx.font = "700 44px " + EVENT_FONT;
   const displayName = (isAdmin ? "Cán bộ " : "") + safe(userInfo?.name, "Thành viên");
-  ctx.fillText(fit(displayName, maxWidth, "700 50px " + EVENT_FONT), textX, 151);
+  ctx.fillText(fit(displayName, maxWidth, "700 44px " + EVENT_FONT), textX, 108);
 
   ctx.fillStyle = "rgba(255,255,255,.68)";
   ctx.font = "400 20px " + EVENT_FONT;
-  ctx.fillText(welcome ? "Đã tham gia" : "Đã rời khỏi", textX, 194);
+  ctx.fillText(welcome ? "Đã tham gia" : "Đã rời khỏi", textX, 142);
   ctx.fillStyle = "#ffffff";
   ctx.font = "700 28px " + EVENT_FONT;
-  ctx.fillText(fit(groupName, maxWidth, "700 28px " + EVENT_FONT), textX, 233);
+  ctx.fillText(fit(groupName, maxWidth, "700 28px " + EVENT_FONT), textX, 178);
 
   ctx.strokeStyle = "rgba(255,255,255,.13)";
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(textX, 260);
-  ctx.lineTo(1129, 260);
+  ctx.moveTo(textX, 198);
+  ctx.lineTo(width - 52, 198);
   ctx.stroke();
 
   const actionText = welcome && userActionName && userActionName !== userInfo?.name
@@ -724,20 +724,20 @@ async function createMemberEventImage({ userInfo, groupName, groupType, userActi
     : welcome ? "Chúc bạn có những phút giây thật vui tại đây" : "Hẹn gặp lại bạn vào một ngày gần nhất";
   ctx.fillStyle = "rgba(255,255,255,.64)";
   ctx.font = "400 18px " + EVENT_FONT;
-  ctx.fillText(fit(actionText, maxWidth, "400 18px " + EVENT_FONT), textX, 296);
+  ctx.fillText(fit(actionText, maxWidth, "400 18px " + EVENT_FONT), textX, 227);
 
   const dateText = new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date());
   const badgeText = `${groupType === 2 ? "CỘNG ĐỒNG" : "NHÓM CHAT"}  •  ${dateText}`;
   ctx.font = "700 13px " + EVENT_FONT;
   const badgeWidth = ctx.measureText(badgeText).width + 40;
-  rounded(textX, 321, badgeWidth, 38, 19, welcome ? "rgba(98,242,206,.12)" : "rgba(255,173,120,.12)", welcome ? "rgba(98,242,206,.28)" : "rgba(255,173,120,.26)");
+  rounded(textX, 249, badgeWidth, 34, 17, welcome ? "rgba(98,242,206,.12)" : "rgba(255,173,120,.12)", welcome ? "rgba(98,242,206,.28)" : "rgba(255,173,120,.26)");
   ctx.fillStyle = primary;
-  ctx.fillText(badgeText, textX + 20, 346);
+  ctx.fillText(badgeText, textX + 20, 271);
 
   ctx.textAlign = "right";
   ctx.fillStyle = "rgba(255,255,255,.34)";
   ctx.font = "700 10px " + EVENT_FONT;
-  ctx.fillText("NGH • GROUP EVENT", 1129, 346);
+  ctx.fillText("NGH • GROUP EVENT", width - 52, 271);
   ctx.textAlign = "left";
 
   const filePath = path.resolve("./assets/temp/" + event + "_cover_simple_" + Date.now() + ".png");

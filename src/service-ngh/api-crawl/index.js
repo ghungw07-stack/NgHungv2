@@ -8,7 +8,6 @@ import { handleSendTrackNhacCuaTui } from "./music-content/nhaccuatui.js";
 import { handleSendTrackMixcloud } from "./music-content/mixcloud.js";
 import { handleSendMediaYoutube } from "./youtube/youtube-service.js";
 import { deleteFile } from "../../utils/util.js";
-import { sendTikTokVideo } from "./tiktok/tiktok-service.js";
 import { handleSendTemplateCapcut } from "./capcut/capcut-service.js";
 import { processAndSendMedia } from "./api-download/aio-downlink.js";
 import { PLATFORM_HH3D, processStageReply as processStageHH3DReply } from "./video-content/hh3dtq.js";
@@ -143,8 +142,6 @@ export async function checkReplySelectionsMapData(api, message, isAdminLevelHigh
           if (videoPath) await deleteFile(videoPath);
         }
         return true;
-      case "tiktok":
-        return await sendTikTokVideo(api, message, media, false, subCommand || "540p");
       case "capcut":
         return await handleSendTemplateCapcut(api, message, media);
       case "downlink":

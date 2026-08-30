@@ -320,7 +320,11 @@ export async function sendRandomGirlVideo(api, message, caption, type, ttl = 0) 
 
     const metaData = await getDataVideoFromUrl(api, message, videoUrl);
 
-    if (metaData) {
+    // Sendtask/video ngắn chỉ nhận clip tối đa 45 giây. Metadata cũ có thể
+    // lưu duration theo mili giây hoặc giây nên chuẩn hóa trước khi so sánh.
+    const rawDuration = Number(metaData?.duration);
+    const durationSeconds = rawDuration > 1000 ? rawDuration / 1000 : rawDuration;
+    if (metaData && (!rawDuration || durationSeconds <= 45)) {
       try {
         await api.sendVideo({
           videoUrl: metaData.fileUrl,

@@ -14,11 +14,11 @@ const DEFAULT_CHUNK_SIZE = 100 * 1024 * 1024;
 // Zalo endpoint vẫn áp giới hạn ~512KB cho audio asyncfile, kể cả nhánh file
 // lớn. Giữ 256KB để chừa overhead multipart và tránh lỗi 201 khi nhạc dài.
 const LARGE_AUDIO_CHUNK_SIZE = 256 * 1024;
-const LARGE_AUDIO_CONCURRENCY = 20;
-const MAX_VOICE_UPLOAD_CONCURRENCY = 12;
+const LARGE_AUDIO_CONCURRENCY = Math.max(1, Number(process.env.NGH_LARGE_AUDIO_UPLOAD_CONCURRENCY) || 6);
+const MAX_VOICE_UPLOAD_CONCURRENCY = Math.max(1, Number(process.env.NGH_VOICE_UPLOAD_CONCURRENCY) || 6);
 const MAX_VOICE_UPLOAD_SIZE = DEFAULT_CHUNK_SIZE;
-const DEFAULT_CONCURRENT_CHUNKS = 12;
-const MAX_CONCURRENT_FILES = 4;
+const DEFAULT_CONCURRENT_CHUNKS = Math.max(1, Number(process.env.NGH_UPLOAD_CHUNK_CONCURRENCY) || 6);
+const MAX_CONCURRENT_FILES = Math.max(1, Number(process.env.NGH_UPLOAD_FILE_CONCURRENCY) || 2);
 const UPLOAD_CACHE_TTL_MS = 30 * 60 * 1000;
 const MAX_UPLOAD_CACHE_ENTRIES = 1000;
 const uploadSettingConfig = readSettingConfig();

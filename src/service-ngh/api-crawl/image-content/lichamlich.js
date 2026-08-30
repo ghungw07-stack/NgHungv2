@@ -12,6 +12,7 @@ import { sendMessageFailed, sendMessageFromSQL } from "../../chat-zalo/chat-styl
 import * as cv from "../../../utils/canvas/index.js";
 import { removeMention } from "../../../utils/format-util.js";
 import { getGlobalPrefix } from "../../service.js";
+import { solarToVietnameseLunar } from "../../../utils/vietnamese-lunar.js";
 
 function createHorizontalGradient(ctx, startX, endX, colors = ["#00e0ff", "#ff00ff", "#ff007f"]) {
   const gradient = ctx.createLinearGradient(startX, 0, endX, 0);
@@ -375,15 +376,8 @@ export async function generateLunarCalendarImage() {
   const month = now.getMonth() + 1;
   const year = now.getFullYear();
   const lunar = lunarCalendar.solarToLunar(year, month, day);
-  const isLeapMonth = lunar.lunarLeapMonth > 0 && lunar.lunarMonth === lunar.lunarLeapMonth + 1;
-  const lunarDay = lunar.lunarDay;
-  const lunarMonth =
-    lunar.lunarMonth <= lunar.lunarLeapMonth
-      ? lunar.lunarMonth
-      : isLeapMonth
-      ? lunar.lunarLeapMonth
-      : lunar.lunarMonth - 1;
-  const lunarYear = lunar.lunarYear;
+  const vietnameseLunar = solarToVietnameseLunar(day, month, year, 7);
+  const { lunarDay, lunarMonth, lunarYear, isLeapMonth } = vietnameseLunar;
   const vnStringDate = {
     namCanChi: toCanChi(lunar.GanZhiYear), // "Ất Tỵ"
     thangCanChi: toCanChi(lunar.GanZhiMonth), // "Giáp Thân"

@@ -12,9 +12,15 @@ import { handleWerewolfReaction } from "../service-ngh/game-service/ma-soi/index
 import { handleHorseRaceReaction } from "../service-ngh/game-service/dua-ngua/dua-ngua.js";
 import { handleCardTableReaction } from "../service-ngh/game-service/card-tables/card-tables.js";
 import { handleGiveawayReaction } from "../service-ngh/game-service/giveaway/giveaway.js";
+import { isUserBlocked } from "../commands/bot-manager/group-manage.js";
 //Xử Lý Sự Kiện Reaction
 export async function reactionEvents(api, reaction) {
-  await Promise.all([
+  const senderId = reaction?.data?.uidFrom || reaction?.senderId;
+  if (senderId && isUserBlocked(api.getBotId(), senderId)) return;
+  
+  // Một handler không phù hợp với loại reaction (ví dụ reaction không có rMsg)
+  // không được làm mất toàn bộ lượt xử lý của các game khác.
+  await Promise.allSettled([
     handleReactionConfirmJoinGroup(api, reaction),
     handleTikTokReaction(api, reaction),
     handleNextChapterNetTruyenReaction(api, reaction),
@@ -22,7 +28,6 @@ export async function reactionEvents(api, reaction) {
     handleNextChapterCNovelReaction(api, reaction),
     handleCaroReaction(api, reaction),
     handleReactionConfirmAutoJoin(api, reaction),
-    handleHeartReactionDelete(api, reaction),
     handleHungReaction(api, reaction),
     handleXiDachReaction(api, reaction),
     handleWerewolfReaction(api, reaction),
@@ -30,4 +35,6 @@ export async function reactionEvents(api, reaction) {
     handleCardTableReaction(api, reaction),
     handleGiveawayReaction(api, reaction),
   ]);
+  // Xóa tự động chạy sau các handler game để không tranh chấp tin nhắn game.
+  await handleHeartReactionDelete(api, reaction);
 }

@@ -14,7 +14,7 @@ const CACHE_TTL = 5 * 60 * 1000;
 let phoneSettingsCache = {};
 let lastCacheUpdate = 0;
 
-const phoneRegex = /0[\d.\s]{9,12}\b/g;
+const phoneRegex = /(?:\+84|84|0)[ \-\.]*(?:2|3|5|7|8|9)(?:[ \-\.]*\d){8,9}\b/g;
 const kickedUsers = new Set();
 
 let phoneSendCount = {};
@@ -180,7 +180,9 @@ export async function antiPhoneNumber(api, message, isAdminBox, groupSettings, b
 
   const validPhones = matches.filter(phone => {
     const digitsOnly = normalizePhone(phone);
-    return digitsOnly.length === 10 || digitsOnly.length === 11;
+    if (digitsOnly.startsWith('84') && (digitsOnly.length === 11 || digitsOnly.length === 12)) return true;
+    if (digitsOnly.startsWith('0') && (digitsOnly.length === 10 || digitsOnly.length === 11)) return true;
+    return false;
   });
 
   if (validPhones.length === 0) {
@@ -239,6 +241,7 @@ async function sendWarningMessage(api, message, senderId, senderName, threadId) 
     await api.sendMessage(
       {
         msg: caption,
+        quote: message,
         mentions: [MessageMention(senderId, senderName.length, "⚠️ Cảnh cáo ".length)],
         ttl: 300000,
       },

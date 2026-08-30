@@ -6,6 +6,9 @@ import { getDataAllGroup } from "../info-service/group-info.js";
 import { getGlobalPrefix } from "../../service-ngh/service.js";
 import fs from "fs";
 import path from "path";
+import { DATA_ROOT } from "../../utils/io-json.js";
+import { enqueueBackgroundTask } from "../../utils/background-work-queue.js";
+import { waitForInteractiveCapacity } from "../../utils/runtime-work-queue.js";
 
 function getQRContent(data) {
   if (!data) return null;
@@ -19,9 +22,11 @@ function getQRContent(data) {
 const requestAutoJoinMap = new Map();
 const WAITING_ACTION_JOIN_GROUP = 30000;
 const AUTO_JOIN_INTERVAL = 2 * 60 * 1000;
-const AUTO_JOIN_QUEUE_PATH = path.join(process.cwd(), "assets", "data", "autojoin-queue.json");
+const AUTO_JOIN_QUEUE_PATH = path.join(DATA_ROOT, "data", "autojoin-queue.json");
 const autoJoinApis = new Map();
 let isProcessingQueue = false;
+const AUTO_JOIN_BOT_DELAY_MS = Math.max(250, Number(process.env.NGH_AUTOJOIN_BOT_DELAY_MS) || 1000);
+const AUTO_JOIN_MAX_QUEUE_PER_BOT = Math.max(10, Number(process.env.NGH_AUTOJOIN_MAX_QUEUE_PER_BOT) || 250);
 
 function readAutoJoinQueue() {
   try {
@@ -48,6 +53,9 @@ function queueJoinLink(api, link) {
   if (queue.some((item) => item.link === normalizedLink)) {
     return { queued: false, reason: "duplicate" };
   }
+  if (queue.length >= AUTO_JOIN_MAX_QUEUE_PER_BOT) {
+    return { queued: false, reason: "full" };
+  }
 
   const now = Date.now();
   const lastRunAt = queue.reduce((max, item) => Math.max(max, Number(item.runAt) || 0), 0);
@@ -63,7 +71,7 @@ function isGroupChatLocked(groupInfo) {
   return value === true || Number(value) === 1;
 }
 
-async function processAutoJoinQueue() {
+async function runDueAutoJoinItems() {
   if (isProcessingQueue) return;
   isProcessingQueue = true;
   try {
@@ -83,6 +91,7 @@ async function processAutoJoinQueue() {
       saveAutoJoinQueue();
 
       try {
+        await waitForInteractiveCapacity();
         const groupInfo = await api.getGroupInfoByLink(item.link);
         if (isGroupChatLocked(groupInfo)) {
           continue;
@@ -91,9 +100,20 @@ async function processAutoJoinQueue() {
       } catch (error) {
         console.warn("[AutoJoin] Xử lý link trong hàng đợi thất bại:", error?.message || error);
       }
+      await new Promise((resolve) => setTimeout(resolve, AUTO_JOIN_BOT_DELAY_MS));
     }
   } finally {
     isProcessingQueue = false;
+  }
+}
+
+function processAutoJoinQueue() {
+  // Avoid creating a background task every 15 seconds on an idle bot. This
+  // timer is shared by all accounts and only needs to wake when work exists.
+  if (isProcessingQueue || Object.keys(autoJoinQueue).length === 0) return;
+  const queued = enqueueBackgroundTask("autojoin:global", runDueAutoJoinItems);
+  if (queued.accepted) {
+    void queued.promise.catch((error) => console.error("[AutoJoin] Lỗi hàng đợi nền:", error));
   }
 }
 
@@ -283,7 +303,8 @@ export async function handleAutoJoinCommand(api, message, groupSettings) {
 }
 
 export async function handleReactionConfirmAutoJoin(api, reaction) {
-  const msgId = reaction.data.content.rMsg[0].gMsgID.toString();
+  const msgId = reaction.data?.content?.rMsg?.[0]?.gMsgID?.toString();
+  if (!msgId) return false;
   const data = requestAutoJoinMap.get(msgId);
   if (!data) return false;
 

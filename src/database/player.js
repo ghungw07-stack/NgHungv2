@@ -37,30 +37,44 @@ async function persistPlayerAlias(alias, playerId) {
  */
 export async function ensurePlayerAccount(idUserZalo, senderName, botId, api = null) {
   try {
-    idUserZalo = canonicalPlayerId(idUserZalo);
+    const originalZaloId = canonicalPlayerId(idUserZalo);
+    idUserZalo = originalZaloId;
     let identityKey = null;
     let avatarUrl = null;
+    let resolvedKey = null;
+
     if (api) {
       try {
         const info = await getUserInfoAcrossBots(api, idUserZalo);
         avatarUrl = info?.avatarFull || info?.avatar || null;
-        const identity = [info?.name, info?.avatarFull || info?.avatar, info?.cover, info?.bio,
-          info?.username, info?.genderId, info?.birthday, info?.phone]
-          .map((v) => String(v || "").trim().toLowerCase()).join("|");
         
         if (info?.globalId) {
+          resolvedKey = info.globalId;
           identityKey = "GLOBAL:" + info.globalId;
-        } else if (identity.replace(/\|/g, "")) {
-          identityKey = crypto.createHash("sha256").update(identity).digest("hex");
+        } else if (info?.username) {
+          resolvedKey = info.username;
+          identityKey = "USERNAME:" + info.username;
+        } else {
+          const identity = [info?.name, info?.avatarFull || info?.avatar, info?.cover, info?.bio,
+            info?.genderId, info?.birthday, info?.phone]
+            .map((v) => String(v || "").trim().toLowerCase()).join("|");
+          if (identity.replace(/\|/g, "")) {
+            identityKey = crypto.createHash("sha256").update(identity).digest("hex");
+          }
         }
       } catch {}
     }
+
+    if (resolvedKey) {
+      idUserZalo = resolvedKey;
+    }
+
     if (identityKey) {
       const identityDoc = await connection.collection("player_identity").findOne({ identityKey });
       if (identityDoc?.playerId && identityDoc.playerId !== idUserZalo) {
         const [linked] = await connection.execute(`SELECT username FROM ${NAME_TABLE_PLAYERS} WHERE idUserZalo = ?`, [identityDoc.playerId]);
         if (linked.length) {
-          await persistPlayerAlias(idUserZalo, identityDoc.playerId);
+          await persistPlayerAlias(originalZaloId, identityDoc.playerId);
           return { success: true, isNew: false, playerId: identityDoc.playerId };
         }
       }
@@ -78,17 +92,23 @@ export async function ensurePlayerAccount(idUserZalo, senderName, botId, api = n
         ]);
       }
       if (avatarUrl) await connection.execute(`UPDATE ${NAME_TABLE_PLAYERS} SET avatar = ? WHERE idUserZalo = ?`, [avatarUrl, idUserZalo]);
-    if (identityKey) await connection.collection("player_identity").updateOne({ identityKey }, { $set: { identityKey, playerId: idUserZalo, updatedAt: new Date() } }, { upsert: true });
-    await persistPlayerAlias(idUserZalo, idUserZalo);
-    return { success: true, isNew: false, playerId: idUserZalo };
+      if (identityKey) await connection.collection("player_identity").updateOne({ identityKey }, { $set: { identityKey, playerId: idUserZalo, updatedAt: new Date() } }, { upsert: true });
+      if (originalZaloId !== idUserZalo) {
+        await persistPlayerAlias(originalZaloId, idUserZalo);
+      }
+      await persistPlayerAlias(idUserZalo, idUserZalo);
+      return { success: true, isNew: false, playerId: idUserZalo };
     }
 
     await connection.execute(
       `INSERT INTO ${NAME_TABLE_PLAYERS} (username, idUserZalo, playerName, serverId, avatar, registrationTime) VALUES (?, ?, ?, ?, ?, NOW())`,
-      [idUserZalo, idUserZalo, senderName || idUserZalo, botId, avatarUrl]
+      [idUserZalo, idUserZalo, senderName || originalZaloId, botId, avatarUrl]
     );
 
     if (identityKey) await connection.collection("player_identity").updateOne({ identityKey }, { $set: { identityKey, playerId: idUserZalo, updatedAt: new Date() } }, { upsert: true });
+    if (originalZaloId !== idUserZalo) {
+      await persistPlayerAlias(originalZaloId, idUserZalo);
+    }
     await persistPlayerAlias(idUserZalo, idUserZalo);
     return { success: true, isNew: true, playerId: idUserZalo };
   } catch (error) {

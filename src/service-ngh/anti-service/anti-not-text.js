@@ -37,7 +37,7 @@ export async function antiNotText(api, message, isAdminBox, groupSettings, botIs
     try {
       await deleteMessageCustomer(api, message);
       await api.sendMessage(
-        { msg: `⚠️ Cảnh cáo ${senderName}!\nNhóm này chỉ cho phép gửi tin nhắn văn bản.`, ttl: 300000 },
+        { msg: `⚠️ Cảnh cáo ${senderName}!\nNhóm này chỉ cho phép gửi tin nhắn văn bản.`, quote: message, ttl: 300000 },
         threadId,
         message.type
       );

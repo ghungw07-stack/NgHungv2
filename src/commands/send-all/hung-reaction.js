@@ -9,6 +9,7 @@ const CONFIRM_TIMEOUT = 5 * 60 * 1000; // 5 phút
 const pendingMarriage = new Map();
 // msgId -> { threadId, message, requiredUid, senderUid, partnerUid, timer }
 const pendingDivorce = new Map();
+const pendingForcedByThread = new Map();
 
 async function resolveName(api, uid, fallback) {
   try {
@@ -19,11 +20,21 @@ async function resolveName(api, uid, fallback) {
   }
 }
 
-export function registerMarriagePending({ msgId, threadId, message, uidsRequired, uid1, uid2, date }) {
+function deletePendingAliases(map, data) {
+  for (const id of data.msgIds || []) map.delete(id);
+  if (data.forced && pendingForcedByThread.get(String(data.threadId)) === data) {
+    pendingForcedByThread.delete(String(data.threadId));
+  }
+}
+
+export function registerMarriagePending({ msgIds, threadId, message, uidsRequired, uid1, uid2, date }) {
+  const normalizedIds = [...new Set((msgIds || []).map(String))];
+  let data;
   const timer = setTimeout(() => {
-    pendingMarriage.delete(msgId);
+    deletePendingAliases(pendingMarriage, data);
   }, CONFIRM_TIMEOUT);
-  pendingMarriage.set(msgId, {
+  data = {
+    msgIds: normalizedIds,
     threadId,
     message,
     requiredUids: new Set(uidsRequired),
@@ -32,36 +43,44 @@ export function registerMarriagePending({ msgId, threadId, message, uidsRequired
     uid2,
     date,
     timer,
-  });
+  };
+  for (const id of normalizedIds) pendingMarriage.set(id, data);
 }
 
-export function registerDivorcePending({ msgId, threadId, message, requiredUid, senderUid, partnerUid }) {
+export function registerDivorcePending({ msgIds, threadId, message, requiredUid, allowedUids, senderUid, partnerUid, forced = false }) {
+  const normalizedIds = [...new Set((msgIds || []).map(String))];
+  let data;
   const timer = setTimeout(() => {
-    pendingDivorce.delete(msgId);
+    deletePendingAliases(pendingDivorce, data);
   }, CONFIRM_TIMEOUT);
-  pendingDivorce.set(msgId, {
+  data = {
+    msgIds: normalizedIds,
     threadId,
     message,
     requiredUid,
+    allowedUids: new Set((allowedUids || (requiredUid ? [requiredUid] : [])).map(String)),
     senderUid,
     partnerUid,
+    forced,
     timer,
-  });
+  };
+  for (const id of normalizedIds) pendingDivorce.set(id, data);
+  if (forced) pendingForcedByThread.set(String(threadId), data);
 }
 
 export async function handleHungReaction(api, reaction) {
   try {
     const rIcon = reaction.data?.content?.rIcon;
-    if (rIcon !== "/-heart") return false; // chỉ nhận reaction trái tim ❤️
+    if (!["/-heart", "❤️", "❤", "/heart"].includes(rIcon)) return false;
 
     const rMsg = reaction.data?.content?.rMsg?.[0];
-    const msgId = rMsg?.gMsgID?.toString();
-    if (!msgId) return false;
+    const msgIds = [rMsg?.gMsgID, rMsg?.cMsgID].filter(Boolean).map(String);
+    if (msgIds.length === 0) return false;
 
     const reactorUid = reaction.data.uidFrom;
 
     // ===== KẾT HÔN =====
-    const marriageData = pendingMarriage.get(msgId);
+    const marriageData = msgIds.map((id) => pendingMarriage.get(id)).find(Boolean);
     if (marriageData) {
       if (!marriageData.requiredUids.has(reactorUid)) return false;
       marriageData.confirmedUids.add(reactorUid);
@@ -71,7 +90,7 @@ export async function handleHungReaction(api, reaction) {
       }
 
       clearTimeout(marriageData.timer);
-      pendingMarriage.delete(msgId);
+      deletePendingAliases(pendingMarriage, marriageData);
 
       const records = loadMarriages();
       if (findMarriage(records, marriageData.uid1) || findMarriage(records, marriageData.uid2)) {
@@ -116,12 +135,14 @@ export async function handleHungReaction(api, reaction) {
     }
 
     // ===== LY HÔN =====
-    const divorceData = pendingDivorce.get(msgId);
+    const reactionThread = String(reaction.threadId || reaction.data?.idTo || "");
+    const divorceData = msgIds.map((id) => pendingDivorce.get(id)).find(Boolean) ||
+      pendingForcedByThread.get(reactionThread);
     if (divorceData) {
-      if (reactorUid !== divorceData.requiredUid) return false;
+      if (!divorceData.allowedUids.has(String(reactorUid))) return false;
 
       clearTimeout(divorceData.timer);
-      pendingDivorce.delete(msgId);
+      deletePendingAliases(pendingDivorce, divorceData);
 
       const records = loadMarriages();
       const record = findMarriage(records, divorceData.senderUid);
@@ -136,7 +157,9 @@ export async function handleHungReaction(api, reaction) {
       const partnerName = await resolveName(api, divorceData.partnerUid, "Người kia");
       await sendMessageStateQuote(
         api, divorceData.message,
-        `💔 ${senderName} và ${partnerName} đã chính thức ly hôn.`,
+        divorceData.forced
+          ? `⚖️ ${senderName} và ${partnerName} đã chính thức ly hôn theo yêu cầu cưỡng chế.`
+          : `💔 ${senderName} và ${partnerName} đã chính thức ly hôn.`,
         false, 60000, false
       );
       return true;

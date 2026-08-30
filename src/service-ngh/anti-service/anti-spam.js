@@ -1,4 +1,4 @@
-import { MessageMention, MessageType } from "zlbotngh";
+import { MessageType } from "zlbotngh";
 import schedule from "node-schedule";
 import { getGroupInfoData } from "../../service-ngh/info-service/group-info.js";
 import { getUserInfoData } from "../../service-ngh/info-service/user-info.js";
@@ -14,9 +14,9 @@ import { deleteMessageCustomer } from "../../commands/bot-manager/utilities.js";
 const kickedUsers = new Set();
 const userMessageTimestamps = new Map();
 const userWarnings = new Map();
-const MESSAGE_THRESHOLD = 5;
-const TIME_WINDOW = 3000;
-const MESSAGE_THRESHOLD_REPEATED = 5;
+const MESSAGE_THRESHOLD = 3;
+const TIME_WINDOW = 5000;
+const MESSAGE_THRESHOLD_REPEATED = 3;
 const TIME_WINDOW_REPEATED = 15000;
 const WARNING_RESET_TIME = 1800000;
 const SPAM_PATTERNS = {
@@ -116,11 +116,37 @@ export async function antiSpam(api, message, groupInfo, isAdminBox, groupSetting
     if (spamAnalysis.isSpam) {
       try {
         const warningResult = await handleWarning(api, message, threadId, senderId, senderName, spamAnalysis.type);
-
-        if (warningResult.shouldBlock) {
-          await handleSpamDetected(api, message, spamAnalysis.type);
-          return true;
+        
+        // Thu hồi tin nhắn ngay lập tức khi phát hiện spam (như các anti khác)
+        try {
+          const fakeMsg = {
+            type: message.type || MessageType.GroupMessage,
+            threadId: threadId,
+            data: {
+              cliMsgId: message.data?.cliMsgId || message.data?.clientId,
+              msgId: message.data?.msgId || message.data?.globalMsgId,
+              uidFrom: senderId
+            }
+          };
+          await deleteMessageCustomer(api, fakeMsg);
+        } catch (e) {
+          console.error("Lỗi xóa tin spam tức thời:", e);
         }
+
+        // Cảnh báo ra nhóm
+        if (!warningResult.shouldBlock) {
+          await api.sendMessage(
+            {
+              msg: `Cảnh Báo @${senderName} Muốn Spam À`,
+              mentions: [{ pos: 9, len: senderName.length + 1, uid: senderId }]
+            },
+            threadId,
+            message.type
+          );
+        } else {
+          await handleSpamDetected(api, message, spamAnalysis.type);
+        }
+        return true;
       } catch (error) {
         console.error("Lỗi khi xử lý spam:", error);
       }
@@ -328,29 +354,10 @@ async function handleWarning(api, message, threadId, senderId, senderName, spamT
   warning.lastWarningTime = currentTime;
 
   if (warning.count < 3) {
-    let caption = `⚠️ Cảnh cáo ${senderName}!\nChậm cái tay lại bạn êy, tay hơi nhanh rồi đấy!`;
-    if (spamType === SPAM_PATTERNS.REPEATED_CONTENT) {
-      caption = `⚠️ Cảnh cáo ${senderName}!\nMuốn spam à?!`;
-    }
-    if (warning.count === 2) {
-      caption = `⚠️ Cảnh cáo ${senderName}!\nNhắn chậm lại, tao xút mày ra khỏi box bây giờ!`;
-      if (spamType === SPAM_PATTERNS.REPEATED_CONTENT) {
-        caption = `⚠️ Cảnh cáo ${senderName}!\nDừng hành động này lại trước khi tao cho mày bay màu khỏi nhóm...!`;
-      }
-    }
-    await api.sendMessage(
-      {
-        msg: caption,
-        mentions: [MessageMention(senderId, senderName.length, "⚠️ Cảnh cáo ".length)],
-        ttl: 8000,
-      },
-      threadId,
-      MessageType.GroupMessage
-    );
-    return { shouldBlock: false };
+    return { shouldBlock: false, count: warning.count };
   } else {
     userWarnings.delete(senderId);
-    return { shouldBlock: true };
+    return { shouldBlock: true, count: 3 };
   }
 }
 

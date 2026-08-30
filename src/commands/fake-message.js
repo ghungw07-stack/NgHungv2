@@ -1,5 +1,6 @@
 import { MessageMention, MessageStyle, MessageType } from "../api-zalo/index.js";
-import { getImageInfo } from "../utils/util.js";
+import { getFileInfoFromUrl, getMd5LargeFileFromUrl } from "../api-zalo/utils.js";
+import { checkExstentionFileRemote, getImageInfo } from "../utils/util.js";
 
 function getQuotedUserId(quote) {
   return quote?.uidFrom || quote?.ownerId || quote?.uid || quote?.senderId || null;
@@ -139,7 +140,8 @@ export async function handleFakeMessageCommand(api, message) {
   const firstSeparatorIndex = commandText.indexOf("|");
   const firstPart = firstSeparatorIndex >= 0 ? commandText.slice(0, firstSeparatorIndex) : commandText;
   const imageUrlIndex = firstPart.search(/https?:\/\//iu);
-  if (imageUrlIndex > 0) commandText = commandText.slice(imageUrlIndex);
+  const hasFilePrefix = /^file\s*(?::|\s)/iu.test(firstPart);
+  if (imageUrlIndex > 0 && !hasFilePrefix) commandText = commandText.slice(imageUrlIndex);
 
   const quote = message.data?.quote;
   const userId = getQuotedUserId(quote);
@@ -163,6 +165,7 @@ export async function handleFakeMessageCommand(api, message) {
       {
         msg:
           "Sai cú pháp. Dùng: fakemsg <tin nhắn ảo>|<câu trả lời thật>|[tag|@người]\n" +
+          "Fake file: fakemsg file:<link file>|<câu trả lời thật>\n" +
           "Gửi riêng: fakemsg @Tên .| nội dung",
         quote: message,
       },
@@ -173,8 +176,12 @@ export async function handleFakeMessageCommand(api, message) {
   }
 
   const fakeText = parts[0].slice(0, 2000);
+  // Dùng tiền tố file: vì URL Zalo thường không có đuôi để tự phân biệt file/ảnh.
+  const isFakeFile = /^file\s*:/iu.test(fakeText) || /^file\s+https?:\/\//iu.test(fakeText);
   // Cho phép URL đứng sau mention Zalo tự chèn khi người dùng bấm reply.
-  const fakeImageUrl = getHttpUrl(fakeText) || findHttpUrl(fakeText);
+  const fakeMediaUrl = getHttpUrl(fakeText) || findHttpUrl(fakeText);
+  const fakeImageUrl = !isFakeFile ? fakeMediaUrl : null;
+  const fakeFileUrl = isFakeFile ? fakeMediaUrl : null;
   const realReply = parts[1].slice(0, 2000);
 
   let replyText = realReply;
@@ -211,8 +218,8 @@ export async function handleFakeMessageCommand(api, message) {
       replyText = `${replyText} ${tagName}`;
       mentions = [MessageMention(String(tagId), tagName.length, tagOffset)];
     }
-  } else if (fakeImageUrl) {
-    // Reply ảnh trên Zalo thường kèm tên người sở hữu tin được trả lời.
+  } else if (fakeMediaUrl) {
+    // Reply media trên Zalo thường kèm tên người sở hữu tin được trả lời.
     const quotedName = String(
       repliedMentionName || quote?.dName || quote?.displayName || quote?.senderName || ""
     )
@@ -227,15 +234,49 @@ export async function handleFakeMessageCommand(api, message) {
 
   const now = Date.now();
   const imageInfo = fakeImageUrl ? await getImageInfo(fakeImageUrl) : null;
+  let fileInfo = null;
+  let fileExt = null;
+  let fileChecksum = "";
+  if (fakeFileUrl) {
+    [fileInfo, fileExt] = await Promise.all([
+      getFileInfoFromUrl(fakeFileUrl),
+      checkExstentionFileRemote(fakeFileUrl, false),
+    ]);
+    if (!fileExt && fileInfo?.fileName?.includes(".")) {
+      fileExt = fileInfo.fileName.split(".").pop().toLowerCase();
+    }
+    if (fileInfo?.fileSize > 0) {
+      try {
+        fileChecksum = (await getMd5LargeFileFromUrl(fakeFileUrl, fileInfo.fileSize))?.data || "";
+      } catch (error) {
+        console.error("Không thể tạo checksum cho fake file:", error?.message || error);
+      }
+    }
+  }
+  const fakeMsgType = fakeFileUrl ? "share.file" : fakeImageUrl ? "chat.photo" : "webchat";
+  const fakeFileContent = fakeFileUrl
+    ? {
+        title: fileInfo?.fileName || "unknownFile",
+        href: fakeFileUrl,
+        thumb: "",
+        params: JSON.stringify({
+          fileSize: String(fileInfo?.fileSize || 0),
+          fileExt: fileExt || "",
+          checksum: fileChecksum,
+          fType: 1,
+          fdata: "{}",
+        }),
+      }
+    : null;
   const fakeQuote = {
     data: {
       uidFrom: String(userId),
       msgId: String(now),
       cliMsgId: String(now + 1),
-      msgType: fakeImageUrl ? "chat.photo" : "webchat",
+      msgType: fakeMsgType,
       ts: now,
       ttl: 0,
-      content: fakeImageUrl
+      content: fakeFileContent || (fakeImageUrl
         ? {
             title: "",
             href: fakeImageUrl,
@@ -248,19 +289,31 @@ export async function handleFakeMessageCommand(api, message) {
             height: imageInfo?.height || 500,
             hdSize: String(imageInfo?.totalSize || 0),
           }
-        : fakeText,
+        : fakeText),
     },
     threadId: message.threadId,
     type: message.type || MessageType.GroupMessage,
   };
 
-  // Ghi style trực tiếp để lớp sendMessage không thay bằng chatStyle tùy chỉnh
-  // của bot. Đây là đúng style text mặc định Zalo: màu đen, size 18, không bold.
-  const defaultZaloStyle = MessageStyle(0, replyText.length, "1f2937", "18", false, false, false, false);
-  await api.sendMessage(
-    { msg: replyText, mentions, quote: fakeQuote, style: defaultZaloStyle, ttl: 300000 },
-    message.threadId,
-    message.type
-  );
-  await undoCommandMessage(api, message);
+  // Không ép màu để reply vẫn đọc được trên Zalo PC/Web dark mode.
+  const defaultZaloStyle = MessageStyle(0, replyText.length, null, "18", false, false, false, false);
+  try {
+    await api.sendMessage(
+      { msg: replyText, mentions, quote: fakeQuote, style: defaultZaloStyle, ttl: 300000 },
+      message.threadId,
+      message.type
+    );
+    await undoCommandMessage(api, message);
+  } catch (error) {
+    console.error("Lỗi fakemsg:", error?.message || error);
+    await api.sendMessage(
+      {
+        msg: `Không thể fake ${fakeFileUrl ? "file" : fakeImageUrl ? "ảnh" : "tin nhắn"}: ${error?.message || "Zalo từ chối yêu cầu"}`,
+        quote: message,
+        ttl: 30000,
+      },
+      message.threadId,
+      message.type
+    ).catch(() => {});
+  }
 }

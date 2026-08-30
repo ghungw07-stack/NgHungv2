@@ -8,6 +8,7 @@ class ImageBufferCache {
     this.cache = new Map();
     this.downloading = new Map();
     this.cleanupInterval = setInterval(() => this.cleanup(), TIME_CLEANUP);
+    this.cleanupInterval.unref?.();
   }
 
   async getBuffer(url, options = {}) {
@@ -72,4 +73,4 @@ class ImageBufferCache {
   }
 }
 
-export const imageBufferCache = new ImageBufferCache(); 
+export const imageBufferCache = new ImageBufferCache();

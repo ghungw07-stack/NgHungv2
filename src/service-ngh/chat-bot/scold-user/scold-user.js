@@ -1768,6 +1768,10 @@ export async function scoldUser(api, message) {
   scoldUsers.set(userId, true);
   isScoldingActive = true;
 
+  // Resolve the target before starting the timer. The previous declaration was
+  // below setInterval(), so a fast first tick could hit the temporal dead zone
+  // and terminate the whole bot with an unhandled ReferenceError.
+  const userTarget = await getUserInfoData(api, userId);
   let count = 0;
   const interval = setInterval(async () => {
     if (!isScoldingActive) {
@@ -1804,7 +1808,6 @@ export async function scoldUser(api, message) {
     count++;
   }, delay);
 
-  const userTarget = await getUserInfoData(api, userId);
   const caption = `Tao chuẩn bị mắng yêu `;
   await api.sendMessage(
     {

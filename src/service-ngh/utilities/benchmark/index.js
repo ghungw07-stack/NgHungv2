@@ -1,5 +1,4 @@
 import os from "os";
-import crypto from "crypto";
 import { Worker } from "worker_threads";
 import { performance } from "perf_hooks";
 import { createCanvas, loadImage } from "canvas";
@@ -26,38 +25,48 @@ export class CpuBenchmark {
   constructor(options = {}) {
     this.durationMs = options.durationMs ?? 3000;
     this.cpuCores = os.cpus().length;
+    // Leave capacity for the socket/event loop and cap worker fan-out on large
+    // servers. This command is diagnostic; it must not make the bot unresponsive.
+    const configuredWorkers = Number.parseInt(process.env.NGH_BENCHMARK_WORKERS || "", 10);
+    this.workerCount = Math.max(
+      1,
+      Math.min(
+        this.cpuCores,
+        Number.isFinite(configuredWorkers) ? configuredWorkers : Math.min(8, Math.max(1, this.cpuCores - 1))
+      )
+    );
     this.cpuModel = os.cpus()[0].model.trim();
     const totalSpeed = os.cpus().reduce((s, c) => s + (c.speed || 0), 0);
     this.cpuSpeedMHz = Math.round(totalSpeed / this.cpuCores);
   }
 
   async runSingleThreadBenchmark(durationMs = this.durationMs) {
-    const start = performance.now();
-    let ops = 0;
-    while (performance.now() - start < durationMs) {
-      const h = crypto.createHash("sha256");
-      h.update(String(ops) + Math.random());
-      h.digest("hex");
-      ops++;
-    }
-    return ops;
+    return this.createWorker(durationMs);
   }
 
   createWorker(durationMs) {
     return new Promise((resolve, reject) => {
       const workerFile = new URL("./bench-worker.js", import.meta.url);
       const w = new Worker(workerFile, { workerData: { durationMs } });
-      w.once("message", (msg) => resolve(msg.ops));
-      w.once("error", reject);
+      let settled = false;
+      w.once("message", (msg) => {
+        settled = true;
+        resolve(msg.ops);
+      });
+      w.once("error", (error) => {
+        settled = true;
+        reject(error);
+      });
       w.once("exit", (code) => {
-        if (code !== 0) reject(new Error(`Worker exited with code ${code}`));
+        if (!settled && code !== 0) reject(new Error(`Worker exited with code ${code}`));
+        else if (!settled) reject(new Error("Worker exited without a result"));
       });
     });
   }
 
   async runMultiThreadBenchmark(durationMs = this.durationMs) {
     const workerPromises = [];
-    for (let i = 0; i < this.cpuCores; i++) {
+    for (let i = 0; i < this.workerCount; i++) {
       workerPromises.push(this.createWorker(durationMs));
     }
     const results = await Promise.all(workerPromises);

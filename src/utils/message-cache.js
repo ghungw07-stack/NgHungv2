@@ -6,6 +6,7 @@ import { getGroupAdmins, getGroupInfoData } from "../service-ngh/info-service/gr
 import { sendMessageWarning } from "../service-ngh/chat-zalo/chat-style/chat-style.js";
 import { connection } from "../database/index.js";
 import { LRUCache } from "lru-cache";
+import { rememberRecentChat } from "./recent-chat-memory.js";
 
 /**
  * ============================================================================
@@ -25,8 +26,105 @@ export const RETENTION_MS = 24 * 60 * 60 * 1000; // 24 giờ
 let tableReady = false;
 const messageLru = new LRUCache({ max: 5000, ttl: 3 * 60 * 1000 });
 const threadLru = new LRUCache({ max: 100, ttl: 60 * 1000 });
+const MAX_MESSAGES_PER_THREAD = Math.max(100, Number(process.env.NGH_MESSAGE_MEMORY_PER_THREAD) || 1000);
+const MESSAGE_QUERY_LIMIT = Math.max(100, Number(process.env.NGH_MESSAGE_QUERY_LIMIT) || 2000);
 const messageKey = (botId, threadId, msgId) => `${botId}:${threadId}:${msgId}`;
 const threadKey = (botId, threadId) => `${botId}:${threadId}`;
+const writeQueue = [];
+const WRITE_BATCH_SIZE = Math.max(1, Number(process.env.NGH_CACHE_WRITE_BATCH_SIZE) || 200);
+const WRITE_BACKLOG = Math.max(1000, Number(process.env.NGH_CACHE_WRITE_BACKLOG) || 20000);
+const WRITE_FLUSH_MS = Math.max(5, Number(process.env.NGH_CACHE_WRITE_FLUSH_MS) || 15);
+const WRITE_RETRY_MS = Math.max(250, Number(process.env.NGH_CACHE_WRITE_RETRY_MS) || 1000);
+let writeFlushTimer = null;
+let writeFlushing = false;
+let persistencePausedUntil = 0;
+let globalMessageCleanupJob = null;
+const OVERLOAD_PAUSE_MS = Math.max(5000, Number(process.env.NGH_CACHE_OVERLOAD_PAUSE_MS) || 30000);
+// Persist by default because topchat and moderation need message history after
+// the short in-memory cache expires. Set the variable to "0" only when a
+// deliberately stateless runtime is required.
+const PERSIST_MESSAGE_CACHE = process.env.NGH_MESSAGE_CACHE_PERSIST !== "0";
+
+function buildCacheEntry(data) {
+  const msgId = data?.data?.msgId?.toString();
+  if (!msgId) return null;
+  return {
+    msgId,
+    filterData: {
+      timestampString: formatTime(new Date()),
+      isUndo: false,
+      threadId: data.threadId,
+      type: data.type,
+      timestamp: data.data.ts,
+      ...data.data,
+    },
+  };
+}
+
+function cacheMessageInMemory(idBot, data) {
+  const entry = buildCacheEntry(data);
+  if (!entry) return false;
+  const { msgId, filterData } = entry;
+  messageLru.set(messageKey(idBot, data.threadId, msgId), filterData);
+  const cacheKey = threadKey(idBot, data.threadId);
+  const cachedThread = threadLru.get(cacheKey) || {};
+  cachedThread[msgId] = filterData;
+  trimThreadCache(cachedThread);
+  threadLru.set(cacheKey, cachedThread);
+  rememberRecentChat(idBot, data.threadId, filterData);
+  return true;
+}
+
+function trimThreadCache(cachedThread) {
+  const keys = Object.keys(cachedThread);
+  if (keys.length <= MAX_MESSAGES_PER_THREAD) return;
+  // Trim in batches so a hot thread does not sort the object on every message.
+  keys.sort((a, b) => Number(cachedThread[b]?.timestamp || cachedThread[b]?.ts || 0) -
+    Number(cachedThread[a]?.timestamp || cachedThread[a]?.ts || 0));
+  for (const key of keys.slice(MAX_MESSAGES_PER_THREAD)) delete cachedThread[key];
+}
+
+export function enqueueMessageCache(idBot, data, { persist = true } = {}) {
+  if (!PERSIST_MESSAGE_CACHE || !persist) return cacheMessageInMemory(idBot, data);
+  // Mongo pool overload must not feed itself by endlessly retrying optional
+  // history writes. Keep the recent message in RAM and let interactive DB work
+  // recover before persistence resumes.
+  if (Date.now() < persistencePausedUntil) return cacheMessageInMemory(idBot, data);
+  if (writeQueue.length >= WRITE_BACKLOG) return cacheMessageInMemory(idBot, data);
+  writeQueue.push({ idBot, data });
+  if (!writeFlushTimer) {
+    writeFlushTimer = setTimeout(flushMessageWrites, WRITE_FLUSH_MS);
+    writeFlushTimer.unref?.();
+  }
+  return true;
+}
+
+async function flushMessageWrites() {
+  writeFlushTimer = null;
+  if (writeFlushing || writeQueue.length === 0) return;
+  writeFlushing = true;
+  const batch = writeQueue.splice(0, WRITE_BATCH_SIZE);
+  let shouldRetry = false;
+  try {
+    const grouped = new Map();
+    for (const item of batch) {
+      const key = item.idBot?.toString() ?? "";
+      if (!grouped.has(key)) grouped.set(key, []);
+      grouped.get(key).push(item.data);
+    }
+    const results = await Promise.all(
+      [...grouped].map(([botId, messages]) => updateMessageCacheBatch(botId, messages))
+    );
+    shouldRetry = results.some((result) => result === false);
+    if (shouldRetry) writeQueue.unshift(...batch);
+  } finally {
+    writeFlushing = false;
+    if (writeQueue.length > 0 && !writeFlushTimer) {
+      writeFlushTimer = setTimeout(flushMessageWrites, shouldRetry ? WRITE_RETRY_MS : WRITE_FLUSH_MS);
+      writeFlushTimer.unref?.();
+    }
+  }
+}
 
 async function ensureMessageTable() {
   if (tableReady) return;
@@ -62,54 +160,66 @@ async function ensureMessageTable() {
  * Giữ nguyên tên hàm + cách gọi để hạn chế thay đổi ở nơi gọi (index.js).
  */
 export async function updateMessageCache(idBot, data) {
+  return updateMessageCacheBatch(idBot, [data]);
+}
+
+export async function updateMessageCacheBatch(idBot, messages) {
   try {
     await ensureMessageTable();
+    const botId = idBot?.toString() ?? "";
+    const entries = messages.flatMap((data) => {
+      const entry = buildCacheEntry(data);
+      return entry ? [{ data, ...entry }] : [];
+    });
+    if (entries.length === 0) return true;
 
-    const timestamp = formatTime(new Date());
-    const filterData = {
-      timestampString: timestamp,
-      isUndo: false,
-      threadId: data.threadId,
-      type: data.type,
-      timestamp: data.data.ts,
-      ...data.data,
-    };
+    await connection.collection(MESSAGE_TABLE).bulkWrite(entries.map(({ data, msgId, filterData }) => ({
+      updateOne: {
+        filter: { botId, threadId: data.threadId?.toString() ?? "", msgId },
+        update: {
+          $set: {
+            botId,
+            threadId: data.threadId?.toString() ?? "",
+            msgId,
+            cliMsgId: filterData.cliMsgId?.toString() ?? null,
+            msgType: filterData.msgType ?? null,
+            uidFrom: filterData.uidFrom?.toString() ?? null,
+            idTo: filterData.idTo?.toString() ?? null,
+            dName: filterData.dName ?? null,
+            msgWrapType: filterData.type ?? null,
+            ts: Number(filterData.timestamp) || 0,
+            ttl: Number(filterData.ttl) || 0,
+            isUndo: false,
+            timestampString: filterData.timestampString ?? null,
+            payload: JSON.stringify(filterData),
+          },
+          $setOnInsert: { createdAt: new Date() },
+        },
+        upsert: true,
+      },
+    })), { ordered: false });
 
-    const msgId = data.data.msgId?.toString();
-    if (!msgId) return;
-
-    const payload = JSON.stringify(filterData);
-
-    await connection.execute(
-      `INSERT INTO ${MESSAGE_TABLE}
-        (botId, threadId, msgId, cliMsgId, msgType, uidFrom, idTo, dName, msgWrapType, ts, ttl, isUndo, timestampString, payload)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-       ON DUPLICATE KEY UPDATE
-        cliMsgId=VALUES(cliMsgId), msgType=VALUES(msgType), uidFrom=VALUES(uidFrom), idTo=VALUES(idTo),
-        dName=VALUES(dName), msgWrapType=VALUES(msgWrapType), ts=VALUES(ts), ttl=VALUES(ttl),
-        isUndo=VALUES(isUndo), timestampString=VALUES(timestampString), payload=VALUES(payload)`,
-      [
-        idBot?.toString() ?? "",
-        data.threadId?.toString() ?? "",
-        msgId,
-        filterData.cliMsgId?.toString() ?? null,
-        filterData.msgType ?? null,
-        filterData.uidFrom?.toString() ?? null,
-        filterData.idTo?.toString() ?? null,
-        filterData.dName ?? null,
-        filterData.type ?? null,
-        Number(filterData.timestamp) || 0,
-        Number(filterData.ttl) || 0,
-        0,
-        filterData.timestampString ?? null,
-        payload,
-      ]
-    );
-    messageLru.set(messageKey(idBot, data.threadId, msgId), filterData);
-    const cachedThread = threadLru.get(threadKey(idBot, data.threadId));
-    if (cachedThread) cachedThread[msgId] = filterData;
+    for (const { data, msgId, filterData } of entries) {
+      messageLru.set(messageKey(botId, data.threadId, msgId), filterData);
+      const cacheKey = threadKey(botId, data.threadId);
+      const cachedThread = threadLru.get(cacheKey) || {};
+      cachedThread[msgId] = filterData;
+      trimThreadCache(cachedThread);
+      threadLru.set(cacheKey, cachedThread);
+      rememberRecentChat(botId, data.threadId, filterData);
+    }
+    return true;
   } catch (error) {
     console.error("Lỗi khi ghi message vào SQL:", error);
+    const errorText = `${error?.name || ""} ${error?.message || error}`;
+    if (/wait.?queue|checking out a connection|connection pool/i.test(errorText)) {
+      persistencePausedUntil = Date.now() + OVERLOAD_PAUSE_MS;
+      for (const data of messages) cacheMessageInMemory(idBot, data);
+      // This cache is best-effort. Treat the batch as consumed so the retry
+      // loop does not keep MongoDB saturated and stall actual bot commands.
+      return true;
+    }
+    return false;
   }
 }
 
@@ -131,11 +241,12 @@ export async function getMessageCache(idBot, threadId) {
     const cacheKey = threadKey(idBot, threadId);
     const cached = threadLru.get(cacheKey);
     if (cached) return cached;
+    if (!PERSIST_MESSAGE_CACHE) return {};
 
     const since = Date.now() - RETENTION_MS;
     const [rows] = await connection.execute(
       `SELECT msgId, ttl, isUndo, payload FROM ${MESSAGE_TABLE}
-       WHERE botId = ? AND threadId = ? AND ts >= ?`,
+       WHERE botId = ? AND threadId = ? AND ts >= ? ORDER BY ts DESC LIMIT ${MESSAGE_QUERY_LIMIT}`,
       [idBot?.toString() ?? "", threadId?.toString() ?? "", since]
     );
 
@@ -144,12 +255,26 @@ export async function getMessageCache(idBot, threadId) {
       result[row.msgId] = rowToMessage(row);
       messageLru.set(messageKey(idBot, threadId, row.msgId), result[row.msgId]);
     }
+    trimThreadCache(result);
     threadLru.set(cacheKey, result);
     return result;
   } catch (error) {
     console.error("Lỗi khi đọc message cache từ SQL:", error);
     return {};
   }
+}
+
+// Chỉ đọc cache RAM hiện có, không chạm database; dùng cho tác vụ cần phản hồi nhanh.
+export function getRecentUserMessagesFromMemory(idBot, threadId, uid, limit = 8) {
+  const cached = threadLru.get(threadKey(idBot, threadId));
+  if (!cached) return [];
+  return Object.values(cached)
+    .filter((item) => String(item?.uidFrom) === String(uid))
+    .sort((a, b) => Number(b.timestamp || b.ts || 0) - Number(a.timestamp || a.ts || 0))
+    .map((item) => String(item?.content || item?.msg || "").replace(/\s+/g, " ").trim())
+    .filter((text) => text && text.length <= 180 && !/^[!./#&*\\-]/.test(text))
+    .slice(0, Math.max(1, Math.min(12, limit)))
+    .reverse();
 }
 
 /**
@@ -161,6 +286,7 @@ export async function getMessageByThreadAndMsgId(idBot, threadId, msgId) {
     const cacheKey = messageKey(idBot, threadId, msgId);
     const cached = messageLru.get(cacheKey);
     if (cached) return cached;
+    if (!PERSIST_MESSAGE_CACHE) return null;
     await ensureMessageTable();
 
     const [rows] = await connection.execute(
@@ -186,16 +312,17 @@ export async function getMessageByThreadAndMsgId(idBot, threadId, msgId) {
 export async function markMessageUndo(idBot, threadId, msgId) {
   try {
     if (!threadId || !msgId) return;
-    await ensureMessageTable();
-    await connection.execute(
-      `UPDATE ${MESSAGE_TABLE} SET isUndo = 1 WHERE botId = ? AND threadId = ? AND msgId = ?`,
-      [idBot?.toString() ?? "", threadId?.toString() ?? "", msgId?.toString() ?? ""]
-    );
     const cacheKey = messageKey(idBot, threadId, msgId);
     const cached = messageLru.get(cacheKey);
     if (cached) cached.isUndo = true;
     const cachedThread = threadLru.get(threadKey(idBot, threadId));
     if (cachedThread?.[msgId]) cachedThread[msgId].isUndo = true;
+    if (!PERSIST_MESSAGE_CACHE) return;
+    await ensureMessageTable();
+    await connection.execute(
+      `UPDATE ${MESSAGE_TABLE} SET isUndo = 1 WHERE botId = ? AND threadId = ? AND msgId = ?`,
+      [idBot?.toString() ?? "", threadId?.toString() ?? "", msgId?.toString() ?? ""]
+    );
   } catch (error) {
     console.error("Lỗi khi đánh dấu tin nhắn đã thu hồi:", error);
   }
@@ -207,6 +334,7 @@ export async function markMessageUndo(idBot, threadId, msgId) {
  */
 export async function getFirstOtherSender(idBot, excludeUid) {
   try {
+    if (!PERSIST_MESSAGE_CACHE) return undefined;
     await ensureMessageTable();
     const [rows] = await connection.execute(
       `SELECT uidFrom FROM ${MESSAGE_TABLE}
@@ -461,20 +589,25 @@ export async function initializeCacheMessageService(api) {
   const botId = api.getBotId();
   await ensureMessageTable();
 
-  const jobCleanOldMessages = schedule.scheduleJob("*/10 * * * *", async () => {
-    await cleanOldMessages();
-  });
+  // Bảng dùng chung cho mọi bot: chỉ cần một job cleanup, không đăng ký lại
+  // theo từng account rồi cùng quét DB tại đúng một thời điểm.
+  if (!globalMessageCleanupJob) {
+    globalMessageCleanupJob = schedule.scheduleJob("*/10 * * * *", async () => {
+      await cleanOldMessages();
+    });
+  }
 
-  const jobCheckBugCliMsgId = schedule.scheduleJob("*/30 * * * * *", async () => {
-    try {
-      await checkBugCliMsgId(api);
-    } catch (error) {
-      console.error(chalk.red("Lỗi nghiêm trọng trong job checkBugCliMsgId:"), error);
-    }
-  });
-
-  api.apiInstance.schedule.jobCleanOldMessages = jobCleanOldMessages;
-  api.apiInstance.schedule.jobCheckBugCliMsgId = jobCheckBugCliMsgId;
+  // Scanner này phục vụ moderation log nhóm. Khi group log tắt, chạy SELECT
+  // mỗi 30 giây cho từng bot chỉ làm nghẽn Mongo mà không có dữ liệu để xử lý.
+  if (process.env.NGH_MESSAGE_BUG_SCAN === "1") {
+    api.apiInstance.schedule.jobCheckBugCliMsgId = schedule.scheduleJob("*/30 * * * * *", async () => {
+      try {
+        await checkBugCliMsgId(api);
+      } catch (error) {
+        console.error(chalk.red("Lỗi nghiêm trọng trong job checkBugCliMsgId:"), error);
+      }
+    });
+  }
 
   console.log(chalk.magentaBright(`[${botId}] Khởi động service quản lý message log (MongoDB) hoàn tất`));
 }

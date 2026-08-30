@@ -4,6 +4,11 @@ export let NAME_TABLE_PLAYERS;
 export let NAME_TABLE_ACCOUNT;
 export let DAILY_REWARD;
 
+export async function pingDatabase() {
+  if (!connection?.db) throw new Error("MongoDB is not initialized");
+  return connection.db.command({ ping: 1 });
+}
+
 export function configureDatabaseState({
   serverName,
   playersTable,

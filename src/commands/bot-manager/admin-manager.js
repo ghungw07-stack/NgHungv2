@@ -252,7 +252,10 @@ async function handleAddRemoveAdmin(api, message, groupSettings, action, isAdmin
   const senderId = message.data.uidFrom;
   const apiManager = api.apiManager;
   let isPermission = botId === senderId || senderId === apiManager.idBotMainWithBot || isAdminLevelHighest;
-  const isGlobalAdmin = content.toLowerCase().includes("admin");
+  const originalContent = String(message.data?.__originalContent || message.data?.content || "").toLowerCase();
+  // Khi command family định tuyến `>add admin ...`, nội dung trung gian có
+  // thể mất chữ "admin"; giữ lại scope global từ câu lệnh gốc.
+  const isGlobalAdmin = content.toLowerCase().includes("admin") || /(?:^|\s)(?:add|remove)\s+admin(?:\s|$)/iu.test(originalContent);
 
   if (isGlobalAdmin && !isPermission) {
     await sendMessageWarning(api, message, `Quyền hạn chỉnh sửa admin cấp cao chỉ dành cho quản trị bot cấp cao hoặc chính tài khoản này`);
@@ -335,7 +338,8 @@ async function handleAddRemoveAdmin(api, message, groupSettings, action, isAdmin
     const rawUIDs = args.filter(arg => uidPattern.test(arg));
     // Cho phép reply trực tiếp tin nhắn của thành viên thay cho @mention/UID.
     // Zalo lưu UID người gửi tin nhắn được reply ở quote.ownerId.
-    const repliedOwnerId = message.data.quote?.ownerId;
+    const quote = message.data?.quote || {};
+    const repliedOwnerId = quote.uidFrom || quote.ownerId || quote.fromUid || quote.senderId || quote.uid;
     if (
       rawUIDs.length === 0 &&
       repliedOwnerId != null &&

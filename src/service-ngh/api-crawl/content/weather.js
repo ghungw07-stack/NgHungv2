@@ -302,12 +302,103 @@ const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY || "e707d13f116e5f7a
 const WEATHERAPI_KEY = process.env.WEATHERAPI_KEY || "fe221e3a25734f0297994922240611";
 
 const weatherForeCast = new WeatherForeCast();
+const WEATHER_DATA_CACHE_TTL_MS = 10 * 60 * 1000;
+const weatherDataCache = new Map();
+const weatherIconCache = new Map();
+const weatherBackgroundImageCache = new Map();
+const WEATHER_BACKGROUND_ROOT = path.resolve(process.cwd(), "assets", "resources", "weather-backgrounds");
+const localBackgroundFileCache = new Map();
+
+async function loadWeatherIcon(url) {
+  if (!url) return null;
+  if (!weatherIconCache.has(url)) {
+    const loading = loadImage(String(url)).catch((error) => {
+      weatherIconCache.delete(url);
+      throw error;
+    });
+    weatherIconCache.set(url, loading);
+    if (weatherIconCache.size > 24) weatherIconCache.delete(weatherIconCache.keys().next().value);
+  }
+  return weatherIconCache.get(url);
+}
+
+async function getLocalWeatherBackground(locationObj) {
+  const location = String(locationObj?.longName || locationObj?.localizedName || "");
+  const normalized = location.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const category = normalized.includes("ca mau")
+    ? "ca-mau"
+    : normalized.includes("ho chi minh") || normalized.includes("sai gon")
+      ? "ho-chi-minh"
+      : null;
+  if (!category) return null;
+  let files = localBackgroundFileCache.get(category);
+  if (!files) {
+    const directory = path.join(WEATHER_BACKGROUND_ROOT, category);
+    files = fs.existsSync(directory)
+      ? fs.readdirSync(directory).filter((file) => /\.(jpe?g|png|webp)$/i.test(file)).map((file) => path.join(directory, file))
+      : [];
+    localBackgroundFileCache.set(category, files);
+  }
+  if (!files.length) return null;
+  const selected = files[Math.floor(Math.random() * files.length)];
+  if (!weatherBackgroundImageCache.has(selected)) weatherBackgroundImageCache.set(selected, loadImage(selected));
+  return { image: await weatherBackgroundImageCache.get(selected), source: "Bộ nền địa phương", exact: true };
+}
+
+function drawProvinceLandscape(ctx, width, height, location) {
+  const name = String(location || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const mountain = ["lai chau", "dien bien", "son la", "lao cai", "cao bang", "lang son", "tuyen quang", "thai nguyen", "phu tho", "gia lai", "dak lak", "lam dong"].some((item) => name.includes(item));
+  const mekong = ["can tho", "vinh long", "dong thap", "an giang", "ca mau"].some((item) => name.includes(item));
+  const coast = ["quang ninh", "hai phong", "thanh hoa", "nghe an", "ha tinh", "quang tri", "hue", "da nang", "quang ngai", "khanh hoa", "ho chi minh"].some((item) => name.includes(item));
+  const hue = name.includes("hue");
+  const variant = Math.floor(Math.random() * 4);
+  const sky = ctx.createLinearGradient(0, 0, 0, height);
+  const palettes = [["#f59e72", "#355c7d"], ["#4f8fc0", "#d7eef7"], ["#172554", "#0f766e"], ["#735d78", "#b39283"]];
+  sky.addColorStop(0, palettes[variant][0]);
+  sky.addColorStop(1, palettes[variant][1]);
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, width, height);
+  ctx.fillStyle = variant === 2 ? "rgba(255,245,190,.65)" : "rgba(255,238,170,.82)";
+  ctx.beginPath(); ctx.arc(width * 0.78, height * 0.14, 120, 0, Math.PI * 2); ctx.fill();
+  if (mountain) {
+    for (let layer = 0; layer < 4; layer++) {
+      const base = height * (0.34 + layer * 0.11);
+      ctx.fillStyle = `rgba(${18 + layer * 12},${70 + layer * 18},${65 + layer * 12},${0.72 + layer * 0.05})`;
+      ctx.beginPath(); ctx.moveTo(0, base);
+      for (let x = 0; x <= width; x += 160) ctx.lineTo(x, base - 180 - Math.random() * 240);
+      ctx.lineTo(width, height); ctx.lineTo(0, height); ctx.fill();
+    }
+  } else if (mekong) {
+    ctx.fillStyle = "#315f4c"; ctx.fillRect(0, height * 0.42, width, height * 0.2);
+    ctx.fillStyle = "#397f9d"; ctx.beginPath(); ctx.moveTo(width * 0.2, height * 0.42); ctx.bezierCurveTo(width * 0.75, height * 0.55, width * 0.12, height * 0.78, width * 0.82, height); ctx.lineTo(0, height); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "rgba(30,100,55,.8)"; for (let i = 0; i < 18; i++) ctx.fillRect(i * 80, height * (0.38 + Math.random() * .18), 12, 180);
+  } else if (coast) {
+    ctx.fillStyle = "#217e9f"; ctx.fillRect(0, height * 0.43, width, height * 0.57);
+    ctx.strokeStyle = "rgba(255,255,255,.55)"; ctx.lineWidth = 8;
+    for (let y = height * 0.5; y < height; y += 150) { ctx.beginPath(); ctx.moveTo(0, y); ctx.bezierCurveTo(width * .3, y - 35, width * .7, y + 35, width, y); ctx.stroke(); }
+  } else {
+    ctx.fillStyle = hue ? "#75543b" : "#456b45"; ctx.fillRect(0, height * 0.5, width, height * 0.5);
+    ctx.fillStyle = "rgba(218,190,102,.55)"; for (let y = height * .56; y < height; y += 130) ctx.fillRect(0, y, width, 48);
+  }
+  ctx.fillStyle = "rgba(4,13,28,.42)";
+  ctx.fillRect(0, 0, width, height);
+  return mountain ? "núi cao" : mekong ? "sông nước" : coast ? "biển" : hue ? "cố đô" : "đồng bằng";
+}
 
 // Hàm mapping màu sắc theo chất lượng không khí
 function getAirQualityColor(category) {
   if (!category) return "#ffffff";
   
   const categoryLower = String(category).toLowerCase();
+  const numericAqi = Number(categoryLower.match(/aqi\s*(\d+(?:\.\d+)?)/)?.[1]);
+  if (Number.isFinite(numericAqi)) {
+    if (numericAqi <= 20) return "#4FC3F7";
+    if (numericAqi <= 40) return "#8BC34A";
+    if (numericAqi <= 60) return "#FFCA28";
+    if (numericAqi <= 80) return "#FF7043";
+    if (numericAqi <= 100) return "#AB47BC";
+    return "#EF5350";
+  }
   
   // Tuyệt vời (0-19) - Màu xanh dương nhạt
   if (categoryLower.includes("tuyệt vời") || categoryLower.includes("excellent")) {
@@ -359,7 +450,7 @@ export async function weatherCommand(api, message, aliasCommand) {
 
 export async function generateWeatherForeCastImage(data) {
   const width = 1280;
-  const height = 1920;
+  const height = 2160;
   const margin = 64;
   const contentWidth = width - margin * 2;
   const navy = "#0b1730";
@@ -405,7 +496,7 @@ export async function generateWeatherForeCastImage(data) {
   const drawIcon = async (url, x, y, size) => {
     if (!url) return false;
     try {
-      const image = await loadImage(String(url));
+      const image = await loadWeatherIcon(url);
       ctx.drawImage(image, x, y, size, size);
       return true;
     } catch {
@@ -413,13 +504,34 @@ export async function generateWeatherForeCastImage(data) {
     }
   };
 
-  // Nền gradient nhẹ, không phụ thuộc ảnh ngoài nên render ổn định và nhanh.
+  const location = data?.locationObj?.longName || data?.locationObj?.localizedName || "Thời tiết hiện tại";
+  const current = data?.current || {};
+  const hourly = Array.isArray(data?.hourly) ? data.hourly.slice(0, 6) : [];
+  const daily = Array.isArray(data?.daily) ? data.daily.slice(0, 5) : [];
+  const air = data?.airQuality || {};
+  const landscape = await getLocalWeatherBackground(data?.locationObj).catch(() => null);
+
+  // Phong cảnh đúng địa phương; gradient là fallback khi Commons chậm/lỗi.
   const background = ctx.createLinearGradient(0, 0, width, height);
   background.addColorStop(0, "#172b50");
   background.addColorStop(0.52, "#0c1831");
   background.addColorStop(1, "#07101f");
   ctx.fillStyle = background;
   ctx.fillRect(0, 0, width, height);
+  const generatedLandscape = landscape ? null : drawProvinceLandscape(ctx, width, height, location);
+  if (landscape?.image) {
+    const image = landscape.image;
+    const scale = Math.max(width / image.width, height / image.height);
+    const drawWidth = image.width * scale;
+    const drawHeight = image.height * scale;
+    ctx.drawImage(image, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight);
+    const shade = ctx.createLinearGradient(0, 0, 0, height);
+    shade.addColorStop(0, "rgba(4,13,28,0.54)");
+    shade.addColorStop(0.48, "rgba(4,13,28,0.68)");
+    shade.addColorStop(1, "rgba(4,13,28,0.84)");
+    ctx.fillStyle = shade;
+    ctx.fillRect(0, 0, width, height);
+  }
 
   ctx.fillStyle = "rgba(110,231,249,0.08)";
   ctx.beginPath();
@@ -430,11 +542,10 @@ export async function generateWeatherForeCastImage(data) {
   ctx.arc(80, height - 90, 360, 0, Math.PI * 2);
   ctx.fill();
 
-  const location = data?.locationObj?.longName || data?.locationObj?.localizedName || "Thời tiết hiện tại";
-  const current = data?.current || {};
-  const hourly = Array.isArray(data?.hourly) ? data.hourly.slice(0, 6) : [];
-  const daily = Array.isArray(data?.daily) ? data.daily.slice(0, 3) : [];
-  const air = data?.airQuality || {};
+  const iconUrls = [...new Set([current.weatherIcon, ...hourly.map((item) => item.icon), ...daily.map((item) => item.iconTempGroup?.icon)].filter(Boolean))];
+  for (let index = 0; index < iconUrls.length; index += 4) {
+    await Promise.all(iconUrls.slice(index, index + 4).map((url) => loadWeatherIcon(url).catch(() => null)));
+  }
 
   drawText("DỰ BÁO THỜI TIẾT", margin, 58, "bold 30px Tahoma", cyan);
   drawText(truncate(location, 720, "bold 66px Tahoma"), margin, 100, "bold 66px Tahoma");
@@ -444,7 +555,7 @@ export async function generateWeatherForeCastImage(data) {
   // Current weather card.
   const currentY = 260;
   const currentH = 430;
-  roundRect(margin, currentY, contentWidth, currentH, 34, "rgba(27,48,83,0.92)", "rgba(131,194,255,0.22)");
+  roundRect(margin, currentY, contentWidth, currentH, 34, "rgba(11,27,52,0.78)", "rgba(180,220,255,0.30)");
   const iconSize = 190;
   await drawIcon(current.weatherIcon, margin + 52, currentY + 72, iconSize);
   drawText(current.phrase || current.title || "Không rõ", margin + 52, currentY + 288, "bold 30px Tahoma", white);
@@ -453,10 +564,10 @@ export async function generateWeatherForeCastImage(data) {
   drawText(current.unit || "°", margin + 520, currentY + 126, "bold 54px Tahoma", cyan);
   drawText(current.realFeel ? `Cảm giác ${current.realFeel}` : "", margin + 316, currentY + 260, "32px Tahoma", muted);
 
-  const detailEntries = Object.entries(current.details || {}).slice(0, 3);
+  const detailEntries = Object.entries(current.details || {}).slice(0, 4);
   const detailX = margin + 700;
   detailEntries.forEach(([label, value], index) => {
-    const y = currentY + 72 + index * 94;
+    const y = currentY + 58 + index * 78;
     ctx.strokeStyle = "rgba(255,255,255,0.10)";
     ctx.beginPath();
     ctx.moveTo(detailX, y + 62);
@@ -469,7 +580,7 @@ export async function generateWeatherForeCastImage(data) {
   // Hourly forecast.
   const hourlyY = currentY + currentH + 34;
   const hourlyH = 345;
-  roundRect(margin, hourlyY, contentWidth, hourlyH, 30, "rgba(18,35,64,0.88)", "rgba(131,194,255,0.16)");
+  roundRect(margin, hourlyY, contentWidth, hourlyH, 30, "rgba(8,23,46,0.76)", "rgba(180,220,255,0.24)");
   drawText("DỰ BÁO THEO GIỜ", margin + 32, hourlyY + 28, "bold 28px Tahoma", white);
   const hourlyTop = hourlyY + 98;
   const hourlyW = (contentWidth - 48) / Math.max(hourly.length, 1);
@@ -482,11 +593,11 @@ export async function generateWeatherForeCastImage(data) {
     drawText(item.precip || "", cx, hourlyTop + 204, "24px Tahoma", cyan, "center");
   }
 
-  // Three-day forecast rows.
+  // Five-day forecast rows.
   const dailyY = hourlyY + hourlyH + 34;
-  const dailyH = 500;
-  roundRect(margin, dailyY, contentWidth, dailyH, 30, "rgba(18,35,64,0.88)", "rgba(131,194,255,0.16)");
-  drawText("DỰ BÁO 3 NGÀY", margin + 32, dailyY + 28, "bold 28px Tahoma", white);
+  const dailyH = 740;
+  roundRect(margin, dailyY, contentWidth, dailyH, 30, "rgba(8,23,46,0.76)", "rgba(180,220,255,0.24)");
+  drawText("DỰ BÁO 5 NGÀY", margin + 32, dailyY + 28, "bold 28px Tahoma", white);
   for (let i = 0; i < daily.length; i++) {
     const item = daily[i] || {};
     const rowY = dailyY + 96 + i * 126;
@@ -510,7 +621,7 @@ export async function generateWeatherForeCastImage(data) {
   // Sunrise/sunset and air-quality footer.
   const footerY = dailyY + dailyH + 34;
   const footerH = 230;
-  roundRect(margin, footerY, contentWidth, footerH, 30, "rgba(18,35,64,0.88)", "rgba(131,194,255,0.16)");
+  roundRect(margin, footerY, contentWidth, footerH, 30, "rgba(8,23,46,0.78)", "rgba(180,220,255,0.24)");
   const sunItems = data?.sunriseSunset?.items || [];
   const sunText = sunItems.slice(0, 2).map((item) => {
     const time = (item.times || []).map((t) => `${t.label || ""} ${t.value || ""}`).join(" · ");
@@ -521,6 +632,7 @@ export async function generateWeatherForeCastImage(data) {
   drawText("CHẤT LƯỢNG KHÔNG KHÍ", margin + 750, footerY + 34, "bold 24px Tahoma", violet);
   drawText(truncate(air.category || "Chưa có dữ liệu", 390, "bold 30px Tahoma"), margin + 750, footerY + 76, "bold 30px Tahoma", getAirQualityColor(air.category));
   drawText(truncate(air.statement || "", 390, "24px Tahoma"), margin + 750, footerY + 124, "24px Tahoma", muted);
+  drawText(`Dữ liệu: ${data?.source || "Open-Meteo"} · ${landscape ? "Ảnh địa phương local" : `Minh họa ${generatedLandscape} địa phương`}`, width - margin - 34, footerY + 184, "20px Tahoma", muted, "right");
 
   const outPath = path.join(tempDir, `weather-forecast_${Date.now()}.png`);
   const out = fs.createWriteStream(outPath);
@@ -530,6 +642,113 @@ export async function generateWeatherForeCastImage(data) {
     out.on("error", reject);
   });
   return outPath;
+}
+
+export function describeWmoCode(code) {
+  const value = Number(code);
+  if (value === 0) return "Trời quang";
+  if ([1, 2].includes(value)) return "Ít mây";
+  if (value === 3) return "Nhiều mây";
+  if ([45, 48].includes(value)) return "Sương mù";
+  if ([51, 53, 55, 56, 57].includes(value)) return "Mưa phùn";
+  if ([61, 63, 65, 66, 67, 80, 81, 82].includes(value)) return "Có mưa";
+  if ([71, 73, 75, 77, 85, 86].includes(value)) return "Có tuyết";
+  if ([95, 96, 99].includes(value)) return "Mưa giông";
+  return "Thời tiết thay đổi";
+}
+
+function weatherIconUrl(code, isDay = 1) {
+  const value = Number(code);
+  let icon = isDay ? "01d" : "01n";
+  if ([1, 2].includes(value)) icon = isDay ? "02d" : "02n";
+  else if (value === 3) icon = "04d";
+  else if ([45, 48].includes(value)) icon = "50d";
+  else if ([51, 53, 55, 56, 57, 61, 63, 66, 80, 81].includes(value)) icon = "09d";
+  else if ([65, 67, 82].includes(value)) icon = "10d";
+  else if ([71, 73, 75, 77, 85, 86].includes(value)) icon = "13d";
+  else if ([95, 96, 99].includes(value)) icon = "11d";
+  return `https://openweathermap.org/img/wn/${icon}@2x.png`;
+}
+
+async function fetchJson(url, timeoutMs = 20000, retries = 2) {
+  let lastError;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(url, { signal: controller.signal, headers: { accept: "application/json" } });
+      if (!response.ok) throw new Error(`Weather HTTP ${response.status}`);
+      return await response.json();
+    } catch (error) {
+      lastError = error;
+      if (attempt < retries) await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  throw new Error(`Không kết nối được nguồn thời tiết: ${lastError?.cause?.message || lastError?.message || "unknown"}`);
+}
+
+export async function fetchOpenMeteoWeather(location) {
+  const cacheKey = String(location || "").trim().toLocaleLowerCase("vi-VN");
+  const cached = weatherDataCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < WEATHER_DATA_CACHE_TTL_MS) return cached.data;
+  const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(location)}&count=5&language=vi&format=json&countryCode=VN`;
+  const geo = await fetchJson(geoUrl, 15000, 2);
+  const place = geo?.results?.[0];
+  if (!place) throw new Error(`Không tìm thấy địa điểm “${location}”`);
+  const { latitude, longitude } = place;
+  const forecastParams = new URLSearchParams({
+    latitude: String(latitude), longitude: String(longitude), timezone: "auto", forecast_days: "5",
+    current: "temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,rain,weather_code,cloud_cover,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m",
+    hourly: "temperature_2m,apparent_temperature,precipitation_probability,precipitation,weather_code,visibility,wind_speed_10m,wind_gusts_10m,uv_index",
+    daily: "weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,uv_index_max,sunrise,sunset",
+  });
+  const airParams = new URLSearchParams({
+    latitude: String(latitude), longitude: String(longitude), timezone: "auto", forecast_days: "3",
+    current: "european_aqi,pm2_5,pm10,nitrogen_dioxide,ozone,uv_index",
+  });
+  const [forecast, air] = await Promise.all([
+    fetchJson(`https://api.open-meteo.com/v1/forecast?${forecastParams}`, 25000, 2),
+    fetchJson(`https://air-quality-api.open-meteo.com/v1/air-quality?${airParams}`, 15000, 1).catch(() => null),
+  ]);
+  const current = forecast.current || {};
+  const nowIndex = Math.max(0, forecast.hourly?.time?.findIndex((time) => time >= current.time));
+  const hourly = (forecast.hourly?.time || []).slice(nowIndex, nowIndex + 8).map((time, index) => {
+    const sourceIndex = nowIndex + index;
+    const code = forecast.hourly.weather_code?.[sourceIndex];
+    return {
+      time: new Date(time).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
+      icon: weatherIconUrl(code, 1), temp: `${Math.round(forecast.hourly.temperature_2m?.[sourceIndex])}°`,
+      precip: `${forecast.hourly.precipitation_probability?.[sourceIndex] ?? 0}%`, weatherCode: code,
+    };
+  });
+  const daily = (forecast.daily?.time || []).slice(0, 5).map((date, index) => {
+    const code = forecast.daily.weather_code?.[index];
+    return {
+      dateGroup: { day: new Date(`${date}T12:00:00`).toLocaleDateString("vi-VN", { weekday: "short" }), date: new Date(`${date}T12:00:00`).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" }) },
+      iconTempGroup: { icon: weatherIconUrl(code, 1), tempPhraseWrapper: { high: `${Math.round(forecast.daily.temperature_2m_max?.[index])}°`, low: `${Math.round(forecast.daily.temperature_2m_min?.[index])}°` } },
+      phraseGroup: { day: describeWmoCode(code), text: describeWmoCode(code) },
+      precipGroup: { value: `${forecast.daily.precipitation_probability_max?.[index] ?? 0}%` },
+    };
+  });
+  const aqi = air?.current?.european_aqi;
+  const normalized = {
+    source: "Open-Meteo · CAMS", locationObj: { localizedName: place.name, longName: [place.name, place.admin1, place.country].filter(Boolean).join(", "), latitude, longitude },
+    current: {
+      title: describeWmoCode(current.weather_code), subtitle: `Cập nhật ${new Date(current.time).toLocaleString("vi-VN")}`,
+      temp: `${Math.round(current.temperature_2m)}°`, unit: "C", phrase: describeWmoCode(current.weather_code),
+      weatherIcon: weatherIconUrl(current.weather_code, current.is_day), weatherCode: current.weather_code,
+      realFeel: `${Math.round(current.apparent_temperature)}°C`,
+      details: { "Độ ẩm": `${current.relative_humidity_2m}%`, "Khả năng mưa": `${forecast.hourly?.precipitation_probability?.[nowIndex] ?? 0}%`, "Gió / giật": `${Math.round(current.wind_speed_10m)} / ${Math.round(current.wind_gusts_10m)} km/h`, "Áp suất": `${Math.round(current.pressure_msl)} hPa`, "Mây che phủ": `${current.cloud_cover}%`, "Tầm nhìn": `${Math.round((forecast.hourly?.visibility?.[nowIndex] || 0) / 1000)} km`, "UV": `${air?.current?.uv_index ?? forecast.hourly?.uv_index?.[nowIndex] ?? "--"}` },
+    },
+    hourly, daily,
+    sunriseSunset: { items: [{ phrase: "Mặt trời", times: [{ label: "Mọc", value: forecast.daily?.sunrise?.[0]?.slice(11) }, { label: "Lặn", value: forecast.daily?.sunset?.[0]?.slice(11) }] }] },
+    airQuality: { category: aqi == null ? "Chưa có dữ liệu" : `AQI ${Math.round(aqi)}`, statement: `PM2.5 ${air.current.pm2_5 ?? "--"} · PM10 ${air.current.pm10 ?? "--"} µg/m³` },
+  };
+  weatherDataCache.set(cacheKey, { timestamp: Date.now(), data: normalized });
+  if (weatherDataCache.size > 30) weatherDataCache.delete(weatherDataCache.keys().next().value);
+  return normalized;
 }
 
 // Bản render cũ giữ lại tạm để dễ đối chiếu khi cần rollback.
@@ -1289,14 +1508,11 @@ export async function getSendtaskOverallWeather(api, message, caption, ttl) {
   try {
     const majorCities = ["Hà Nội", "Thành Phố Hồ Chí Minh", "Đà Nẵng", "Hải Phòng", "Cần Thơ", "Huế"];
     const randomCity = majorCities[Math.floor(Math.random() * majorCities.length)];
-    const findLocation = await weatherForeCast.searchLocation(randomCity);
-    if (findLocation) {
-      const dataWeatherForeCast = await weatherForeCast.fetchWeatherByLocation(findLocation);
-      imagePath = await generateWeatherForeCastImage(dataWeatherForeCast);
-      const dataUpload = await api.uploadAttachment([imagePath], message.threadId, message.type, { isUseProphylactic: true });
-      const imageUrl = dataUpload[0].fileUrl || dataUpload[0].normalUrl;
-      await api.sendImage(imageUrl, message, caption, ttl);
-    }
+    const dataWeatherForeCast = await fetchOpenMeteoWeather(randomCity);
+    imagePath = await generateWeatherForeCastImage(dataWeatherForeCast);
+    const dataUpload = await api.uploadAttachment([imagePath], message.threadId, message.type, { isUseProphylactic: true });
+    const imageUrl = dataUpload[0].fileUrl || dataUpload[0].normalUrl;
+    await api.sendImage(imageUrl, message, caption, ttl);
   } catch (error) {
     throw error;
   } finally {
@@ -1308,12 +1524,10 @@ async function getOverallWeather(api, message, threadId) {
   try {
     const majorCities = ["Hà Nội", "Thành Phố Hồ Chí Minh", "Đà Nẵng", "Hải Phòng", "Cần Thơ", "Huế"];
     const randomCity = majorCities[Math.floor(Math.random() * majorCities.length)];
-    const findLocation = await weatherForeCast.searchLocation(randomCity);
-
-    if (findLocation) {
+    {
       let imagePath = null;
       try {
-        const dataWeatherForeCast = await weatherForeCast.fetchWeatherByLocation(findLocation);
+        const dataWeatherForeCast = await fetchOpenMeteoWeather(randomCity);
         imagePath = await generateWeatherForeCastImage(dataWeatherForeCast);
         const senderId = message.data.uidFrom;
         const senderName = message.data.dName;
@@ -1334,8 +1548,6 @@ async function getOverallWeather(api, message, threadId) {
       } finally {
         deleteFile(imagePath);
       }
-    } else {
-      await getLocalWeather(api, message, threadId, randomCity, true);
     }
   } catch (error) {
     console.error("Lỗi khi lấy thông tin thời tiết tổng quan:", error);
@@ -1350,9 +1562,7 @@ async function getOverallWeather(api, message, threadId) {
 async function getLocalWeather(api, message, threadId, location, isOverall = false) {
   let imagePath = null;
   try {
-    const findLocation = await weatherForeCast.searchLocation(location);
-    if (findLocation) {
-      const dataWeatherForeCast = await weatherForeCast.fetchWeatherByLocation(findLocation);
+      const dataWeatherForeCast = await fetchOpenMeteoWeather(location);
       imagePath = await generateWeatherForeCastImage(dataWeatherForeCast);
       const senderId = message.data.uidFrom;
       const senderName = message.data.dName;
@@ -1368,44 +1578,6 @@ async function getLocalWeather(api, message, threadId, location, isOverall = fal
         threadId,
         message.type
       );
-    } else {
-      const geoResponse = await fetch(
-        `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(
-          location
-        )}&count=1&language=vi&format=json`
-      );
-      const geoData = await geoResponse.json();
-
-      if (!geoData.results || geoData.results.length === 0) {
-        await api.sendMessage(
-          { msg: "Không tìm thấy thành phố. Vui lòng kiểm tra lại tên thành phố.", quote: message },
-          threadId,
-          message.type
-        );
-        return;
-      }
-
-      const { latitude, longitude, name, admin1, country } = geoData.results[0];
-
-      const [tomorrowData, openWeatherData, weatherApiData] = await Promise.all([
-        getTomorrowWeather(latitude, longitude),
-        getOpenWeatherData(latitude, longitude),
-        getWeatherApiData(latitude, longitude),
-      ]);
-
-      const weatherInfo = getWeatherDataObject(
-        name,
-        admin1,
-        country,
-        tomorrowData,
-        openWeatherData,
-        weatherApiData,
-        isOverall
-      );
-
-      const weatherInfoString = formatWeatherInfo(weatherInfo);
-      await api.sendMessage({ msg: weatherInfoString, quote: message, ttl: 3600000 }, threadId, message.type);
-    }
   } catch (error) {
     console.error("Lỗi khi lấy thông tin thời tiết địa phương:", error);
     await api.sendMessage(

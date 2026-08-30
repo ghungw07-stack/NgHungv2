@@ -351,36 +351,37 @@ export async function handleBaccaratBet(api, message, groupSettings) {
       
       api.sendMessage({ msg: warnMsg, ttl: 20000 }, message.threadId, message.type)
         .then((sentWarning) => {
-          // sendMessage trả về { message, attachment, link }; reaction cần
-          // message object thật, không phải wrapper response.
-          const warningMessage = sentWarning?.message || sentWarning;
-          const reactionMessage = warningMessage?.data
-            ? warningMessage
-            : warningMessage && {
+          // sendMessage trả về wrapper { message, attachment, link }. Tạo đúng
+          // shape Message mà addReaction cần, nhưng giữ ID của TIN CẢNH BÁO.
+          const sentMessage = sentWarning?.message || sentWarning;
+          const warningMessage = sentMessage?.data
+            ? sentMessage
+            : sentMessage && {
                 data: {
-                  msgId: warningMessage.msgId || warningMessage.messageId || warningMessage.gMsgID,
-                  cliMsgId: warningMessage.cliMsgId || warningMessage.clientId,
+                  msgId: sentMessage.msgId || sentMessage.messageId || sentMessage.gMsgID,
+                  cliMsgId: sentMessage.cliMsgId || sentMessage.clientId,
+                  uidFrom: api.getBotId(),
                 },
                 threadId: message.threadId,
                 type: message.type,
               };
-          const target = reactionMessage?.data?.msgId || reactionMessage?.data?.cliMsgId ? reactionMessage : message;
-          api.addReaction("CLOCK", [target]).catch((error) => {
-            console.warn("[baccarat] Không thả được reaction CLOCK:", error?.message || error);
-          });
-          // Một số phiên bản API không trả msgId của tin bot vừa gửi;
-          // thả thêm vào tin lệnh gốc để countdown vẫn luôn nhìn thấy được.
-          if (target !== message) {
-            api.addReaction("CLOCK", [message]).catch(() => {});
-          }
-        })
-        .catch(console.error);
 
-      // Hiển thị countdown 10 giây giống các lệnh CD: CLOCK bật/tắt mỗi giây
-      // trên tin lệnh gốc để người chơi biết thời gian còn lại để cược.
-      sendReactionWaitingCountdown(api, message, WARNING_TIME / 1000, "baccarat-warning").catch((error) => {
-        console.warn("[baccarat] Countdown reaction lỗi:", error?.message || error);
-      });
+          if (!warningMessage?.data?.msgId || !warningMessage?.data?.cliMsgId) {
+            console.warn("[baccarat] Tin cảnh báo thiếu msgId/cliMsgId, bỏ qua countdown reaction");
+            return;
+          }
+
+          // CLOCK bật/tắt trong 10 giây ngay trên tin cảnh báo của bot.
+          return sendReactionWaitingCountdown(
+            api,
+            warningMessage,
+            WARNING_TIME / 1000,
+            "baccarat-warning"
+          );
+        })
+        .catch((error) => {
+          console.warn("[baccarat] Gửi cảnh báo/countdown reaction lỗi:", error?.message || error);
+        });
     }, GAME_DURATION - WARNING_TIME);
 
     // Cài đặt chốt kết quả

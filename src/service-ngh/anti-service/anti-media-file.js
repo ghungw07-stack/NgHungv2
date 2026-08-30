@@ -296,6 +296,7 @@ export async function antiMedia(api, message, groupSettings, isAdminBox, botIsAd
         await api.sendMessage(
           {
             msg: warningMsg,
+            quote: message,
             mentions: [MessageMention(senderId, senderName.length, 0)],
             ttl: 30000,
           },

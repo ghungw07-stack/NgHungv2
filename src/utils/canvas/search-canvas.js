@@ -10,19 +10,19 @@ try {
 } catch {}
 
 const COLORS = {
-  bg: "#080a0f",
-  surface: "#11141b",
-  surfaceLight: "#171b24",
-  text: "#f7f8fa",
-  muted: "#9aa3b2",
-  faint: "#606a79",
-  border: "rgba(255,255,255,0.09)",
+  bg: "#f2efe7",
+  surface: "#ffffff",
+  surfaceLight: "#faf8f2",
+  text: "#161b2b",
+  muted: "#667085",
+  faint: "#98a0af",
+  border: "rgba(22,27,43,0.11)",
 };
 
 const THEMES = {
-  MUSIC: { accent: "#b6f33d", accent2: "#53e0ba", label: "ÂM NHẠC", noun: "bài hát", action: "nghe" },
-  VIDEO: { accent: "#ff6b4a", accent2: "#ffb23e", label: "VIDEO", noun: "video", action: "xem" },
-  MEDIA: { accent: "#8b7cff", accent2: "#56c5ff", label: "KHÁM PHÁ", noun: "kết quả", action: "mở" },
+  MUSIC: { accent: "#3155ff", accent2: "#ffcf4a", label: "MUSIC", noun: "bài hát", action: "nghe" },
+  VIDEO: { accent: "#f04438", accent2: "#ffd166", label: "VIDEO", noun: "video", action: "xem" },
+  MEDIA: { accent: "#7347d8", accent2: "#5ee0c2", label: "DISCOVER", noun: "kết quả", action: "mở" },
 };
 
 function roundedPath(ctx, x, y, width, height, radius) {
@@ -166,17 +166,19 @@ export async function createSearchResultImage(data, botId) {
   if (!items.length) throw new Error("Không có dữ liệu.");
 
   const theme = detectTheme(items);
-  const width = 1200;
-  const margin = 44;
-  const headerHeight = 190;
-  const cardHeight = 112;
+  const width = 1280;
+  const margin = 36;
+  const sidebarWidth = 300;
+  const heroHeight = 196;
+  const heroGap = 22;
+  const cardHeight = 108;
   const rowGap = 14;
-  const columnGap = 18;
+  const columnGap = 16;
   const rows = Math.ceil(items.length / 2);
-  const footerHeight = 78;
-  const height = Math.max(650, margin + headerHeight + rows * cardHeight + (rows - 1) * rowGap + footerHeight);
-  const contentWidth = width - margin * 2;
-  const columnWidth = (contentWidth - columnGap) / 2;
+  const height = Math.max(820, margin * 2 + heroHeight + heroGap + rows * cardHeight + (rows - 1) * rowGap);
+  const listX = margin + sidebarWidth + 30;
+  const listWidth = width - listX - margin;
+  const columnWidth = (listWidth - columnGap) / 2;
 
   const artworks = await Promise.all(items.map(async (item) => {
     try {
@@ -192,115 +194,153 @@ export async function createSearchResultImage(data, botId) {
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext("2d");
 
-  const background = ctx.createLinearGradient(0, 0, width, height);
-  background.addColorStop(0, "#0c0f15");
-  background.addColorStop(0.55, COLORS.bg);
-  background.addColorStop(1, "#090c11");
-  ctx.fillStyle = background;
+  ctx.fillStyle = COLORS.bg;
   ctx.fillRect(0, 0, width, height);
 
-  const glow = ctx.createRadialGradient(width - 160, -60, 0, width - 160, -60, 480);
-  glow.addColorStop(0, `${theme.accent}2b`);
-  glow.addColorStop(1, `${theme.accent}00`);
-  ctx.fillStyle = glow;
-  ctx.fillRect(0, 0, width, 480);
+  // Editorial paper texture.
+  ctx.save();
+  ctx.globalAlpha = 0.045;
+  ctx.strokeStyle = COLORS.text;
+  ctx.lineWidth = 1;
+  for (let y = 18; y <= height; y += 24) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
+  }
+  ctx.restore();
 
-  // Brand and result count.
-  drawLogo(ctx, margin, margin, theme);
-  ctx.fillStyle = COLORS.text;
-  ctx.font = "700 15px BeVietnamPro, Arial";
-  ctx.fillText("NGH MEDIA", margin + 56, margin + 17);
-  ctx.fillStyle = COLORS.faint;
-  ctx.font = "500 10px BeVietnamPro, Arial";
-  ctx.fillText("SMART SEARCH", margin + 56, margin + 35);
+  // Full-height editorial sidebar.
+  const sideGradient = ctx.createLinearGradient(margin, margin, margin + sidebarWidth, height - margin);
+  sideGradient.addColorStop(0, theme.accent);
+  sideGradient.addColorStop(1, theme.accent2);
+  fillRoundRect(ctx, margin, margin, sidebarWidth, height - margin * 2, 30, sideGradient);
 
-  fillRoundRect(ctx, width - margin - 158, margin + 3, 158, 36, 18, "rgba(255,255,255,0.055)");
-  strokeRoundRect(ctx, width - margin - 158, margin + 3, 158, 36, 18);
-  ctx.fillStyle = theme.accent;
+  ctx.save();
+  roundedPath(ctx, margin, margin, sidebarWidth, height - margin * 2, 30);
+  ctx.clip();
+  ctx.globalAlpha = 0.11;
+  ctx.strokeStyle = COLORS.text;
+  ctx.lineWidth = 34;
   ctx.beginPath();
-  ctx.arc(width - margin - 137, margin + 21, 4, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = COLORS.muted;
-  ctx.font = "700 10px BeVietnamPro, Arial";
-  ctx.fillText(`${String(items.length).padStart(2, "0")} KẾT QUẢ`, width - margin - 123, margin + 25);
+  ctx.arc(margin + sidebarWidth + 35, margin + 135, 118, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(margin - 15, height - margin - 80, 92, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
 
-  ctx.fillStyle = theme.accent;
-  ctx.font = "700 11px BeVietnamPro, Arial";
-  ctx.fillText(theme.label, margin, margin + 90);
+  fillRoundRect(ctx, margin + 24, margin + 24, 48, 48, 15, COLORS.text);
+  drawSearchIcon(ctx, margin + 46, margin + 45, "#ffffff");
   ctx.fillStyle = COLORS.text;
-  ctx.font = "700 36px BeVietnamPro, Arial";
-  ctx.fillText(`Chọn ${theme.noun} bạn muốn ${theme.action}`, margin, margin + 132);
-  ctx.fillStyle = COLORS.muted;
+  ctx.font = "700 11px BeVietnamPro, Arial";
+  ctx.fillText(`NGH / ${theme.label}`, margin + 86, margin + 54);
+
+  ctx.fillStyle = COLORS.text;
+  ctx.font = "700 42px BeVietnamPro, Arial";
+  ctx.fillText("CHỌN", margin + 24, margin + 154);
+  ctx.fillText(theme.noun.toUpperCase(), margin + 24, margin + 203);
+  ctx.fillText(`ĐỂ ${theme.action.toUpperCase()}`, margin + 24, margin + 252);
+
+  ctx.globalAlpha = 0.72;
   ctx.font = "500 13px BeVietnamPro, Arial";
-  ctx.fillText("Nhập số thứ tự tương ứng để tiếp tục", margin, margin + 158);
+  ctx.fillText("Danh sách đã sẵn sàng.", margin + 24, margin + 294);
+  ctx.fillText("Chỉ cần gửi lại một con số.", margin + 24, margin + 316);
+  ctx.globalAlpha = 1;
 
-  const hintWidth = 172;
-  fillRoundRect(ctx, width - margin - hintWidth, margin + 107, hintWidth, 44, 14, `${theme.accent}16`);
-  drawSearchIcon(ctx, width - margin - hintWidth + 24, margin + 128, theme.accent);
-  ctx.fillStyle = COLORS.muted;
-  ctx.font = "500 10px BeVietnamPro, Arial";
-  ctx.fillText("CHỌN NHANH", width - margin - hintWidth + 49, margin + 123);
+  const countY = height - margin - 150;
   ctx.fillStyle = COLORS.text;
+  ctx.font = "700 74px BeVietnamPro, Arial";
+  ctx.fillText(String(items.length).padStart(2, "0"), margin + 22, countY);
   ctx.font = "700 11px BeVietnamPro, Arial";
-  ctx.fillText("TRẢ LỜI BẰNG SỐ", width - margin - hintWidth + 49, margin + 139);
+  ctx.fillText("KẾT QUẢ TÌM THẤY", margin + 24, countY + 27);
+  ctx.globalAlpha = 0.65;
+  ctx.font = "500 9px BeVietnamPro, Arial";
+  ctx.fillText(botId ? `BOT ID  /  ${String(botId).slice(-6)}` : "NGH MEDIA SYSTEM", margin + 24, height - margin - 25);
+  ctx.globalAlpha = 1;
 
-  const listY = margin + headerHeight;
+  // Feature the first result as a large hero cover on the right.
+  const heroX = listX;
+  const heroY = margin;
+  fillRoundRect(ctx, heroX, heroY, listWidth, heroHeight, 26, COLORS.surface);
+  strokeRoundRect(ctx, heroX, heroY, listWidth, heroHeight, 26);
+
+  const heroImageWidth = 264;
+  const heroImageX = heroX + listWidth - heroImageWidth;
+  ctx.save();
+  roundedPath(ctx, heroImageX, heroY, heroImageWidth, heroHeight, 26);
+  ctx.clip();
+  if (artworks[0]) drawImageCover(ctx, artworks[0], heroImageX, heroY, heroImageWidth, heroHeight);
+  else drawFallback(ctx, heroImageX, heroY, heroImageWidth, heroHeight, 0, theme);
+  const heroShade = ctx.createLinearGradient(heroImageX, heroY, heroImageX + 110, heroY);
+  heroShade.addColorStop(0, COLORS.surface);
+  heroShade.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = heroShade;
+  ctx.fillRect(heroImageX, heroY, 112, heroHeight);
+  ctx.restore();
+
+  fillRoundRect(ctx, heroX + 24, heroY + 24, 86, 28, 14, `${theme.accent}14`);
+  ctx.fillStyle = theme.accent;
+  ctx.font = "700 9px BeVietnamPro, Arial";
+  ctx.textAlign = "center";
+  ctx.fillText("NỔI BẬT  01", heroX + 67, heroY + 42);
+  ctx.textAlign = "left";
+  ctx.fillStyle = COLORS.text;
+  ctx.font = "700 24px BeVietnamPro, Arial";
+  ctx.fillText(truncate(ctx, items[0]?.title || "Không có tiêu đề", listWidth - heroImageWidth - 62), heroX + 24, heroY + 88);
+  ctx.fillStyle = COLORS.muted;
+  ctx.font = "500 12px BeVietnamPro, Arial";
+  ctx.fillText(truncate(ctx, subtitleOf(items[0]), listWidth - heroImageWidth - 62), heroX + 24, heroY + 115);
+  const firstMeta = metaOf(items[0]);
+  if (firstMeta) {
+    fillRoundRect(ctx, heroX + 24, heroY + 137, 92, 28, 14, COLORS.text);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "700 9px BeVietnamPro, Arial";
+    ctx.textAlign = "center";
+    ctx.fillText(truncate(ctx, firstMeta, 66), heroX + 70, heroY + 155);
+    ctx.textAlign = "left";
+  }
+
+  // Compact magazine list.
+  const listY = margin + heroHeight + heroGap;
   items.forEach((item, index) => {
     const column = index % 2;
     const row = Math.floor(index / 2);
-    const x = margin + column * (columnWidth + columnGap);
+    const x = listX + column * (columnWidth + columnGap);
     const y = listY + row * (cardHeight + rowGap);
 
-    const cardGradient = ctx.createLinearGradient(x, y, x + columnWidth, y + cardHeight);
-    cardGradient.addColorStop(0, COLORS.surfaceLight);
-    cardGradient.addColorStop(1, COLORS.surface);
-    fillRoundRect(ctx, x, y, columnWidth, cardHeight, 20, cardGradient);
-    strokeRoundRect(ctx, x, y, columnWidth, cardHeight, 20);
+    ctx.save();
+    ctx.shadowColor = "rgba(27,32,48,0.10)";
+    ctx.shadowBlur = 18;
+    ctx.shadowOffsetY = 5;
+    fillRoundRect(ctx, x, y, columnWidth, cardHeight, 18, COLORS.surface);
+    ctx.restore();
+    strokeRoundRect(ctx, x, y, columnWidth, cardHeight, 18);
 
-    drawArtwork(ctx, artworks[index], x + 10, y + 10, 92, 92, index, theme);
-    fillRoundRect(ctx, x + 18, y + 70, 36, 24, 8, "rgba(7,9,13,0.86)");
-    ctx.fillStyle = theme.accent;
+    drawArtwork(ctx, artworks[index], x + 10, y + 10, 88, 88, index, theme);
+
+    const badgeColor = index < 3 ? theme.accent : COLORS.text;
+    fillRoundRect(ctx, x + 6, y + 6, 34, 27, 9, badgeColor);
+    ctx.fillStyle = "#ffffff";
     ctx.font = "700 10px BeVietnamPro, Arial";
     ctx.textAlign = "center";
-    ctx.fillText(String(index + 1).padStart(2, "0"), x + 36, y + 86);
+    ctx.fillText(String(index + 1).padStart(2, "0"), x + 23, y + 24);
 
-    const textX = x + 122;
-    const meta = metaOf(item);
-    const arrowArea = 42;
-    const textWidth = columnWidth - 122 - arrowArea - 16;
+    const textX = x + 116;
+    const textWidth = columnWidth - 158;
     ctx.textAlign = "left";
-    ctx.fillStyle = COLORS.text;
-    ctx.font = "700 14px BeVietnamPro, Arial";
-    ctx.fillText(truncate(ctx, item?.title || "Không có tiêu đề", textWidth), textX, y + 39);
-    ctx.fillStyle = COLORS.muted;
-    ctx.font = "500 11px BeVietnamPro, Arial";
-    ctx.fillText(truncate(ctx, subtitleOf(item), textWidth), textX, y + 64);
-
+  ctx.fillStyle = COLORS.text;
+    ctx.font = "700 13px BeVietnamPro, Arial";
+    ctx.fillText(truncate(ctx, item?.title || "Không có tiêu đề", textWidth), textX, y + 35);
+  ctx.fillStyle = COLORS.muted;
+    ctx.font = "500 10px BeVietnamPro, Arial";
+    ctx.fillText(truncate(ctx, subtitleOf(item), textWidth), textX, y + 57);
+    const meta = metaOf(item);
     if (meta) {
+      fillRoundRect(ctx, textX, y + 72, Math.min(94, ctx.measureText(String(meta)).width + 25), 22, 11, `${theme.accent}12`);
       ctx.fillStyle = theme.accent;
-      ctx.beginPath();
-      ctx.arc(textX + 3, y + 84, 3, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = COLORS.faint;
       ctx.font = "500 9px BeVietnamPro, Arial";
-      ctx.fillText(truncate(ctx, meta, textWidth - 13), textX + 13, y + 87);
+      ctx.fillText(truncate(ctx, meta, 70), textX + 11, y + 87);
     }
-
-    fillRoundRect(ctx, x + columnWidth - 45, y + 39, 28, 34, 10, "rgba(255,255,255,0.045)");
-    drawArrow(ctx, x + columnWidth - 31, y + 56);
+    drawArrow(ctx, x + columnWidth - 22, y + cardHeight / 2);
   });
-
-  const footerY = height - 43;
-  ctx.strokeStyle = COLORS.border;
-  ctx.beginPath();
-  ctx.moveTo(margin, footerY - 20);
-  ctx.lineTo(width - margin, footerY - 20);
-  ctx.stroke();
-  ctx.fillStyle = COLORS.faint;
-  ctx.font = "500 9px BeVietnamPro, Arial";
-  ctx.fillText("POWERED BY NGH MEDIA", margin, footerY);
-  ctx.textAlign = "right";
-  ctx.fillText(botId ? `BOT • ${String(botId).slice(-6).toUpperCase()}` : "READY TO EXPLORE", width - margin, footerY);
   ctx.textAlign = "left";
 
   const filePath = path.resolve(`./assets/temp/search_result_${Date.now()}.png`);

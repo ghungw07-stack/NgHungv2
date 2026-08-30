@@ -153,24 +153,77 @@ function getDefaultHeaders(appContext) {
 }
 function updateCookie(appContext, input) {
   if (!appContext.cookie) throw new Error("Cookie is not available");
-  if (typeof input !== "string" || !Array.isArray(input)) return null;
+  if (typeof input !== "string" && !Array.isArray(input)) return null;
   const cookieMap = new Map();
-  const cookie = appContext.cookie;
-  cookie.split(";").forEach((cookie) => {
-    const [key, value] = cookie.split("=");
-    cookieMap.set(key.trim(), value.trim());
-  });
-  let newCookie;
-  if (Array.isArray(input)) newCookie = input.map((cookie) => cookie.split(";")[0]).join("; ");
-  else newCookie = input;
-  newCookie.split(";").forEach((cookie) => {
-    const [key, value] = cookie.split("=");
-    cookieMap.set(key.trim(), value.trim());
-  });
+  const setPair = (pair) => {
+    const separator = pair.indexOf("=");
+    if (separator <= 0) return;
+    const key = pair.slice(0, separator).trim();
+    const value = pair.slice(separator + 1).trim();
+    // Set-Cookie attributes are not cookies and must never be copied into the
+    // Cookie request header. Some of them (HttpOnly, Secure) have no '='.
+    if (!key || /^(?:path|domain|expires|max-age|samesite|secure|httponly)$/i.test(key)) return;
+    cookieMap.set(key, value);
+  };
+
+  appContext.cookie.split(";").forEach(setPair);
+  const responseCookies = Array.isArray(input) ? input : [input];
+  for (const header of responseCookies) {
+    // Each Set-Cookie header's first segment is the actual name/value pair;
+    // the remaining segments are attributes.
+    setPair(String(header).split(";", 1)[0]);
+  }
   return Array.from(cookieMap.entries())
     .map(([key, value]) => `${key}=${value}`)
     .join("; ");
 }
+
+const REQUEST_CONCURRENCY = Math.max(2, Number(process.env.NGH_ZALO_REQUEST_CONCURRENCY) || 12);
+const REQUEST_BACKLOG = Math.max(100, Number(process.env.NGH_ZALO_REQUEST_BACKLOG) || 2000);
+const requestGovernors = new WeakMap();
+
+function getRequestGovernor(appContext) {
+  let governor = requestGovernors.get(appContext);
+  if (governor) return governor;
+  governor = { active: 0, queue: [], head: 0 };
+  requestGovernors.set(appContext, governor);
+  return governor;
+}
+
+function compactRequestQueue(governor) {
+  if (governor.head > 512 && governor.head * 2 >= governor.queue.length) {
+    governor.queue.splice(0, governor.head);
+    governor.head = 0;
+  }
+}
+
+function drainRequestGovernor(governor) {
+  while (governor.active < REQUEST_CONCURRENCY && governor.head < governor.queue.length) {
+    const item = governor.queue[governor.head++];
+    compactRequestQueue(governor);
+    governor.active++;
+    Promise.resolve()
+      .then(item.task)
+      .then(item.resolve, item.reject)
+      .finally(() => {
+        governor.active--;
+        drainRequestGovernor(governor);
+      });
+  }
+}
+
+function scheduleRequest(appContext, task) {
+  const governor = getRequestGovernor(appContext);
+  const waiting = governor.queue.length - governor.head;
+  if (waiting >= REQUEST_BACKLOG) {
+    return Promise.reject(new ZaloApiError("Zalo request backlog is full"));
+  }
+  return new Promise((resolve, reject) => {
+    governor.queue.push({ task, resolve, reject });
+    drainRequestGovernor(governor);
+  });
+}
+
 export async function request(appContext, url, options) {
   if (options) options.headers = mergeHeaders(options.headers || {}, getDefaultHeaders(appContext));
   else options = { headers: getDefaultHeaders(appContext) };
@@ -181,7 +234,10 @@ export async function request(appContext, url, options) {
     options.signal = controller.signal;
   }
   try {
-    const response = await appContext.options.polyfill(url, options);
+    // One account shares a bounded outbound lane. Without this guard, dozens
+    // of concurrent commands multiply their attachment/chunk Promise.all calls
+    // and can exhaust sockets, buffers and Zalo rate limits at once.
+    const response = await scheduleRequest(appContext, () => appContext.options.polyfill(url, options));
     if (response.headers.has("set-cookie")) {
       const newCookie = updateCookie(appContext, response.headers.get("set-cookie"));
       if (newCookie) appContext.cookie = newCookie;
@@ -690,4 +746,9 @@ export async function asyncPool(concurrency, items, fn) {
 }
 export function hasOwn(obj, key) {
   return Object.prototype.hasOwnProperty.call(obj, key);
+}
+
+/** Hash PIN 4 chữ số theo định dạng Zalo dùng cho cuộc trò chuyện ẩn. */
+export function encryptPin(pin) {
+  return crypto.createHash("md5").update(String(pin)).digest("hex");
 }

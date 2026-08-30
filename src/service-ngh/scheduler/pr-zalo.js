@@ -9,35 +9,33 @@ import {
   videoWebPrConfigFolderDir,
   writeWebConfig,
 } from "../../utils/io-json.js";
-import { checkUrlStatus } from "../../utils/util.js";
+import { enqueueBackgroundTask } from "../../utils/background-work-queue.js";
+import { waitForInteractiveCapacity } from "../../utils/runtime-work-queue.js";
 
 const CAPTION_CARD = "Danh Thiếp Liên Hệ";
+const PR_SEND_INTERVAL_MINUTES = 15;
+const PR_SEND_INTERVAL_MS = PR_SEND_INTERVAL_MINUTES * 60 * 1000;
+// PR dùng chung socket với tin nhắn tương tác; nhịp quá sát dễ làm API Zalo
+// nghẽn và khiến hàng đợi chat tăng đột biến.
+const PR_TARGET_DELAY_MS = Math.max(1000, Number(process.env.NGH_PR_TARGET_DELAY_MS) || 2000);
+const prRunGenerations = new Map();
 
-function calculateTimeLive(currentTime, prObjects) {
-  const sortedPRs = prObjects
-    .flatMap((obj) => obj.thoiGianGui.map((time) => ({ time, object: obj })))
-    .sort((a, b) => {
-      const timeA = new Date(currentTime.toDateString() + " " + a.time);
-      const timeB = new Date(currentTime.toDateString() + " " + b.time);
-      return timeA - timeB;
-    });
+function getPrRunGeneration(botId) {
+  return prRunGenerations.get(String(botId)) || 0;
+}
 
-  const currentIndex = sortedPRs.findIndex(
-    (pr) =>
-      pr.time ===
-      `${currentTime.getHours().toString().padStart(2, "0")}:${currentTime.getMinutes().toString().padStart(2, "0")}`
-  );
+// Invalidate both an active PR loop and a queued snapshot. The background
+// queue itself is shared by several services, so cancellation belongs here.
+export function cancelConfiguredPRMessages(botId) {
+  const key = String(botId);
+  prRunGenerations.set(key, getPrRunGeneration(key) + 1);
+}
 
-  if (currentIndex === -1) return 0;
-
-  const nextPRIndex = (currentIndex + 1) % sortedPRs.length;
-  const nextPRTime = new Date(currentTime.toDateString() + " " + sortedPRs[nextPRIndex].time);
-
-  if (nextPRIndex <= currentIndex) {
-    nextPRTime.setDate(nextPRTime.getDate() + 1);
-  }
-
-  return nextPRTime.getTime() - currentTime.getTime();
+// Group IDs can be persisted in slightly different forms (for example with a
+// trailing `_0`).  Always compare a canonical value so the whitelist is a
+// hard deny-list regardless of how the ID was entered or stored.
+function normalizeGroupId(value) {
+  return String(value ?? "").trim().replace(/_0$/u, "");
 }
 
 async function checkAndFixAttachments(api, prObject, idZaloGroup, cache = {}) {
@@ -122,18 +120,26 @@ async function checkAndFixAttachments(api, prObject, idZaloGroup, cache = {}) {
   return updatedLinks;
 }
 
-async function sendPRMessage(api, config, prObject, ttl) {
+async function sendPRMessage(api, config, prObject, ttl, shouldContinue = () => true) {
   const botId = api.getBotId();
   const { idZalo } = prObject;
-  const selectedFriends = config.selectedFriends;
+  const selectedFriends = config.selectedFriends || {};
   const selectedGroups = config.prSelectedGroups || {};
+  const whitelistedGroups = new Set(
+    (Array.isArray(config.groupWhitelist) ? config.groupWhitelist : [])
+      .map(normalizeGroupId)
+      .filter(Boolean)
+  );
   let point = 0;
 
   try {
+    if (!shouldContinue()) return false;
     const attachmentCache = {};
     let defaultLinks = prObject.link || {};
     try {
-      const firstGroupId = Object.keys(selectedGroups)[0];
+      const firstGroupId = Object.keys(selectedGroups).find(
+        (groupId) => selectedGroups[groupId] && !whitelistedGroups.has(normalizeGroupId(groupId))
+      );
       if (firstGroupId) {
         defaultLinks = await checkAndFixAttachments(api, prObject, firstGroupId, attachmentCache);
       }
@@ -154,8 +160,14 @@ async function sendPRMessage(api, config, prObject, ttl) {
     }
 
     for (const groupId in selectedGroups) {
-      if (selectedGroups[groupId]) {
+      if (!shouldContinue()) return false;
+      // Whitelist must take precedence over every other PR setting.  A group
+      // can remain in prSelectedGroups after being whitelisted; it is still
+      // skipped here so it cannot receive scheduled or manual PR sends.
+      if (selectedGroups[groupId] && !whitelistedGroups.has(normalizeGroupId(groupId))) {
         try {
+          await waitForInteractiveCapacity();
+          if (!shouldContinue()) return false;
           const customGroupContent = prObject.customContent?.[groupId];
 
           const tempPrObject = {
@@ -265,6 +277,8 @@ async function sendPRMessage(api, config, prObject, ttl) {
             console.error(`Lỗi khi gửi PR message đến group ${groupId} (có thể bot bị block):`, error.message);
             continue;
           }
+
+          if (!shouldContinue()) return false;
           
           if (idZalo != -1) {
             try {
@@ -275,7 +289,8 @@ async function sendPRMessage(api, config, prObject, ttl) {
             }
           }
           
-          await new Promise((resolve) => setTimeout(resolve, 500));
+          await new Promise((resolve) => setTimeout(resolve, PR_TARGET_DELAY_MS));
+          if (!shouldContinue()) return false;
         } catch (error) {
           console.error(`Lỗi tổng quát khi xử lý PR cho group ${groupId} (có thể bot bị block):`, error.message);
           continue;
@@ -289,8 +304,11 @@ async function sendPRMessage(api, config, prObject, ttl) {
     };
     point = (defaultPrObject.hinhAnh.length > 0 ? 1 : 0) + (defaultPrObject.video.length > 0 ? 2 : 0);
     for (const friendId in selectedFriends) {
+      if (!shouldContinue()) return false;
       if (selectedFriends[friendId]) {
         try {
+          await waitForInteractiveCapacity();
+          if (!shouldContinue()) return false;
           if (point === 0) {
             await api.sendMessage(
               {
@@ -390,6 +408,8 @@ async function sendPRMessage(api, config, prObject, ttl) {
         } catch (error) {
           console.error(`Lỗi khi gửi PR message đến friend ${friendId}:`, error.message);
         }
+
+        if (!shouldContinue()) return false;
         
         if (idZalo != -1) {
           try {
@@ -399,43 +419,87 @@ async function sendPRMessage(api, config, prObject, ttl) {
             console.error(`Lỗi khi gửi business card đến friend ${friendId}:`, error.message);
           }
         }
+
+        // Direct-message targets use the same websocket/session as groups.
+        // Without a pause this loop could fire hundreds of requests back to
+        // back and starve interactive replies.
+        await new Promise((resolve) => setTimeout(resolve, PR_TARGET_DELAY_MS));
       }
     }
 
     if (configDirty) {
+      // Attachment refresh may finish after an administrator used `prs off`.
+      // Never let this run's stale config turn PR back on or roll back the
+      // cross-process cancellation token.
+      const latestConfig = readWebConfig(botId);
+      config.activePr = latestConfig?.activePr === true;
+      config.prCancelToken = Number(latestConfig?.prCancelToken) || 0;
       writeWebConfig(botId, config);
     }
 
     console.log(`Đã gửi PR thành công cho ${prObject.ten}`);
+    return true;
   } catch (error) {
     console.error(`Lỗi khi gửi PR cho ${prObject.ten}:`, error);
+    return false;
   }
 }
 
+export async function sendConfiguredPRMessages(api, config, shouldContinue = () => true) {
+  for (const prObject of config?.prObjects || []) {
+    if (!shouldContinue()) return false;
+    const completed = await sendPRMessage(api, config, prObject, PR_SEND_INTERVAL_MS, shouldContinue);
+    if (!completed && !shouldContinue()) return false;
+  }
+  return true;
+}
+
+export function queueConfiguredPRMessages(api, config) {
+  const botId = String(api.getBotId());
+  const generation = getPrRunGeneration(botId);
+  const cancelToken = Number(config?.prCancelToken) || 0;
+  let lastPersistentCheckAt = 0;
+  let persistentTokenMatches = true;
+  const shouldContinue = () => {
+    if (getPrRunGeneration(botId) !== generation || !persistentTokenMatches) return false;
+    const now = Date.now();
+    if (now - lastPersistentCheckAt >= 500) {
+      lastPersistentCheckAt = now;
+      // The generation map only covers this process. The persisted token also
+      // cancels copies of the run held by another PM2 shard/process.
+      const latestConfig = readWebConfig(botId);
+      persistentTokenMatches = (Number(latestConfig?.prCancelToken) || 0) === cancelToken;
+    }
+    return persistentTokenMatches;
+  };
+  return enqueueBackgroundTask(`prs:${botId}`, () => sendConfiguredPRMessages(api, config, shouldContinue));
+}
+
 async function schedulePR(api) {
-  const botId = api.getBotId();
-  api.apiInstance.schedule.schedulePRService = schedule.scheduleJob("*/1 * * * *", async function () {
-    const config = await readWebConfig(botId);
-    if (config?.activePr) {
-      const currentTime = new Date();
-      const currentHourMinute = `${currentTime.getHours().toString().padStart(2, "0")}:${currentTime
-        .getMinutes()
-        .toString()
-        .padStart(2, "0")}`;
-
-      const ttl = calculateTimeLive(currentTime, config.prObjects);
-
-      for (const prObject of config.prObjects) {
-        if (prObject.thoiGianGui.includes(currentHourMinute)) {
-          await sendPRMessage(api, config, prObject, ttl);
+  const botId = String(api.getBotId());
+  if (api.apiInstance.schedule.schedulePRService) return;
+  const numericBotId = BigInt(botId.replace(/\D/g, "") || "0");
+  const scheduleSecond = Number(numericBotId % 60n);
+  const minuteOffset = Number((numericBotId / 60n) % BigInt(PR_SEND_INTERVAL_MINUTES));
+  const scheduledMinutes = [];
+  for (let minute = minuteOffset; minute < 60; minute += PR_SEND_INTERVAL_MINUTES) {
+    scheduledMinutes.push(minute);
+  }
+  api.apiInstance.schedule.schedulePRService = schedule.scheduleJob(
+    `${scheduleSecond} ${scheduledMinutes.join(",")} * * * *`,
+    async function () {
+      const config = await readWebConfig(botId);
+      if (config?.activePr) {
+        const queued = queueConfiguredPRMessages(api, config);
+        if (queued.accepted) {
+          void queued.promise.catch((error) => console.error(`[PR] Lỗi lượt gửi bot ${botId}:`, error));
         }
       }
     }
-  });
+  );
 }
 
 export async function initPRService(api) {
   await schedulePR(api);
   console.log(chalk.green("Dịch vụ PR đã khởi tạo thành công"));
 }
-

@@ -1,6 +1,4 @@
-import { authenticator } from "otplib";
 import { launchPageBrowserReal } from "../../../utilities/browser-launch.js";
-import { getDataDownloadAIO } from "../../api-download/aio-downlink.js";
 
 export default class SpotifyAPI {
   constructor(spDcCookie) {
@@ -242,15 +240,63 @@ export default class SpotifyAPI {
     // }
 
     const url = `${this.baseUrl.baseUrl}/track/${id}`;
+    // Load lazily to avoid the music dispatcher -> SpotifyAPI import cycle.
+    const { getDataDownloadAIO } = await import("../../api-download/aio-downlink.js");
     const dataAIO = await getDataDownloadAIO(url);
-    if (dataAIO.error) {
+    if (!dataAIO || dataAIO.error || !Array.isArray(dataAIO.medias)) {
       return null;
     }
-    return dataAIO.medias[0].url;
+    return dataAIO.medias.find((media) => media?.url && media?.type === "audio")?.url
+      || dataAIO.medias.find((media) => media?.url)?.url
+      || null;
+  }
+
+  async searchTracksFallback(searchTerm, limit = 20) {
+    const timestamp = Date.now();
+    const response = await fetch(
+      `https://graph.nhaccuatui.com/api/v1/search/song?keyword=${encodeURIComponent(searchTerm)}&pageindex=1&pagesize=${limit}&correct=false&timestamp=${timestamp}`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "user-agent": this.userAgent,
+          "x-nct-appid": "6",
+          "x-nct-deviceid": "402a08f1f59b8ffb",
+          "x-nct-os": "web",
+          "x-nct-time": String(timestamp),
+        },
+        body: JSON.stringify({ keyword: searchTerm, pageindex: 1, pagesize: limit, isShowLoading: false }),
+      }
+    );
+    if (!response.ok) throw new Error(`Spotify fallback search failed: ${response.status}`);
+    const payload = await response.json();
+    return (payload?.data?.songs || []).map((song) => {
+      const playable = (song.streamURL || []).find((item) => item.type === "320" && !item.onlyVIP)
+        || (song.streamURL || []).find((item) => item.type === "128" && !item.onlyVIP)
+        || (song.streamURL || []).find((item) => item.stream || item.download);
+      const duration = Number(song.duration || 0);
+      return {
+        id: `nct_${song.key}`,
+        uri: null,
+        title: song.name,
+        artist: song.artistName || "Unknown Artist",
+        duration: `${Math.floor(duration / 60)}:${String(duration % 60).padStart(2, "0")}`,
+        thumbnail: song.image?.replace(".jpg", "_600.jpg"),
+        streamUrl: playable?.stream || playable?.download || null,
+        fallbackSource: "NhacCuaTui",
+      };
+    }).filter((track) => track.streamUrl);
   }
 
   async searchTracks(searchTerm, limit = 20) {
-    if (!this.webAccessToken) await this.getWebAccessToken();
+    if (!this.webAccessToken) {
+      try {
+        await this.getWebAccessToken();
+      } catch (error) {
+        console.warn("Spotify Web API unavailable, using music search fallback:", error?.message || error);
+        return this.searchTracksFallback(searchTerm, limit);
+      }
+    }
 
     const url = this.baseUrl.pathfinder;
     const data = {
@@ -288,7 +334,12 @@ export default class SpotifyAPI {
         body: JSON.stringify(data),
       },
       { maxRetries: 5, refreshTokenOnFail: true }
-    );
+    ).catch(async (error) => {
+      console.warn("Spotify search failed, using music search fallback:", error?.message || error);
+      return null;
+    });
+
+    if (!res) return this.searchTracksFallback(searchTerm, limit);
 
     const jsonData = await res.json();
     return jsonData.data.searchV2.tracksV2.items.map((item) => {

@@ -3,6 +3,8 @@ import fs from "fs";
 import path from "path";
 
 const WIDTH = 1080;
+const STORY_CARD_HEIGHT = 276;
+const STORY_ROW_GAP = 18;
 const COLORS = {
   bg: "#070914",
   panel: "#111526",
@@ -143,15 +145,28 @@ function roleIcon(role = "") {
   return first && /[^\p{L}\p{N}]/u.test(first) ? first : "◈";
 }
 
+const avatarCache = new Map();
+const MAX_AVATAR_CACHE = 500;
+
 async function loadPlayerAvatars(players = []) {
   const entries = await Promise.all(
     players.map(async (player) => {
-      if (!player.avatar) return [String(player.id), null];
+      const pid = String(player.id);
+      if (avatarCache.has(pid)) {
+        return [pid, avatarCache.get(pid)];
+      }
+      if (!player.avatar) return [pid, null];
       const url = String(player.avatar).startsWith("//") ? `https:${player.avatar}` : player.avatar;
       try {
-        return [String(player.id), await loadImage(url)];
+        const img = await loadImage(url);
+        if (avatarCache.size >= MAX_AVATAR_CACHE) {
+          const firstKey = avatarCache.keys().next().value;
+          avatarCache.delete(firstKey);
+        }
+        avatarCache.set(pid, img);
+        return [pid, img];
       } catch {
-        return [String(player.id), null];
+        return [pid, null];
       }
     })
   );
@@ -236,36 +251,38 @@ function drawPlayerStoryCard(
   }
 
   const centerX = x + width / 2;
+  const avatarRadius = player.alive ? 52 : 42;
+  const avatarY = y + 89;
   drawCircularAvatar(
     ctx,
     avatarImages.get(String(player.id)),
     centerX,
-    y + 80,
-    40,
+    avatarY,
+    avatarRadius,
     player.name,
     showRole ? accent : "#8D8269"
   );
   if (!player.alive) {
-    ctx.beginPath(); ctx.arc(centerX + 27, y + 106, 18, 0, Math.PI * 2);
+    ctx.beginPath(); ctx.arc(centerX + 29, avatarY + 29, 18, 0, Math.PI * 2);
     ctx.fillStyle = "rgba(90,5,12,.94)"; ctx.fill();
     ctx.strokeStyle = "#FF9B9B"; ctx.lineWidth = 2; ctx.stroke();
     ctx.fillStyle = "#FFFFFF"; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic"; ctx.font = "800 21px Arial";
-    ctx.fillText("☠", centerX + 27, y + 113);
+    ctx.fillText("☠", centerX + 29, avatarY + 36);
   }
 
-  roundRect(ctx, x + 12, y + 128, width - 24, 34, 10, "rgba(0,0,0,.78)", "rgba(248,199,92,.52)");
-  ctx.fillStyle = "#F4EEE1"; ctx.textAlign = "center"; ctx.font = "700 17px Arial";
-  ctx.fillText(trimToWidth(ctx, player.name, width - 42), centerX, y + 151);
+  roundRect(ctx, x + 12, y + 151, width - 24, 39, 11, "rgba(0,0,0,.78)", "rgba(248,199,92,.52)");
+  ctx.fillStyle = "#F4EEE1"; ctx.textAlign = "center"; ctx.font = "800 19px Arial";
+  ctx.fillText(trimToWidth(ctx, player.name, width - 38), centerX, y + 177);
 
   const status = player.alive ? "CÒN SỐNG" : "ĐÃ NGÃ XUỐNG";
-  roundRect(ctx, x + 24, y + 171, width - 48, 27, 12, player.alive ? "rgba(85,214,163,.10)" : "rgba(239,83,97,.23)", player.alive ? COLORS.green : COLORS.red);
-  ctx.fillStyle = player.alive ? COLORS.green : "#FF9B9B"; ctx.font = "800 13px Arial";
-  ctx.fillText(status, centerX, y + 190);
+  roundRect(ctx, x + 22, y + 201, width - 44, 30, 13, player.alive ? "rgba(85,214,163,.14)" : "rgba(239,83,97,.23)", player.alive ? COLORS.green : COLORS.red);
+  ctx.fillStyle = player.alive ? COLORS.green : "#FF9B9B"; ctx.font = "800 14px Arial";
+  ctx.fillText(status, centerX, y + 221);
 
-  roundRect(ctx, x + 22, y + 205, width - 44, 28, 9, `${accent}10`, `${accent}90`);
+  roundRect(ctx, x + 20, y + 240, width - 40, 27, 9, `${accent}10`, `${accent}90`);
   ctx.fillStyle = accent; ctx.font = "700 14px Arial";
   const roleLabel = showRole ? revealedRole.replace(/^\S+\s*/, "") : "VAI ĐANG ẨN";
-  ctx.fillText(trimToWidth(ctx, roleLabel, width - 58), centerX, y + 224);
+  ctx.fillText(trimToWidth(ctx, roleLabel, width - 54), centerX, y + 259);
 }
 
 function drawStoryBoard(
@@ -277,7 +294,7 @@ function drawStoryBoard(
   const columns = 4;
   const gap = 16;
   const cardWidth = 226;
-  const cardHeight = 245;
+  const cardHeight = STORY_CARD_HEIGHT;
   const totalWidth = columns * cardWidth + (columns - 1) * gap;
   const left = (WIDTH - totalWidth) / 2;
   players.forEach((player, index) => {
@@ -288,14 +305,17 @@ function drawStoryBoard(
       player,
       index,
       left + col * (cardWidth + gap),
-      startY + row * (cardHeight + 18),
+      startY + row * (cardHeight + STORY_ROW_GAP),
       cardWidth,
       cardHeight,
       { revealAll, winnerIds, avatarImages }
     );
   });
-  return startY + Math.ceil(players.length / columns) * (cardHeight + 18);
+  return startY + Math.ceil(players.length / columns) * (cardHeight + STORY_ROW_GAP);
 }
+
+const storyBoardBottom = (playerCount, startY = 225) =>
+  startY + Math.ceil(playerCount / 4) * (STORY_CARD_HEIGHT + STORY_ROW_GAP);
 
 function drawStoryBox(ctx, story, y, accent = COLORS.gold) {
   roundRect(ctx, 52, y, WIDTH - 104, 280, 22, "rgba(4,4,6,.82)", `${accent}88`, 2);
@@ -350,7 +370,170 @@ async function save(canvas, prefix) {
   return filePath;
 }
 
+
+function drawAwesomeCorners(ctx, width, height) {
+  ctx.strokeStyle = "#F8C75C";
+  ctx.lineWidth = 3;
+  const m = 18;
+  const L = 35;
+  ctx.beginPath();
+  ctx.moveTo(m, m + L); ctx.lineTo(m, m); ctx.lineTo(m + L, m);
+  ctx.moveTo(width - m - L, m); ctx.lineTo(width - m, m); ctx.lineTo(width - m, m + L);
+  ctx.moveTo(m, height - m - L); ctx.lineTo(m, height - m); ctx.lineTo(m + L, height - m);
+  ctx.moveTo(width - m - L, height - m); ctx.lineTo(width - m, height - m); ctx.lineTo(width - m, height - m - L);
+  ctx.stroke();
+}
+
+function drawAwesomeHeader(ctx, text, rightText, y = 70) {
+  // Moon icon
+  ctx.fillStyle = "#F8C75C";
+  ctx.beginPath(); ctx.arc(64, y - 18, 22, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#0B1020";
+  ctx.beginPath(); ctx.arc(74, y - 24, 20, 0, Math.PI * 2); ctx.fill();
+  
+  // Title
+  ctx.fillStyle = "#F8FAFC";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  ctx.font = "900 42px Arial";
+  ctx.fillText(text.toUpperCase(), 100, y - 10);
+  
+  // Right text pill
+  ctx.font = "700 32px Arial";
+  const tw = ctx.measureText(rightText).width;
+  const pillW = tw + 40;
+  roundRect(ctx, WIDTH - 50 - pillW, y - 32, pillW, 46, 23, "rgba(248,199,92,0.05)", "#F8C75C", 2);
+  ctx.fillStyle = "#F8C75C";
+  ctx.textAlign = "center";
+  ctx.fillText(rightText, WIDTH - 50 - pillW / 2, y - 6);
+}
+
+function drawAwesomeGrid(ctx, players, capacity, startY, hostId, isPhase = false) {
+  const columns = capacity <= 16 ? 4 : 6;
+  const rows = Math.ceil(capacity / columns);
+  const gridX = 40;
+  const colGap = 16;
+  const rowGap = 16;
+  const cardWidth = (WIDTH - gridX * 2 - colGap * (columns - 1)) / columns;
+  const cardHeight = 190;
+  
+  for (let index = 0; index < capacity; index++) {
+    const player = players[index];
+    const col = index % columns;
+    const row = Math.floor(index / columns);
+    const x = gridX + col * (cardWidth + colGap);
+    const y = startY + row * (cardHeight + rowGap);
+    const cx = x + cardWidth / 2;
+    
+    ctx.textBaseline = "middle";
+    
+    if (player) {
+      const isDead = isPhase && player.alive === false;
+      const cardColor = isDead ? "#EF5361" : "#F8C75C";
+      
+      // Card BG & Border
+      roundRect(ctx, x, y, cardWidth, cardHeight, 16, `rgba(17,21,38,0.85)`, cardColor, 2);
+      
+      // Number top-left
+      ctx.beginPath(); ctx.arc(x + 22, y + 22, 12, 0, Math.PI * 2); 
+      ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fill();
+      ctx.strokeStyle = cardColor; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.fillStyle = cardColor; ctx.textAlign = "center"; ctx.font = "800 13px Arial";
+      ctx.fillText(String(index + 1), x + 22, y + 23);
+      
+      // Host crown
+      if (player.id === hostId) {
+        ctx.font = "18px Arial";
+        ctx.fillText("👑", x + cardWidth - 22, y + 23);
+      } else if (isDead) {
+        ctx.font = "18px Arial";
+        ctx.fillText("☠️", x + cardWidth - 22, y + 23);
+      }
+      
+      // Avatar
+      drawCircularAvatar(ctx, player.avatarImg, cx, y + 80, 38, player.name, cardColor);
+      if (isDead) {
+         ctx.beginPath(); ctx.arc(cx, y + 80, 38, 0, Math.PI * 2);
+         ctx.fillStyle = "rgba(239,83,97,0.4)"; ctx.fill();
+      }
+      
+      // Name Banner
+      roundRect(ctx, x + 10, y + cardHeight - 40, cardWidth - 20, 26, 13, "rgba(0,0,0,0.6)", cardColor, 1);
+      ctx.fillStyle = "#FFFFFF"; ctx.font = "700 14px Arial";
+      ctx.fillText(`▶ ${trimToWidth(ctx, player.name, cardWidth - 50)} ◀`, cx, y + cardHeight - 26);
+      
+    } else {
+      // Empty slot
+      ctx.save();
+      ctx.setLineDash([6, 6]);
+      roundRect(ctx, x, y, cardWidth, cardHeight, 16, `rgba(255,255,255,0.03)`, "rgba(255,255,255,0.2)", 2);
+      
+      // Number top-left
+      ctx.beginPath(); ctx.arc(x + 22, y + 22, 12, 0, Math.PI * 2); 
+      ctx.strokeStyle = "rgba(255,255,255,0.3)"; ctx.stroke();
+      ctx.fillStyle = "rgba(255,255,255,0.3)"; ctx.textAlign = "center"; ctx.font = "800 13px Arial";
+      ctx.fillText(String(index + 1), x + 22, y + 23);
+      
+      // Empty Avatar circle
+      ctx.beginPath(); ctx.arc(cx, y + 80, 38, 0, Math.PI * 2); ctx.stroke();
+      
+      ctx.restore();
+      
+      // Text
+      ctx.fillStyle = "rgba(255,255,255,0.4)"; ctx.font = "700 16px Arial";
+      ctx.fillText("Đang chờ...", cx, y + cardHeight - 26);
+    }
+  }
+  return startY + rows * (cardHeight + rowGap);
+}
+
+function drawAwesomeFooter(ctx, topText, bottomText, y) {
+  if (!bottomText) {
+    ctx.font = "800 20px Arial";
+    const topW = ctx.measureText(topText.toUpperCase()).width;
+    const w = Math.max(300, topW + 60);
+    roundRect(ctx, WIDTH/2 - w/2, y, w, 44, 16, "rgba(248,199,92,0.1)", "rgba(248,199,92,0.4)", 2);
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#F8C75C"; ctx.font = "800 20px Arial";
+    ctx.fillText(topText.toUpperCase(), WIDTH/2, y + 29);
+    return y + 60;
+  }
+
+  ctx.font = "900 28px Arial";
+  const bottomW = ctx.measureText(bottomText).width;
+  ctx.font = "800 16px Arial";
+  const topW = ctx.measureText(topText.toUpperCase()).width;
+  const w = Math.max(450, bottomW + 60, topW + 60);
+  
+  roundRect(ctx, WIDTH/2 - w/2, y, w, 70, 16, "rgba(248,199,92,0.1)", "rgba(248,199,92,0.4)", 2);
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#F8C75C"; ctx.font = "800 16px Arial";
+  ctx.fillText(topText.toUpperCase(), WIDTH/2, y + 26);
+  ctx.fillStyle = "#FFFFFF"; ctx.font = "900 28px Arial";
+  ctx.fillText(bottomText, WIDTH/2, y + 55);
+  return y + 90;
+}
+
 export async function createWerewolfLobbyImage(room) {
+  const avatarImages = await loadPlayerAvatars(room.players);
+  room.players.forEach(p => p.avatarImg = avatarImages.get(String(p.id)));
+  
+  const capacity = Math.max(4, Number(room.capacity) || 12);
+  const columns = capacity <= 16 ? 4 : 6;
+  const rows = Math.ceil(capacity / columns);
+  const height = 150 + rows * (190 + 16) + 120;
+  
+  const { canvas, ctx } = createBase(height, COLORS.gold);
+  drawAwesomeCorners(ctx, WIDTH, height);
+  drawAwesomeHeader(ctx, "SẢNH MA SÓI", `${room.players.length}/${capacity}`, 80);
+  
+  const bottomY = drawAwesomeGrid(ctx, room.players, capacity, 140, room.hostId, false);
+  drawAwesomeFooter(ctx, "MÃ PHÒNG", String(room.code), bottomY + 20);
+  
+  return save(canvas, "masoi_lobby");
+}
+
+export async function createWerewolfLobbyImage_OLD(room) {
   const avatarImages = await loadPlayerAvatars(room.players);
   const columns = 2;
   const rows = Math.ceil(room.players.length / columns);
@@ -522,29 +705,26 @@ export async function createWerewolfRoleImage({ playerId, playerName, playerAvat
 
 export async function createWerewolfPhaseImage({ title, subtitle, duration, note, accent = COLORS.blue, players = [] }) {
   const avatarImages = await loadPlayerAvatars(players);
-  const rows = Math.ceil(players.length / 8);
-  const height = players.length ? Math.max(780, 690 + rows * 78) : 720;
-  const { canvas, ctx } = createBase(height, accent);
-  header(ctx, "Diễn biến ván Ma Sói", title, subtitle, accent);
-  roundRect(ctx, 64, 265, 952, 260, 34, `${accent}12`, `${accent}60`, 2);
-  ctx.textAlign = "center";
-  ctx.fillStyle = accent; ctx.font = "800 96px Arial";
-  ctx.fillText(String(duration), WIDTH / 2, 390);
-  ctx.fillStyle = COLORS.text; ctx.font = "800 28px Arial";
-  ctx.fillText("GIÂY", WIDTH / 2, 438);
-  ctx.fillStyle = COLORS.muted; ctx.font = "600 23px Arial";
-  drawTextBlock(ctx, note, WIDTH / 2, 492, 820, 34, 3);
-  drawPhaseRoster(ctx, players, avatarImages, 625);
-  ctx.textAlign = "center";
-  ctx.fillStyle = COLORS.muted; ctx.font = "600 18px Arial";
-  ctx.fillText("🐺 MA SÓI 🐺", WIDTH / 2, height - 40);
+  players.forEach(p => p.avatarImg = avatarImages.get(String(p.id)));
+  
+  const capacity = Math.max(12, players.length);
+  const columns = capacity <= 16 ? 4 : 6;
+  const rows = Math.ceil(capacity / columns);
+  const height = 150 + rows * (190 + 16) + 120;
+  
+  const { canvas, ctx } = createBase(height, COLORS.gold);
+  drawAwesomeCorners(ctx, WIDTH, height);
+  drawAwesomeHeader(ctx, title, `${duration}s`, 80);
+  
+  const bottomY = drawAwesomeGrid(ctx, players, capacity, 140, null, true);
+  drawAwesomeFooter(ctx, subtitle, note || "", bottomY + 20);
+  
   return save(canvas, "masoi_phase");
 }
 
 export async function createWerewolfNightImage({ night, duration, players, story }) {
   const avatarImages = await loadPlayerAvatars(players);
-  const rows = Math.ceil(players.length / 4);
-  const storyY = 225 + rows * 263 + 12;
+  const storyY = storyBoardBottom(players.length) + 12;
   const height = Math.max(980, storyY + 330);
   const { canvas, ctx } = createStoryBase(height, COLORS.violet);
   const deadCount = players.filter((player) => !player.alive).length;
@@ -563,8 +743,7 @@ export async function createWerewolfNightImage({ night, duration, players, story
 export async function createWerewolfDeathImage({ heading, deaths, players, story }) {
   const roster = players?.length ? players : deaths.map(({ player }) => player);
   const avatarImages = await loadPlayerAvatars(roster);
-  const rows = Math.ceil(roster.length / 4);
-  const storyY = 225 + rows * 263 + 12;
+  const storyY = storyBoardBottom(roster.length) + 12;
   const height = Math.max(980, storyY + 330);
   const accent = deaths.length ? COLORS.red : COLORS.green;
   const { canvas, ctx } = createStoryBase(height, accent);
@@ -582,8 +761,7 @@ export async function createWerewolfDeathImage({ heading, deaths, players, story
 
 export async function createWerewolfEndImage({ winnerTitle, winnerText, winnerNames, winnerIds = [], players, story }) {
   const avatarImages = await loadPlayerAvatars(players);
-  const rows = Math.ceil(players.length / 4);
-  const storyY = 225 + rows * 263 + 12;
+  const storyY = storyBoardBottom(players.length) + 12;
   const height = Math.max(980, storyY + 330);
   const { canvas, ctx } = createStoryBase(height, COLORS.gold);
   drawStoryHeader(
@@ -600,4 +778,63 @@ export async function createWerewolfEndImage({ winnerTitle, winnerText, winnerNa
   });
   drawStoryBox(ctx, story, storyY, COLORS.gold);
   return save(canvas, "masoi_end");
+}
+
+export async function createWerewolfRankImage({ groupName = "Nhóm Ma Sói", players = [] }) {
+  const rows = Math.max(1, players.length);
+  const height = 305 + rows * 92 + 70;
+  const { canvas, ctx } = createBase(height, COLORS.gold);
+  header(ctx, "Đấu trường Ma Sói", "BẢNG XẾP HẠNG", `${groupName} · Top ${players.length || 0} người chơi`, COLORS.gold);
+
+  roundRect(ctx, 48, 238, WIDTH - 96, 48, 14, "rgba(248,199,92,.12)", "rgba(248,199,92,.45)");
+  ctx.fillStyle = COLORS.gold;
+  ctx.font = "800 15px Arial";
+  ctx.textAlign = "left";
+  ctx.fillText("HẠNG", 72, 269);
+  ctx.fillText("NGƯỜI CHƠI", 170, 269);
+  ctx.textAlign = "center";
+  ctx.fillText("THẮNG / VÁN", 690, 269);
+  ctx.fillText("TỶ LỆ", 825, 269);
+  ctx.fillText("ĐIỂM", 960, 269);
+
+  players.forEach((player, index) => {
+    const y = 303 + index * 92;
+    const accent = index === 0 ? COLORS.gold : index === 1 ? "#C9D2E3" : index === 2 ? "#D99A68" : COLORS.violet;
+    roundRect(ctx, 48, y, WIDTH - 96, 76, 17, index < 3 ? `${accent}15` : "rgba(17,21,38,.88)", `${accent}80`, index < 3 ? 2 : 1);
+
+    ctx.textAlign = "center";
+    ctx.fillStyle = accent;
+    ctx.font = index < 3 ? "900 28px Arial" : "800 22px Arial";
+    ctx.fillText(index < 3 ? ["♛", "Ⅱ", "Ⅲ"][index] : String(index + 1), 95, y + 47);
+
+    ctx.textAlign = "left";
+    ctx.fillStyle = COLORS.text;
+    ctx.font = "800 21px Arial";
+    ctx.fillText(trimToWidth(ctx, player.name, 385), 150, y + 31);
+    ctx.fillStyle = COLORS.muted;
+    ctx.font = "700 14px Arial";
+    ctx.fillText(trimToWidth(ctx, player.title, 385), 150, y + 56);
+
+    ctx.textAlign = "center";
+    ctx.fillStyle = COLORS.text;
+    ctx.font = "800 19px Arial";
+    ctx.fillText(`${player.wins} / ${player.games}`, 690, y + 45);
+    ctx.fillStyle = player.winRate >= 50 ? COLORS.green : COLORS.muted;
+    ctx.fillText(`${player.winRate}%`, 825, y + 45);
+    ctx.fillStyle = COLORS.gold;
+    ctx.font = "900 24px Arial";
+    ctx.fillText(String(player.points), 960, y + 47);
+  });
+
+  if (!players.length) {
+    ctx.textAlign = "center";
+    ctx.fillStyle = COLORS.muted;
+    ctx.font = "700 24px Arial";
+    ctx.fillText("Chưa có dữ liệu. Hãy hoàn thành một ván Ma Sói!", WIDTH / 2, 350);
+  }
+  ctx.textAlign = "center";
+  ctx.fillStyle = "rgba(248,199,92,.72)";
+  ctx.font = "700 15px Arial";
+  ctx.fillText("Mỗi trận thắng +1 điểm", WIDTH / 2, height - 34);
+  return save(canvas, "masoi_rank");
 }

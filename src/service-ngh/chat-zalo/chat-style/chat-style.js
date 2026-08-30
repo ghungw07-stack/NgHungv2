@@ -20,6 +20,7 @@ export const COLOR_RED = "db342e";
 export const COLOR_YELLOW = "f7b503";
 export const COLOR_GREEN = "15a85f";
 export const COLOR_BLACK = "1f2937";
+export const RAINBOW_COLORS = [COLOR_GREEN, COLOR_YELLOW, COLOR_RED];
 export const SIZE_18 = "18";
 export const SIZE_16 = "14";
 export const IS_BOLD = true;
@@ -59,6 +60,7 @@ export function resolveStyleColor(input) {
 }
 
 function normalizeStoredColor(color) {
+  if (!color || color === COLOR_BLACK || color === "000000") return null;
   const legacyColors = {
     ff0000: COLOR_RED,
     ef4444: COLOR_RED,
@@ -66,14 +68,13 @@ function normalizeStoredColor(color) {
     "10b981": COLOR_GREEN,
     ffff00: COLOR_YELLOW,
     f59e0b: COLOR_YELLOW,
-    "000000": COLOR_BLACK,
   };
-  return legacyColors[color] || ([COLOR_RED, COLOR_GREEN, COLOR_YELLOW, COLOR_BLACK].includes(color) ? color : COLOR_BLACK);
+  return legacyColors[color] || ([COLOR_RED, COLOR_GREEN, COLOR_YELLOW].includes(color) ? color : null);
 }
 
 export function getDefaultServerStyle() {
   return {
-    color: COLOR_BLACK,
+    color: null,
     size: SIZE_18,
     bold: true,
     italic: false,
@@ -93,7 +94,7 @@ export function getServerStyle(api) {
     if (!custom) return getDefaultServerStyle();
 
     return {
-      color: normalizeStoredColor(custom.color),
+      color: custom.rainbow ? RAINBOW_COLORS : normalizeStoredColor(custom.color),
       size: custom.size || SIZE_18,
       bold: custom.bold !== undefined ? custom.bold : false,
       italic: !!custom.italic,
@@ -115,7 +116,7 @@ export function getTextStyle(api) {
     const custom = managerData?.chatStyle;
     const t = custom?.text || {};
     return {
-      color: normalizeStoredColor(custom?.textColor),
+      color: custom?.textRainbow ? RAINBOW_COLORS : normalizeStoredColor(custom?.textColor),
       size: custom?.textSize || SIZE_18,
       bold:      t.bold      !== undefined ? t.bold      : false,
       italic:    t.italic    !== undefined ? t.italic    : false,
@@ -123,7 +124,24 @@ export function getTextStyle(api) {
       strike:    t.strike    !== undefined ? t.strike    : false,
     };
   } catch {
-    return { color: COLOR_BLACK, size: SIZE_18, bold: false, italic: false, underline: false, strike: false };
+    return { color: null, size: SIZE_18, bold: false, italic: false, underline: false, strike: false };
+  }
+}
+
+export function getCommandMapColors(api) {
+  try {
+    const managerData = api.apiManager?.getDataManager ? api.apiManager.getDataManager() : null;
+    const custom = managerData?.chatStyle;
+    const fallbackCommandColor = custom?.color ? normalizeStoredColor(custom.color) : COLOR_GREEN;
+    return {
+      command: custom?.commandColor ? normalizeStoredColor(custom.commandColor) : fallbackCommandColor,
+      description: custom?.descriptionColor
+        ? normalizeStoredColor(custom.descriptionColor)
+        : getTextStyle(api).color,
+      hasCustomDescription: !!custom?.descriptionColor,
+    };
+  } catch {
+    return { command: COLOR_GREEN, description: getTextStyle(api).color, hasCustomDescription: false };
   }
 }
 
@@ -494,19 +512,22 @@ export async function sendMessageFromSQL(api, message, result, hasState = true, 
     ]);
 
     let msg = `${isGroup ? senderName + "\n" : ""}${nameServer}` + bodyText;
-    return await api.sendMessage(
-      {
-        msg: msg,
-        ...(mentionSender ? { mentions: [{ pos: 0, uid: senderId, len: senderName.length }] } : {}),
-        style: style,
-        // Luôn reply/quote tin nhắn gốc; mentionSender chỉ điều khiển phần mention.
-        quote: message,
-        linkOn: false,
-        ttl: ttl,
-      },
-      threadId,
-      message.type
-    );
+    const payload = {
+      msg: msg,
+      ...(mentionSender ? { mentions: [{ pos: 0, uid: senderId, len: senderName.length }] } : {}),
+      style: style,
+      quote: message,
+      linkOn: false,
+      ttl: ttl,
+    };
+    try {
+      return await api.sendMessage(payload, threadId, message.type);
+    } catch (error) {
+      // Một số bot con trả code 114 khi quote/mention message nhận từ bot chính.
+      // Gửi lại dạng text thuần để lệnh game vẫn luôn có phản hồi.
+      console.error("sendMessageFromSQL payload lỗi, thử gửi text thuần:", error?.message || error);
+      return await api.sendMessage({ msg, ttl }, threadId, message.type);
+    }
   } catch (error) {
     console.log(error);
   }

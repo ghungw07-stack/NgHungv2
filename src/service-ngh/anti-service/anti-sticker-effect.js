@@ -230,6 +230,7 @@ async function sendWarningMessage(api, message, senderId, senderName, count, gro
     await api.sendMessage(
       {
         msg: caption,
+        quote: message,
         mentions: [MessageMention(senderId, senderName.length, "⚠️ Cảnh cáo ".length)],
         ttl: 300000,
       },

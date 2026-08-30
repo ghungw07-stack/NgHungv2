@@ -17,6 +17,42 @@ import { getClientAxios } from "../service-ngh/utilities/browser-launch.js";
 
 export const TIME_HOUR_24 = 86400000;
 
+const NGH_UPLOAD_MIME_BY_EXTENSION = {
+  ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".gif": "image/gif",
+  ".mp4": "video/mp4", ".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".aac": "audio/aac", ".ogg": "audio/ogg",
+  ".pdf": "application/pdf", ".zip": "application/zip",
+};
+
+export async function uploadToNghServer(pathLocal) {
+  const endpoint = String(process.env.NGH_UPLOAD_URL || "").trim();
+  const token = String(process.env.NGH_UPLOAD_TOKEN || "").trim();
+  if (!endpoint || !token) return null;
+
+  const fileName = path.basename(pathLocal);
+  const contentType = NGH_UPLOAD_MIME_BY_EXTENSION[path.extname(fileName).toLowerCase()];
+  if (!contentType) return null;
+
+  try {
+    const fileInfo = await fs.promises.stat(pathLocal);
+    const response = await axios.post(endpoint, fs.createReadStream(pathLocal), {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": contentType,
+        "Content-Length": fileInfo.size,
+        "X-File-Name": fileName,
+      },
+      timeout: 5 * 60 * 1000,
+      maxBodyLength: 100 * 1024 * 1024,
+      maxContentLength: 1024 * 1024,
+    });
+    const url = response.data?.url;
+    return typeof url === "string" && /^https:\/\//i.test(url) ? url : null;
+  } catch (error) {
+    console.error("Upload lên NGH server thất bại:", error.response?.data?.error || error.message);
+    return null;
+  }
+}
+
 export async function checkUrlStatus(url) {
   if (!url) return false;
   try {
@@ -103,6 +139,9 @@ export async function uploadTempFile(pathLocal, serviceType = 1, apiObj) {
   const { api = null, message = null } = apiObj || {};
   // const startTime = performance.now();
   let result = null;
+
+  result = await uploadToNghServer(pathLocal);
+  if (result) return result;
 
   // Ưu tiên upload thẳng lên Zalo Cloud (giống cách voice/video đang làm) để có link bền,
   // không phụ thuộc host ngoài (tmpfiles/uguu/litterbox) hay bị chết link / không xem được.
@@ -219,6 +258,8 @@ export async function uploadToLitterBox(pathLocal, expiry = "24h") {
  * Upload file lên uguu.se
  */
 export async function uploadToUguu(pathLocal) {
+  const nghUrl = await uploadToNghServer(pathLocal);
+  if (nghUrl) return nghUrl;
   try {
     const fileName = path.basename(pathLocal);
     const buffer = fs.createReadStream(pathLocal);

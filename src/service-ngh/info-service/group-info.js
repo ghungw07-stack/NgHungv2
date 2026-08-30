@@ -6,7 +6,9 @@ import { removeMention } from "../../utils/format-util.js";
 import { getGlobalPrefix } from "../service.js";
 
 const groupInfoCache = new Map();
-const CACHE_DURATION = 10000;
+const groupInfoRequests = new Map();
+const CACHE_DURATION = Math.max(10000, Number(process.env.NGH_GROUP_CACHE_TTL_MS) || 180000);
+const MAX_GROUP_CACHE_SIZE = Math.max(1000, Number(process.env.NGH_GROUP_CACHE_SIZE) || 5000);
 
 export async function groupInfoCommand(api, message, aliasCommand, groupSettings) {
   const content = removeMention(message);
@@ -279,38 +281,40 @@ export async function updateHistorySettingGroup(threadId, settingNew) {
 
 export async function getGroupInfoData(api, threadId) {
   const now = Date.now();
-  const cachedData = groupInfoCache.get(threadId);
+  const cacheKey = `${api.getBotId()}:${threadId}`;
+  const cachedData = groupInfoCache.get(cacheKey);
 
-  if (cachedData && (now - cachedData.timestamp < CACHE_DURATION || arrGetInfoGroup.includes(threadId))) {
+  if (cachedData && now - cachedData.timestamp < CACHE_DURATION) {
     return cachedData.data;
   }
+  if (groupInfoRequests.has(cacheKey)) return groupInfoRequests.get(cacheKey);
 
-  arrGetInfoGroup.push(threadId);
-
-  let groupInfo;
-  try {
-    groupInfo = await api.getGroupInfo(threadId);
-  } catch (error) {
-    const cachedData = groupInfoCache.get(threadId);
-    if (cachedData) {
-      return cachedData.data;
-    } else {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      groupInfo = await api.getGroupInfo(threadId);
+  const request = (async () => {
+    try {
+      const groupInfo = await api.getGroupInfo(threadId);
+      const processedInfo = getAllInfoGroup(groupInfo, threadId);
+      if (!historySettingGroup[threadId]) historySettingGroup[threadId] = processedInfo.setting;
+      groupInfoCache.set(cacheKey, { data: processedInfo, timestamp: Date.now() });
+      while (groupInfoCache.size > MAX_GROUP_CACHE_SIZE) {
+        groupInfoCache.delete(groupInfoCache.keys().next().value);
+      }
+      return processedInfo;
+    } catch (error) {
+      if (cachedData) return cachedData.data;
+      throw error;
+    } finally {
+      groupInfoRequests.delete(cacheKey);
     }
+  })();
+  groupInfoRequests.set(cacheKey, request);
+  // Expired metadata is still good enough for the hot message path. Return it
+  // immediately and refresh in the background instead of pausing a command on
+  // a Zalo round-trip every TTL interval.
+  if (cachedData) {
+    void request;
+    return cachedData.data;
   }
-
-  const processedInfo = getAllInfoGroup(groupInfo, threadId);
-  if (!historySettingGroup[threadId]) historySettingGroup[threadId] = processedInfo.setting;
-
-  groupInfoCache.set(threadId, {
-    data: processedInfo,
-    timestamp: now,
-  });
-
-  arrGetInfoGroup.splice(arrGetInfoGroup.indexOf(threadId), 1);
-
-  return processedInfo;
+  return request;
 }
 
 // export async function getGroupInfoData(api, threadId, allGroupIds) {
@@ -375,23 +379,27 @@ export async function getGroupInfoData(api, threadId) {
 
 function getAllInfoGroup(groupInfo, threadId) {
   try {
-    const name = groupInfo.gridInfoMap[threadId].name || "Tên Không Xác Định";
+    const infoMap = groupInfo?.gridInfoMap || groupInfo?.data?.gridInfoMap || {};
+    const info = infoMap[String(threadId)] || infoMap[threadId];
+    if (!info) return null;
+    const memVerList = Array.isArray(info.memVerList) ? info.memVerList : [];
+    const name = info.name || "Tên Không Xác Định";
     return {
       name,
-      memberCount: groupInfo.gridInfoMap[threadId].memVerList.length,
-      createdTime: new Date(groupInfo.gridInfoMap[threadId].createdTime).toLocaleString(),
-      groupType: groupInfo.gridInfoMap[threadId].type,
-      memVerList: groupInfo.gridInfoMap[threadId].memVerList,
-      creatorId: groupInfo.gridInfoMap[threadId].creatorId,
-      adminIds: groupInfo.gridInfoMap[threadId].adminIds,
-      admins: groupInfo.gridInfoMap[threadId].admins,
-      avt: groupInfo.gridInfoMap[threadId].avt,
-      fullAvt: groupInfo.gridInfoMap[threadId].fullAvt,
-      globalId: groupInfo.gridInfoMap[threadId].globalId,
-      groupId: groupInfo.gridInfoMap[threadId].groupId,
-      desc: groupInfo.gridInfoMap[threadId].desc,
-      setting: groupInfo.gridInfoMap[threadId].setting,
-      totalMember: groupInfo.gridInfoMap[threadId].totalMember,
+      memberCount: memVerList.length,
+      createdTime: info.createdTime ? new Date(info.createdTime).toLocaleString() : "Không rõ",
+      groupType: info.type,
+      memVerList,
+      creatorId: String(info.creatorId || ""),
+      adminIds: info.adminIds || [],
+      admins: info.admins || [],
+      avt: info.avt,
+      fullAvt: info.fullAvt,
+      globalId: info.globalId,
+      groupId: String(info.groupId || threadId),
+      desc: info.desc,
+      setting: info.setting || {},
+      totalMember: Number(info.totalMember ?? info.memberCount ?? memVerList.length),
     };
   } catch (error) {
     console.error("Lỗi khi xử lý thông tin nhóm:", error);
@@ -403,28 +411,58 @@ function getAllInfoGroup(groupInfo, threadId) {
 export async function getDataAllGroup(api) {
   try {
     const allGroupsResult = await api.getAllGroups();
+    const listData = allGroupsResult?.data || allGroupsResult;
+    const gridVerMap = listData?.gridVerMap || {};
+    const listedInfoMap = listData?.gridInfoMap || {};
+    // Zalo can return a stale entry in either map.  When both maps are
+    // available, only keep IDs present in both: this is the set that is both
+    // currently listed for the account and backed by live group metadata.
+    // Falling back to the non-empty map keeps the function usable when Zalo
+    // omits one of the maps (which happens intermittently).
+    const versionIds = Object.keys(gridVerMap);
+    const infoIds = Object.keys(listedInfoMap);
+    let listedIds;
+    if (versionIds.length > 0 && infoIds.length > 0) {
+      const infoIdSet = new Set(infoIds.map(String));
+      listedIds = versionIds.filter((id) => infoIdSet.has(String(id)));
+      // Do not turn a transiently inconsistent response into an empty list.
+      // If Zalo gives two disjoint maps, retain the membership map for this
+      // request and let the next refresh reconcile it.
+      if (listedIds.length === 0) listedIds = versionIds;
+    } else {
+      listedIds = versionIds.length > 0 ? versionIds : infoIds;
+    }
+    const groupIds = [...new Set(listedIds.map(String))];
 
-    if (!allGroupsResult || !allGroupsResult.gridVerMap) {
+    if (groupIds.length === 0) {
       throw new Error("Không thể lấy danh sách nhóm");
     }
 
-    const groupIds = Object.keys(allGroupsResult.gridVerMap);
+    const combinedInfoMap = { ...listedInfoMap };
+    for (let index = 0; index < groupIds.length; index += 50) {
+      const chunk = groupIds.slice(index, index + 50);
+      try {
+        const response = await api.getGroupInfo(chunk);
+        Object.assign(combinedInfoMap, response?.gridInfoMap || response?.data?.gridInfoMap || {});
+      } catch (error) {
+        console.error(`Lỗi khi lấy batch nhóm ${index / 50 + 1}:`, error);
+      }
+    }
 
-    const allGroupsInfo = await Promise.all(
-      groupIds.map(async (threadId) => {
-        try {
-          const groupInfo = await getGroupInfoData(api, threadId, groupIds);
-          return groupInfo;
-        } catch (error) {
-          console.error(`Lỗi khi lấy thông tin nhóm ${threadId}:`, error);
-          return null;
-        }
+    const combinedResponse = { gridInfoMap: combinedInfoMap };
+    const now = Date.now();
+    const groups = groupIds
+      .map((threadId) => {
+        const info = getAllInfoGroup(combinedResponse, threadId);
+        if (info) groupInfoCache.set(`${api.getBotId()}:${threadId}`, { data: info, timestamp: now });
+        return info;
       })
-    );
-
-    const validGroupsInfo = allGroupsInfo.filter((info) => info !== null);
-
-    return validGroupsInfo;
+      .filter(Boolean);
+    // Keep the authoritative membership list alongside hydrated metadata. A
+    // failed info batch must not make cleanup mistake a live group for a stale
+    // one.
+    groups.activeGroupIds = groupIds;
+    return groups;
   } catch (error) {
     console.error("Lỗi khi lấy thông tin tất cả các nhóm:", error);
     return [];
@@ -452,6 +490,7 @@ export function getSettingEmoji(settingKey) {
     antiMediaFile: "📁",
     sendUserMember: "📩",
     antiPhoneNumber: "📞",
+    antiAds: "📢",
     antiFile: "📁",
     antiPhotoVideo: "📷",
     antiTag: "🏷️",
@@ -490,6 +529,7 @@ export function getSettingName(settingKey) {
     antiforward: "Chặn tin nhắn chuyển tiếp",
     sendUserMember: "Quảng cảo tới tin nhắn riêng",
     antiPhoneNumber: "Chặn số điện thoại",
+    antiAds: "Chặn quảng cáo",
     antiFile: "Chặn gửi file",
     antiSticker: "Chặn sticker",
     antiPhotoVideo: "Chặn ảnh & video",

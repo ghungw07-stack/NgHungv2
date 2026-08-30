@@ -11,8 +11,18 @@ import { generateLunarCalendarImage } from "../api-crawl/image-content/lichamlic
 import { getSendtaskOverallWeather } from "../api-crawl/content/weather.js";
 import { deleteFile } from "../../utils/util.js";
 import { getGroupInfoData } from "../info-service/group-info.js";
+import { runLimited as runWithLimit } from "./sendtask-limiter.js";
 
 const LOCK_CHAT_TIME_ZONE = "Asia/Ho_Chi_Minh";
+const CUSTOM_TASK_TYPES = new Set([
+  "sendTaskGirlVideo", "sendTaskGirlVideo:anime", "sendTaskGirlVideo:sexy",
+  "sendTaskGirlVideo:cosplay", "sendTaskVideo", "sendTaskMusic",
+  "sendTaskWeather", "sendTaskCalendar", "analyzeGroupInteractions",
+]);
+export const SENDTASK_SUPPORTED_TYPES = [...CUSTOM_TASK_TYPES];
+const SENDTASK_FANOUT_CONCURRENCY = Math.max(1, Number.parseInt(process.env.NGH_SENDTASK_CONCURRENCY || "2", 10) || 2);
+
+const runLimited = (items, worker) => runWithLimit(items, worker, SENDTASK_FANOUT_CONCURRENCY);
 
 function getLockChatClock() {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -75,6 +85,62 @@ async function processLockChatSchedules(api) {
       console.error(`Lỗi chạy lịch lockchat nhóm ${threadId}:`, error);
     }
   }
+}
+
+async function executeCustomTask(api, threadId, taskConfig) {
+  const message = { threadId, type: MessageType.GroupMessage };
+  const caption = taskConfig.caption || `-> SendTask ${taskConfig.time} <-`;
+  const ttl = 60 * 60 * 1000;
+  if (taskConfig.type.startsWith("sendTaskGirlVideo")) {
+    return sendRandomGirlVideo(api, message, caption, taskConfig.type.split(":")[1] || "default", ttl);
+  }
+  switch (taskConfig.type) {
+    case "sendTaskVideo": {
+      const videos = await searchTiktok("video TikTok chill dưới 45 giây");
+      if (!videos?.length) throw new Error("Không tìm thấy video TikTok phù hợp");
+      const videoUrl = await getRandomVideoFromArray(api, message, videos);
+      return api.sendVideo({ videoUrl, threadId, threadType: MessageType.GroupMessage, message: { text: caption }, ttl });
+    }
+    case "sendTaskMusic": return handleRandomChartZingMp3(api, message, caption, ttl);
+    case "sendTaskWeather": return getSendtaskOverallWeather(api, message, caption, ttl);
+    case "sendTaskCalendar": {
+      let imagePath;
+      try {
+        imagePath = await generateLunarCalendarImage();
+        const uploaded = await api.uploadAttachment([imagePath], threadId, MessageType.GroupMessage);
+        const imageUrl = uploaded?.[0]?.fileUrl || uploaded?.[0]?.normalUrl;
+        if (!imageUrl) throw new Error("Upload lịch không trả về URL");
+        return api.sendImage(imageUrl, message, caption, ttl);
+      } finally {
+        if (imagePath) await deleteFile(imagePath).catch(() => {});
+      }
+    }
+    case "analyzeGroupInteractions": return analyzeGroupInteractionsByThreadId(api, threadId, caption, ttl);
+    default: throw new Error(`Loại sendtask không hỗ trợ: ${taskConfig.type}`);
+  }
+}
+
+async function processCustomSendTasks(api) {
+  const groupSettings = groupSettingsAll.getByID(api.getBotId());
+  const clock = getLockChatClock();
+  const runKey = `${clock.date}:${clock.time}`;
+  await runLimited(Object.entries(groupSettings), async ([threadId, settings]) => {
+    if (!settings?.sendTask || !Array.isArray(settings.customSendTasks)) return;
+    const dueTasks = settings.customSendTasks.filter((task) =>
+      task?.time === clock.time && CUSTOM_TASK_TYPES.has(task.type) && task.lastRunKey !== runKey
+    );
+    for (const task of dueTasks) {
+      task.lastRunKey = runKey;
+      groupSettingsAll.setChanged();
+      try {
+        await executeCustomTask(api, threadId, task);
+      } catch (error) {
+        task.lastRunKey = null;
+        groupSettingsAll.setChanged();
+        console.error(`Lỗi custom sendtask ${task.type} (${task.time}) vào nhóm ${threadId}:`, error);
+      }
+    }
+  });
 }
 
 const scheduledTasks = [
@@ -333,9 +399,8 @@ const scheduledTasks = [
 
 async function sendTaskGirlVideo(api, caption, timeToLive, type = "default") {
   const groupSettings = groupSettingsAll.getByID(api.getBotId());
-  const promises = Object.keys(groupSettings).map(async (threadId) => {
-    if (!groupSettings[threadId].sendTask) return;
-
+  const enabledThreadIds = Object.keys(groupSettings).filter((threadId) => groupSettings[threadId].sendTask);
+  await runLimited(enabledThreadIds, async (threadId) => {
     const message = {
       threadId: threadId,
       type: MessageType.GroupMessage,
@@ -351,8 +416,6 @@ async function sendTaskGirlVideo(api, caption, timeToLive, type = "default") {
       }
     }
   });
-
-  await Promise.allSettled(promises);
 }
 
 async function sendTaskVideo(api, caption, timeToLive, query) {
@@ -360,9 +423,8 @@ async function sendTaskVideo(api, caption, timeToLive, query) {
   if (chillListVideo) {
     const groupSettings = groupSettingsAll.getByID(api.getBotId());
     let captionFinal = `${caption}`;
-    const promises = Object.keys(groupSettings).map(async (threadId) => {
-      if (!groupSettings[threadId].sendTask) return;
-
+    const enabledThreadIds = Object.keys(groupSettings).filter((threadId) => groupSettings[threadId].sendTask);
+    await runLimited(enabledThreadIds, async (threadId) => {
       const message = {
         threadId: threadId,
         type: MessageType.GroupMessage,
@@ -387,16 +449,13 @@ async function sendTaskVideo(api, caption, timeToLive, query) {
         }
       }
     });
-
-    await Promise.allSettled(promises);
   }
 }
 
 async function sendTaskMusic(api, caption, timeToLive) {
   const groupSettings = groupSettingsAll.getByID(api.getBotId());
-  const promises = Object.keys(groupSettings).map(async (threadId) => {
-    if (!groupSettings[threadId].sendTask) return;
-
+  const enabledThreadIds = Object.keys(groupSettings).filter((threadId) => groupSettings[threadId].sendTask);
+  await runLimited(enabledThreadIds, async (threadId) => {
     const message = {
       threadId: threadId,
       type: MessageType.GroupMessage,
@@ -412,15 +471,12 @@ async function sendTaskMusic(api, caption, timeToLive) {
       }
     }
   });
-
-  await Promise.allSettled(promises);
 }
 
 async function sendTaskLunarCalendar(api, caption, timeToLive) {
   const groupSettings = groupSettingsAll.getByID(api.getBotId());
-  const promises = Object.keys(groupSettings).map(async (threadId) => {
-    if (!groupSettings[threadId].sendTask) return;
-
+  const enabledThreadIds = Object.keys(groupSettings).filter((threadId) => groupSettings[threadId].sendTask);
+  await runLimited(enabledThreadIds, async (threadId) => {
     const message = {
       threadId,
       type: MessageType.GroupMessage,
@@ -443,15 +499,12 @@ async function sendTaskLunarCalendar(api, caption, timeToLive) {
       deleteFile(imagePath);
     }
   });
-
-  await Promise.allSettled(promises);
 }
 
 async function sendTaskOverallWeather(api, caption, timeToLive) {
   const groupSettings = groupSettingsAll.getByID(api.getBotId());
-  const promises = Object.keys(groupSettings).map(async (threadId) => {
-    if (!groupSettings[threadId].sendTask) return;
-
+  const enabledThreadIds = Object.keys(groupSettings).filter((threadId) => groupSettings[threadId].sendTask);
+  await runLimited(enabledThreadIds, async (threadId) => {
     const message = {
       threadId,
       type: MessageType.GroupMessage,
@@ -467,8 +520,6 @@ async function sendTaskOverallWeather(api, caption, timeToLive) {
       }
     }
   });
-
-  await Promise.allSettled(promises);
 }
 
 async function sendTaskMarketPrice(api, kind, caption, timeToLive) {
@@ -488,7 +539,7 @@ async function sendTaskMarketPrice(api, kind, caption, timeToLive) {
       imagePath = await createFuelPriceImage(prices, source);
     }
 
-    await Promise.allSettled(enabledThreadIds.map(async (threadId) => {
+    await runLimited(enabledThreadIds, async (threadId) => {
       const message = { threadId, type: MessageType.GroupMessage };
       try {
         const uploaded = await api.uploadAttachment([imagePath], threadId, MessageType.GroupMessage);
@@ -502,7 +553,7 @@ async function sendTaskMarketPrice(api, kind, caption, timeToLive) {
           groupSettingsAll.setChanged();
         }
       }
-    }));
+    });
   } catch (error) {
     console.error(`Lỗi tạo sendtask ${kind}:`, error);
   } finally {
@@ -514,9 +565,8 @@ async function analyzeGroupInteractions(api, caption, timeToLive) {
   const idBot = api.getBotId();
   const groupSettings = groupSettingsAll.getByID(idBot);
 
-  const promises = Object.keys(groupSettings).map(async (threadId) => {
-    if (!groupSettings[threadId].sendTask) return;
-
+  const enabledThreadIds = Object.keys(groupSettings).filter((threadId) => groupSettings[threadId].sendTask);
+  await runLimited(enabledThreadIds, async (threadId) => {
     try {
       await analyzeGroupInteractionsByThreadId(api, threadId, caption, timeToLive);
     } catch (error) {
@@ -527,8 +577,6 @@ async function analyzeGroupInteractions(api, caption, timeToLive) {
       }
     }
   });
-
-  await Promise.allSettled(promises);
 }
 
 export async function initializeScheduler(api) {
@@ -547,6 +595,13 @@ export async function initializeScheduler(api) {
       processLockChatSchedules(api).catch((error) => {
         console.error("Lỗi kiểm tra lịch khóa/mở chat:", error);
       });
+    });
+  }
+
+  const customTaskJobKey = "customSendTaskSchedule";
+  if (!api.apiInstance.schedule[customTaskJobKey]) {
+    api.apiInstance.schedule[customTaskJobKey] = schedule.scheduleJob("5 * * * * *", () => {
+      processCustomSendTasks(api).catch((error) => console.error("Lỗi kiểm tra lịch sendtask tùy chỉnh:", error));
     });
   }
 }

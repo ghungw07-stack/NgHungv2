@@ -26,6 +26,23 @@ const spotifyDownload = new SpotifyDown();
 const PLATFORM = "spotify";
 const TIME_TO_SELECT = 60000;
 
+async function isCachedVoiceUsable(cachedMusic) {
+  const fileUrl = cachedMusic?.fileUrl;
+  if (!fileUrl) return false;
+  try {
+    const response = await axios.get(fileUrl, {
+      headers: { Range: "bytes=0-0" },
+      responseType: "stream",
+      timeout: 8000,
+      validateStatus: (status) => status >= 200 && status < 400,
+    });
+    response.data?.destroy?.();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const musicSelectionsMap = new LRUCache({
   max: 500,
   ttl: TIME_TO_SELECT,
@@ -184,16 +201,17 @@ export async function handleMusicSpotifyReply(api, message) {
 export async function handleSendTrackSpotify(api, message, track) {
   const quality = "128 Kbps";
 
-  const cachedMusic = await getCachedMedia(PLATFORM, track.id, quality, track.title);
+  let cachedMusic = await getCachedMedia(PLATFORM, track.id, quality, track.title);
+  if (cachedMusic && !(await isCachedVoiceUsable(cachedMusic))) cachedMusic = null;
   let voiceUrl;
 
   const thumbnailUrl = track.thumbnail;
-  const trackInfoPromise = spotifyScrapper.getTrackInfo(track.uri).catch(() => null);
+  const trackInfoPromise = track.uri ? spotifyScrapper.getTrackInfo(track.uri).catch(() => null) : Promise.resolve(null);
 
   if (cachedMusic) {
     voiceUrl = cachedMusic.fileUrl;
   } else {
-    const streamData = await spotifyScrapper.getStreamSong(track.id);
+    const streamData = track.streamUrl || await spotifyScrapper.getStreamSong(track.id);
     if (!streamData) {
       const object = {
         caption: `Xin lỗi, không thể lấy được bài hát này về. Vui lòng thử lại bài khác.`,
@@ -259,7 +277,8 @@ export async function handleDownloadSpotifyLink(api, message, aliasCommand) {
   const track = metaData;
 
   const trackInfoPromise = spotifyScrapper.getTrackInfo(track.uri).catch(() => null);
-  const cachedMusic = await getCachedMedia(PLATFORM, track.id, quality, track.name);
+  let cachedMusic = await getCachedMedia(PLATFORM, track.id, quality, track.name);
+  if (cachedMusic && !(await isCachedVoiceUsable(cachedMusic))) cachedMusic = null;
   let voiceUrl;
 
   const thumbnailUrl = track.album.images.reduce(

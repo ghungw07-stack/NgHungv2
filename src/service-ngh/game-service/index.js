@@ -39,20 +39,15 @@ export async function checkBeforeJoinGame(api, message, groupSettings, checkLogi
   const isAdminBot = isAdmin(api.getBotId(), senderId, threadId);
 
   if (!connection) {
-    if (isAdminBot) {
-      const text =
-        "Cơ sở dữ liệu chưa được khởi động,\n" + "vui lòng kết nối với cơ sở dữ liệu và khởi động lại bot rồi thử lại!";
-      const result = {
-        success: false,
-        message: text,
-      };
-      await sendMessageFromSQL(api, message, result, true, 30000);
-      return false;
-    }
+    const text =
+      "Cơ sở dữ liệu game chưa được kết nối, vui lòng khởi động lại bot sau khi database hoạt động rồi thử lại!";
+    const result = { success: false, message: text };
+    await sendMessageFromSQL(api, message, result, true, 30000);
+    return false;
   }
 
   if (groupSettings) {
-    const activeGame = groupSettings[threadId].activeGame;
+    const activeGame = groupSettings?.[threadId]?.activeGame;
     const isAdminLevelHighest = isAdmin(api.getBotId(), senderId);
     if (!isAdminLevelHighest && activeGame === false) {
       let text = "";

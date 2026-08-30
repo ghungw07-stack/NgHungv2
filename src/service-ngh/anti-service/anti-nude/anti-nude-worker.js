@@ -1,13 +1,21 @@
 import { parentPort } from "worker_threads";
-import * as nsfwjs from "nsfwjs";
 import sharp from "sharp";
 import axios from "axios";
 
 let model = null;
+let nsfwjs = null;
+let modelUnavailable = false;
 
 const initModel = async () => {
+  if (modelUnavailable) throw new Error("NSFW model unavailable");
   try {
     if (!model) {
+      try {
+        nsfwjs = await import("nsfwjs");
+      } catch (error) {
+        modelUnavailable = true;
+        throw new Error(`NSFW model dependency missing: ${error.message}`);
+      }
       model = await nsfwjs.load(); //"InceptionV3"
     }
   } catch (error) {
@@ -100,8 +108,14 @@ async function analyzeImageApiPICPURIFY(srcCheck) {
 
 parentPort.on("message", async (data) => {
   try {
-    const score = await analyzeImage(data.imageBuffer);
-    // const score = await analyzeImageApiPICPURIFY(data.imageBuffer);
+    let score;
+    try {
+      score = await analyzeImage(data.imageBuffer);
+    } catch (modelError) {
+      // Nếu NSFWJS chưa cài hoặc model lỗi, dùng PicPurify thay vì làm hỏng toàn bộ anti-nude.
+      console.warn("NSFWJS unavailable, dùng PicPurify fallback:", modelError.message || modelError);
+      score = await analyzeImageApiPICPURIFY(data.imageBuffer);
+    }
     parentPort.postMessage({ type: "result", success: true, score });
   } catch (error) {
     parentPort.postMessage({

@@ -1,4 +1,4 @@
-export * from "./help.js";
+export * from "./help.ts";
 export * from "./info.js";
 export * from "./color.js";
 export * from "./shape.js";
@@ -6,6 +6,7 @@ export * from "./event-image.js";
 export * from "./game.js";
 export * from "./game-finance.js";
 export * from "./card-table.js";
+export * from "./football.js";
 
 import fs from "fs";
 import { deleteFile } from "../util.js";

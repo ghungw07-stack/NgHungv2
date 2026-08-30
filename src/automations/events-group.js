@@ -17,7 +17,7 @@ import {
   updateHistorySettingGroup,
 } from "../service-ngh/info-service/group-info.js";
 import { getNameServer, sendMessageResultRequest, sendMessageWarning } from "../service-ngh/chat-zalo/chat-style/chat-style.js";
-import { logMessageToFile, readWebConfig, writeWebConfig } from "../utils/io-json.js";
+import { DATA_ROOT, logMessageToFile, readWebConfig, writeWebConfig } from "../utils/io-json.js";
 import { groupSettingsAll } from "./event-send-msg.js";
 import { enforceAntiInvite } from "../service-ngh/anti-service/anti-invite.js";
 import { getPrCard } from "../commands/bot-manager/welcome-bye.js";
@@ -37,7 +37,7 @@ const JOIN_WINDOW = 5 * 60 * 1000;
 const JOIN_LEAVE_SPAM_WINDOW = 30 * 1000;
 const JOIN_LEAVE_SPAM_LIMIT = 2;
 const JOIN_LEAVE_BLOCK_DURATION = 12 * 60 * 60 * 1000;
-const JOIN_LEAVE_BLOCKS_PATH = path.join(process.cwd(), "assets", "data", "join-leave-blocks.json");
+const JOIN_LEAVE_BLOCKS_PATH = path.join(DATA_ROOT, "data", "join-leave-blocks.json");
 const joinLeaveSpamHistory = new Map();
 const joinLeaveApiByBot = new Map();
 
@@ -68,7 +68,7 @@ function normalizeMemberId(value) {
   return String(value ?? "").replace(/_0$/u, "");
 }
 
-async function sendJoinLeaveBlockNotice(api, threadId, userId, member) {
+async function sendJoinLeaveBlockNotice(api, threadId, userId, member, reason = "Vào/rời nhóm 3 lần trong vòng 12h") {
   const serverName = getNameServer(api);
   let blockedName = member?.dName || member?.name || member?.zaloName || "Thành viên";
   if (blockedName === "Thành viên") {
@@ -85,7 +85,7 @@ async function sendJoinLeaveBlockNotice(api, threadId, userId, member) {
     `│ 🚫 TỰ ĐỘNG CHẶN\n` +
     `│ 👤 ${blockedName}\n` +
     `│ 🆔 [ ${userId} ]\n` +
-    `│ 📌 Lý do: Vào/rời nhóm 3 lần trong vòng 12h\n` +
+    `│ 📌 Lý do: ${reason}\n` +
     `╰───────────────⟡`;
   const serverLineLength = `│ 🤖 ${serverName}`.length;
   await api.sendMessage(
@@ -102,42 +102,59 @@ async function sendJoinLeaveBlockNotice(api, threadId, userId, member) {
 async function enforceJoinLeaveSpam(api, event) {
   const botId = normalizeMemberId(api.getBotId());
   joinLeaveApiByBot.set(botId, api);
-  if (![GroupEventType.JOIN, GroupEventType.LEAVE].includes(event.type)) return;
-  const members = Array.isArray(event.data?.updateMembers) ? event.data.updateMembers : [];
+  if (![GroupEventType.JOIN_REQUEST, GroupEventType.JOIN, GroupEventType.LEAVE].includes(event.type)) return;
+  let members = Array.isArray(event.data?.updateMembers) ? event.data.updateMembers : [];
+  // JOIN_REQUEST không có updateMembers; lấy danh sách đang chờ duyệt để
+  // nhận diện người gửi yêu cầu lặp trước khi hệ thống tự duyệt.
+  if (event.type === GroupEventType.JOIN_REQUEST) {
+    try {
+      const pending = await api.getGroupPendingMembers(String(event.threadId));
+      members = Array.isArray(pending?.users) ? pending.users : [];
+    } catch (error) {
+      console.error(`Không lấy được danh sách yêu cầu tham gia nhóm ${event.threadId}:`, error);
+      return;
+    }
+  }
   if (!members.length) return;
 
   const threadId = String(event.threadId);
   const now = Date.now();
 
   for (const member of members) {
-    const rawUserId = String(member?.id ?? member ?? "");
+    const rawUserId = String(member?.id ?? member?.uid ?? member ?? "");
     const normalizedUserId = normalizeMemberId(rawUserId);
     if (!rawUserId || !normalizedUserId || normalizedUserId === botId) continue;
     const blockKey = `${botId}:${threadId}:${normalizedUserId}`;
     const activeBlock = joinLeaveBlocks[blockKey];
     if (Number(activeBlock?.until) > now) {
-      // Bản ghi fallback cũ sẽ thử block lại bằng UID đầy đủ. Chỉ kick nếu
-      // endpoint block thực sự trả lỗi cho UID đó.
-      if (event.type === GroupEventType.JOIN && activeBlock.mode === "kick") {
-        try {
-          const retryBlock = await api.blockUsers(threadId, [rawUserId]);
-          const failedMembers = Array.isArray(retryBlock?.errorMembers) ? retryBlock.errorMembers : [];
-          if (failedMembers.length) {
-            await api.removeUserFromGroup(threadId, [rawUserId]);
-          } else {
-            activeBlock.mode = "block";
-            activeBlock.userId = rawUserId;
-            saveJoinLeaveBlocks();
-          }
-        } catch (error) {
+      if (activeBlock.mode === "block") {
+        // Admin manually unblocked them on Zalo, so we clear the bot's block record
+        delete joinLeaveBlocks[blockKey];
+        saveJoinLeaveBlocks();
+      } else {
+        // Bản ghi fallback cũ sẽ thử block lại bằng UID đầy đủ. Chỉ kick nếu
+        // endpoint block thực sự trả lỗi cho UID đó.
+        if (event.type === GroupEventType.JOIN && activeBlock.mode === "kick") {
           try {
-            await api.removeUserFromGroup(threadId, [rawUserId]);
-          } catch (kickError) {
-            console.error(`Lỗi block/kick UID đang bị cấm ${rawUserId} tại nhóm ${threadId}:`, kickError);
+            const retryBlock = await api.blockUsers(threadId, [rawUserId]);
+            const failedMembers = Array.isArray(retryBlock?.errorMembers) ? retryBlock.errorMembers : [];
+            if (failedMembers.length) {
+              await api.removeUserFromGroup(threadId, [rawUserId]);
+            } else {
+              activeBlock.mode = "block";
+              activeBlock.userId = rawUserId;
+              saveJoinLeaveBlocks();
+            }
+          } catch (error) {
+            try {
+              await api.removeUserFromGroup(threadId, [rawUserId]);
+            } catch (kickError) {
+              console.error(`Lỗi block/kick UID đang bị cấm ${rawUserId} tại nhóm ${threadId}:`, kickError);
+            }
           }
         }
+        continue;
       }
-      continue;
     }
 
     const recent = (joinLeaveSpamHistory.get(blockKey) || [])
@@ -431,7 +448,6 @@ export async function gruopEvents(api, event) {
                 avatar: groupInfo.avatar || "",
                 timestamp: Date.now(),
               };
-              config.activePr = true;
               await writeWebConfig(botId, config);
             }
           }
@@ -905,34 +921,143 @@ export async function gruopEvents(api, event) {
       updateHistorySettingGroup(threadId, nextSnapshot);
   } else {
     switch (type) {
-      case GroupEventType.JOIN_REQUEST:
-        const usersJoinRequest = await api.getGroupPendingMembers(threadId);
-        const listMembers = usersJoinRequest.users?.map((user) => user.uid) || [];
-        if (threadSettings.memberApprove && listMembers.length > 0) {
-          const blockOutMembers = [];
-          if (!historyJoinRequest.has(threadId)) {
-            historyJoinRequest.set(threadId, new Map());
-          }
-          const threadHistory = historyJoinRequest.get(threadId);
+      case GroupEventType.JOIN_REQUEST: {
+        let usersJoinRequest;
+        try {
+          usersJoinRequest = await api.getGroupPendingMembers(threadId);
+        } catch (error) {
+          console.error(`Lỗi lấy danh sách pending members nhóm ${threadId}:`, error);
+          break;
+        }
+        const listMembers = usersJoinRequest?.users?.map((user) => user.uid) || [];
+        if (listMembers.length === 0) break;
 
-          for (const userId of listMembers) {
-            const now = Date.now();
-            if (!threadHistory.has(userId)) {
-              threadHistory.set(userId, []);
-            }
-            threadHistory.get(userId).push(now);
-            if (threadHistory.get(userId).length >= 5) {
+        // --- Anti-spam JOIN_REQUEST (chạy LUÔN, không phụ thuộc memberApprove) ---
+        const blockOutMembers = [];
+        if (!historyJoinRequest.has(threadId)) {
+          historyJoinRequest.set(threadId, new Map());
+        }
+        const threadHistory = historyJoinRequest.get(threadId);
+        const now = Date.now();
+        const botKey = normalizeMemberId(api.getBotId());
+
+        for (const userId of listMembers) {
+          const normalizedId = normalizeMemberId(userId);
+          const blockKey = `${botKey}:${String(threadId)}:${normalizedId}`;
+
+          // Nếu đã bị block bởi hệ thống chống spam → kiểm tra mode
+          if (joinLeaveBlocks[blockKey] && Number(joinLeaveBlocks[blockKey].until) > now) {
+            if (joinLeaveBlocks[blockKey].mode === "block") {
+              // Người dùng gửi được JOIN_REQUEST nghĩa là admin đã gỡ block Zalo
+              delete joinLeaveBlocks[blockKey];
+              saveJoinLeaveBlocks();
+            } else {
               blockOutMembers.push(userId);
-              threadHistory.delete(userId);
+              continue;
             }
           }
 
-          await api.handleGroupPendingMembers(threadId, true, usersJoinRequest);
-          if (blockOutMembers.length > 0) {
-            await api.blockUsers(threadId, blockOutMembers);
+          if (!threadHistory.has(userId)) {
+            threadHistory.set(userId, []);
+          }
+
+          // Chỉ đếm request trong khoảng JOIN_WINDOW (5 phút)
+          const recentRequests = threadHistory.get(userId).filter((t) => now - t <= JOIN_WINDOW);
+          recentRequests.push(now);
+          threadHistory.set(userId, recentRequests);
+
+          // Ngưỡng: 3 request trong 5 phút → spam
+          if (recentRequests.length >= 3) {
+            blockOutMembers.push(userId);
+            // KHÔNG xóa history ở đây — chờ block thành công mới xóa
+          }
+        }
+
+        // Tập hợp tất cả UID cần reject (spam mới + đã bị block trước đó)
+        const blockedUids = new Set(blockOutMembers.map((uid) => normalizeMemberId(uid)));
+        for (const [, record] of Object.entries(joinLeaveBlocks)) {
+          if (String(record?.botId) === botKey && String(record?.threadId) === String(threadId)
+            && Number(record?.until) > now) {
+            blockedUids.add(normalizeMemberId(record.userId));
+          }
+        }
+
+        const approvedUsers = (usersJoinRequest.users || []).filter((user) => {
+          const uid = normalizeMemberId(String(user?.uid ?? user?.id ?? ""));
+          return !blockedUids.has(uid);
+        });
+        const rejectedUsers = (usersJoinRequest.users || []).filter((user) => {
+          const uid = normalizeMemberId(String(user?.uid ?? user?.id ?? ""));
+          return blockedUids.has(uid);
+        });
+
+        // Reject spammer TRƯỚC
+        if (rejectedUsers.length > 0) {
+          try {
+            await api.handleGroupPendingMembers(threadId, false, { users: rejectedUsers });
+          } catch (error) {
+            console.error(`Lỗi reject yêu cầu spam tại nhóm ${threadId}:`, error);
+          }
+        }
+
+        // Chỉ auto-approve nếu bật memberApprove
+        if (threadSettings.memberApprove && approvedUsers.length > 0) {
+          try {
+            await api.handleGroupPendingMembers(threadId, true, { users: approvedUsers });
+          } catch (error) {
+            console.error(`Lỗi approve yêu cầu tại nhóm ${threadId}:`, error);
+          }
+        }
+
+        // Block spammer + lưu persistent
+        if (blockOutMembers.length > 0) {
+          const newlyBlockedUsers = [];
+          for (const userId of blockOutMembers) {
+            const normalizedId = normalizeMemberId(userId);
+            const blockKey = `${botKey}:${String(threadId)}:${normalizedId}`;
+
+            let mode = "block";
+            try {
+              const blockResult = await api.blockUsers(threadId, [userId]);
+              if (Array.isArray(blockResult?.errorMembers) && blockResult.errorMembers.length > 0) {
+                mode = "kick";
+              }
+            } catch (error) {
+              console.error(`Lỗi block spam join request ${userId} tại nhóm ${threadId}:`, error);
+              mode = "kick";
+            }
+
+            // Lưu persistent block (12h)
+            joinLeaveBlocks[blockKey] = {
+              botId: botKey,
+              threadId: String(threadId),
+              userId: String(userId),
+              mode,
+              until: now + JOIN_LEAVE_BLOCK_DURATION,
+            };
+            
+            if (mode === "block") newlyBlockedUsers.push(userId);
+
+            // Xóa history
+            threadHistory.delete(userId);
+          }
+          saveJoinLeaveBlocks();
+
+          // Gửi thông báo cho mỗi user MỚI bị block lần này
+          for (const userId of newlyBlockedUsers) {
+            const normalizedId = normalizeMemberId(userId);
+            try {
+              const member = usersJoinRequest.users?.find(
+                (u) => normalizeMemberId(String(u?.uid ?? u?.id ?? "")) === normalizedId
+              );
+              await sendJoinLeaveBlockNotice(api, threadId, userId, member, "Spam yêu cầu tham gia (3 lần trong 5 phút)");
+            } catch (noticeError) {
+              console.error(`Đã block nhưng không gửi được thông báo cho ${userId}:`, noticeError);
+            }
           }
         }
         break;
+      }
     }
 }
 

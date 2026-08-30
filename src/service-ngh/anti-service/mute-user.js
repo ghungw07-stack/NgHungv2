@@ -19,6 +19,7 @@ import { deleteFile } from "../../utils/util.js";
 import { groupSettingsAll } from "../../automations/event-send-msg.js";
 import { getMessageCache } from "../../utils/message-cache.js";
 import { deleteMessageCustomer } from "../../commands/bot-manager/utilities.js";
+import { getUserInfoData } from "../info-service/user-info.js";
 
 const PERMANENT_MUTE = -1;
 const MUTE_TIME_UNITS = {
@@ -485,7 +486,21 @@ export async function handleMuteUser(api, message, groupSettings, groupAdmins) {
 
     for (const mention of mentions) {
       const userId = mention.uid;
-      const userName = message.data.content.substr(mention.pos, mention.len).replace("@", "");
+      let userName = message.data.content.substr(mention.pos, mention.len).replace("@", "");
+      
+      if (!userName || userName.trim() === "" || userName.startsWith(prefix) || userName.startsWith(">")) {
+        try {
+          const userInfo = await getUserInfoData(api, userId);
+          if (userInfo && userInfo.name) {
+            userName = userInfo.name;
+          } else {
+            userName = mention.dName || mention.name || `Người dùng ${userId}`;
+          }
+        } catch (error) {
+          console.error("Lỗi lấy thông tin user trong mute:", error);
+          userName = mention.dName || mention.name || `Người dùng ${userId}`;
+        }
+      }
 
       if (isAdmin(api.getBotId(), userId, threadId)) {
         await sendMessageWarning(api, message, `Không thể cấm chat ${userName} vì họ là quản trị viên`);
@@ -526,7 +541,19 @@ export async function handleUnmuteUser(api, message, groupSettings) {
         isChangeSetting = true;
         await sendMessageComplete(api, message, `Đã mở chat người dùng ${userName.name || userId || userName}.`);
       } else {
-        const userName = message.data.content.substr(mention.pos, mention.pos + mention.len).replace("@", "");
+        let userName = message.data.content.substr(mention.pos, mention.len).replace("@", "");
+        if (!userName || userName.trim() === "" || userName.startsWith(getGlobalPrefix(api.getBotId())) || userName.startsWith(">")) {
+          try {
+            const userInfo = await getUserInfoData(api, userId);
+            if (userInfo && userInfo.name) {
+              userName = userInfo.name;
+            } else {
+              userName = mention.dName || mention.name || `Người dùng ${userId}`;
+            }
+          } catch (error) {
+            userName = mention.dName || mention.name || `Người dùng ${userId}`;
+          }
+        }
         await sendMessageWarning(
           api,
           message,

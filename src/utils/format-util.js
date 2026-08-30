@@ -9,10 +9,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const FONT_DIR = path.resolve(__dirname, "../../assets/fonts");
 
-function safeRegisterFont(fileName, family) {
+function safeRegisterFont(fileName, family, options = {}) {
   try {
     const fontPath = path.join(FONT_DIR, fileName);
-    registerFont(fontPath, { family });
+    registerFont(fontPath, { family, ...options });
   } catch (err) {
     console.warn(`[canvas] Không thể load font ${fileName} (${family}):`, err?.message || err);
   }
@@ -22,9 +22,17 @@ safeRegisterFont("SVN-Transformer.ttf", "Transformer");
 safeRegisterFont("BeVietnamPro-Bold.ttf", "BeVietnamPro");
 safeRegisterFont("NotoSans-Bold.ttf", "NotoSansB");
 safeRegisterFont("NotoSans-Bold.ttf", "NotoSansCJK-Bold");
+safeRegisterFont("Poppins-Regular.ttf", "Poppins", { weight: "400" });
+safeRegisterFont("Poppins-Medium.ttf", "Poppins", { weight: "500" });
+safeRegisterFont("Poppins-SemiBold.ttf", "Poppins", { weight: "600" });
+safeRegisterFont("Poppins-Bold.ttf", "Poppins", { weight: "700" });
+safeRegisterFont("Poppins-ExtraBold.ttf", "Poppins", { weight: "800" });
+safeRegisterFont("Sora-Variable.ttf", "Sora");
 // Symbola là fallback emoji dạng vector tương thích Cairo/node-canvas trên Node 24.
 // Noto Color Emoji có thể được nhận diện nhưng render thành khoảng trắng.
 export const FONT_MAIN = "BeVietnamPro, Symbola";
+export const FONT_MENU = "Poppins, BeVietnamPro, Symbola";
+export const FONT_MENU_SORA = "Sora, BeVietnamPro, Symbola";
 export function getFontCanvas(text) {
   const trimmed = text.trim();
   for (const ch of trimmed) {

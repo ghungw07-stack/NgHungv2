@@ -1,6 +1,7 @@
 import { MessageType } from "zlbotngh";
 import { MuteAction } from "../../api-zalo/apis/setMute.js";
 import * as cv from "../../utils/canvas/index.js";
+import { createListImage } from "../../utils/canvas/list-form-v1.js";
 import { getUserInfoBasic, getUserInfoData, getUsersInfoBasic } from "../../service-ngh/info-service/user-info.js";
 import {
   sendMessageComplete,
@@ -14,7 +15,7 @@ import {
   sendMessageStateQuote,
 } from "../../service-ngh/chat-zalo/chat-style/chat-style.js";
 import { getGlobalPrefix } from "../../service-ngh/service.js";
-import { getCommandConfig, isAdmin } from "../../index.js";
+import { getCommandConfig, isAdmin, isBotLeader, apiManager } from "../../index.js";
 import { FONT_MAIN, randomIDTemp, removeMention } from "../../utils/format-util.js";
 import { chunkArray } from "../../utils/util.js";
 import { createCanvas, loadImage } from "canvas";
@@ -37,11 +38,30 @@ import {
   removeTargetsByRefs,
 } from "./target-enforcement.js";
 import { fileURLToPath } from "url";
+import { LRUCache } from "lru-cache";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const TIME_REGEX = /^(\d{1,2}):(\d{2})$/;
 const LOCK_CHAT_TIME_ZONE = "Asia/Ho_Chi_Minh";
 const lockChatTimers = new Map();
+const BLOCK_LIST_SESSION_TTL = 10 * 60 * 1000;
+const blockListReplySessions = new LRUCache({ max: 500, ttl: BLOCK_LIST_SESSION_TTL });
+
+function getSentMessageIds(result) {
+  return [
+    result?.message?.msgId,
+    result?.message?.cliMsgId,
+    ...(result?.attachment || []).flatMap((item) => [item?.msgId, item?.cliMsgId]),
+  ].filter((id) => id !== undefined && id !== null).map(String);
+}
+
+function getQuotedMessageIds(message) {
+  const quote = message.data?.quote;
+  if (!quote) return [];
+  return [quote.globalMsgId, quote.msgId, quote.cliMsgId]
+    .filter((id) => id !== undefined && id !== null)
+    .map(String);
+}
 
 /** Hiển thị thành viên ít tương tác, dạng text 25 người mỗi trang. */
 async function handleLowInteractionMembers(api, message, groupInfo, args, aliasCommand) {
@@ -431,7 +451,14 @@ export async function handleBlock(api, message, groupInfo, groupSettings) {
   // UID gõ tay trực tiếp (không @mention), ví dụ: block 1234567890123
   const rawUidArgs = tokens.slice(1).filter((t) => /^\d{6,}$/.test(t));
 
-  if (subCommand === "target" || subCommand === "list" || subCommand === "remove") {
+  if (subCommand === "list" || subCommand === "remove") {
+    const groupTypeString = groupInfo.groupType === 1 ? "Nhóm" : "Cộng Đồng";
+    const args = tokens.slice(1);
+    await handleGroupBlockList(api, message, args, "block", groupTypeString);
+    return;
+  }
+
+  if (subCommand === "target") {
     await sendMessageWarning(
       api,
       message,
@@ -798,6 +825,7 @@ export async function handleBlockBot(api, message, groupSettings) {
     }
 
     managerDataCache.setChanged(botId);
+    managerDataCache.save(botId);
   }
   await sendMessageStateQuote(api, message, messageContent.trim(), false, 300000, false);
 }
@@ -975,16 +1003,297 @@ export async function handleListBlockBot(api, message) {
 
 export function isUserBlocked(botId, senderId) {
   try {
+    const normalizedSenderId = String(senderId ?? "").replace(/_0$/, "");
+    if (!normalizedSenderId) return false;
+
+    // 1. Kiểm tra blockBot trên chính bot hiện tại
     const mngrData = managerDataCache.get(botId);
-    if (!mngrData || !mngrData.blockBot) {
-      return false;
+    if (mngrData?.blockBot && Array.isArray(mngrData.blockBot)) {
+      const blockedLocally = mngrData.blockBot.some((blocked) => {
+        const normalizedBlockedId = String(blocked?.idUserZalo ?? "").replace(/_0$/, "");
+        return normalizedBlockedId === normalizedSenderId;
+      });
+      if (blockedLocally) return true;
     }
 
-    return mngrData.blockBot.some((blocked) => blocked.idUserZalo === senderId);
+    // 2. Kiểm tra blockBot trên bot chính (Main Bot)
+    const ownerId = apiManager.apiManagerObject?.[botId]?.ownerId;
+    if (ownerId && String(ownerId) !== String(botId)) {
+      const mainMngrData = managerDataCache.get(ownerId);
+      if (mainMngrData?.blockBot && Array.isArray(mainMngrData.blockBot)) {
+        const blockedOnMain = mainMngrData.blockBot.some((blocked) => {
+          const normalizedBlockedId = String(blocked?.idUserZalo ?? "").replace(/_0$/, "");
+          return normalizedBlockedId === normalizedSenderId;
+        });
+        if (blockedOnMain) return true;
+      }
+    }
+
+    return false;
   } catch (error) {
     console.error("Lỗi khi kiểm tra trạng thái block:", error);
     return false;
   }
+}
+
+export async function handleBlockBotAll(api, message, groupSettings) {
+  const botId = api.getBotId();
+  const senderId = message.data.uidFrom;
+  const prefix = getGlobalPrefix(botId);
+
+  if (!api.apiManager?.isMainBot || !isBotLeader(botId, senderId)) {
+    await sendMessageInsufficientAuthority(
+      api, message,
+      "Chỉ Bot Chính và Bot Leader mới được sử dụng blockbot all!"
+    );
+    return;
+  }
+
+  let listIdBlock = [];
+
+  // Parse từ mentions
+  const mentions = message.data?.mentions;
+  if (mentions && mentions.length > 0) {
+    for (const mention of mentions) {
+      const targetId = String(mention.uid).replace(/_0$/, "");
+      const targetName = message.data.content
+        .substring(mention.pos, mention.pos + mention.len)
+        .replace("@", "");
+      if (!isAdmin(botId, targetId)) {
+        listIdBlock.push({ targetId, targetName });
+      } else {
+        await sendMessageStateQuote(
+          api, message,
+          `🚨 Không thể block Quản Trị Cấp Cao: ${targetName}`,
+          false, 60000, false
+        );
+      }
+    }
+  }
+
+  // Parse từ UID
+  const content = removeMention(message) || "";
+  // Tách tất cả các từ trong message
+  const words = content.trim().split(/\s+/);
+  for (const word of words) {
+    const cleanWord = word.replace(/_0$/, "").trim();
+    if (/^\d{8,25}$/.test(cleanWord) && !listIdBlock.some((item) => item.targetId === cleanWord)) {
+      if (!isAdmin(botId, cleanWord)) {
+        try {
+          const userInfo = await getUserInfoBasic(api, cleanWord);
+          listIdBlock.push({
+            targetId: cleanWord,
+            targetName: userInfo?.displayName || userInfo?.zaloName || `ID ${cleanWord}`,
+          });
+        } catch {
+          listIdBlock.push({ targetId: cleanWord, targetName: `ID ${cleanWord}` });
+        }
+      } else {
+        await sendMessageStateQuote(
+          api, message,
+          `🚨 Không thể block Quản Trị Cấp Cao: ID ${cleanWord}`,
+          false, 60000, false
+        );
+      }
+    }
+  }
+
+  if (listIdBlock.length === 0) {
+    await sendMessageStateQuote(
+      api, message,
+      `🚨 Vui lòng chỉ định người cần chặn.\n` +
+        `Cú pháp: ${prefix}blockbot all @mention\n` +
+        `Hoặc: ${prefix}blockbot all <UID>`,
+      false, 60000, false
+    );
+    return;
+  }
+
+  // Tìm tất cả bot con thuộc về user này để block
+  const botIdSet = new Set();
+  const botLogPaths = new Map();
+  const currentMainId = String(api.apiManager?.idBotMainWithBot || botId);
+  try {
+    const configPaths = [
+      { cp: path.join(process.cwd(), "assets", "data", "manager-bots.json"), logDir: "main" },
+      { cp: path.join(process.cwd(), "shards", "shard2", "assets", "data", "manager-bots.json"), logDir: "shard2" }
+    ];
+    for (const { cp, logDir } of configPaths) {
+      if (fs.existsSync(cp)) {
+        const bots = JSON.parse(fs.readFileSync(cp, "utf8"));
+        for (const [key, bData] of Object.entries(bots)) {
+          if (bData.idBot) {
+            botIdSet.add(bData.idBot);
+            botLogPaths.set(bData.idBot, path.join(process.cwd(), "logs", logDir, bData.idBot, "manager-bot.json"));
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error("Lỗi đọc danh sách bot:", e);
+  }
+
+  let totalBots = 0;
+  for (const mBotId of botIdSet) {
+    let mngrData;
+    let isMemory = false;
+    
+    // Nếu bot nằm trong Shard hiện tại, lấy từ bộ nhớ để update realtime
+    if (apiManager.apiManagerObject && apiManager.apiManagerObject[mBotId]) {
+      mngrData = managerDataCache.get(mBotId);
+      isMemory = true;
+    } else {
+      // Nếu nằm ở Shard khác, đọc trực tiếp từ ổ cứng
+      const filePath = botLogPaths.get(mBotId);
+      if (filePath && fs.existsSync(filePath)) {
+        try {
+          mngrData = JSON.parse(fs.readFileSync(filePath, "utf8"));
+        } catch (e) {}
+      }
+      if (!mngrData) mngrData = {};
+    }
+
+    if (!mngrData.blockBot) mngrData.blockBot = [];
+
+    totalBots++;
+    for (const item of listIdBlock) {
+      const normalizedTarget = String(item.targetId).replace(/_0$/, "");
+      const isBlocked = mngrData.blockBot.some(
+        (blocked) => String(blocked.idUserZalo).replace(/_0$/, "") === normalizedTarget
+      );
+      if (!isBlocked) {
+        mngrData.blockBot.push({
+          idUserZalo: normalizedTarget,
+          senderName: item.targetName,
+        });
+      }
+    }
+    
+    if (isMemory) {
+      managerDataCache.setChanged(mBotId);
+      managerDataCache.save(mBotId);
+    } else {
+      const filePath = botLogPaths.get(mBotId);
+      if (filePath) {
+        fs.mkdirSync(path.dirname(filePath), { recursive: true });
+        fs.writeFileSync(filePath, JSON.stringify(mngrData, null, 2));
+      }
+    }
+  }
+
+  const targetNames = listIdBlock.map((item) => item.targetName).join(", ");
+  await sendMessageStateQuote(
+    api, message,
+    `✅ Đã chặn toàn hệ thống đối với: ${targetNames}\n` +
+      `📊 Áp dụng trên ${totalBots} bot.`,
+    true, 300000, false
+  );
+}
+
+/**
+ * Unblock user trên TOÀN BỘ bot trong hệ thống.
+ * Chỉ mainBot + botLeader mới dùng được.
+ * Cú pháp: unblockbot all @mention | unblockbot all <UID>
+ */
+export async function handleUnblockBotAll(api, message, groupSettings) {
+  const botId = api.getBotId();
+  const senderId = message.data.uidFrom;
+  const prefix = getGlobalPrefix(botId);
+
+  if (!api.apiManager?.isMainBot || !isBotLeader(botId, senderId)) {
+    await sendMessageInsufficientAuthority(
+      api, message,
+      "Chỉ Bot Chính và Bot Leader mới được sử dụng unblockbot all!"
+    );
+    return;
+  }
+
+  let listIdUnblock = [];
+
+  // Parse từ mentions
+  const mentions = message.data?.mentions;
+  if (mentions && mentions.length > 0) {
+    for (const mention of mentions) {
+      const targetId = String(mention.uid).replace(/_0$/, "");
+      const targetName = message.data.content
+        .substring(mention.pos, mention.pos + mention.len)
+        .replace("@", "");
+      listIdUnblock.push({ targetId, targetName });
+    }
+  }
+
+  // Parse từ UID
+  const content = removeMention(message) || "";
+  const words = content.trim().split(/\s+/);
+  for (const word of words) {
+    const cleanWord = word.replace(/_0$/, "").trim();
+    if (/^\d{8,25}$/.test(cleanWord) && !listIdUnblock.some((item) => item.targetId === cleanWord)) {
+      try {
+        const userInfo = await getUserInfoBasic(api, cleanWord);
+        listIdUnblock.push({
+          targetId: cleanWord,
+          targetName: userInfo?.displayName || userInfo?.zaloName || `ID ${cleanWord}`,
+        });
+      } catch {
+        listIdUnblock.push({ targetId: cleanWord, targetName: `ID ${cleanWord}` });
+      }
+    }
+  }
+
+  if (listIdUnblock.length === 0) {
+    await sendMessageStateQuote(
+      api, message,
+      `🚨 Vui lòng chỉ định người cần bỏ chặn.\n` +
+        `Cú pháp: ${prefix}unblockbot all @mention\n` +
+        `Hoặc: ${prefix}unblockbot all <UID>`,
+      false, 60000, false
+    );
+    return;
+  }
+
+  // Unblock trên tất cả bot (cả bot đang chạy và bot trong thư mục logs)
+  const botIdSet = new Set(Object.keys(apiManager.apiManagerObject || {}));
+  try {
+    const logsDir = path.join(process.cwd(), "logs");
+    if (fs.existsSync(logsDir)) {
+      for (const entry of fs.readdirSync(logsDir)) {
+        if (/^\d+$/.test(entry)) botIdSet.add(entry);
+      }
+    }
+  } catch (e) {
+    console.error("Lỗi duyệt thư mục logs:", e);
+  }
+
+  let totalBots = 0;
+  let totalUnblocked = 0;
+
+  for (const mBotId of botIdSet) {
+    const mngrData = managerDataCache.get(mBotId);
+    if (!mngrData) continue;
+    if (!mngrData.blockBot) mngrData.blockBot = [];
+
+    totalBots++;
+    for (const item of listIdUnblock) {
+      const normalizedTarget = String(item.targetId).replace(/_0$/, "");
+      const index = mngrData.blockBot.findIndex(
+        (blocked) => String(blocked.idUserZalo).replace(/_0$/, "") === normalizedTarget
+      );
+      if (index !== -1) {
+        mngrData.blockBot.splice(index, 1);
+        totalUnblocked++;
+      }
+    }
+    managerDataCache.setChanged(mBotId);
+    managerDataCache.save(mBotId);
+  }
+
+  const targetNames = listIdUnblock.map((item) => item.targetName).join(", ");
+  await sendMessageStateQuote(
+    api, message,
+    `✅ Đã bỏ chặn toàn hệ thống đối với: ${targetNames}\n` +
+      `📊 Đã gỡ ${totalUnblocked} lượt chặn trên ${totalBots} bot.`,
+    true, 300000, false
+  );
 }
 
 export async function getGroupBlockList(api, message) {
@@ -1027,7 +1336,7 @@ export async function handleGroupBlockList(api, message, args, aliasCommand, gro
     await sendMessageStateQuote(
       api,
       message,
-      `Cú pháp câu lệnh: ${prefix}${aliasCommand} block <add/remove/list> <@mention|index>\n` +
+      `Cú pháp: ${prefix}${aliasCommand} <add/remove/list> <UID|index>\n` +
       `list: hiển thị danh sách đối tượng chặn trong ${groupTypeString}.\n` +
       "add: thêm đối tượng vào danh sách chặn (thông qua mention hoặc uid chỉ định).\n" +
       "remove: xóa đối tượng khỏi danh sách chặn thông qua index.",
@@ -1117,7 +1426,7 @@ export async function handleGroupBlockList(api, message, args, aliasCommand, gro
           api,
           message,
           `🚨 Vui lòng nhập số thứ tự hoặc "all" để mở chặn tất cả.\n` +
-          `Ví dụ:\n• ${prefix}${aliasCommand} remove 1\n• ${prefix}${aliasCommand} remove all\nĐể xem danh sách chặn: ${prefix}${aliasCommand} block list`,
+          `Ví dụ:\n• ${prefix}${aliasCommand} remove 1\n• ${prefix}${aliasCommand} remove all\nĐể xem danh sách chặn: ${prefix}${aliasCommand} list`,
           false,
           60000,
           false
@@ -1130,7 +1439,7 @@ export async function handleGroupBlockList(api, message, args, aliasCommand, gro
         await sendMessageStateQuote(
           api,
           message,
-          `🚨 Số thứ tự không hợp lệ.\nĐể xem danh sách chặn: ${prefix}${aliasCommand} block list`,
+          `🚨 Số thứ tự không hợp lệ.\nĐể xem danh sách chặn: ${prefix}${aliasCommand} list`,
           false,
           60000,
           false
@@ -1165,19 +1474,26 @@ export async function handleGroupBlockList(api, message, args, aliasCommand, gro
             let imagePath = null;
             try {
               imagePath = await createBlockListImage(blockList, groupTypeString);
-              await sendMessageFromSQL(api, message, {
-                success: true,
-                message: ``
-              }, false, 600000);              
-              await sendMessageCompleteRequest(
+              const sent = await sendMessageCompleteRequest(
                 api,
                 message,
                 {
-                  caption: `Đây là danh sách người dùng bị chặn trong ${groupTypeString}.`,
+                  caption:
+                    `Đây là danh sách người dùng bị chặn trong ${groupTypeString}.\n` +
+                    `Reply tin này: remove <số thứ tự>`,
                   imagePath,
                 },
-                600000
+                BLOCK_LIST_SESSION_TTL
               );
+              for (const msgId of getSentMessageIds(sent)) {
+                blockListReplySessions.set(msgId, {
+                  botId: String(api.getBotId()),
+                  threadId: String(message.threadId),
+                  requesterId: String(message.data.uidFrom),
+                  groupTypeString,
+                  blockList: blockList.map((item) => ({ id: String(item.id), dName: item.dName || String(item.id) })),
+                });
+              }
             } catch (error) {
               console.error("Lỗi khi tạo ảnh block list:", error);
               const listBlockedUsers = blockList.map((blocked) => blocked.dName);
@@ -1235,7 +1551,7 @@ export async function handleGroupBlockList(api, message, args, aliasCommand, gro
       await sendMessageStateQuote(
         api,
         message,
-        `Cú pháp câu lệnh: ${prefix}${aliasCommand} block <add/remove/list> <uid for add|index for remove>\n` +
+        `Cú pháp: ${prefix}${aliasCommand} <add/remove/list> <UID|index>\n` +
         `list: hiển thị danh sách đối tượng chặn trong ${groupTypeString}.\n` +
         "add: thêm đối tượng vào danh sách chặn (thông qua mention hoặc uid chỉ định).\n" +
         "remove: xóa đối tượng khỏi danh sách chặn thông qua index.",
@@ -1245,6 +1561,46 @@ export async function handleGroupBlockList(api, message, args, aliasCommand, gro
       );
       break;
   }
+}
+
+export async function handleBlockListReply(api, message) {
+  const sessionKey = getQuotedMessageIds(message).find((id) => blockListReplySessions.has(id));
+  if (!sessionKey) return false;
+
+  const session = blockListReplySessions.get(sessionKey);
+  if (
+    session.botId !== String(api.getBotId()) ||
+    session.threadId !== String(message.threadId) ||
+    session.requesterId !== String(message.data.uidFrom)
+  ) {
+    return false;
+  }
+
+  const match = removeMention(message).trim().match(/^(?:block\s+)?remove\s+(\d+)$/iu);
+  if (!match) return false;
+
+  const index = Number(match[1]) - 1;
+  const target = session.blockList[index];
+  if (!target) {
+    await sendMessageWarning(api, message, "Số thứ tự không hợp lệ hoặc danh sách đã thay đổi.", false);
+    return true;
+  }
+
+  try {
+    const result = await api.unblockUsers(message.threadId, [target.id]);
+    if (result?.errorMembers?.length) {
+      await sendMessageWarning(api, message, "Mình không đủ quyền để mở chặn tài khoản này.", false);
+      return true;
+    }
+
+    session.blockList.splice(index, 1);
+    blockListReplySessions.set(sessionKey, session);
+    await sendMessageComplete(api, message, `Đã bỏ chặn ${target.dName}.`, false, 60000);
+  } catch (error) {
+    console.error("Lỗi mở chặn từ block list:", error);
+    await sendMessageWarning(api, message, `Không thể mở chặn: ${error.message}`, false);
+  }
+  return true;
 }
 
 export async function handleSettingGroupCommand(api, message, groupInfo, aliasCommand) {
@@ -1727,336 +2083,47 @@ async function updateGroupSetting(api, message, threadId, settings, successMessa
 }
 
 async function createBlockListImage(blockList, groupTypeString) {
-  const tempCanvas = createCanvas(1, 1);
-  const tempCtx = tempCanvas.getContext("2d");
-  tempCtx.font = "bold 32px " + FONT_MAIN;
+  const items = blockList.map((blockedUser) => ({
+    name: blockedUser.dName || blockedUser.displayName || "Người dùng",
+    info: `UID: ${blockedUser.id || blockedUser.idUserZalo || "Không xác định"}`,
+    avatar: blockedUser.avatar || "",
+    status: "reject",
+    badge: "BANNED",
+  }));
 
-  // Tính toán kích thước cần thiết
-  const avatarSize = 80;
-  const padding = 30;
-  const nameWidth = 400;
-  const levelWidth = 200;
-  const extraPadding = padding * 4;
+  const options = {
+    columnCount: items.length > 10 ? 2 : 1,
+  };
 
-  // Tính tổng số người dùng bị block
-  const totalBlockedUsers = blockList.length;
-  const useDoubleColumn = totalBlockedUsers > 10;
+  const titleConfig = {
+    mainTitle: "BLOCK-LIST-IN-GROUP",
+    subTitle: `Danh Sách Chặn Của ${groupTypeString}`,
+    icon: "🚫",
+  };
 
-  // Tính width tổng (nhân đôi nếu 2 cột)
-  const columnWidth = avatarSize + nameWidth + levelWidth + extraPadding;
-  const width = useDoubleColumn ? columnWidth * 2 + padding * 2 : columnWidth;
-
-  // Tính chiều cao (chia 2 nếu 2 cột)
-  const headerHeight = 180;
-  const itemHeight = 120;
-  const itemsPerColumn = useDoubleColumn ? Math.ceil(totalBlockedUsers / 2) : totalBlockedUsers;
-  const height = headerHeight + itemsPerColumn * itemHeight + 40;
-
-  // Tạo canvas chính
-  const canvas = createCanvas(width, height);
-  const ctx = canvas.getContext("2d");
-
-  // Vẽ background với gradient
-  const gradient = ctx.createLinearGradient(0, 0, 0, height);
-  gradient.addColorStop(0, "rgba(0, 119, 255, 0.9)");
-  gradient.addColorStop(1, "rgba(55, 131, 230, 0.95)");
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, width, height);
-
-  // Vẽ tiêu đề chính
-  let yPos = padding * 2;
-  ctx.textAlign = "center";
-  ctx.font = "bold 48px " + FONT_MAIN;
-  ctx.fillStyle = cv.getRandomGradient(ctx, width);
-  ctx.fillText("BLOCK-LIST-IN-GROUP", width / 2, yPos);
-
-  // Vẽ phụ đề
-  yPos += 80;
-  ctx.font = "bold 36px " + FONT_MAIN;
-  ctx.fillStyle = "#FFD700";
-  ctx.fillText(`Danh Sách Chặn Của ${groupTypeString}`, width / 2, yPos);
-  yPos += 40;
-
-  if (useDoubleColumn) {
-    // Chia danh sách thành 2 cột
-    const midPoint = Math.ceil(blockList.length / 2);
-
-    // Vẽ cột trái
-    let leftYPos = yPos;
-    for (let i = 0; i < midPoint; i++) {
-      if (blockList[i]) {
-        leftYPos = await drawBlockedItemBox(ctx, blockList[i], leftYPos, i + 1, padding, 0, useDoubleColumn);
-      }
-    }
-
-    // Vẽ cột phải
-    let rightYPos = yPos;
-    for (let i = midPoint; i < blockList.length; i++) {
-      if (blockList[i]) {
-        rightYPos = await drawBlockedItemBox(
-          ctx,
-          blockList[i],
-          rightYPos,
-          i + 1,
-          padding,
-          columnWidth + padding * 2 - 30,
-          useDoubleColumn
-        );
-      }
-    }
-
-    // Vẽ đường phân cách giữa 2 cột
-    ctx.fillStyle = "rgba(255, 255, 255, 0.2)";
-    ctx.fillRect(width / 2, yPos - 20, 2, height - yPos);
-  } else {
-    // Vẽ 1 cột như bình thường
-    let index = 1;
-    for (const blockedUser of blockList) {
-      yPos = await drawBlockedItemBox(ctx, blockedUser, yPos, index++, padding, 0, useDoubleColumn);
-    }
-  }
-
-  // Lưu và trả về đường dẫn ảnh
-  const outputPath = path.join(tempDir, `block_list_${randomIDTemp()}.png`);
-  const out = fs.createWriteStream(outputPath);
-  const stream = canvas.createPNGStream();
-  stream.pipe(out);
-
-  return new Promise((resolve, reject) => {
-    out.on("finish", () => resolve(outputPath));
-    out.on("error", reject);
-  });
+  return await createListImage(options, items, titleConfig);
 }
 
 async function createBotBlockListImage(blockList) {
-  const tempCanvas = createCanvas(1, 1);
-  const tempCtx = tempCanvas.getContext("2d");
-  tempCtx.font = "bold 32px " + FONT_MAIN;
+  const items = blockList.map((blockedUser) => ({
+    name: blockedUser.displayName || blockedUser.dName || "Người dùng",
+    info: `UID: ${String(blockedUser.idUserZalo || blockedUser.id || "").replace(/_0$/, "")}`,
+    avatar: blockedUser.avatar || "",
+    status: "reject",
+    badge: "BANNED",
+  }));
 
-  // Tính toán kích thước cần thiết
-  const avatarSize = 80;
-  const padding = 30;
-  const nameWidth = 400;
-  const levelWidth = 200;
-  const extraPadding = padding * 4;
+  const options = {
+    columnCount: items.length > 10 ? 2 : 1,
+  };
 
-  // Tính tổng số người dùng bị block
-  const totalBlockedUsers = blockList.length;
-  const useDoubleColumn = totalBlockedUsers > 10;
+  const titleConfig = {
+    mainTitle: "BOT-BLOCK-LIST",
+    subTitle: "Danh Sách Bị Chặn Trên Bot",
+    icon: "🚫",
+  };
 
-  // Tính width tổng (nhân đôi nếu 2 cột)
-  const columnWidth = avatarSize + nameWidth + levelWidth + extraPadding;
-  const width = useDoubleColumn ? columnWidth * 2 + padding * 2 : columnWidth;
-
-  // Tính chiều cao (chia 2 nếu 2 cột)
-  const headerHeight = 180;
-  const itemHeight = 120;
-  const itemsPerColumn = useDoubleColumn ? Math.ceil(totalBlockedUsers / 2) : totalBlockedUsers;
-  const height = headerHeight + itemsPerColumn * itemHeight + 40;
-
-  // Tạo canvas chính
-  const canvas = createCanvas(width, height);
-  const ctx = canvas.getContext("2d");
-
-  // Vẽ background với gradient
-  const gradient = ctx.createLinearGradient(0, 0, 0, height);
-  gradient.addColorStop(0, "rgba(0, 119, 255, 0.9)");
-  gradient.addColorStop(1, "rgba(55, 131, 230, 0.95)");
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, width, height);
-
-  // Vẽ tiêu đề chính
-  let yPos = padding * 2;
-  ctx.textAlign = "center";
-  ctx.font = "bold 48px " + FONT_MAIN;
-  ctx.fillStyle = cv.getRandomGradient(ctx, width);
-  ctx.fillText("BOT-BLOCK-LIST", width / 2, yPos);
-
-  // Vẽ phụ đề
-  yPos += 80;
-  ctx.font = "bold 36px " + FONT_MAIN;
-  ctx.fillStyle = "#FFD700";
-  ctx.fillText("Danh Sách Chặn Tương Tác Với Bot", width / 2, yPos);
-  yPos += 40;
-
-  if (useDoubleColumn) {
-    // Chia danh sách thành 2 cột
-    const midPoint = Math.ceil(blockList.length / 2);
-
-    // Vẽ cột trái
-    let leftYPos = yPos;
-    for (let i = 0; i < midPoint; i++) {
-      if (blockList[i]) {
-        leftYPos = await drawBlockedItem(ctx, blockList[i], leftYPos, i + 1, padding, 0, useDoubleColumn);
-      }
-    }
-
-    // Vẽ cột phải
-    let rightYPos = yPos;
-    for (let i = midPoint; i < blockList.length; i++) {
-      if (blockList[i]) {
-        rightYPos = await drawBlockedItem(
-          ctx,
-          blockList[i],
-          rightYPos,
-          i + 1,
-          padding,
-          columnWidth + padding * 2 - 30,
-          useDoubleColumn
-        );
-      }
-    }
-
-    // Vẽ đường phân cách giữa 2 cột
-    ctx.fillStyle = "rgba(255, 255, 255, 0.2)";
-    ctx.fillRect(width / 2, yPos - 20, 2, height - yPos);
-  } else {
-    // Vẽ 1 cột như bình thường
-    let index = 1;
-    for (const blockedUser of blockList) {
-      yPos = await drawBlockedItem(ctx, blockedUser, yPos, index++, padding, 0, useDoubleColumn);
-    }
-  }
-
-  // Lưu và trả về đường dẫn ảnh
-  const outputPath = path.join(tempDir, `bot_block_list_${randomIDTemp()}.png`);
-  const out = fs.createWriteStream(outputPath);
-  const stream = canvas.createPNGStream();
-  stream.pipe(out);
-
-  return new Promise((resolve, reject) => {
-    out.on("finish", () => resolve(outputPath));
-    out.on("error", reject);
-  });
-}
-
-async function drawBlockedItem(ctx, blockedUser, yPos, index, padding, xOffset, isDoubleColumn) {
-  const itemHeight = 120;
-  try {
-    const avatarSize = 80;
-    const itemPadding = 20;
-
-    // Vẽ background cho item
-    ctx.fillStyle = "rgba(29, 18, 18, 0.1)";
-    ctx.beginPath();
-
-    // Tính toán width của background
-    const backgroundWidth = isDoubleColumn ? (ctx.canvas.width - padding * 4) / 2 : ctx.canvas.width - padding * 2;
-
-    ctx.roundRect(padding + xOffset, yPos, backgroundWidth, itemHeight - itemPadding, 10);
-    ctx.fill();
-
-    // Vẽ avatar
-    if (blockedUser.avatar && cv.isValidUrl(blockedUser.avatar)) {
-      const avatar = await loadImage(blockedUser.avatar);
-      const avatarX = padding * 2 + xOffset;
-      const avatarY = yPos + (itemHeight - avatarSize) / 2 - itemPadding / 2;
-
-      // Vẽ viền avatar
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2 + 3, 0, Math.PI * 2);
-      const borderGradient = ctx.createLinearGradient(avatarX, avatarY, avatarX + avatarSize, avatarY + avatarSize);
-      borderGradient.addColorStop(0, "#dc3545");
-      borderGradient.addColorStop(1, "#c82333");
-      ctx.fillStyle = borderGradient;
-      ctx.fill();
-
-      // Vẽ avatar trong clip path tròn
-      ctx.beginPath();
-      ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
-      ctx.clip();
-      ctx.drawImage(avatar, avatarX, avatarY, avatarSize, avatarSize);
-      ctx.restore();
-    }
-
-    // Vẽ separator
-    const separatorX = padding * 3 + avatarSize + xOffset;
-    ctx.fillStyle = "rgba(255, 255, 255, 0.2)";
-    ctx.fillRect(separatorX, yPos + itemPadding - 8, 2, itemHeight - itemPadding * 2);
-
-    // Vẽ thông tin
-    const textX = separatorX + padding * 2 - 20;
-    const textY = yPos + itemPadding;
-
-    ctx.textAlign = "left";
-    ctx.font = "bold 32px " + FONT_MAIN;
-    ctx.fillStyle = "#FFFFFF";
-    ctx.fillText(`${index}. ${blockedUser.displayName}`, textX, textY + 20);
-
-    ctx.font = "28px " + FONT_MAIN;
-    ctx.fillStyle = "#dc3545";
-    ctx.fillText("Người Dùng Bị Chặn", textX, textY + 60);
-
-    return yPos + itemHeight;
-  } catch (error) {
-    console.error("Lỗi khi vẽ thông tin người dùng bị block:", error);
-    return yPos + itemHeight;
-  }
-}
-async function drawBlockedItemBox(ctx, blockedUser, yPos, index, padding, xOffset, isDoubleColumn) {
-  const itemHeight = 120;
-  try {
-    const avatarSize = 80;
-    const itemPadding = 20;
-
-    // Vẽ background cho item
-    ctx.fillStyle = "rgba(29, 18, 18, 0.1)";
-    ctx.beginPath();
-
-    // Tính toán width của background
-    const backgroundWidth = isDoubleColumn ? (ctx.canvas.width - padding * 4) / 2 : ctx.canvas.width - padding * 2;
-
-    ctx.roundRect(padding + xOffset, yPos, backgroundWidth, itemHeight - itemPadding, 10);
-    ctx.fill();
-
-    // Vẽ avatar
-    if (blockedUser.avatar && cv.isValidUrl(blockedUser.avatar)) {
-      const avatar = await loadImage(blockedUser.avatar);
-      const avatarX = padding * 2 + xOffset;
-      const avatarY = yPos + (itemHeight - avatarSize) / 2 - itemPadding / 2;
-
-      // Vẽ viền avatar
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2 + 3, 0, Math.PI * 2);
-      const borderGradient = ctx.createLinearGradient(avatarX, avatarY, avatarX + avatarSize, avatarY + avatarSize);
-      borderGradient.addColorStop(0, "#dc3545");
-      borderGradient.addColorStop(1, "#c82333");
-      ctx.fillStyle = borderGradient;
-      ctx.fill();
-
-      // Vẽ avatar trong clip path tròn
-      ctx.beginPath();
-      ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
-      ctx.clip();
-      ctx.drawImage(avatar, avatarX, avatarY, avatarSize, avatarSize);
-      ctx.restore();
-    }
-
-    // Vẽ separator
-    const separatorX = padding * 3 + avatarSize + xOffset;
-    ctx.fillStyle = "rgba(255, 255, 255, 0.2)";
-    ctx.fillRect(separatorX, yPos + itemPadding - 8, 2, itemHeight - itemPadding * 2);
-
-    // Vẽ thông tin
-    const textX = separatorX + padding * 2 - 20;
-    const textY = yPos + itemPadding;
-
-    ctx.textAlign = "left";
-    ctx.font = "bold 32px " + FONT_MAIN;
-    ctx.fillStyle = "#FFFFFF";
-    ctx.fillText(`${index}. ${blockedUser.dName}`, textX, textY + 20);
-
-    ctx.font = "28px " + FONT_MAIN;
-    ctx.fillStyle = "#dc3545";
-    ctx.fillText("Người Dùng Bị Chặn", textX, textY + 60);
-
-    return yPos + itemHeight;
-  } catch (error) {
-    console.error("Lỗi khi vẽ thông tin người dùng bị block:", error);
-    return yPos + itemHeight;
-  }
+  return await createListImage(options, items, titleConfig);
 }
 
 export async function handleListKey(api, message, groupInfo, aliasCommand) {
@@ -2343,54 +2410,57 @@ async function drawKeyItem(ctx, user, yPos, index, padding, xOffset, isDoubleCol
   }
 }
 
-export async function handleGetMute(api, message) {
-  const threadId = message.threadId;
+export async function handleSetMuteAll(api, message, aliasCommand = "setmute") {
   const content = removeMention(message);
   const prefix = getGlobalPrefix(api.getBotId());
-  const args = content.replace(`${prefix}thongbao`, "").trim().split(/\s+/);
-  const action = args[0]?.toLowerCase();
+  const args = content.replace(`${prefix}${aliasCommand}`, "").trim().split(/\s+/).filter(Boolean);
+  const scope = args[0]?.toLowerCase();
+  const action = args[1]?.toLowerCase();
+  const usage =
+    `Cú pháp:\n` +
+    `• ${prefix}${aliasCommand} all off — tắt thông báo tất cả nhóm\n` +
+    `• ${prefix}${aliasCommand} all on — bật thông báo tất cả nhóm`;
 
   try {
-    if (!action) {
-      await sendMessageQuery(
-        api,
-        message,
-        `⚠️ Cú pháp: ${prefix}thongbao [on/off] [thời_gian_phút]\n` +
-          `Ví dụ:\n` +
-          `${prefix}thongbao on - Bật thông báo\n` +
-          `${prefix}thongbao off - Tắt thông báo vô thời hạn\n` +
-          `${prefix}thongbao off 60 - Tắt thông báo trong 60 phút`,
-        true
-      );
+    if (scope !== "all" || !["on", "off"].includes(action)) {
+      await sendMessageQuery(api, message, usage, true);
       return;
     }
 
-    const threadType = message.type === MessageType.DirectMessage ? MessageType.DirectMessage : MessageType.GroupMessage;
-    
-    if (action === "on" || action === "bat" || action === "bật") {
-      await api.setMute({ action: MuteAction.UNMUTE }, threadId, threadType);
-      await sendMessageComplete(api, message, "✅ Đã bật thông báo cho cuộc trò chuyện này!", true);
-    } else if (action === "off" || action === "tat" || action === "tắt") {
-      const durationMinutes = args[1] ? parseInt(args[1]) : null;
-      const duration = durationMinutes ? durationMinutes * 60 : -1; // Chuyển phút thành giây, -1 = vô thời hạn
-      await api.setMute({ action: MuteAction.MUTE, duration: duration }, threadId, threadType);
-      const durationText = duration > 0 ? `trong ${durationMinutes} phút` : "vô thời hạn";
-      await sendMessageComplete(api, message, `🔕 Đã tắt thông báo cho cuộc trò chuyện này ${durationText}!`, true);
-    } else {
-      await sendMessageQuery(
-        api,
-        message,
-        `⚠️ Cú pháp: ${prefix}thongbao [on/off] [thời_gian_phút]\n` +
-          `Ví dụ:\n` +
-          `${prefix}thongbao on - Bật thông báo\n` +
-          `${prefix}thongbao off - Tắt thông báo vô thời hạn\n` +
-          `${prefix}thongbao off 60 - Tắt thông báo trong 60 phút`,
-        true
-      );
+    const groups = await api.getAllGroups();
+    const groupIds = Object.keys(groups?.gridVerMap || {});
+    if (groupIds.length === 0) {
+      await sendMessageWarning(api, message, "Không tìm thấy nhóm nào để cập nhật.", false);
+      return;
     }
+
+    const muteAction = action === "off" ? MuteAction.MUTE : MuteAction.UNMUTE;
+    let success = 0;
+    let failed = 0;
+    for (const groupId of groupIds) {
+      try {
+        await api.setMute(
+          { action: muteAction, ...(action === "off" ? { duration: -1 } : {}) },
+          groupId,
+          MessageType.GroupMessage
+        );
+        success += 1;
+      } catch (error) {
+        failed += 1;
+        console.error(`Không thể ${action} thông báo nhóm ${groupId}:`, error);
+      }
+    }
+
+    const state = action === "off" ? "tắt" : "bật";
+    await sendMessageComplete(
+      api,
+      message,
+      `Đã ${state} thông báo ${success}/${groupIds.length} nhóm${failed ? `, lỗi ${failed} nhóm` : ""}.`,
+      true
+    );
   } catch (error) {
-    console.error("Error handling mute:", error);
-    await sendMessageWarning(api, message, `❌ Lỗi: ${error.message}`, false);
+    console.error("Lỗi setmute all:", error);
+    await sendMessageWarning(api, message, `Không thể cập nhật thông báo: ${error.message}`, false);
   }
 }
 
@@ -2441,6 +2511,67 @@ export async function handlePinConversation(api, message, aliasCommand = "gim") 
   } catch (error) {
     console.error("Error handling pin conversation:", error);
     await sendMessageWarning(api, message, `❌ Lỗi: ${error.message}`, false);
+  }
+}
+
+export async function handleHiddenConversation(api, message, aliasCommand = "anbox") {
+  const content = removeMention(message);
+  const prefix = getGlobalPrefix(api.getBotId());
+  const commandPrefix = `${prefix}${aliasCommand}`;
+  const args = content.toLowerCase().startsWith(commandPrefix.toLowerCase())
+    ? content.slice(commandPrefix.length).trim().split(/\s+/).filter(Boolean)
+    : [];
+  const action = args[0]?.toLowerCase();
+
+  try {
+    if (action === "pin") {
+      if (message.type !== MessageType.DirectMessage) {
+        await sendMessageWarning(
+          api,
+          message,
+          `🔒 Hãy gửi riêng cho bot: ${prefix}${aliasCommand} pin <4 số> để không lộ mã PIN trong nhóm.`,
+          false
+        );
+        return;
+      }
+      if (!/^\d{4}$/.test(args[1] || "")) {
+        await sendMessageWarning(api, message, `⚠️ PIN phải có đúng 4 chữ số. Ví dụ: ${prefix}${aliasCommand} pin 1234`, false);
+        return;
+      }
+      await api.updateHiddenConversPin(args[1]);
+      await sendMessageComplete(api, message, "🔐 Đã đặt mã PIN cho các cuộc trò chuyện ẩn.", false);
+      return;
+    }
+
+    if (!["on", "an", "hide", "off", "hien", "unhide"].includes(action)) {
+      await sendMessageQuery(
+        api,
+        message,
+        `⚠️ Cú pháp:\n` +
+          `${prefix}${aliasCommand} pin <4 số> — đặt PIN (chỉ dùng trong tin riêng)\n` +
+          `${prefix}${aliasCommand} on — ẩn cuộc trò chuyện hiện tại\n` +
+          `${prefix}${aliasCommand} off — bỏ ẩn cuộc trò chuyện hiện tại`,
+        true
+      );
+      return;
+    }
+
+    const hidden = ["on", "an", "hide"].includes(action);
+    const threadType = message.type === MessageType.GroupMessage
+      ? MessageType.GroupMessage
+      : MessageType.DirectMessage;
+    await api.setHiddenConversations(hidden, String(message.threadId), threadType);
+
+    // Gửi xác nhận trước khi ẩn để người vận hành biết thao tác đã được nhận.
+    await sendMessageComplete(
+      api,
+      message,
+      hidden ? "🔒 Đã ẩn cuộc trò chuyện này." : "🔓 Đã bỏ ẩn cuộc trò chuyện này.",
+      false
+    );
+  } catch (error) {
+    console.error("Error handling hidden conversation:", error);
+    await sendMessageWarning(api, message, `❌ Không thể thay đổi trạng thái ẩn: ${error.message}`, false);
   }
 }
 

@@ -789,10 +789,12 @@ async function joinTableCommand(api, message) {
 }
 
 export async function handleXiDachReaction(api, reaction) {
-  const msgId = reaction.data?.content?.rMsg?.[0]?.gMsgID?.toString() || "";
+  const rMsg = reaction.data?.content?.rMsg?.[0];
+  const msgIds = [rMsg?.gMsgID, rMsg?.cMsgID].filter(Boolean).map(String);
   const rType = reaction.data?.content?.rType;
-  if (!msgId || rType !== 5) return false; // 5 = thả tim ❤️
-  const key = joinReactionMap.get(msgId);
+  if (!msgIds.length || ![3, 5].includes(Number(rType))) return false; // 3 = like, 5 = tim
+  const msgId = msgIds.find((id) => joinReactionMap.has(id));
+  const key = msgId && joinReactionMap.get(msgId);
   if (!key) return false;
 
   // LOG CHẨN ĐOÁN: in toàn bộ reaction.data thô để tìm hiểu vì sao cùng 1 người

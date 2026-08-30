@@ -5,9 +5,36 @@ import path from "path";
 import { getGlobalPrefix } from "../../service.js";
 import { tempDir } from "../../../utils/io-json.js";
 import { randomIDTemp, removeMention } from "../../../utils/format-util.js";
-import { deleteFile, downloadFile, getLocalImageInfo, uploadTempFile } from "../../../utils/util.js";
+import { deleteFile, downloadFile } from "../../../utils/util.js";
 import { sendMessageCompleteRequest } from "../../chat-zalo/chat-style/chat-style.js";
 import { clearImagePath } from "../../../utils/canvas/index.js";
+
+const searchCache = new Map();
+const SEARCH_CACHE_TTL_MS = 5 * 60 * 1000;
+const MAX_SEARCH_CACHE = 200;
+
+function cachePinterestResults(cacheKey, results) {
+  searchCache.set(cacheKey, { timestamp: Date.now(), results });
+  while (searchCache.size > MAX_SEARCH_CACHE) searchCache.delete(searchCache.keys().next().value);
+  return results;
+}
+
+async function handlePinterestHtmlFallback(query, count, cacheKey) {
+  try {
+    const html = await axios.get(`https://www.pinterest.com/search/pins/?q=${encodeURIComponent(query)}`, {
+      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/133 Safari/537.36" },
+      timeout: 7000,
+    });
+    const normalized = String(html.data).replaceAll("\\u002F", "/").replaceAll("\\/", "/");
+    const urls = [...new Set(normalized.match(/https:\/\/i\.pinimg\.com\/[A-Za-z0-9_./%-]+\.(?:jpg|jpeg|png|webp)/gi) || [])]
+      .slice(0, count)
+      .map((url) => ({ url, width: 500, height: 500 }));
+    return urls.length ? cachePinterestResults(cacheKey, urls) : [];
+  } catch (error) {
+    console.error("Pinterest fallback lỗi:", error.message);
+    return [];
+  }
+}
 
 const CONFIG = {
   paths: {
@@ -32,6 +59,9 @@ const CONFIG = {
 };
 
 async function handleOriginalPinterest(query, count) {
+  const cacheKey = `${query.trim().toLowerCase()}:${count}`;
+  const cached = searchCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < SEARCH_CACHE_TTL_MS) return cached.results;
   try {
     const encodedQuery = encodeURIComponent(query);
     const searchUrl = `https://www.pinterest.com/resource/BaseSearchResource/get/`;
@@ -104,29 +134,27 @@ async function handleOriginalPinterest(query, count) {
           );
         })
         .map((pin) => {
-          return (
-            pin.images.orig?.url ||
-            pin.images["1200x"]?.url ||
-            pin.images["736x"]?.url ||
-            pin.images["600x"]?.url ||
-            pin.images["474x"]?.url
-          );
+          const image = pin.images.orig || pin.images["1200x"] || pin.images["736x"] ||
+            pin.images["600x"] || pin.images["474x"];
+          return image?.url ? { url: image.url, width: image.width || 500, height: image.height || 500 } : null;
         })
-        .filter((url) => url);
+        .filter(Boolean);
 
-      return imageUrls;
+      if (imageUrls.length) return cachePinterestResults(cacheKey, imageUrls);
     } else if (response.data) {
       console.log("Cấu trúc response không như mong đợi:", JSON.stringify(response.data).substring(0, 200) + "...");
     }
 
-    return [];
+    // Resource endpoint changes/blocking are common. Fall back to the public
+    // search HTML and extract pinimg CDN URLs instead of failing the command.
+    return handlePinterestHtmlFallback(query, count, cacheKey);
   } catch (error) {
     console.error("Lỗi Pinterest gốc:", error.message);
     if (error.response) {
       console.error("Status:", error.response.status);
       console.error("Headers:", JSON.stringify(error.response.headers));
     }
-    return [];
+    return handlePinterestHtmlFallback(query, count, cacheKey);
   }
 }
 
@@ -194,7 +222,7 @@ export async function searchImagePinterest(api, message, command, isAdminLevelHi
   const prefix = getGlobalPrefix(api.getBotId());
 
   let [query, count = CONFIG.api.pinterestLimit] = content.replace(`${prefix}${command}`, "").trim().split("&&");
-  count = parseInt(count) || CONFIG.api.pinterestLimit;
+  count = Math.max(1, parseInt(count) || CONFIG.api.pinterestLimit);
   if (!isAdminLevelHighest) {
     if (count > 20) count = 20;
   } else {
@@ -235,29 +263,10 @@ export async function searchImagePinterest(api, message, command, isAdminLevelHi
 
     finalImageUrls = finalImageUrls.slice(0, count);
 
-    const imageProcessingPromises = finalImageUrls.map(async (imageUrl) => {
-      try {
-        const tempImagePath = path.join(tempDir, `temp_image_${Date.now() + Math.random() * 10000}.jpg`);
-        await downloadFile(imageUrl, tempImagePath);
-        const tempFile = await uploadTempFile(tempImagePath, 2, { api, message });
-        imagePaths.push(tempImagePath);
-        const dataImage = await getLocalImageInfo(tempImagePath);
-        if (dataImage.totalSize > CONFIG.download.minSize) {
-          return {
-            url: tempFile, //tempFile[0].normalUrl
-            width: dataImage.width,
-            height: dataImage.height,
-          };
-        }
-        return null;
-      } catch (error) {
-        console.error("Lỗi khi xử lý ảnh:", error);
-        return null;
-      }
-    });
-
-    const processedImages = await Promise.all(imageProcessingPromises);
-    imageUrls = processedImages.filter((img) => img !== null);
+    // Pinterest CDN URLs can be sent directly. The old flow downloaded every
+    // image and uploaded it to another temporary host before sending, adding
+    // two network hops per result and making one weak host break the whole job.
+    imageUrls = finalImageUrls.filter((img) => img?.url);
 
     if (imageUrls.length !== 0) {
       const object = {
@@ -269,12 +278,24 @@ export async function searchImagePinterest(api, message, command, isAdminLevelHi
         totalItemInGroup: imageUrls.length,
         isGroupLayout: imageUrls.length > 1 ? 1 : 0,
       };
-      for (const [index, image] of imageUrls.entries()) {
-        await api.sendImage(image, message, "", CONFIG.TIME_TO_LIVE, {
-          ...groupLayout,
-          idInGroup: index + 1,
-        });
-      }
+      let nextIndex = 0;
+      let sentCount = 0;
+      const workers = Array.from({ length: Math.min(3, imageUrls.length) }, async () => {
+        while (nextIndex < imageUrls.length) {
+          const index = nextIndex++;
+          try {
+            await api.sendImage(imageUrls[index], message, "", CONFIG.TIME_TO_LIVE, {
+              ...groupLayout,
+              idInGroup: index + 1,
+            });
+            sentCount++;
+          } catch (error) {
+            console.error(`Pinterest gửi ảnh ${index + 1} lỗi:`, error?.message || error);
+          }
+        }
+      });
+      await Promise.all(workers);
+      if (sentCount === 0) throw new Error("Không gửi được ảnh Pinterest nào");
     } else {
       await api.sendMessage(
         {

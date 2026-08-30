@@ -7,6 +7,7 @@ import { GroupDeliveredMessage, UserDeliveredMessage } from "../models/Delivered
 import { GroupSeenMessage, UserSeenMessage } from "../models/SeenMessage.js";
 import { deepParseJSON } from "../../utils/format-util.js";
 import { CloseWebSocketReason, CommandTypeCode, SignalCommands } from "../models/WebSocketConstants.js";
+import { logWsForensicEvent } from "../ws-forensic-log.js";
 
 export class Listener extends EventEmitter {
   constructor(appContext, urls) {
@@ -30,6 +31,8 @@ export class Listener extends EventEmitter {
     this.userAgent = appContext.userAgent;
     this.selfListen = appContext.options.selfListen;
     this.ws = null;
+    this.retryTimer = null;
+    this.abnormalRetryCount = 0;
     this.onConnectedCallback = () => {};
     this.onClosedCallback = () => {};
     this.onErrorCallback = () => {};
@@ -47,11 +50,36 @@ export class Listener extends EventEmitter {
   onMessage(cb) {
     this.onMessageCallback = cb;
   }
+  resetRetryBudget() {
+    for (const retry of Object.values(this.retryCount)) retry.count = 0;
+    this.abnormalRetryCount = 0;
+    this.rotateCount = 0;
+  }
   canRetry(code) {
-    if (!this.appContext.settings.features.socket.close_and_retry_codes.includes(code)) return false;
-    if (this.retryCount[code.toString()].count >= this.retryCount[code.toString()].max) return false;
-    this.retryCount[code.toString()].count++;
-    const { count, max, times } = this.retryCount[code.toString()];
+    const socketSettings = this.appContext.settings?.features?.socket || {};
+    const retryConfig = this.retryCount[code.toString()];
+
+    // 1006 means the connection vanished; 1009 is also emitted by Zalo when a
+    // single inbound frame is too large. Neither condition should leave an
+    // otherwise valid child account marked active with a dead listener.
+    // Retry with bounded exponential backoff even when the remote socket
+    // settings do not explicitly list these standard WebSocket close codes.
+    if (
+      (code === CloseWebSocketReason.AbnormalClosure || code === 1009) &&
+      !retryConfig
+    ) {
+      this.abnormalRetryCount++;
+      return Math.min(30_000, 1_000 * (2 ** Math.min(this.abnormalRetryCount - 1, 5)));
+    }
+
+    if (!socketSettings.close_and_retry_codes?.includes(code) || !retryConfig) return false;
+    if (retryConfig.count >= retryConfig.max) {
+      if (code !== CloseWebSocketReason.AbnormalClosure && code !== 1009) return false;
+      this.abnormalRetryCount++;
+      return Math.min(30_000, 1_000 * (2 ** Math.min(this.abnormalRetryCount - 1, 5)));
+    }
+    retryConfig.count++;
+    const { count, max, times } = retryConfig;
     const retryTime = count - 1 < times.length ? times[count - 1] : times[times.length - 1];
     logger(this.appContext).verbose(`Close with code ${code} - retry connection in ${retryTime}ms (${count}/${max})`);
     return retryTime;
@@ -67,6 +95,11 @@ export class Listener extends EventEmitter {
     logger(this.appContext).verbose(`Rotating endpoint to ${this.wsURL}`);
   }
   start({ retryOnClose = true } = {}) {
+    if (this.ws?.readyState === WebSocket.OPEN || this.ws?.readyState === WebSocket.CONNECTING) return;
+    if (this.retryTimer) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
+    }
     logger(this.appContext, true).verbose(`Application is starting...`);
     this.ws = new WebSocket(this.wsURL, {
       headers: {
@@ -85,6 +118,10 @@ export class Listener extends EventEmitter {
       },
     });
     this.ws.onopen = () => {
+      // A successful reconnect starts a fresh retry budget. Without this, a
+      // long-running bot eventually consumes all retries across unrelated
+      // network hiccups and remains permanently disconnected.
+      this.resetRetryBudget();
       this.onConnectedCallback();
       logger(this.appContext, true).success(`Application is connected successfully`);
       this.emit("connected");
@@ -97,9 +134,11 @@ export class Listener extends EventEmitter {
       if (retry && retryOnClose) {
         const shouldRotate = this.shouldRotate(event.code);
         if (shouldRotate) this.rotateEndpoint();
-        setTimeout(() => {
+        this.retryTimer = setTimeout(() => {
+          this.retryTimer = null;
           this.start({ retryOnClose });
         }, retry);
+        this.retryTimer.unref?.();
       } else {
         this.onClosedCallback(event.code);
         this.emit("closed", event.code);
@@ -175,27 +214,28 @@ export class Listener extends EventEmitter {
   updateCipherKey(parsed) {
     this.cipherKey = parsed.key;
     if (this.pingInterval) clearInterval(this.pingInterval);
-    const ping = () => {
-      const payload = {
-        version: 1,
-        cmd: 2,
-        subCmd: 1,
-        data: { eventId: Date.now() },
-      };
-      const encodedData = new TextEncoder().encode(JSON.stringify(payload.data));
-      const dataLength = encodedData.length;
-      const data = new DataView(Buffer.alloc(4 + dataLength).buffer);
-      data.setUint8(0, payload.version);
-      data.setInt32(1, payload.cmd, true);
-      data.setInt8(3, payload.subCmd);
-      encodedData.forEach((e, i) => {
-        data.setUint8(4 + i, e);
-      });
-      this.ws.send(data);
-    };
     this.pingInterval = setInterval(() => {
-      ping();
+      this.sendHeartbeat();
     }, this.appContext.settings.features.socket.ping_interval);
+  }
+
+  sendHeartbeat() {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return false;
+
+    const payload = {
+      version: 1,
+      cmd: 2,
+      subCmd: 1,
+      data: { eventId: Date.now() },
+    };
+    const encodedData = new TextEncoder().encode(JSON.stringify(payload.data));
+    const data = Buffer.alloc(4 + encodedData.length);
+    data.writeUInt8(payload.version, 0);
+    data.writeInt16LE(payload.cmd, 1);
+    data.writeInt8(payload.subCmd, 3);
+    encodedData.forEach((value, index) => data.writeUInt8(value, 4 + index));
+    this.ws.send(data);
+    return true;
   }
 
   /**
@@ -226,6 +266,7 @@ export class Listener extends EventEmitter {
   async handleGroupMessages(parsed) {
     const parsedData = (await decodeEventData(parsed, this.cipherKey)).data;
     const { groupMsgs } = parsedData;
+    void logWsForensicEvent(this.appContext.uid, "groupMsgs", groupMsgs);
     for (const msg of groupMsgs) {
       if (typeof msg.content == "object" && msg.content && hasOwn(msg.content, "deleteMsg")) {
         const undoObject = new Undo(msg, true, this.appContext);
@@ -247,6 +288,7 @@ export class Listener extends EventEmitter {
   async handleControlEvents(parsed) {
     const parsedData = (await decodeEventData(parsed, this.cipherKey)).data;
     const { controls } = parsedData;
+    void logWsForensicEvent(this.appContext.uid, "controls", controls);
     for (const control of controls) {
       if (control.content.act_type == "file_done") {
         const data = {
@@ -465,6 +507,10 @@ export class Listener extends EventEmitter {
   }
 
   reset() {
+    if (this.retryTimer) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
+    }
     if (this.ws) {
       this.ws.onopen = null;
       this.ws.onclose = null;
@@ -477,6 +523,7 @@ export class Listener extends EventEmitter {
     }
     this.cipherKey = undefined;
     if (this.pingInterval) clearInterval(this.pingInterval);
+    this.pingInterval = null;
   }
 }
 function getHeader(buffer) {

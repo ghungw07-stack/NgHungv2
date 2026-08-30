@@ -5,8 +5,20 @@ const states = new Map();
 const notificationCache = new Map();
 const WINDOW_MS = 60_000;
 const NOTIFY_COOLDOWN_MS = 5 * 60_000;
-const ENABLE_RUNTIME_ERROR_NOTIFICATIONS = false;
+const ENABLE_RUNTIME_ERROR_NOTIFICATIONS = process.env.NGH_CHILD_ERROR_NOTIFICATIONS !== "0";
+const NOTIFIABLE_CHILD_SCOPES = new Set(["child_disconnected"]);
 let mainApi = null;
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, state] of states) {
+    const latestFailure = state.failures.at(-1) || 0;
+    if (state.disabledUntil < now && now - latestFailure > NOTIFY_COOLDOWN_MS) states.delete(key);
+  }
+  for (const [key, notifiedAt] of notificationCache) {
+    if (now - notifiedAt > NOTIFY_COOLDOWN_MS * 2) notificationCache.delete(key);
+  }
+}, NOTIFY_COOLDOWN_MS).unref?.();
 
 export function setRuntimeMainApi(api) {
   mainApi = api || null;
@@ -44,9 +56,8 @@ export async function reportRuntimeError(api, scope, error, extra = {}) {
 
   const detail = `[runtime:${scope}] bot=${botId} code=${info.code} ${info.message}\n${info.stack}`;
   console.error(detail);
-  logManagerBot(detail);
 
-  if (!ENABLE_RUNTIME_ERROR_NOTIFICATIONS || isMainBot || !api) return;
+  if (!ENABLE_RUNTIME_ERROR_NOTIFICATIONS || isMainBot || !api || !NOTIFIABLE_CHILD_SCOPES.has(scope)) return;
   if (now - (notificationCache.get(fingerprint) || 0) < NOTIFY_COOLDOWN_MS) return;
   notificationCache.set(fingerprint, now);
 
@@ -71,13 +82,16 @@ export async function reportRuntimeError(api, scope, error, extra = {}) {
         routes.push({ senderApi: mainApi, targetId: String(adminId), route: "main->admin" });
       }
     }
-    // Owner vẫn là fallback khi chưa cấu hình admin main.
-    if (!mainAdmins.length && ownerId) {
-      routes.push({ senderApi: mainApi, targetId: String(ownerId), route: "main->owner-fallback" });
-    }
+    // Chủ bot phải luôn nhận ngay lỗi của bot mình, không phụ thuộc main bot
+    // có danh sách admin hay không.
+    if (ownerId) routes.push({ senderApi: mainApi, targetId: String(ownerId), route: "main->owner" });
   }
 
+  const sentTargets = new Set();
   for (const { senderApi, targetId, route } of routes) {
+    const routeKey = `${senderApi?.getBotId?.() || "api"}:${targetId}`;
+    if (sentTargets.has(routeKey)) continue;
+    sentTargets.add(routeKey);
     try {
       await sendDirect(senderApi, targetId, notice);
       if (scope === "self_test") {
@@ -86,7 +100,6 @@ export async function reportRuntimeError(api, scope, error, extra = {}) {
     } catch (notifyError) {
       const notifyDetail = `[runtime:${scope}] Không thể báo lỗi (${route}) tới ${targetId}: ${notifyError?.message || notifyError}`;
       console.error(notifyDetail);
-      logManagerBot(notifyDetail);
     }
   }
 }

@@ -10,7 +10,6 @@ const PUSH_PATHS = [
   ".nvmrc",
   "README.md",
   "bot.js",
-  "ecosystem.config.cjs",
   "package.json",
   "public",
   "read-logs.js",
@@ -76,6 +75,9 @@ function containsSecret(diff) {
     /\bgithub_pat_[A-Za-z0-9_]{20,}\b/,
     /\bAIza[0-9A-Za-z_-]{30,}\b/,
     /\bsk-[A-Za-z0-9_-]{20,}\b/,
+    /\bzpw_sek=[^\s"']+/i,
+    /["']?(?:cookie|imei|api[_-]?key|access[_-]?token|client[_-]?secret)["']?\s*[:=]\s*["'][^"']{12,}["']/i,
+    /mongodb(?:\+srv)?:\/\/[^\s/@:]+:[^\s/@]+@/i,
   ].some((pattern) => pattern.test(addedLines));
 }
 

@@ -44,21 +44,32 @@ export async function convertToAAC(inputPath, outputPath = inputPath.replace(/\.
 /**
  * Upload file audio và trả về URL
  */
-export async function uploadAudioFile(mp3Path, api, message, uploadCloud = false) {
-  // Ưu tiên URL tạm do chính VPS phục vụ; không lộ dqt và không phải upload
-  // lại từng chunk lên Zalo. Bật bằng VOICE_PUBLIC_BASE_URL.
-  const publicBase = String(process.env.VOICE_PUBLIC_BASE_URL || "").replace(/\/$/, "");
-  if (publicBase) {
-    try {
-      const token = await registerVoiceTempFile(mp3Path);
-      return `${publicBase}/voice-temp/${token}`;
-    } catch (error) {
-      console.warn("Không tạo được voice URL VPS, fallback Zalo:", error?.message || error);
-    }
-  }
+export async function uploadAudioFile(audioPath, api, message, uploadCloud = false) {
+  let uploadPath = audioPath;
+  let convertedPath = null;
 
   try {
-    const uploadResult = await api.uploadAttachment([mp3Path], message.threadId, message.type, {
+    // A .aac suffix alone is not enough for iOS. Convert every non-AAC source
+    // to a real AAC elementary stream (ADTS) before it is served or uploaded.
+    if (path.extname(audioPath).toLowerCase() !== ".aac") {
+      convertedPath = path.join(tempDir, `voice_${randomIDTemp()}.aac`);
+      await convertToAAC(audioPath, convertedPath);
+      uploadPath = convertedPath;
+    }
+
+    // Ưu tiên URL tạm do chính VPS phục vụ; không lộ dqt và không phải upload
+    // lại từng chunk lên Zalo. Bật bằng VOICE_PUBLIC_BASE_URL.
+    const publicBase = String(process.env.VOICE_PUBLIC_BASE_URL || "").replace(/\/$/, "");
+    if (publicBase) {
+      try {
+        const token = await registerVoiceTempFile(uploadPath);
+        return `${publicBase}/voice-temp/${token}`;
+      } catch (error) {
+        console.warn("Không tạo được voice URL VPS, fallback Zalo:", error?.message || error);
+      }
+    }
+
+    const uploadResult = await api.uploadAttachment([uploadPath], message.threadId, message.type, {
       uploadCloud,
       isCloudVoice: uploadCloud,
     });
@@ -66,11 +77,10 @@ export async function uploadAudioFile(mp3Path, api, message, uploadCloud = false
     if (!voiceFinalUrl) throw new Error("Zalo không trả về link nhạc sau khi upload");
     // Zalo cloud/regular-file URLs are extensionless; voice forwarding needs
     // the generated extension suffix (for example .../<fileId>/<timestamp>.aac).
-    const ext = path.extname(mp3Path).replace(".", "") || "aac";
-    voiceFinalUrl = ensureVoiceUrlExtension(voiceFinalUrl, ext);
+    voiceFinalUrl = ensureVoiceUrlExtension(voiceFinalUrl, "aac");
     return voiceFinalUrl;
-  } catch (error) {
-    throw error;
+  } finally {
+    if (convertedPath) await deleteFile(convertedPath);
   }
 }
 
@@ -84,6 +94,7 @@ export function ensureVoiceUrlExtension(value, extension = "aac") {
   if (!value || typeof value !== "string") return value;
 
   const ext = String(extension).replace(/^\./, "").toLowerCase() || "aac";
+
   try {
     const url = new URL(value);
     const brokenSuffix = url.search.match(/\/([0-9]+\.(?:aac|m4a|mp3))(?:&|$)/i);
@@ -95,6 +106,7 @@ export function ensureVoiceUrlExtension(value, extension = "aac") {
     if (!/\.(?:aac|m4a|mp3)$/i.test(url.pathname)) {
       url.pathname = `${url.pathname.replace(/\/$/, "")}/${Date.now()}.${ext}`;
     }
+
     return url.toString();
   } catch {
     return value;
@@ -113,10 +125,15 @@ export async function downloadAndConvertAudio(url, api, message, uploadCloud = f
 
   try {
 
+    let sourceHostname = "";
+    try {
+      sourceHostname = new URL(url).hostname.toLowerCase();
+    } catch {}
+    const isNhacCuaTuiSource = sourceHostname === "nct.vn" || sourceHostname.endsWith(".nct.vn");
     const headers = {
       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.1 Safari/537.36",
       "Accept": "*/*",
-      "Referer": "https://www.youtube.com/"
+      "Referer": isNhacCuaTuiSource ? "https://www.nhaccuatui.com/" : "https://www.youtube.com/",
     };
     
     // NẾU LÀ HLS M3U8 (Tải cực nhanh & Không cần transcode ffmpeg)
@@ -166,7 +183,7 @@ export async function downloadAndConvertAudio(url, api, message, uploadCloud = f
       }
       await handle.close();
       
-      const extractedAacPath = audioPath.replace(".m4a", "_adts.aac");
+      const extractedAacPath = path.join(tempDir, `voice_${randomIDTemp()}.aac`);
       try {
         await execAsync(`ffmpeg -y -i "${audioPath}" -c:a copy "${extractedAacPath}"`);
         const voiceFinalUrl = await uploadAudioFile(extractedAacPath, api, message, uploadCloud);

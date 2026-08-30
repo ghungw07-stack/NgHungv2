@@ -1,4 +1,5 @@
 import gtts from "gtts";
+import axios from "axios";
 import fs from "fs";
 import path from "path";
 import { getGlobalPrefix } from "../../../service.js";
@@ -83,6 +84,69 @@ async function textToSpeech(text, api, message, lang = "vi") {
       reject(error);
     }
   });
+}
+
+/** Viettel's public Vietnamese TTS endpoint. It exposes several regional
+ * female voices and returns audio directly; uploadAudioFile converts it to
+ * AAC before sending to Zalo. */
+async function viettelTtsToSpeech(text, api, message, profile = "girl") {
+  const voices = {
+    girl: { voice: "hn-quynhanh", speed: 0.95 },
+    phatphap: { voice: "hue-maingoc", speed: 0.75 },
+    quynhanh: { voice: "hn-quynhanh", speed: 0.95 },
+    thaochi: { voice: "hn-thaochi", speed: 0.95 },
+    phuongtrang: { voice: "hn-phuongtrang", speed: 0.95 },
+    thanhha: { voice: "hn-thanhha", speed: 0.95 },
+    maingoc: { voice: "hue-maingoc", speed: 0.9 },
+    diemmy: { voice: "hcm-diemmy", speed: 0.95 },
+    thuydung: { voice: "hcm-thuydung", speed: 0.95 },
+    phuongly: { voice: "hcm-phuongly", speed: 0.95 },
+    thuyduyen: { voice: "hcm-thuyduyen", speed: 0.95 },
+  };
+  const selected = voices[profile] || voices.girl;
+  const response = await axios.post(
+    "https://viettelai.vn/tts/speech_synthesis",
+    { speed: selected.speed, voice: selected.voice, text, tts_return_option: 3, without_filter: false },
+    { timeout: 60000, responseType: "arraybuffer", headers: { "Content-Type": "application/json" } }
+  );
+  const filePath = path.join(tempDir, `viettel_tts_${randomIDTemp()}.mp3`);
+  await fs.promises.writeFile(filePath, response.data);
+  try {
+    return await uploadAudioFile(filePath, api, message);
+  } finally {
+    await deleteFile(filePath);
+  }
+}
+
+/** FreeTTS fallback (no API key), used when Viettel is unavailable/rate-limited. */
+async function freeTtsToSpeech(text, api, message, profile = "girl") {
+  if (!text || text.length > 1000) return null;
+
+  const profiles = {
+    girl: { voice: "vi-VN-HoaiMyNeural", rate: "-14%", pitch: "-2Hz" },
+    phatphap: { voice: "vi-VN-HoaiMyNeural", rate: "-20%", pitch: "-3Hz" },
+    male: { voice: "vi-VN-NamMinhNeural", rate: "-10%", pitch: "-1Hz" },
+  };
+  const selected = profiles[profile] || profiles.girl;
+  const response = await axios.post(
+    "https://freetts.org/api/tts",
+    { text, voice: selected.voice, rate: selected.rate, pitch: selected.pitch, output_format: "mp3" },
+    { timeout: 30000, headers: { "Content-Type": "application/json", "User-Agent": "NGH-Bot/1.0" } }
+  );
+  const fileId = response.data?.file_id;
+  if (!fileId) throw new Error(response.data?.error || "FreeTTS không trả về file_id");
+
+  const audio = await axios.get(`https://freetts.org/api/audio/${encodeURIComponent(fileId)}`, {
+    responseType: "arraybuffer",
+    timeout: 60000,
+  });
+  const filePath = path.join(tempDir, `freetts_${randomIDTemp()}.mp3`);
+  await fs.promises.writeFile(filePath, audio.data);
+  try {
+    return await uploadAudioFile(filePath, api, message);
+  } finally {
+    await deleteFile(filePath);
+  }
 }
 
 /**
@@ -227,21 +291,52 @@ export async function handleVoiceCommand(api, message, command) {
       }
     }
 
-    if (!text) {
-      await api.sendMessage(
-        {
-          msg: `Vui lòng nhập nội dung cần chuyển thành giọng nói.\nVí dụ: 
-${prefix}${command} Nội dung cần send Voice bất kỳ`,
-          quote: message,
-          ttl: 600000,
-        },
-        message.threadId,
-        message.type
-      );
+    const profileNames = /^(girl|phatphap|phật pháp|quynhanh|thaochi|phuongtrang|thanhha|maingoc|diemmy|thuydung|phuongly|thuyduyen)$/iu;
+    const voiceMenu =
+      `🎙️ DANH SÁCH GIỌNG VOICE\n\n` +
+      `• girl: Nữ miền Bắc, tự nhiên\n` +
+      `• phật pháp: Nữ giọng Huế, chậm và trầm để đọc kinh\n` +
+      `• quynhanh: Nữ miền Bắc\n` +
+      `• thaochi: Nữ miền Bắc\n` +
+      `• phuongtrang: Nữ miền Bắc\n` +
+      `• thanhha: Nữ miền Bắc\n` +
+      `• maingoc: Nữ miền Trung\n` +
+      `• diemmy: Nữ miền Nam\n` +
+      `• thuydung: Nữ miền Nam\n` +
+      `• phuongly: Nữ miền Nam\n` +
+      `• thuyduyen: Nữ miền Nam\n\n` +
+      `Cách dùng: ${prefix}${command} [tên giọng] nội dung cần đọc`;
+
+    if (!text || profileNames.test(text)) {
+      await api.sendMessage({ msg: voiceMenu, quote: message, ttl: 600000 }, message.threadId, message.type);
       return;
     }
 
-    const voiceUrl = await multilingualTextToSpeech(text, api, message);
+    // `voice phatphap ...` gives a slower, softer female devotional profile.
+    let profile = "girl";
+    const profileMatch = text.match(/^(girl|phatphap|phật pháp|quynhanh|thaochi|phuongtrang|thanhha|maingoc|diemmy|thuydung|phuongly|thuyduyen)\s*[:|,-]?\s+(.+)$/iu);
+    if (profileMatch) {
+      const rawProfile = profileMatch[1].toLowerCase();
+      profile = rawProfile.includes("phật")
+        ? "phatphap"
+        : rawProfile.replace(/[^a-z]/g, "") || "girl";
+      text = profileMatch[2].trim();
+    }
+
+    let voiceUrl = null;
+    if (detectLanguage(text) === "vi" && text.length <= 1000) {
+      try {
+        voiceUrl = await viettelTtsToSpeech(text, api, message, profile);
+      } catch (error) {
+        console.warn("Viettel TTS lỗi, fallback FreeTTS:", error?.message || error);
+        try {
+          voiceUrl = await freeTtsToSpeech(text, api, message, profile);
+        } catch (fallbackError) {
+          console.warn("FreeTTS lỗi, fallback gTTS:", fallbackError?.message || fallbackError);
+        }
+      }
+    }
+    if (!voiceUrl) voiceUrl = await multilingualTextToSpeech(text, api, message);
 
     if (!voiceUrl) {
       throw new Error("Không thể tạo file âm thanh");

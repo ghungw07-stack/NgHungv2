@@ -21,6 +21,10 @@ import { gameTypeDoanTu, handleWordGuessCommand, handleWordGuessGame } from "./w
 import { showDetailedRankCaro } from "./caro-game/caro.js";
 import { gameTypeAiLaTrieuPhu, handleAiLaTrieuPhuCommand, handleAiLaTrieuPhuMessage } from "./ailatrieuphu/index.js";
 import { gameTypeCauCa, handleCauCaCommand, handleCauCaMessage } from "./cauca/index.js";
+import { handleChessMessage } from "./chess-game/index.js";
+import { handleXiangqiMessage } from "./xiangqi-game/index.js";
+import { handlePetShortcut } from "../pet-game/index.js";
+import { handleTuTienShortcut } from "../tu-tien/index.js";
 
 const activeGames = new Map(); // Map<threadId, Map<gameType, gameInstance>>
 const gamePlayers = new Map(); // Map<threadId_gameType, Map<playerId, playerInfo>>
@@ -107,6 +111,12 @@ export async function handleChatWithGame(api, message, isCallGame, groupSettings
   if (isCallGame) return;
   const threadId = message.threadId;
   if (!groupSettings[threadId]) groupSettings[threadId] = {};
+  try {
+    if (await handleTuTienShortcut(api, message)) return;
+    if (await handlePetShortcut(api, message)) return;
+  } catch (error) {
+    console.error("Lỗi xử lý lệnh tắt nuoithu:", error);
+  }
   const activeGame = groupSettings[threadId].activeGame;
   if (activeGame === false) return;
   let isReaction = false;
@@ -116,6 +126,26 @@ export async function handleChatWithGame(api, message, isCallGame, groupSettings
 
   if (typeof content === "string") {
     content = content.trim().toLowerCase();
+    try {
+      isReaction = await handleChessMessage(api, message, groupInfo);
+      if (isReaction) {
+        await api.addReaction("UNDO", [message]);
+        await api.addReaction("OK", [message]);
+        return;
+      }
+    } catch (error) {
+      console.error("Lỗi xử lý game covua:", error);
+    }
+    try {
+      isReaction = await handleXiangqiMessage(api, message, groupInfo);
+      if (isReaction) {
+        await api.addReaction("UNDO", [message]);
+        await api.addReaction("OK", [message]);
+        return;
+      }
+    } catch (error) {
+      console.error("Lỗi xử lý game cotuong:", error);
+    }
     const threadGames = activeGames.get(threadId);
 
     if (threadGames && threadGames instanceof Map) {
@@ -146,7 +176,7 @@ export async function handleChatWithGame(api, message, isCallGame, groupSettings
             case gameTypeAiLaTrieuPhu:
               isReaction = await handleAiLaTrieuPhuMessage(api, message);
               break;
-           case gameTypeCauCa:
+            case gameTypeCauCa:
              isReaction = await handleCauCaMessage(api, message);
              break;
                case gameTypeDuoiHinhBatChu:

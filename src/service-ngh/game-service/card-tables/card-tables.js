@@ -346,9 +346,11 @@ export async function handleCardTableCommand(api, message, groupSettings, game) 
 }
 
 export async function handleCardTableReaction(api, reaction) {
-  const msgId = reaction.data?.content?.rMsg?.[0]?.gMsgID?.toString() || "";
-  if (!msgId || reaction.data?.content?.rType !== 5) return false;
-  const tableKey = joinReactionMap.get(msgId);
+  const rMsg = reaction.data?.content?.rMsg?.[0];
+  const msgIds = [rMsg?.gMsgID, rMsg?.cMsgID].filter(Boolean).map(String);
+  if (!msgIds.length || ![3, 5].includes(Number(reaction.data?.content?.rType))) return false;
+  const msgId = msgIds.find((id) => joinReactionMap.has(id));
+  const tableKey = msgId && joinReactionMap.get(msgId);
   if (!tableKey) return false;
   const table = tables.get(tableKey);
   if (!table || table.status !== "waiting") {

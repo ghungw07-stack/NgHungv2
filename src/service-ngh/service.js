@@ -11,7 +11,6 @@ import { startNudeViolationCheck } from "./anti-service/anti-nude/anti-nude.js";
 import { handleChatWithGame } from "./game-service/mini-game/index.js";
 import { initializeGameDataManager } from "./game-service/game-manager.js";
 import { handleYoutubeReply } from "./api-crawl/youtube/youtube-service.js";
-import { handleTikTokReply } from "./api-crawl/tiktok/tiktok-service.js";
 import { initPRService } from "./scheduler/pr-zalo.js";
 import { initAutoRaiLinkService } from "./scheduler/auto-rai-link.js";
 import { handleNhacCuaTuiReply } from "./api-crawl/music-content/nhaccuatui.js";
@@ -43,6 +42,7 @@ import { handleTruyenHentaiReply } from "./api-crawl/image-content/hentai.js";
 import { handleTruyenSexVLReply } from "../commands/send-all/truyensex.js";
 import { checkMenuPageReply } from "../commands/instructions/help.js";
 import { handleAddUserToGroupReply } from "../commands/bot-manager/add-user-to-group.js";
+import { handleAttackReply } from "../commands/bot-manager/attack.js";
 
 // Dùng var để an toàn với vòng import giữa service và command trong lúc boot.
 // `let` có TDZ khiến initService bị gọi trước khi binding được khởi tạo.
@@ -86,6 +86,21 @@ export async function initService(api) {
       notAllowedCommand: [],
       customerCommand: {},
     };
+  }
+
+  const managerCommand = commandConfig.managerCommand[botId];
+  if (!managerCommand.customerCommand) managerCommand.customerCommand = {};
+  if (!managerCommand.customerCommand.attack) managerCommand.customerCommand.attack = {};
+  let commandConfigChanged = false;
+  if (managerCommand.customerCommand.attack.defaultChildBlockInitialized !== true) {
+    managerCommand.customerCommand.attack.defaultChildBlockInitialized = true;
+    if (api.apiManager?.isMainBot === false && !managerCommand.notAllowedCommand.includes("attack")) {
+      managerCommand.notAllowedCommand.push("attack");
+    }
+    commandConfigChanged = true;
+  }
+
+  if (commandConfigChanged) {
     writeCommandConfig(commandConfig);
     reloadCommandConfig();
   }
@@ -133,7 +148,8 @@ export async function handleOnReplyFromUser(
 ) {
   let isHandled = false;
 
-  if (await checkReplySelectionsMapData(api, message, isAdminLevelHighest)) isHandled = true;
+  if (await handleAttackReply(api, message)) isHandled = true;
+  if (!isHandled && (await checkReplySelectionsMapData(api, message, isAdminLevelHighest))) isHandled = true;
   if (!isHandled && (await checkMenuPageReply(api, message))) isHandled = true;
   if (!isHandled && (await handleAddUserToGroupReply(api, message, isAdminLevelHighest))) isHandled = true;
   if (await handleDetectContentDownload(api, message, isAdminLevelHighest, groupSettings)) isHandled = true;
@@ -144,7 +160,6 @@ export async function handleOnReplyFromUser(
       handleMixcloudReply(api, message, isAdminLevelHighest),
       handleZingMp3Reply(api, message),
       handleYoutubeReply(api, message, isAdminLevelHighest),
-      handleTikTokReply(api, message),
       handleNhacCuaTuiReply(api, message),
       handleDownloadReply(api, message),
       handleCapcutReply(api, message),

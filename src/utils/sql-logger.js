@@ -22,10 +22,13 @@ const LOG_TABLE = "bot_logs";
 const FLUSH_INTERVAL_MS = 1000;
 const MAX_QUEUE_SIZE = 5000; // an toàn cho RAM nếu DB down lâu, log dư sẽ bị rớt bớt (giữ log mới nhất)
 const MAX_MESSAGE_LENGTH = 60000; // TEXT ~ giới hạn 65535 bytes, chừa dư ra
+const LOG_LEVELS = { debug: 10, info: 20, warn: 30, error: 40 };
+const minimumLogLevel = LOG_LEVELS[String(process.env.NGH_SQL_LOG_LEVEL || "info").toLowerCase()] ?? LOG_LEVELS.info;
 
 let queue = [];
 let tableReady = false;
 let flushing = false;
+let lastFlushErrorAt = 0;
 
 // eslint-disable-next-line no-control-regex
 const ANSI_REGEX = /\x1b\[[0-9;]*m/g;
@@ -41,6 +44,7 @@ function extractBotId(message) {
 }
 
 function pushLog(level, args) {
+  if ((LOG_LEVELS[level] ?? LOG_LEVELS.info) < minimumLogLevel) return;
   try {
     const raw = format(...args);
     const message = stripAnsi(raw).slice(0, MAX_MESSAGE_LENGTH);
@@ -60,6 +64,10 @@ function pushLog(level, args) {
   } catch {
     // Không được phép để việc log làm crash app - im lặng bỏ qua nếu format lỗi
   }
+}
+
+export function enqueueSqlLog(level, ...args) {
+  pushLog(level || "info", args);
 }
 
 async function ensureLogTable(connection) {
@@ -87,7 +95,10 @@ async function flush() {
   queue = [];
 
   try {
-    const { connection } = await import("../database/index.js");
+    // Import the tiny state module, not database/index.js. This logger is loaded
+    // by index.js before database initialization; importing the parent module
+    // back from here creates an ESM evaluation cycle that leaves flush pending.
+    const { connection } = await import("../database/state.js");
     if (!connection) {
       // DB chưa sẵn sàng (initializeDatabase() chưa chạy xong) -> để log lại vào hàng đợi, chờ lượt sau
       queue = batch.concat(queue);
@@ -98,11 +109,16 @@ async function flush() {
 
     const rows = batch.map((item) => [item.level, item.botId, item.message, item.createdAt]);
     await connection.query(`INSERT INTO ${LOG_TABLE} (level, botId, message, createdAt) VALUES ?`, [rows]);
-  } catch {
+  } catch (error) {
     // Ghi MongoDB thất bại -> đẩy batch trở lại đầu hàng đợi để thử lại lượt sau
     queue = batch.concat(queue);
     if (queue.length > MAX_QUEUE_SIZE) {
       queue.splice(0, queue.length - MAX_QUEUE_SIZE);
+    }
+    const now = Date.now();
+    if (now - lastFlushErrorAt >= 60_000) {
+      lastFlushErrorAt = now;
+      originalConsole.error(`[sql-logger] Flush failed: ${error?.message || error}`);
     }
   } finally {
     flushing = false;

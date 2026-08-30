@@ -1,6 +1,6 @@
 import { GoogleGenAI, ThinkingLevel, createUserContent, createPartFromUri, FileState } from "@google/genai";
 import { getGlobalPrefix } from "../../service.js";
-import { deepParseJSON, getContent, removeMention } from "../../../utils/format-util.js";
+import { deepParseJSON, getContent } from "../../../utils/format-util.js";
 import {
   sendMessageComplete,
   sendMessageFailed,
@@ -17,6 +17,7 @@ import { logManagerBot } from "../../../utils/io-json.js";
 import { checkIsBotLeader } from "../../../commands/command.js";
 import { MessageSendType } from "../../../api-zalo/index.js";
 import { askGeminiDrawImage } from "./gemini-image.js";
+import fs from "node:fs/promises";
 
 const GEMINI_REQUEST_TIMEOUT = 12000;
 const buildGeminiClient = (apiKey) =>
@@ -204,7 +205,10 @@ export async function callGeminiAPI(api, message, question, sessionKey, identity
 }
 
 export async function askGeminiCommand(api, message, aliasCommand) {
-  const content = removeMention(message);
+  // Gemini cần thấy nguyên văn @Tên để hiểu người dùng đang nhắc tới ai.
+  // Các command khác vẫn dùng removeMention; riêng Gemini giữ mention.
+  const rawContent = getContent(message);
+  const content = typeof rawContent === "string" ? rawContent.trim() : "";
   const botId = api.getBotId();
   const isMainBot = api.apiManager.isMainBot;
   const userId = message.data.uidFrom;
@@ -220,7 +224,11 @@ export async function askGeminiCommand(api, message, aliasCommand) {
   const prefix = getGlobalPrefix(botId);
   const genAIIDUploads = [];
 
-  const question = content.replace(`${prefix}${aliasCommand}`, "").trim();
+  const commandPattern = new RegExp(
+    `${String(prefix).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}${String(aliasCommand).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`,
+    "iu"
+  );
+  const question = content.replace(commandPattern, "").trim();
 
   if (question) {
     if (question.toLowerCase() === "reset") {
@@ -334,10 +342,13 @@ export async function askGeminiCommand(api, message, aliasCommand) {
             mimeType = "image/jpeg";
           }
         }
+        const imagePrompt = question || quotedText
+          ? questionWithSenderName
+          : `${senderLabel}: Hãy đọc và trả lại chính xác ký tự/mã xuất hiện trong ảnh này.`;
         contents = {
           type: "image",
           content: [
-            { text: questionWithSenderName },
+            { text: imagePrompt },
             {
               inlineData: {
                 mimeType: mimeType,
@@ -381,24 +392,25 @@ export async function askGeminiCommand(api, message, aliasCommand) {
       }
     } else if (quote.cliMsgType === MessageSendType["chat.voice"]) {
       let downloadVoiceLocal;
-      const linkMedia = attach.params.m4a || attach.href;
+      const linkMedia = attach?.params?.m4a || attach?.params?.audio || attach?.m4a || attach?.href;
       try {
-        const genAINew = createGeminiClient();
+        if (!linkMedia) throw new Error("Không tìm thấy đường dẫn voice trong tin nhắn reply");
         downloadVoiceLocal = await fetchFileLocal(linkMedia);
-        let fileVoice = await genAINew.files.upload({
-          file: downloadVoiceLocal.filePath,
-        });
-        logManagerBot(`Uploaded File: ${fileVoice.name} : ${fileVoice.mimeType}`);
-        genAIIDUploads.push(fileVoice.name);
-        while (fileVoice.state === FileState.PROCESSING) {
-          await new Promise((resolve) => setTimeout(resolve, 3000));
-          fileVoice = await genAINew.files.get({ name: fileVoice.name });
-        }
+        const voiceBuffer = await fs.readFile(downloadVoiceLocal.filePath);
+        const voiceMime = mimeSub[downloadVoiceLocal.mime_type] || downloadVoiceLocal.mime_type || "audio/mp4";
+        const voicePrompt = question || quotedText
+          ? questionWithSenderName
+          : `${senderLabel}: Hãy nghe kỹ và chép lại chính xác nội dung hoặc mã xác nhận được đọc trong voice này.`;
         contents = {
           type: "voice",
-          content: createUserContent([createPartFromUri(fileVoice.uri, fileVoice.mimeType), questionWithSenderName]),
+          content: createUserContent([
+            { inlineData: { mimeType: voiceMime, data: voiceBuffer.toString("base64") } },
+            voicePrompt,
+          ]),
         };
-      } catch {
+      } catch (error) {
+        console.error("Không thể đọc voice cho Gemini:", error);
+        throw error;
       } finally {
         await deleteFile(downloadVoiceLocal?.filePath);
       }

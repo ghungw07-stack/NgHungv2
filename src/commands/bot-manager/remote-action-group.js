@@ -345,43 +345,63 @@ export async function handleShowGroupsList(api, message, aliasCommand) {
       return;
     }
 
-    const CHUNK_SIZE = 20;
-    const chunks = [];
+    const listIds = [...new Set(filteredGroups.map((group) => group.creatorId).filter(Boolean))];
+    const owners = await getUsersInfoBasic(api, listIds);
 
-    for (let i = 0; i < filteredGroups.length; i += CHUNK_SIZE) {
-      const chunk = filteredGroups.slice(i, i + CHUNK_SIZE);
-      chunks.push(chunk);
+    const groupItems = filteredGroups.map((group, index) => {
+      const actualIndex = index + 1;
+      const ownerName = owners[group.creatorId]?.displayName || "Không rõ";
+      return (
+        `${actualIndex}. ${group.name} (${group.totalMember} thành viên)\n` +
+        ` - Trưởng nhóm: ${ownerName}\n` +
+        ` - ID: ${group.groupId}\n\n`
+      );
+    });
+
+    const MAX_CHARS = 2100;
+    const footerText = `Reply tin nhắn này với số index và "->" + cú pháp liên quan đến hành động mà bạn muốn tôi thực hiện cho danh sách bên trên!`;
+
+    const messageChunks = [];
+    let currentMessage = `Danh sách nhóm:\n\n`;
+
+    for (let i = 0; i < groupItems.length; i++) {
+      const item = groupItems[i];
+      const isLast = i === groupItems.length - 1;
+      const potentialFooter = isLast ? footerText : "";
+
+      if ((currentMessage + item + potentialFooter).length > MAX_CHARS) {
+        if (currentMessage !== `Danh sách nhóm:\n\n` && currentMessage !== `(Tiếp theo)\n\n`) {
+          messageChunks.push(currentMessage.trimEnd());
+          currentMessage = `(Tiếp theo)\n\n${item}`;
+        } else {
+          messageChunks.push(currentMessage + item);
+          currentMessage = `(Tiếp theo)\n\n`;
+        }
+      } else {
+        currentMessage += item;
+      }
     }
 
-    for (const [chunkIndex, groupChunk] of chunks.entries()) {
-      let contentMessage = chunkIndex === 0 ? `Danh sách nhóm:\n\n` : `(Tiếp theo)\n\n`;
-      const listIds = Object.values(groupChunk).map((group) => group.creatorId);
-      const [owners, groupLinkResults] = await Promise.all([
-        getUsersInfoBasic(api, listIds),
-        Promise.allSettled(
-          groupChunk.map((group) => api.getLinkGroupByID(String(group.groupId)))
-        ),
-      ]);
-      for (const [index, group] of groupChunk.entries()) {
-        const actualIndex = chunkIndex * CHUNK_SIZE + index + 1;
-        const linkResult = groupLinkResults[index];
-        const rawLink = linkResult.status === "fulfilled" ? linkResult.value?.link : "";
-        const groupLink = rawLink
-          ? String(rawLink).startsWith("http")
-            ? String(rawLink)
-            : `https://${rawLink}`
-          : "Không lấy được (nhóm chưa bật link hoặc bot không có quyền)";
-        contentMessage +=
-          `${actualIndex}. ${group.name} (${group.totalMember} thành viên)\n` +
-          ` - Trưởng nhóm: ${owners[group.creatorId]?.displayName || "Không rõ"}\n` +
-          ` - ID: ${group.groupId}\n` +
-          ` - Link: ${groupLink}\n\n`;
+    if (currentMessage.trim().length > 0) {
+      if (!currentMessage.includes(footerText)) {
+        if ((currentMessage + "\n" + footerText).length <= MAX_CHARS) {
+          currentMessage += (currentMessage.endsWith("\n") ? "" : "\n") + footerText;
+          messageChunks.push(currentMessage);
+        } else {
+          messageChunks.push(currentMessage.trimEnd());
+          messageChunks.push(footerText);
+        }
+      } else {
+        messageChunks.push(currentMessage);
+      }
+    }
+
+    for (let chunkIndex = 0; chunkIndex < messageChunks.length; chunkIndex++) {
+      if (chunkIndex > 0) {
+        await sleep(1000);
       }
 
-      if (chunkIndex === chunks.length - 1) {
-        contentMessage += `Reply tin nhắn này với số index và "->" + cú pháp liên quan đến hành động mà bạn muốn tôi thực hiện cho danh sách bên trên!`;
-      }
-
+      const contentMessage = messageChunks[chunkIndex];
       const msgResponse = await sendMessageCompleteRequest(
         api,
         message,
@@ -391,13 +411,20 @@ export async function handleShowGroupsList(api, message, aliasCommand) {
         timeOutWaitingActionGroup
       );
 
-      if (chunkIndex === chunks.length - 1) {
-        const msgId = msgResponse.message.msgId.toString();
-        waitingActionGroupMap.set(msgId, {
+      // Lưu action handler cho tất cả message chunk để reply tin nào cũng nhận
+      const sentMessage = msgResponse?.message || {};
+      const messageIds = [sentMessage.globalMsgId, sentMessage.msgId, sentMessage.cliMsgId]
+        .filter((id) => id !== undefined && id !== null && String(id).length > 0)
+        .map((id) => String(id));
+      if (messageIds.length > 0) {
+        const actionData = {
           message,
           timestamp: Date.now(),
           groups: filteredGroups,
-        });
+        };
+        for (const id of messageIds) waitingActionGroupMap.set(id, actionData);
+      } else {
+        console.error("Không lấy được ID tin nhắn listgroups từ response Zalo:", msgResponse);
       }
     }
   } catch (error) {
@@ -421,10 +448,14 @@ export async function handleActionGroupReply(
   const senderId = message.data.uidFrom;
   let content = removeMention(message);
   try {
-    if (!message.data.quote || !message.data.quote.globalMsgId || !content) return false;
+    if (!message.data.quote || !content) return false;
 
-    const quotedMsgId = message.data.quote.globalMsgId.toString();
-    if (!waitingActionGroupMap.has(quotedMsgId)) return false;
+    const quote = message.data.quote;
+    const quotedMsgIds = [quote.globalMsgId, quote.msgId, quote.cliMsgId]
+      .filter((id) => id !== undefined && id !== null && String(id).length > 0)
+      .map((id) => String(id));
+    const quotedMsgId = quotedMsgIds.find((id) => waitingActionGroupMap.has(id));
+    if (!quotedMsgId) return false;
     const dataReply = waitingActionGroupMap.get(quotedMsgId);
     if (dataReply.message.data.uidFrom !== senderId) return false;
 

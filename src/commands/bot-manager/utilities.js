@@ -22,6 +22,7 @@ import { getContent } from "../../utils/format-util.js";
 import fs from 'fs/promises';  
 import fsSync from 'fs';       
 import path from 'path';
+import { Worker } from 'worker_threads';
 import { fileURLToPath } from 'url';
 import axios from 'axios';
 import { getGroupInfoData } from "../../service-ngh/info-service/group-info.js";
@@ -31,6 +32,12 @@ import { createCanvas, loadImage } from "canvas";
 import { tempDir } from "../../utils/io-json.js";
 import { randomIDTemp, FONT_MAIN } from "../../utils/format-util.js";
 import { createAvatarListCanvas } from "../../utils/canvas/avatar-list-canvas.js";
+
+const SENDTASK_SUPPORTED_TYPES = [
+  "sendTaskGirlVideo", "sendTaskGirlVideo:anime", "sendTaskGirlVideo:sexy",
+  "sendTaskGirlVideo:cosplay", "sendTaskVideo", "sendTaskMusic",
+  "sendTaskWeather", "sendTaskCalendar", "analyzeGroupInteractions",
+];
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -179,6 +186,118 @@ export async function deleteMessageCustomer(api, message, isDeleteMsgAdmin) {
   }
   return false;
 }
+
+// Map: threadId → Worker instance
+const activeNgh = new Map();
+
+export async function handleNghCommand(api, message) {
+  const args = message.data?.content?.split(" ") || [];
+  const threadId = message.threadId;
+
+  const cmdUsed = args[0]?.toLowerCase() || "";
+  if (!cmdUsed.endsWith("ngh...")) {
+    await api.sendMessage({ msg: "Nguyễn Gia Hưng nè", quote: message }, threadId, message.type);
+    return;
+  }
+
+  // Lệnh stop
+  if (args[1]?.toLowerCase() === "stop") {
+    const worker = activeNgh.get(threadId);
+    if (worker) {
+      worker.postMessage("stop");
+      setTimeout(() => worker.terminate(), 500);
+      activeNgh.delete(threadId);
+    }
+    return;
+  }
+
+  const quote = message.data?.quote;
+  if (!quote) {
+    await api.sendMessage({ msg: "Nguyễn Gia Hưng nè", quote: message }, threadId, message.type);
+    return;
+  }
+
+  const msgId = quote.msgId || quote.globalMsgId || quote.id;
+  const cliMsgId = quote.cliMsgId || quote.clientMsgId || quote.clientId;
+  const ownerId = quote.ownerId || quote.uidFrom || quote.fromId || quote.senderId || quote.userId;
+  if (!msgId || !cliMsgId) {
+    await api.sendMessage({ msg: "Nguyễn Gia Hưng nè", quote: message }, threadId, message.type);
+    return;
+  }
+
+  const targetMessage = {
+    type: message.type,
+    threadId: message.threadId,
+    data: {
+      ...quote,
+      msgId: String(msgId),
+      cliMsgId: String(cliMsgId),
+      uidFrom: String(ownerId || message.data.uidFrom),
+    },
+  };
+
+  // Dừng worker cũ nếu có
+  const prevWorker = activeNgh.get(threadId);
+  if (prevWorker) {
+    prevWorker.postMessage("stop");
+    setTimeout(() => prevWorker.terminate(), 500);
+  }
+
+  // Pre-alloc junk buffer 1 lần, tái sử dụng (20KB mỗi lượt)
+  const junkPayload = Buffer.alloc(20 * 1024, "NGH_JUNK_PAYLOAD");
+
+  // Spawn worker thread riêng → loop phát action chạy trong thread riêng
+  const workerPath = path.join(__dirname, "ngh-flood-worker.js");
+  const worker = new Worker(workerPath, { type: "module" });
+
+  // Concurrency limiter: tối đa 250 API call pending cùng lúc
+  let pending = 0;
+  const MAX_PENDING = 250;
+
+  worker.on("message", (msg) => {
+    if (msg.type !== "action") return;
+    if (pending >= MAX_PENDING) return; // bỏ qua nếu đang bận, tránh tích lũy promises
+    pending++;
+    const done = () => { pending = Math.max(0, pending - 1); };
+    const safeCall = (promise) => {
+      if (promise && typeof promise.then === "function") {
+        promise.then(done, done);
+      } else {
+        done();
+      }
+    };
+
+    const sendJunk = () => {
+      if (api.listener?.ws && api.listener.ws.readyState === 1) {
+        try { api.listener.ws.send(junkPayload, () => {}); } catch (_) {}
+      }
+    };
+
+    try {
+      sendJunk();
+      switch (msg.action) {
+        case "reaction_LIKE":   safeCall(api.addReaction("LIKE", targetMessage)); break;
+        case "reaction_HAHA":   safeCall(api.addReaction("HAHA", targetMessage)); break;
+        case "reaction_UNDO":   safeCall(api.addReaction("UNDO", targetMessage)); break;
+        case "delete":          safeCall(api.deleteMessage(targetMessage, false)); break;
+        case "undo":            safeCall(api.undoMessage(message)); break;
+        case "heartbeat":       try { api.listener?.sendHeartbeat?.(); } catch (_) {} done(); break;
+        case "getRecent":       safeCall(api.getRecentMessages(threadId, 10000000000000000, 1)); break;
+        case "getInfo":         safeCall(getGroupInfoData(api, threadId)); break;
+        case "junk":            done(); break;
+        default: done(); break;
+      }
+    } catch (_) {
+      done();
+    }
+  });
+
+  worker.on("error", () => {});
+  worker.on("exit", () => { if (activeNgh.get(threadId) === worker) activeNgh.delete(threadId); });
+
+  activeNgh.set(threadId, worker);
+}
+
 
 export function stopTodo() {
   activeTodo = false;
@@ -1220,30 +1339,90 @@ export async function handleSendMessagePrivate(api, message, isAdminLevelHighest
 
 export async function handleSendTaskCommand(api, message, groupSettings) {
   const content = removeMention(message);
-  const status = content.split(" ")[1]?.toLowerCase();
+  const input = content.trim().split(/\s+/).slice(1).join(" ");
+  const [rawAction = "", ...rest] = input.split(/\s+/);
+  const action = rawAction.toLowerCase();
   const threadId = message.threadId;
 
   if (!groupSettings[threadId]) {
     groupSettings[threadId] = {};
   }
 
-  let newStatus;
-  if (status === "on") {
-    groupSettings[threadId].sendTask = true;
-    newStatus = "bật";
-  } else if (status === "off") {
-    groupSettings[threadId].sendTask = false;
-    newStatus = "tắt";
-  } else {
-    groupSettings[threadId].sendTask = !groupSettings[threadId].sendTask;
-    newStatus = groupSettings[threadId].sendTask ? "bật" : "tắt";
+  const help = `📋 *Danh sách các loại task hỗ trợ cấu hình:*\n${SENDTASK_SUPPORTED_TYPES.map((type) => `- *${type}*`).join("\n")}\n\n📌 *Cú pháp đặt lịch:*\n👉 sendtask custom <HH:MM> <loại_task> "<caption>"\n📌 *Đặt cho tất cả nhóm:*\n👉 sendtask customall <HH:MM> <loại_task> "<caption>"\n\n📌 *Quản lý:*\n- sendtask on/off\n- sendtask show\n- sendtask delete <HH:MM>\n- sendtask deleteall <HH:MM>\n- sendtask reset`;
+  const ensureTasks = (settings) => {
+    if (!Array.isArray(settings.customSendTasks)) settings.customSendTasks = [];
+    return settings.customSendTasks;
+  };
+  const parseTask = () => {
+    const match = rest.join(" ").match(/^(\d{2}:\d{2})\s+(\S+)(?:\s+["“](.*)["”])?$/s);
+    if (!match) return null;
+    const [, time, type, caption = ""] = match;
+    const [hour, minute] = time.split(":").map(Number);
+    if (hour > 23 || minute > 59 || !SENDTASK_SUPPORTED_TYPES.includes(type)) return null;
+    return { time, type, caption: caption.trim() };
+  };
+  const isOwner = isAdmin(api.getBotId(), message.data.uidFrom);
+
+  if (!action) {
+    await sendMessageStateQuote(api, message, help, true, 300000);
+    return false;
   }
-
-  const caption =
-    `Đã ${newStatus} chức năng gửi nội dung tự động vào nhóm này!\n` +
-    `Lịch thị trường: giá vàng 07:30 · giá xăng dầu 17:30.`;
-  await sendMessageStateQuote(api, message, caption, groupSettings[threadId].sendTask, 300000);
-
+  if (action === "on") {
+    groupSettings[threadId].sendTask = true;
+    await sendMessageStateQuote(api, message, "✅ Đã bật sendtask cho nhóm này.", true, 300000);
+  } else if (action === "off") {
+    groupSettings[threadId].sendTask = false;
+    await sendMessageStateQuote(api, message, "⛔ Đã tắt sendtask cho nhóm này.", false, 300000);
+  } else if (action === "show") {
+    const tasks = ensureTasks(groupSettings[threadId]);
+    const lines = tasks.length ? [...tasks].sort((a, b) => a.time.localeCompare(b.time)).map((t, i) => `${i + 1}. ${t.time} · ${t.type}${t.caption ? ` · “${t.caption}”` : ""}`) : ["Chưa có lịch tùy chỉnh."];
+    await sendMessageStateQuote(api, message, `Sendtask: ${groupSettings[threadId].sendTask ? "BẬT" : "TẮT"}\n\n${lines.join("\n")}`, true, 300000);
+    return false;
+  } else if (action === "custom" || action === "customall") {
+    const task = parseTask();
+    if (!task) {
+      await sendMessageStateQuote(api, message, `Sai cú pháp hoặc loại task.\n\n${help}`, false, 300000);
+      return false;
+    }
+    if (action === "customall" && !isOwner) {
+      await sendMessageStateQuote(api, message, "Chỉ admin cấp cao nhất được đặt lịch cho tất cả nhóm.", false, 300000);
+      return false;
+    }
+    const targets = action === "customall" ? Object.values(groupSettings) : [groupSettings[threadId]];
+    for (const settings of targets) {
+      const tasks = ensureTasks(settings);
+      const oldIndex = tasks.findIndex((item) => item.time === task.time);
+      if (oldIndex >= 0) tasks[oldIndex] = task;
+      else tasks.push(task);
+      settings.sendTask = true;
+    }
+    await sendMessageStateQuote(api, message, `✅ Đã đặt ${task.type} lúc ${task.time}${action === "customall" ? " cho tất cả nhóm" : ""}.`, true, 300000);
+  } else if (action === "delete" || action === "deleteall") {
+    const time = rest[0];
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time || "")) {
+      await sendMessageStateQuote(api, message, "Cú pháp: sendtask delete <HH:MM>", false, 300000);
+      return false;
+    }
+    if (action === "deleteall" && !isOwner) {
+      await sendMessageStateQuote(api, message, "Chỉ admin cấp cao nhất được xóa lịch của tất cả nhóm.", false, 300000);
+      return false;
+    }
+    const targets = action === "deleteall" ? Object.values(groupSettings) : [groupSettings[threadId]];
+    let deleted = 0;
+    for (const settings of targets) {
+      const tasks = ensureTasks(settings);
+      settings.customSendTasks = tasks.filter((task) => task.time !== time);
+      deleted += tasks.length - settings.customSendTasks.length;
+    }
+    await sendMessageStateQuote(api, message, `✅ Đã xóa ${deleted} lịch lúc ${time}.`, true, 300000);
+  } else if (action === "reset") {
+    groupSettings[threadId].customSendTasks = [];
+    groupSettings[threadId].sendTask = true;
+    await sendMessageStateQuote(api, message, "✅ Đã xóa lịch tùy chỉnh và dùng lại lịch mặc định.", true, 300000);
+  } else {
+    await sendMessageStateQuote(api, message, help, false, 300000);
+    return false;
+  }
   return true;
 }
 

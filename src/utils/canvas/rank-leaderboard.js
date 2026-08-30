@@ -200,6 +200,351 @@ function drawStar(ctx, x, y, size, filled, color = "#FFD700") {
   ctx.restore();
 }
 
+function roundedPath(ctx, x, y, width, height, radius) {
+  const r = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + width, y, x + width, y + height, r);
+  ctx.arcTo(x + width, y + height, x, y + height, r);
+  ctx.arcTo(x, y + height, x, y, r);
+  ctx.arcTo(x, y, x + width, y, r);
+  ctx.closePath();
+}
+
+function fillRounded(ctx, x, y, width, height, radius, fill) {
+  roundedPath(ctx, x, y, width, height, radius);
+  ctx.fillStyle = fill;
+  ctx.fill();
+}
+
+function fitText(ctx, text, maxWidth) {
+  const value = String(text || "Ẩn Danh");
+  if (ctx.measureText(value).width <= maxWidth) return value;
+  let end = value.length;
+  while (end > 0 && ctx.measureText(`${value.slice(0, end)}…`).width > maxWidth) end--;
+  return `${value.slice(0, end).trim()}…`;
+}
+
+async function drawModernAvatar(ctx, user, x, y, size, ringColor) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(x + size / 2, y + size / 2, size / 2, 0, Math.PI * 2);
+  ctx.clip();
+  let loaded = false;
+  try {
+    if (user.avatar && cv.isValidUrl(user.avatar)) {
+      const avatar = await loadImage(user.avatar);
+      const scale = Math.max(size / avatar.width, size / avatar.height);
+      const sourceWidth = size / scale;
+      const sourceHeight = size / scale;
+      const sourceX = (avatar.width - sourceWidth) / 2;
+      const sourceY = (avatar.height - sourceHeight) / 2;
+      ctx.drawImage(avatar, sourceX, sourceY, sourceWidth, sourceHeight, x, y, size, size);
+      loaded = true;
+    }
+  } catch {}
+  if (!loaded) {
+    const fallback = ctx.createLinearGradient(x, y, x + size, y + size);
+    fallback.addColorStop(0, "#29334f");
+    fallback.addColorStop(1, "#111729");
+    ctx.fillStyle = fallback;
+    ctx.fillRect(x, y, size, size);
+    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    ctx.font = `bold ${Math.round(size * 0.34)}px ${FONT_MAIN}`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(String(user.name || "?").trim().charAt(0).toUpperCase(), x + size / 2, y + size / 2 + 1);
+  }
+  ctx.restore();
+  ctx.beginPath();
+  ctx.arc(x + size / 2, y + size / 2, size / 2 + 3, 0, Math.PI * 2);
+  ctx.strokeStyle = ringColor;
+  ctx.lineWidth = 5;
+  ctx.stroke();
+}
+
+async function renderEditorialLeaderboard(topUsers, groupName, titleText, periodLabel) {
+  const width = 1080;
+  const lowerUsers = topUsers.slice(3);
+  const height = Math.max(1040, 652 + lowerUsers.length * 88 + 86);
+  const canvas = createCanvas(width, height);
+  const ctx = canvas.getContext("2d");
+
+  ctx.fillStyle = "#f4efe4";
+  ctx.fillRect(0, 0, width, height);
+
+  ctx.fillStyle = "#e95d32";
+  ctx.fillRect(0, 0, 18, height);
+  ctx.fillStyle = "#15263c";
+  ctx.fillRect(18, 0, width - 18, 20);
+
+  ctx.fillStyle = "#e95d32";
+  ctx.font = `bold 14px ${FONT_MAIN}`;
+  ctx.textAlign = "left";
+  ctx.fillText(`NGH / ${periodLabel}`, 62, 66);
+  ctx.fillStyle = "#15263c";
+  ctx.font = `bold 54px ${FONT_MAIN}`;
+  ctx.fillText("TOP CHAT", 58, 130);
+  ctx.font = `bold 22px ${FONT_MAIN}`;
+  ctx.fillText(fitText(ctx, titleText.replaceAll("🏆", "").trim(), 650), 62, 169);
+  ctx.fillStyle = "#6d6b65";
+  ctx.font = `18px ${FONT_MAIN}`;
+  ctx.fillText(fitText(ctx, groupName, 650), 62, 202);
+  ctx.textAlign = "right";
+  ctx.fillStyle = "#15263c";
+  ctx.font = `bold 92px ${FONT_MAIN}`;
+  ctx.fillText("10", width - 58, 151);
+  ctx.fillStyle = "#e95d32";
+  ctx.font = `bold 13px ${FONT_MAIN}`;
+  ctx.fillText("THÀNH VIÊN NỔI BẬT", width - 62, 180);
+
+  ctx.strokeStyle = "#15263c";
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(58, 228); ctx.lineTo(width - 58, 228); ctx.stroke();
+
+  const first = topUsers[0];
+  if (first) {
+    fillRounded(ctx, 58, 258, 600, 316, 4, "#15263c");
+    ctx.fillStyle = "#e95d32";
+    ctx.fillRect(58, 258, 16, 316);
+    await drawModernAvatar(ctx, first, 102, 302, 170, "#f4efe4");
+    ctx.fillStyle = "#e95d32";
+    ctx.font = `bold 78px ${FONT_MAIN}`;
+    ctx.textAlign = "left";
+    ctx.fillText("01", 310, 354);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = `bold 28px ${FONT_MAIN}`;
+    ctx.fillText(fitText(ctx, first.name, 300), 310, 407);
+    ctx.fillStyle = "#aeb9c2";
+    ctx.font = `15px ${FONT_MAIN}`;
+    ctx.fillText(fitText(ctx, first.rankInfo.displayName, 300), 310, 439);
+    ctx.fillStyle = "#f4efe4";
+    ctx.font = `bold 36px ${FONT_MAIN}`;
+    ctx.fillText(Number(first.messageCount || 0).toLocaleString("vi-VN"), 310, 500);
+    ctx.fillStyle = "#e95d32";
+    ctx.font = `bold 12px ${FONT_MAIN}`;
+    ctx.fillText("TIN NHẮN", 310, 526);
+  }
+
+  const sideUsers = [topUsers[1], topUsers[2]];
+  for (let i = 0; i < sideUsers.length; i++) {
+    const user = sideUsers[i];
+    if (!user) continue;
+    const y = 258 + i * 166;
+    fillRounded(ctx, 680, y, 342, 150, 4, i === 0 ? "#d8d1c4" : "#e4ddd1");
+    await drawModernAvatar(ctx, user, 704, y + 29, 92, i === 0 ? "#7f8a96" : "#b8734f");
+    ctx.textAlign = "left";
+    ctx.fillStyle = "#e95d32";
+    ctx.font = `bold 24px ${FONT_MAIN}`;
+    ctx.fillText(`0${i + 2}`, 824, y + 36);
+    ctx.fillStyle = "#15263c";
+    ctx.font = `bold 18px ${FONT_MAIN}`;
+    ctx.fillText(fitText(ctx, user.name, 174), 824, y + 70);
+    ctx.font = `bold 19px ${FONT_MAIN}`;
+    ctx.fillText(Number(user.messageCount || 0).toLocaleString("vi-VN"), 824, y + 103);
+    ctx.fillStyle = "#74716b";
+    ctx.font = `11px ${FONT_MAIN}`;
+    ctx.fillText(fitText(ctx, user.rankInfo.displayName, 174), 824, y + 127);
+  }
+
+  ctx.fillStyle = "#15263c";
+  ctx.font = `bold 13px ${FONT_MAIN}`;
+  ctx.textAlign = "left";
+  ctx.fillText("HẠNG", 62, 625);
+  ctx.fillText("THÀNH VIÊN", 174, 625);
+  ctx.textAlign = "right";
+  ctx.fillText("TIN NHẮN", width - 62, 625);
+  ctx.strokeStyle = "#c7beb0";
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(58, 640); ctx.lineTo(width - 58, 640); ctx.stroke();
+
+  const listY = 652;
+  for (let i = 0; i < lowerUsers.length; i++) {
+    const user = lowerUsers[i];
+    const y = listY + i * 88;
+    if (i % 2 === 0) fillRounded(ctx, 58, y, width - 116, 76, 2, "#ebe4d8");
+    const rankNumber = i + 4;
+    ctx.fillStyle = "#e95d32";
+    ctx.font = `bold 26px ${FONT_MAIN}`;
+    ctx.textAlign = "center";
+    ctx.fillText(String(rankNumber).padStart(2, "0"), 94, y + 48);
+    await drawModernAvatar(ctx, user, 138, y + 9, 58, "#15263c");
+    ctx.textAlign = "left";
+    ctx.fillStyle = "#15263c";
+    ctx.font = `bold 19px ${FONT_MAIN}`;
+    ctx.fillText(fitText(ctx, user.name, 540), 222, y + 31);
+    ctx.fillStyle = "#77736c";
+    ctx.font = `13px ${FONT_MAIN}`;
+    ctx.fillText(fitText(ctx, user.rankInfo.displayName, 540), 222, y + 56);
+    ctx.textAlign = "right";
+    ctx.fillStyle = "#15263c";
+    ctx.font = `bold 24px ${FONT_MAIN}`;
+    ctx.fillText(Number(user.messageCount || 0).toLocaleString("vi-VN"), width - 62, y + 47);
+  }
+
+  const footerY = height - 34;
+  ctx.textAlign = "left";
+  ctx.fillStyle = "#77736c";
+  ctx.font = `10px ${FONT_MAIN}`;
+  ctx.fillText("NGH MEDIA  /  INTERACTION REPORT", 62, footerY);
+  ctx.textAlign = "right";
+  const now = new Date().toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" });
+  ctx.fillText(`CẬP NHẬT ${now}`, width - 62, footerY);
+
+  const outputPath = path.join(tempDir, `rank_leaderboard_${randomIDTemp()}.png`);
+  await fs.promises.writeFile(outputPath, canvas.toBuffer("image/png"));
+  return outputPath;
+}
+
+async function drawRankEmblem(ctx, rankInfo, x, y, size) {
+  try {
+    if (rankInfo?.img && fs.existsSync(rankInfo.img)) {
+      const image = await loadImage(rankInfo.img);
+      ctx.drawImage(image, x, y, size, size);
+      return;
+    }
+  } catch {}
+
+  const color = rankInfo?.color || "#6ee7ff";
+  ctx.save();
+  ctx.translate(x + size / 2, y + size / 2);
+  ctx.rotate(Math.PI / 4);
+  const gradient = ctx.createLinearGradient(-size / 2, -size / 2, size / 2, size / 2);
+  gradient.addColorStop(0, color);
+  gradient.addColorStop(1, "#ffffff");
+  fillRounded(ctx, -size * 0.3, -size * 0.3, size * 0.6, size * 0.6, 8, gradient);
+  ctx.restore();
+}
+
+async function renderModernLeaderboard(topUsers, groupName, titleText, periodLabel) {
+  const width = 1080;
+  const headerHeight = 190;
+  const rowHeight = 112;
+  const rowGap = 12;
+  const footerHeight = 72;
+  const height = headerHeight + topUsers.length * (rowHeight + rowGap) + footerHeight;
+  const canvas = createCanvas(width, height);
+  const ctx = canvas.getContext("2d");
+
+  ctx.fillStyle = "#030708";
+  ctx.fillRect(0, 0, width, height);
+
+  const headerGlow = ctx.createRadialGradient(width / 2, 0, 0, width / 2, 0, 620);
+  headerGlow.addColorStop(0, "rgba(0, 229, 255, 0.22)");
+  headerGlow.addColorStop(0.55, "rgba(0, 120, 160, 0.07)");
+  headerGlow.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = headerGlow;
+  ctx.fillRect(0, 0, width, 340);
+
+  fillRounded(ctx, 28, 24, width - 56, 138, 24, "rgba(8, 15, 18, 0.92)");
+  roundedPath(ctx, 28, 24, width - 56, 138, 24);
+  ctx.strokeStyle = "rgba(111, 235, 255, 0.34)";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  fillRounded(ctx, 54, 48, 132, 34, 17, "#00d6e8");
+  ctx.fillStyle = "#031012";
+  ctx.font = `bold 12px ${FONT_MAIN}`;
+  ctx.textAlign = "center";
+  ctx.fillText(periodLabel, 120, 70);
+
+  ctx.textAlign = "left";
+  ctx.fillStyle = "#ffffff";
+  ctx.font = `bold 39px ${FONT_MAIN}`;
+  ctx.fillText(fitText(ctx, titleText.replaceAll("🏆", "").trim(), 690), 54, 121);
+  ctx.fillStyle = "#91a7ad";
+  ctx.font = `17px ${FONT_MAIN}`;
+  ctx.fillText(fitText(ctx, groupName, 680), 54, 148);
+
+  ctx.textAlign = "right";
+  ctx.fillStyle = "rgba(255,255,255,0.08)";
+  ctx.font = `bold 72px ${FONT_MAIN}`;
+  ctx.fillText("TOP 10", width - 52, 117);
+
+  const accents = ["#ffd45a", "#70e8ff", "#ff9767"];
+  for (let i = 0; i < topUsers.length; i++) {
+    const user = topUsers[i];
+    const rank = i + 1;
+    const y = headerHeight + i * (rowHeight + rowGap);
+    const accent = accents[i] || user.rankInfo?.color || "#59676b";
+
+    const rowGradient = ctx.createLinearGradient(30, y, width - 30, y + rowHeight);
+    if (rank === 1) {
+      rowGradient.addColorStop(0, "rgba(118, 83, 12, 0.56)");
+      rowGradient.addColorStop(0.5, "rgba(32, 28, 17, 0.94)");
+      rowGradient.addColorStop(1, "rgba(8, 13, 15, 0.96)");
+    } else if (rank === 2) {
+      rowGradient.addColorStop(0, "rgba(34, 85, 96, 0.52)");
+      rowGradient.addColorStop(0.5, "rgba(15, 25, 29, 0.95)");
+      rowGradient.addColorStop(1, "rgba(7, 12, 14, 0.97)");
+    } else if (rank === 3) {
+      rowGradient.addColorStop(0, "rgba(105, 49, 30, 0.48)");
+      rowGradient.addColorStop(0.5, "rgba(27, 20, 17, 0.95)");
+      rowGradient.addColorStop(1, "rgba(7, 12, 14, 0.97)");
+    } else {
+      rowGradient.addColorStop(0, i % 2 ? "rgba(13, 20, 22, 0.96)" : "rgba(20, 29, 31, 0.96)");
+      rowGradient.addColorStop(1, "rgba(5, 10, 11, 0.98)");
+    }
+
+    ctx.save();
+    if (rank <= 3) {
+      ctx.shadowColor = `${accent}55`;
+      ctx.shadowBlur = 15;
+    }
+    fillRounded(ctx, 30, y, width - 60, rowHeight, 18, rowGradient);
+    ctx.restore();
+    roundedPath(ctx, 30.5, y + 0.5, width - 61, rowHeight - 1, 18);
+    ctx.strokeStyle = rank <= 3 ? `${accent}bb` : "rgba(103, 142, 149, 0.24)";
+    ctx.lineWidth = rank <= 3 ? 2 : 1;
+    ctx.stroke();
+    ctx.fillStyle = accent;
+    ctx.fillRect(30, y + 22, 5, rowHeight - 44);
+
+    ctx.textAlign = "center";
+    ctx.fillStyle = rank <= 3 ? accent : "#d8e0e2";
+    ctx.font = `bold ${rank === 10 ? 27 : 31}px ${FONT_MAIN}`;
+    ctx.fillText(`#${rank}`, 78, y + 69);
+
+    await drawModernAvatar(ctx, user, 118, y + 15, 82, accent);
+
+    ctx.textAlign = "left";
+    ctx.fillStyle = "#ffffff";
+    ctx.font = `bold 22px ${FONT_MAIN}`;
+    ctx.fillText(fitText(ctx, user.name, 430), 226, y + 46);
+    ctx.fillStyle = "#8fa0a5";
+    ctx.font = `15px ${FONT_MAIN}`;
+    ctx.fillText(`${Number(user.messageCount || 0).toLocaleString("vi-VN")} tin nhắn`, 226, y + 77);
+
+    await drawRankEmblem(ctx, user.rankInfo, 718, y + 27, 58);
+    ctx.textAlign = "left";
+    ctx.fillStyle = user.rankInfo?.color || "#70e8ff";
+    ctx.font = `bold 17px ${FONT_MAIN}`;
+    ctx.fillText(fitText(ctx, user.rankInfo?.displayName, 225), 798, y + 45);
+
+    const stars = Math.max(0, Number(user.rankInfo?.stars || 0));
+    const maxStars = Math.min(5, Number(user.rankInfo?.maxStars || 5));
+    ctx.fillStyle = accent;
+    ctx.font = `bold 17px ${FONT_MAIN}`;
+    const starText = user.rankInfo?.isCaoThu
+      ? `★  ×${stars.toLocaleString("vi-VN")}`
+      : `${"★".repeat(Math.min(stars, maxStars))}${"☆".repeat(Math.max(0, maxStars - stars))}`;
+    ctx.fillText(starText, 798, y + 76);
+  }
+
+  const footerY = height - 30;
+  ctx.fillStyle = "#718388";
+  ctx.font = `11px ${FONT_MAIN}`;
+  ctx.textAlign = "left";
+  ctx.fillText("NGH MEDIA  •  CHAT ARENA", 38, footerY);
+  ctx.textAlign = "right";
+  const now = new Date().toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" });
+  ctx.fillText(`CẬP NHẬT ${now}`, width - 38, footerY);
+
+  const outputPath = path.join(tempDir, `rank_leaderboard_${randomIDTemp()}.png`);
+  await fs.promises.writeFile(outputPath, canvas.toBuffer("image/png"));
+  return outputPath;
+}
+
 /**
  * Vẽ hàng xếp hạng cho một người dùng
  */
@@ -393,84 +738,17 @@ async function drawRankRow(ctx, user, yPos, index, width) {
  * @returns {Promise<string>} Đường dẫn đến ảnh đã tạo
  */
 export async function createRankLeaderboard(users, groupName = "Nhóm", rankStar, titleText = "🏆 BXH TƯƠNG TÁC HÔM NAY 🏆") {
-  // Tính toán rank cho mỗi người dùng
   const usersWithRank = users.map((user) => ({
     ...user,
     rankInfo: calculateRank(user.messageCount || 0, rankStar),
   }));
-
-  // Sắp xếp theo số tin nhắn
   usersWithRank.sort((a, b) => b.messageCount - a.messageCount);
-
-  // Chỉ lấy top 10
   const topUsers = usersWithRank.slice(0, 10);
-
-  // Tính toán kích thước canvas
-  const width = 1200;
-  const headerHeight = 160;
-  const rowHeight = 126;
-  const footerHeight = 50;
-  const height = headerHeight + topUsers.length * rowHeight + footerHeight;
-
-  const canvas = createCanvas(width, height);
-  const ctx = canvas.getContext("2d");
-
-  // Vẽ background gradient
-  const gradient = ctx.createLinearGradient(0, 0, 0, height);
-  gradient.addColorStop(0, "#1a1a2e");
-  gradient.addColorStop(0.5, "#16213e");
-  gradient.addColorStop(1, "#0f3460");
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, width, height);
-
-  // Vẽ hiệu ứng particles
-  cv.drawAnimatedBackground(ctx, width, height);
-
-  // Vẽ header
-  let yPos = 80;
-  ctx.save();
-  ctx.font = `bold 52px ${FONT_MAIN}`;
-  ctx.fillStyle = cv.getRandomGradient(ctx, width);
-  ctx.textAlign = "center";
-  ctx.fillText(titleText, width / 2, yPos);
-  ctx.restore();
-
-  yPos += 60;
-  ctx.save();
-  ctx.font = `bold 32px ${FONT_MAIN}`;
-  ctx.fillStyle = "#FFD700";
-  ctx.textAlign = "center";
-  ctx.fillText(groupName, width / 2, yPos);
-  ctx.restore();
-
-  yPos += 50;
-
-  // Vẽ từng user
-  let index = 1;
-  for (const user of topUsers) {
-    yPos = await drawRankRow(ctx, user, yPos, index++, width);
-  }
-
-  // Vẽ footer
-  yPos += 30;
-  ctx.save();
-  ctx.font = `20px ${FONT_MAIN}`;
-  ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
-  ctx.textAlign = "center";
-  const now = new Date().toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" });
-  ctx.fillText(`Cập nhật: ${now}`, width / 2, yPos);
-  ctx.restore();
-
-  // Lưu file
-  const outputPath = path.join(tempDir, `rank_leaderboard_${randomIDTemp()}.png`);
-  const out = fs.createWriteStream(outputPath);
-  const stream = canvas.createPNGStream();
-  stream.pipe(out);
-
-  return new Promise((resolve, reject) => {
-    out.on("finish", () => resolve(outputPath));
-    out.on("error", reject);
-  });
+  const normalizedTitle = titleText.toLowerCase();
+  const periodLabel = normalizedTitle.includes("tuần")
+    ? "TUẦN NÀY"
+    : normalizedTitle.includes("tháng") ? "THÁNG NÀY" : "HÔM NAY";
+  return renderModernLeaderboard(topUsers, groupName, titleText, periodLabel);
 }
 /**
  * Tạo ảnh bảng xếp hạng tổng
@@ -480,7 +758,6 @@ export async function createRankLeaderboard(users, groupName = "Nhóm", rankStar
  * @returns {Promise<string>} Đường dẫn đến ảnh đã tạo
  */
 export async function createRankLeaderboardTotal(users, groupName = "Nhóm", rankStar) {
-  // Tính toán rank cho mỗi người dùng
   const usersWithRank = users.map((user) => {
     const normalizedCount = Math.floor((user.messageCount || 0) / 1000);
     return {
@@ -488,80 +765,9 @@ export async function createRankLeaderboardTotal(users, groupName = "Nhóm", ran
       rankInfo: calculateRank(normalizedCount, rankStar),
     };
   });
-
-  // Sắp xếp theo số tin nhắn
   usersWithRank.sort((a, b) => b.messageCount - a.messageCount);
-
-  // Chỉ lấy top 10
   const topUsers = usersWithRank.slice(0, 10);
-
-  // Tính toán kích thước canvas
-  const width = 1200;
-  const headerHeight = 160;
-  const rowHeight = 126;
-  const footerHeight = 50;
-  const height = headerHeight + topUsers.length * rowHeight + footerHeight;
-
-  const canvas = createCanvas(width, height);
-  const ctx = canvas.getContext("2d");
-
-  // Vẽ background gradient
-  const gradient = ctx.createLinearGradient(0, 0, 0, height);
-  gradient.addColorStop(0, "#1a1a2e");
-  gradient.addColorStop(0.5, "#16213e");
-  gradient.addColorStop(1, "#0f3460");
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, width, height);
-
-  // Vẽ hiệu ứng particles
-  cv.drawAnimatedBackground(ctx, width, height);
-
-  // Vẽ header
-  let yPos = 80;
-  ctx.save();
-  ctx.font = `bold 52px ${FONT_MAIN}`;
-  ctx.fillStyle = cv.getRandomGradient(ctx, width);
-  ctx.textAlign = "center";
-  const title = "🏆 BXH Tương Tác Tổng 🏆";
-  ctx.fillText(title, width / 2, yPos);
-  ctx.restore();
-
-  yPos += 60;
-  ctx.save();
-  ctx.font = `bold 32px ${FONT_MAIN}`;
-  ctx.fillStyle = "#FFD700";
-  ctx.textAlign = "center";
-  ctx.fillText(groupName, width / 2, yPos);
-  ctx.restore();
-
-  yPos += 50;
-
-  // Vẽ từng user
-  let index = 1;
-  for (const user of topUsers) {
-    yPos = await drawRankRow(ctx, user, yPos, index++, width);
-  }
-
-  // Vẽ footer
-  yPos += 30;
-  ctx.save();
-  ctx.font = `20px ${FONT_MAIN}`;
-  ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
-  ctx.textAlign = "center";
-  const now = new Date().toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" });
-  ctx.fillText(`Cập nhật: ${now}`, width / 2, yPos);
-  ctx.restore();
-
-  // Lưu file
-  const outputPath = path.join(tempDir, `rank_leaderboard_${randomIDTemp()}.png`);
-  const out = fs.createWriteStream(outputPath);
-  const stream = canvas.createPNGStream();
-  stream.pipe(out);
-
-  return new Promise((resolve, reject) => {
-    out.on("finish", () => resolve(outputPath));
-    out.on("error", reject);
-  });
+  return renderModernLeaderboard(topUsers, groupName, "BXH TƯƠNG TÁC TỔNG", "TOÀN THỜI GIAN");
 }
 
 /**

@@ -118,12 +118,11 @@ export async function startWebServer() {
   app.use(express.json({ limit: "2mb" }));
 
   // Public, short-lived voice URLs served directly from this VPS.
-  app.get("/voice-temp/:token", (req, res) => {
+  app.get(["/voice-temp/:token", "/voice-temp/:token/:filename"], (req, res) => {
     const entry = getVoiceTempFile(req.params.token);
     if (!entry || !fsSync.existsSync(entry.path)) return res.status(404).end();
-    res.setHeader("Content-Type", path.extname(entry.path).toLowerCase() === ".mp3" ? "audio/mpeg" : "audio/aac");
     res.setHeader("Cache-Control", "public, max-age=21600");
-    streamVoiceTempFile(entry, res);
+    res.sendFile(entry.path);
   });
 
 

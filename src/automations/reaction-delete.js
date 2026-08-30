@@ -87,7 +87,7 @@ export async function handleHeartReactionDelete(api, reaction) {
       return false;
     }
   } catch (error) {
-    console.error("Lỗi khi xóa tin nhắn từ reaction tim:", error);
+    console.error("Lỗi khi xóa tin nhắn từ reaction like:", error);
     return false;
   }
 }
@@ -117,9 +117,8 @@ export async function handleHeartReactionDeleteCommand(api, message, aliasComman
 
   managerDataCache.setChanged(botId);
   const status = managerData.heartReactionDelete ? "bật" : "tắt";
-  const caption = `Chức năng xóa tin nhắn khi có reaction đã được ${status}!`;
+  const caption = `Chức năng xóa tin nhắn khi có reaction like đã được ${status}!`;
   await sendMessageStateQuote(api, message, caption, managerData.heartReactionDelete, 300000);
 
   return true;
 }
-

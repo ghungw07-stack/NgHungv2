@@ -3,31 +3,96 @@ import { getCommandConfig, getManagerCommandCustomConfig, isAdmin, reloadCommand
 import * as cv from "../../utils/canvas/index.js";
 import { checkBeforeJoinGame, checkPlayerBanned } from "../../service-ngh/game-service/index.js";
 import { getGlobalPrefix } from "../../service-ngh/service.js";
-import { COLOR_GREEN, SIZE_18, IS_BOLD, getTextStyle, sendMessageFromSQL } from "../../service-ngh/chat-zalo/chat-style/chat-style.js";
+import { COLOR_GREEN, SIZE_18, IS_BOLD, getTextStyle, getCommandMapColors, getNameServer, getServerStyle, sendMessageFromSQL } from "../../service-ngh/chat-zalo/chat-style/chat-style.js";
 import { LRUCache } from "lru-cache";
 import { removeMention } from "../../utils/format-util.js";
 import { findRecentMessages } from "../bot-manager/recent-message.js";
+import { parseMenuPage } from "../../utils/menu-page.js";
+import crypto from "node:crypto";
 
 const COMMANDS_PER_PAGE = 25;
-const MENU_COMMANDS_PER_PAGE = 16;
-const MENU_PAGE_TTL = 300000; // 5 phút chờ chọn trang
-const FIND_PAGE_DELAY_MS = 5000;
+const MENU_COMMANDS_PER_PAGE = 12;
+const MENU_PAGE_TTL = 30000; // 30 giây không chuyển trang thì tự hết hạn
+const COMMAND_PAGE_DELAY_MS = 1000;
 
 // Lưu riêng theo bot + nhóm + người dùng để menu ở nơi khác không bắt nhầm tin nhắn.
 const menuPageMap = new LRUCache({
   max: 500,
   ttl: MENU_PAGE_TTL,
 });
+const menuImageCache = new LRUCache({ max: 100, ttl: 10 * 60 * 1000 });
+const menuRenderInFlight = new Map();
+
+function getMenuImageKey(botName, pageCommands, page, totalPages, totalCommands) {
+  return crypto
+    .createHash("sha1")
+    .update(JSON.stringify({ botName, pageCommands, page, totalPages, totalCommands }))
+    .digest("hex");
+}
+
+async function getCachedMenuImage(options) {
+  const pageCommands = options.commands;
+  const key = getMenuImageKey(options.botName, pageCommands, options.page, options.totalPages, options.totalCommands);
+  const cached = menuImageCache.get(key);
+  if (cached) return cached;
+  if (menuRenderInFlight.has(key)) return menuRenderInFlight.get(key);
+  const rendering = cv.createMenuGridImage(options)
+    .then((imagePath) => {
+      menuImageCache.set(key, imagePath);
+      return imagePath;
+    })
+    .finally(() => menuRenderInFlight.delete(key));
+  menuRenderInFlight.set(key, rendering);
+  return rendering;
+}
 
 const getMenuSessionKey = (api, message) =>
   `${api.getBotId()}:${message.threadId}:${message.data.uidFrom}`;
 
-export async function helpCommand(api, message, isAdminBox) {
+const COMPACT_HELP_FAMILIES = [
+  { name: "media", options: "image|video|voice|gif|file", children: ["sendimage", "sendvideo", "sendvoice", "sendgif", "sendfile"], description: "Gửi ảnh, video, giọng nói, GIF hoặc tệp" },
+  { name: "edit", options: "voice|video", children: ["editvoice", "editvideo"], description: "Cắt và chỉnh sửa voice hoặc video" },
+  { name: "sticker", options: "create|zalo|tenor|local", children: ["sticker", "stickerzalo", "tenorsticker", "stickerlocal"], description: "Tạo, tìm và gửi sticker" },
+  { name: "qr", options: "create|scan|bank", children: ["createqr", "qrcode", "scanqr", "scanqrcode", "qrbank"], description: "Tạo, quét QR hoặc tạo QR ngân hàng" },
+  { name: "check", options: "virus|domain|ip|order", children: ["checkvirus", "checkdomain", "checkip", "checkorder"], description: "Kiểm tra tệp, tên miền, IP hoặc đơn hàng" },
+  { name: "video", options: "boy|girl|anime|cosplay|sexy|vuto", children: ["vdboy", "vdgirl", "vdanime", "vdcos", "vdsexy", "vdvuto"], description: "Kho video giải trí theo chủ đề" },
+  { name: "music", options: "soundcloud|mixcloud|zing|nct|spotify", children: ["soundcloud", "mixcloud", "zingmp3", "nhaccuatui", "spotify"], description: "Tìm nhạc trên nhiều nền tảng" },
+  { name: "story", options: "text|comic|adult|funny", children: ["truyenchu", "truyentranh", "truyenhentai", "truyencuoi"], description: "Đọc truyện theo thể loại" },
+  { name: "poll", options: "create|spam", children: ["createpoll", "spampoll"], description: "Tạo hoặc gửi nhiều bình chọn" },
+  { name: "member", options: "kick|kickall|block|ban", children: ["kick", "kickall", "block", "ban"], description: "Quản lý thành viên nhóm" },
+  { name: "group", options: "member|list|scan|create|disperse", children: ["datamembergroup", "listgroups", "scangroups", "creategroup", "dispersegroup"], description: "Thông tin và quản lý nhóm" },
+  { name: "game", options: "reset-daily|reset-user", children: ["resetdaily", "resethu"], description: "Đặt lại dữ liệu game" },
+];
+
+function compactCommandsForHelp(commands, prefix) {
+  const familyByChild = new Map();
+  for (const family of COMPACT_HELP_FAMILIES) {
+    for (const child of family.children) familyByChild.set(child, family);
+  }
+  const emitted = new Set();
+  const result = [];
+  for (const command of commands) {
+    const family = familyByChild.get(command.canonicalName);
+    if (!family) { result.push(command); continue; }
+    if (emitted.has(family.name)) continue;
+    emitted.add(family.name);
+    const members = commands.filter((item) => family.children.includes(item.canonicalName));
+    result.push({
+      canonicalName: family.name,
+      name: `${prefix}${family.name} <${family.options}>`,
+      description: family.description,
+      permission: members.some((item) => item.permission !== "all") ? "adminLevelHigh" : "all",
+    });
+  }
+  return result;
+}
+
+export async function helpCommand(api, message, isAdminBox, requestedPage) {
   const senderId = message.data.uidFrom;
   const threadId = message.threadId;
   const senderName = message.data.dName;
   const botId = api.getBotId();
-  const botName = api.accountInfo?.name || "Bot";
+  const botName = getNameServer(api) || api.accountInfo?.name || "Bot";
 
   const commandConfig = getCommandConfig();
   const allCommands = (commandConfig.commands || []).filter((cmd) =>
@@ -35,23 +100,27 @@ export async function helpCommand(api, message, isAdminBox) {
   );
 
   const prefix = getGlobalPrefix(botId);
-  const commandsForMenu = allCommands.map((cmd) => {
+  const rawCommandsForMenu = allCommands.map((cmd) => {
     const customerCommand = getManagerCommandCustomConfig(botId, cmd.name) || {};
     const syntax = cmd.syntax ? cmd.syntax.replace("{p}", prefix) : `${prefix}${cmd.name}`;
     return {
+      canonicalName: cmd.name,
       name: syntax,
       description: customerCommand.description || cmd.description || "",
+      permission: customerCommand.permission || cmd.permission || "all",
     };
   });
+  const commandsForMenu = compactCommandsForHelp(rawCommandsForMenu, prefix);
 
   const totalCommands = commandsForMenu.length;
   const totalPages = Math.max(1, Math.ceil(totalCommands / MENU_COMMANDS_PER_PAGE));
+  const page = parseMenuPage(requestedPage, totalPages);
 
   try {
     const { imagePath, msgId } = await sendMenuPage(api, message, {
       botName,
       commandsForMenu,
-      page: 1,
+      page,
       totalPages,
       totalCommands,
     });
@@ -66,17 +135,17 @@ export async function helpCommand(api, message, isAdminBox) {
       lastMsgId: msgId,
     });
 
-    await cv.clearImagePath(imagePath);
+    // Ảnh được cache theo nội dung để lần mở menu sau không render canvas lại.
   } catch (error) {
     console.error("Lỗi khi gửi tin nhắn trợ giúp:", error);
     const fallback = commandsForMenu
-      .slice(0, MENU_COMMANDS_PER_PAGE)
+      .slice((page - 1) * MENU_COMMANDS_PER_PAGE, page * MENU_COMMANDS_PER_PAGE)
       .map((cmd, index) => `${index + 1}. ${cmd.name} — ${cmd.description}`)
       .join("\n");
     await api.sendMessage(
       {
         msg: `📚 ${botName} có ${totalCommands} lệnh.\n\n${fallback || "Chưa có lệnh khả dụng."}\n\nDùng ${prefix}command để xem và tìm lệnh.`,
-        ttl: 600000,
+        ttl: MENU_PAGE_TTL,
       },
       threadId,
       message.type
@@ -93,7 +162,7 @@ async function sendMenuPage(api, message, { botName, commandsForMenu, page, tota
   const startIndex = (page - 1) * MENU_COMMANDS_PER_PAGE;
   const pageCommands = commandsForMenu.slice(startIndex, startIndex + MENU_COMMANDS_PER_PAGE);
 
-  const imagePath = await cv.createMenuGridImage({
+  const imagePath = await getCachedMenuImage({
     botName,
     commands: pageCommands,
     page,
@@ -106,7 +175,7 @@ async function sendMenuPage(api, message, { botName, commandsForMenu, page, tota
       msg: `✨ ${senderName} - Danh sách lệnh của tôi ✨`,
       attachments: imagePath ? [imagePath] : [],
       mentions: [{ pos: 2, uid: senderId, len: senderName.length }],
-      ttl: 600000,
+      ttl: MENU_PAGE_TTL,
       isUseProphylactic: true,
     },
     threadId,
@@ -117,22 +186,37 @@ async function sendMenuPage(api, message, { botName, commandsForMenu, page, tota
   return { imagePath, msgId };
 }
 
-// Chỉ nhận số trang khi người dùng reply đúng ảnh menu gần nhất.
-// Nhờ vậy tin nhắn số thông thường trong nhóm không kích hoạt menu ngoài ý muốn.
+// Nhận số trang trực tiếp sau khi mở menu; không cần reply vào ảnh.
 export async function checkMenuPageReply(api, message) {
-  const quote = message.data?.quote;
-  if (!quote?.globalMsgId) return false;
-
   const sessionKey = getMenuSessionKey(api, message);
   if (!menuPageMap.has(sessionKey)) return false;
 
   const data = menuPageMap.get(sessionKey);
-  if (!data?.lastMsgId || String(quote.globalMsgId) !== String(data.lastMsgId)) return false;
-
   const content = removeMention(message).trim();
   if (!/^\d+$/.test(content)) return false;
 
   const pageRequested = parseInt(content, 10);
+  if (pageRequested === 0) {
+    menuPageMap.delete(sessionKey);
+    const senderName = String(message.data?.dName || message.data?.uidFrom || "Bạn").replace(/^@+/u, "");
+    const mentionName = `@${senderName}`;
+    const nameServer = getNameServer(api) || "Bot";
+    const cancelText = `${mentionName}\n${nameServer}\n✅ Đã huỷ menu.`;
+    const textStyle = getTextStyle(api);
+    const serverStyle = getServerStyle(api);
+    const style = MultiMsgStyle([
+      MessageStyle(0, mentionName.length, textStyle.color, textStyle.size, textStyle.bold, textStyle.italic, textStyle.underline, textStyle.strike),
+      MessageStyle(mentionName.length + 1, nameServer.length, serverStyle.color, serverStyle.size, serverStyle.bold, serverStyle.italic, serverStyle.underline, serverStyle.strike),
+      MessageStyle(mentionName.length + nameServer.length + 2, "✅ Đã huỷ menu.".length, textStyle.color, textStyle.size, textStyle.bold, textStyle.italic, textStyle.underline, textStyle.strike),
+    ]);
+    await api.sendMessage({
+      msg: cancelText,
+      style,
+      mentions: [{ uid: String(message.data?.uidFrom), pos: 0, len: mentionName.length }],
+      ttl: 30000,
+    }, message.threadId, message.type);
+    return true;
+  }
   if (!data || pageRequested < 1 || pageRequested > data.totalPages) return false;
 
   try {
@@ -165,7 +249,7 @@ export async function checkMenuPageReply(api, message) {
     });
 
     menuPageMap.set(sessionKey, { ...data, lastMsgId: msgId });
-    await cv.clearImagePath(imagePath);
+    // Không xóa ảnh cache; runtime maintenance sẽ dọn file cũ theo TTL/tuổi.
   } catch (error) {
     console.error("Lỗi khi chuyển trang menu:", error);
   }
@@ -270,29 +354,64 @@ export async function adminCommand(api, message) {
 
 // Menu ngắn hiển thị khi gõ lệnh game trống (không kèm lệnh con), hướng dẫn dùng "!game help" để xem đầy đủ
 export async function gameMenuCommand(api, message, groupSettings) {
-  if (!(await checkBeforeJoinGame(api, message, groupSettings))) return;
+  // Opening the menu must not create/resolve a game account. Account identity
+  // resolution can replace uidFrom with a global player id, which is invalid
+  // as a Zalo mention UID and causes sendMessage error 114.
+  if (!(await checkBeforeJoinGame(api, message, groupSettings, false))) return;
 
   const prefix = getGlobalPrefix(api.getBotId());
-  const senderId = String(message.data.uidFrom);
-  const senderName = message.data.dName || senderId;
+  const senderId = String(message.data.gameUid || message.data.uidFrom);
+  const senderName = String(message.data.dName || senderId).replace(/^@+/u, "");
+  const mentionName = `@${senderName}`;
+  const nameServer = getNameServer(api) || "Bot";
 
   const text =
-    `${senderName}\n` +
+    `${mentionName}\n` +
+    `${nameServer}\n` +
     `《 🎮 MENU TRÒ CHƠI 🎮 》\n\n` +
-    `➤ Tra cứu & tài khoản:\n` +
-    `『${prefix}game help』\n` +
-    `• Daily, thẻ, hạng, chuyển tiền, biến động số dư...\n\n` +
     `➤ MiniGame:\n` +
     `『${prefix}game minigame』\n` +
-    `• Minigame - Tham gia các game như PNTT, Nuôi Rồng, Hàng Loạt Các Game Cờ, Nông Trại Câu Cá....\n\n` +
+    `• Minigame - không cần đăng nhập\n\n` +
     `➤ BigGame:\n` +
     `『${prefix}game biggame』\n` +
-    `• Biggame - Tham gia các game đặt cược giải trí và phán đoán vận may`;
+    `• Biggame - cần đăng nhập, sử dụng tiền ảo\n\n` +
+    `➤ Hướng dẫn tài khoản:\n` +
+    `『${prefix}game help』\n` +
+    `• Hướng dẫn sử dụng tài khoản và ví ảo`;
+
+  const textStyle = getTextStyle(api);
+  const serverStyle = getServerStyle(api);
+  const nameServerOffset = mentionName.length + 1;
+  const style = MultiMsgStyle([
+    MessageStyle(
+      0,
+      text.length,
+      textStyle.color,
+      textStyle.size,
+      textStyle.bold,
+      textStyle.italic,
+      textStyle.underline,
+      textStyle.strike,
+      false
+    ),
+    MessageStyle(
+      nameServerOffset,
+      nameServer.length,
+      serverStyle.color,
+      serverStyle.size,
+      serverStyle.bold,
+      serverStyle.italic,
+      serverStyle.underline,
+      serverStyle.strike,
+      false
+    ),
+  ]);
 
   await api.sendMessage(
     {
       msg: text,
-      mentions: [{ pos: 0, uid: senderId, len: senderName.length }],
+      style,
+      mentions: [{ pos: 0, uid: senderId, len: mentionName.length }],
       quote: message,
       ttl: 60000,
     },
@@ -383,6 +502,22 @@ export async function gameInfoCommand(api, message, groupSettings) {
         description: "Chơi trò chơi Kéo Búa Bao",
         icon: "🎲",
       },
+      doanso: { command: `${prefix}game doanso`, description: "Trò chơi đoán số", icon: "🔢" },
+      noitu: { command: `${prefix}game noitu`, description: "Trò chơi nối từ", icon: "🔤" },
+      doantu: { command: `${prefix}game doantu`, description: "Trò chơi đoán từ", icon: "🧩" },
+      vuatiengviet: { command: `${prefix}game vuatiengviet`, description: "Đố vui Vua Tiếng Việt", icon: "📚" },
+      duoihinhbatchu: { command: `${prefix}game duoihinhbatchu`, description: "Đuổi hình bắt chữ", icon: "🖼️" },
+      ailatrieuphu: { command: `${prefix}game ailatrieuphu`, description: "Ai là triệu phú", icon: "💡" },
+      cauca: { command: `${prefix}game cauca`, description: "Câu cá và nâng cấp cần câu", icon: "🎣" },
+      caro: { command: `${prefix}game caro`, description: "Chơi cờ Caro", icon: "⭕" },
+      covua: { command: `${prefix}game covua`, description: "Chơi cờ vua", icon: "♟️" },
+      cotuong: { command: `${prefix}game cotuong`, description: "Chơi cờ tướng", icon: "♜" },
+      nuoithu: { command: `${prefix}game nuoithu`, description: "Nuôi thú ảo", icon: "🐾" },
+      tutien: { command: `${prefix}tutien`, description: "Tu tiên nhập vai & môn phái", icon: "☯️" },
+      zaclwarrior: { command: `${prefix}game zaclwarrior`, description: "ZACL Warrior nhập vai", icon: "⚔️" },
+      masoi: { command: `${prefix}game masoi`, description: "Ma Sói nhiều người", icon: "🐺" },
+      duangua: { command: `${prefix}duangua`, description: "Đua ngựa nhiều người", icon: "🏇" },
+      vietlott655: { command: `${prefix}game vietlott655`, description: "Dự đoán Vietlott 6/55", icon: "🎟️" },
       bank: {
         command: `${prefix}game bank [số tiền] [@người nhận]`,
         description: "Chuyển tiền cho người khác",
@@ -474,6 +609,7 @@ export async function listCommands(api, message, args) {
 
   const createMapLikeStyle = (text, positions) => {
     const textStyle = getTextStyle(api);
+    const mapColors = getCommandMapColors(api);
     const styles = [
       MessageStyle(
         0,
@@ -485,18 +621,22 @@ export async function listCommands(api, message, args) {
         textStyle.underline,
         textStyle.strike
       ),
-      ...positions.map(({ pos, len }) =>
-        MessageStyle(
-          pos,
-          len,
-          COLOR_GREEN,
-          textStyle.size,
-          textStyle.bold,
-          textStyle.italic,
-          textStyle.underline,
-          textStyle.strike
-        )
-      ),
+      ...positions
+        .filter(({ kind = "command" }) => kind === "command" || mapColors.hasCustomDescription)
+        .map(({ pos, len, kind = "command" }) => {
+          const isCommandName = kind === "command";
+          const color = isCommandName ? mapColors.command : mapColors.description;
+          return MessageStyle(
+            pos,
+            len,
+            color,
+            textStyle.size,
+            isCommandName ? true : textStyle.bold,
+            textStyle.italic,
+            textStyle.underline,
+            textStyle.strike
+          );
+        }),
     ];
     return MultiMsgStyle(styles);
   };
@@ -548,11 +688,15 @@ export async function listCommands(api, message, args) {
       if (searchResults.length < 5) {
         style = MultiMsgStyle(positions.map(({ pos, len }) => MessageStyle(pos, len, COLOR_GREEN, SIZE_18, IS_BOLD)));
       }
+      const parts = splitMessage(responseMsg).map((msg, index) => ({
+        msg,
+        style: index === 0 ? style : null,
+      }));
+
       return {
-        msg: responseMsg,
-        style: style,
+        parts,
         ttl: 60000,
-        pageDelayMs: FIND_PAGE_DELAY_MS,
+        pageDelayMs: COMMAND_PAGE_DELAY_MS,
       };
     },
 
@@ -583,7 +727,7 @@ export async function listCommands(api, message, args) {
         isAdminMap ? ["adminBox", "adminBot", "adminLevelHigh"].includes(cmd.permission) : cmd.permission === "all"
       );
       const totalPages = Math.max(1, Math.ceil(filteredCommands.length / COMMANDS_PER_PAGE));
-      const title = isAdminMap ? "👑 Danh sách lệnh Admin" : "📜 Danh sách lệnh Thành Viên";
+      const title = isAdminMap ? "Danh sách lệnh Admin" : "Danh sách lệnh Thành Viên";
       const parts = [];
 
       for (let pageNumber = 1; pageNumber <= totalPages; pageNumber++) {
@@ -603,7 +747,11 @@ export async function listCommands(api, message, args) {
         parts.push({ msg, style: createMapLikeStyle(msg, positions) });
       }
 
-      return { parts, ttl: 300000 };
+      return {
+        parts,
+        ttl: 300000,
+        pageDelayMs: COMMAND_PAGE_DELAY_MS,
+      };
     },
 
     async noactive() {
@@ -629,12 +777,12 @@ export async function listCommands(api, message, args) {
 
       const startIndex = (pageNumber - 1) * COMMANDS_PER_PAGE;
       const commandsToShow = disabledCommands.slice(startIndex, startIndex + COMMANDS_PER_PAGE);
-      let responseMsg = "⛔ Danh sách lệnh đang tắt:\n\n";
+      let responseMsg = "Danh sách lệnh đang tắt:\n\n";
       const positions = [];
 
       commandsToShow.forEach((cmd, index) => {
         const customerCommand = getManagerCommandCustomConfig(botId, cmd.name);
-        const linePrefix = `${index + 1 + startIndex}. ⭐ Lệnh: `;
+        const linePrefix = `${index + 1 + startIndex}. Lệnh: `;
         const startPos = responseMsg.length + linePrefix.length;
         responseMsg += `${linePrefix}${cmd.name}\n`;
         positions.push({ pos: startPos, len: cmd.name.length });
@@ -649,8 +797,7 @@ export async function listCommands(api, message, args) {
       ].join("\n");
 
       return {
-        msg: responseMsg,
-        style: createMapLikeStyle(responseMsg, positions),
+        parts: [{ msg: responseMsg, style: createMapLikeStyle(responseMsg, positions) }],
         ttl: 180000,
       };
     },
@@ -668,9 +815,8 @@ export async function listCommands(api, message, args) {
       const endIndex = startIndex + COMMANDS_PER_PAGE;
       const commandsToShow = filteredCommands.slice(startIndex, endIndex);
 
-      let responseMsg = isAdminRequest
-        ? `👑 Danh sách lệnh Admin | Trang ${pageNumber}/${totalPages}\n\n`
-        : `📜 Danh sách lệnh Thành Viên | Trang ${pageNumber}/${totalPages}\n\n`;
+      const title = isAdminRequest ? "Danh sách lệnh Admin" : "Danh sách lệnh Thành Viên";
+      let responseMsg = `${title} | Trang ${pageNumber}/${totalPages}\n\n`;
       let positions = [];
 
       commandsToShow.forEach((cmd, index) => {
@@ -683,8 +829,7 @@ export async function listCommands(api, message, args) {
       const style = createMapLikeStyle(responseMsg, positions);
 
       return {
-        msg: responseMsg,
-        style: style,
+        parts: [{ msg: responseMsg, style: style }],
         ttl: 180000,
       };
     },
@@ -726,6 +871,10 @@ export async function listCommands(api, message, args) {
             threadId,
             message.type
           );
+        }
+
+        if (response.pageDelayMs && i < response.parts.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, response.pageDelayMs));
         }
       }
     } else {

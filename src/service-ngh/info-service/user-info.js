@@ -2,6 +2,13 @@ import * as cv from "../../utils/canvas/index.js";
 import { deepParseJSON, deepStringifyJSON, removeMention } from "../../utils/format-util.js";
 import { getGlobalPrefix } from "../service.js";
 import { apiManager } from "../../index.js";
+import { handleI4BgImgCommand } from "./i4bgimg.js";
+import { handleI4ImageCommand } from "./i4image.js";
+
+const basicUserCache = new Map();
+const basicUserRequests = new Map();
+const BASIC_USER_TTL_MS = Math.max(30000, Number(process.env.NGH_USER_CACHE_TTL_MS) || 5 * 60 * 1000);
+const BASIC_USER_CACHE_SIZE = Math.max(1000, Number(process.env.NGH_USER_CACHE_SIZE) || 50000);
 
 export async function userInfoCommand(api, message, aliasCommand) {
   const threadId = message.threadId;
@@ -9,6 +16,15 @@ export async function userInfoCommand(api, message, aliasCommand) {
   let content = removeMention(message);
   const prefix = getGlobalPrefix(api.getBotId());
   content = content.replace(`${prefix}${aliasCommand}`, "").trim();
+
+  if (content.startsWith("bgimg")) {
+    await handleI4BgImgCommand(api, message, aliasCommand);
+    return;
+  }
+  if (content.startsWith("img") || content.startsWith("image")) {
+    await handleI4ImageCommand(api, message, aliasCommand);
+    return;
+  }
   if (content.includes("text")) {
     await userInfoCommandText(api, message, aliasCommand);
     return;
@@ -88,9 +104,29 @@ export async function getUsersInfoBasic(api, userIds) {
 }
 
 export async function getUserInfoBasic(api, userId) {
-  const userInfoResponse = await api.getInfoMembers([userId]);
-  const userInfo = userInfoResponse.profiles[userId];
-  return userInfo;
+  const cacheKey = `${api.getBotId()}:${userId}`;
+  const cached = basicUserCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < BASIC_USER_TTL_MS) return cached.data;
+  if (basicUserRequests.has(cacheKey)) return basicUserRequests.get(cacheKey);
+
+  const request = api.getInfoMembers([userId])
+    .then((response) => {
+      const data = response.profiles[userId] || Object.values(response.profiles || {})[0];
+      if (data) {
+        basicUserCache.set(cacheKey, { data, timestamp: Date.now() });
+        while (basicUserCache.size > BASIC_USER_CACHE_SIZE) {
+          basicUserCache.delete(basicUserCache.keys().next().value);
+        }
+      }
+      return data;
+    })
+    .catch((error) => {
+      if (cached) return cached.data;
+      throw error;
+    })
+    .finally(() => basicUserRequests.delete(cacheKey));
+  basicUserRequests.set(cacheKey, request);
+  return request;
   // {
   //   displayName:
   //   zaloName:
@@ -154,10 +190,12 @@ export async function getUserInfoData(api, userId) {
   } catch {}
   const avatarFull = getBestAvatarUrl(avatarResponse, true);
   return getAllInfoUser({
+    ...basicInfo,
     ...userInfo,
     globalId: userInfo?.globalId || userInfo?.global_id || basicInfo?.globalId || basicInfo?.global_id,
     avatarFull: avatarFull || userInfo?.avatar || basicInfo?.avatar,
     avatarFallback: basicInfo?.avatar || userInfo?.avatar,
+    cover: getBestCoverUrl([userInfo, basicInfo, avatarResponse]),
   });
 }
 
@@ -214,6 +252,36 @@ function getBestAvatarUrl(data, acceptAnyImageUrl = false) {
     if (typeof value !== "object" || visited.has(value)) return;
     visited.add(value);
     for (const [childKey, childValue] of Object.entries(value)) walk(childValue, `${key}.${childKey}`, depth + 1);
+  }
+
+  walk(deepParseJSON(data));
+  candidates.sort((a, b) => b.score - a.score);
+  return candidates[0]?.url || null;
+}
+
+function getBestCoverUrl(data) {
+  const candidates = [];
+  const visited = new Set();
+
+  function walk(value, key = "", depth = 0) {
+    if (depth > 6 || value == null) return;
+    if (typeof value === "string") {
+      const url = value.trim().replace(/\\\//g, "/").replace(/^\/\//, "https://");
+      const hint = `${key} ${url}`.toLowerCase();
+      if (/^https?:\/\//i.test(url) && /(cover|background|wallpaper|bg_profile|banner)/.test(hint)) {
+        let score = 0;
+        if (/(cover|bg_profile|background)/.test(hint)) score += 80;
+        if (/(full|original|origin|large|720|1080|2048|high)/.test(hint)) score += 60;
+        if (/(thumb|thumbnail|small|50|100|120)/.test(hint)) score -= 50;
+        candidates.push({ url, score });
+      }
+      return;
+    }
+    if (typeof value !== "object" || visited.has(value)) return;
+    visited.add(value);
+    for (const [childKey, childValue] of Object.entries(value)) {
+      walk(childValue, `${key}.${childKey}`, depth + 1);
+    }
   }
 
   walk(deepParseJSON(data));

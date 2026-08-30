@@ -307,7 +307,7 @@ async function sendWarningMessage(api, message, senderId, senderName, threadId) 
       ? `⚠️ Cảnh cáo ${senderName}!\nNgừng chuyển tiếp tin nhắn, trước khi bị chặn khỏi nhóm!`
       : `⚠️ Cảnh cáo ${senderName}!\nNhóm này không cho phép chuyển tiếp tin nhắn.`;
     await api.sendMessage(
-      { msg: caption, ttl: 300000 },
+      { msg: caption, quote: message, ttl: 300000 },
       threadId,
       MessageType.GroupMessage
     );

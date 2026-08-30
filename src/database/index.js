@@ -17,7 +17,7 @@ const DEFAULT_SHARED_URI = "mongodb://127.0.0.1:27017";
 
 export * from "./player.js";
 export * from "./jdbc.js";
-export { connection, NAME_TABLE_PLAYERS, NAME_TABLE_ACCOUNT, nameServer, DAILY_REWARD } from "./state.js";
+export { connection, NAME_TABLE_PLAYERS, NAME_TABLE_ACCOUNT, nameServer, DAILY_REWARD, pingDatabase } from "./state.js";
 
 async function loadConfig() {
   const configFile = await readFilePromise(path.join(JSON_DATA_PATH, "database-config.json"));
@@ -196,13 +196,21 @@ class MongoConnection {
 }
 
 export async function initializeDatabase() {
-  try {
+  while (true) {
+    try {
     const config = await loadConfig();
     const playersTable = config.tablePlayerZalo || "players_zalo";
     const accountTable = config.tableAccount || "account";
     const mongoUri = config.uri || DEFAULT_SHARED_URI;
     const databaseName = config.database || DEFAULT_SHARED_DATABASE;
-    const mongoClient = new MongoClient(mongoUri);
+    const mongoClient = new MongoClient(mongoUri, {
+      maxPoolSize: Math.max(10, Number(process.env.NGH_MONGO_POOL_MAX) || 50),
+      minPoolSize: Math.max(0, Number(process.env.NGH_MONGO_POOL_MIN) || 5),
+      maxIdleTimeMS: Math.max(10000, Number(process.env.NGH_MONGO_IDLE_MS) || 60000),
+      waitQueueTimeoutMS: Math.max(1000, Number(process.env.NGH_MONGO_WAIT_QUEUE_MS) || 10000),
+      retryReads: true,
+      retryWrites: true,
+    });
     await mongoClient.connect();
     const db = mongoClient.db(databaseName);
     const databaseConnection = new MongoConnection(db, playersTable, accountTable);
@@ -225,14 +233,20 @@ export async function initializeDatabase() {
       db.collection("messages_log").createIndex({ botId: 1, threadId: 1, msgId: 1 }, { unique: true }),
       db.collection("messages_log").createIndex({ createdAt: 1 }, { expireAfterSeconds: 86400 }),
       db.collection("bot_logs").createIndex({ createdAt: -1 }),
+      db.collection("bot_logs").createIndex(
+        { createdAt: 1 },
+        { expireAfterSeconds: Math.max(86400, Number(process.env.NGH_BOT_LOG_RETENTION_SECONDS) || 7 * 86400) }
+      ),
       db.collection("bot_logs").createIndex({ id: -1 }, { unique: true }),
       db.collection("game_transactions").createIndex({ referenceCode: 1 }, { unique: true }),
       db.collection("game_transactions").createIndex({ senderId: 1, createdAt: -1 }),
       db.collection("game_transactions").createIndex({ receiverId: 1, createdAt: -1 }),
     ]);
     console.log(chalk.green(`✓ Khởi tạo MongoDB thành công (${databaseName})`));
-  } catch (error) {
-    console.error(chalk.red("Lỗi khi khởi tạo MongoDB: "), error);
-    throw error;
+      return;
+    } catch (error) {
+      console.error(chalk.red("Lỗi khi khởi tạo MongoDB, thử lại sau 5 giây: "), error?.message || error);
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+    }
   }
 }

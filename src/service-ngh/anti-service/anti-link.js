@@ -214,8 +214,9 @@ async function updateLinkCount(api, message, threadId, senderId, senderName, bot
 
   if (Date.now() - linkSendTime[senderId] < 3 * 60 * 1000) {
     if (linkSendCount[senderId] > 2) {
-      await blockUser(api, message, threadId, senderId, senderName, groupSettings);
-      return;
+      // User requested to ONLY delete and warn, NO kick
+      // await blockUser(api, message, threadId, senderId, senderName, groupSettings);
+      linkSendCount[senderId] = 2; // cap it at 2 so it keeps warning
     }
   } else {
     linkSendCount[senderId] = 1;
@@ -281,6 +282,7 @@ async function sendWarningMessage(api, message, senderId, senderName, count, gro
     await api.sendMessage(
       {
         msg: caption,
+        quote: message,
         mentions: [MessageMention(senderId, senderName.length, "⚠️ Cảnh cáo ".length)],
         ttl: 300000,
       },

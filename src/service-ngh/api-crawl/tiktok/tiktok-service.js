@@ -11,7 +11,7 @@ import {
   sendMessageWarningRequest,
 } from "../../chat-zalo/chat-style/chat-style.js";
 import { randomIDTemp, removeMention } from "../../../utils/format-util.js";
-import { parseQuickSelection, setSelectionsMapData } from "../index.js";
+import { parseQuickSelection } from "../index.js";
 import { getCachedMedia, setCacheData } from "../../../utils/link-platform-cache.js";
 import { deleteFile, downloadFile, getLocalImageInfo, uploadTempFile } from "../../../utils/util.js";
 import { createSearchResultImage } from "../../../utils/canvas/search-canvas.js";
@@ -37,7 +37,6 @@ const HISTORY_EXPIRE_TIME = 3600000;
 const TIME_TO_LIVE = 86400000;
 const GET_RELATED_VIDEO = 30;
 
-const tiktokSelectionsMap = new Map();
 const relatedVideosMap = new Map();
 const userVideoHistoryMap = new Map();
 
@@ -53,11 +52,6 @@ const headers = {
 
 schedule.scheduleJob("*/5 * * * * *", () => {
   const currentTime = Date.now();
-  for (const [msgId, data] of tiktokSelectionsMap.entries()) {
-    if (currentTime - data.timestamp > TIME_WAIT_SELECTION) {
-      tiktokSelectionsMap.delete(msgId);
-    }
-  }
   for (const [msgId, data] of relatedVideosMap.entries()) {
     if (currentTime - data.timestamp > RELATED_EXPIRE_TIME) {
       relatedVideosMap.delete(msgId);
@@ -505,8 +499,8 @@ export async function handleTikTokCommand(api, message, command) {
         return true;
       }
       let videoListText = "Đây là danh sách video tôi tìm thấy trên Tiktok:\n";
-      videoListText += `Hãy trả lời tin nhắn này với số thứ tự video bạn muốn xem!`;
-      videoListText += `\nVD: 1 hoặc 1 audio`;
+      videoListText += `Dùng cú pháp tìm nhanh để chọn video: từ khóa >> số`;
+      videoListText += `\nVD: mèo >>1 hoặc mèo >>1 audio`;
 
       imagePath = await createSearchResultImage(
         videos.map((video) => ({
@@ -524,21 +518,8 @@ export async function handleTikTokCommand(api, message, command) {
         caption: videoListText,
         imagePath: imagePath,
       };
-      const listMessage = await sendMessageCompleteRequest(api, message, object, TIME_WAIT_SELECTION);
+      await sendMessageCompleteRequest(api, message, object, TIME_WAIT_SELECTION);
 
-      const quotedMsgId = listMessage?.message?.msgId || listMessage?.attachment[0]?.msgId;
-
-      tiktokSelectionsMap.set(quotedMsgId.toString(), {
-        userRequest: senderId,
-        collection: videos,
-        timestamp: Date.now(),
-      });
-      setSelectionsMapData(senderId, {
-        quotedMsgId: quotedMsgId.toString(),
-        collection: videos,
-        timestamp: Date.now(),
-        platform: PLATFORM,
-      });
     } else {
       const object = {
         caption: `Không tìm được video phù hợp.`,
@@ -553,66 +534,6 @@ export async function handleTikTokCommand(api, message, command) {
     await sendMessageWarningRequest(api, message, object, 30000);
   } finally {
     if (imagePath) deleteFile(imagePath);
-  }
-}
-
-export async function handleTikTokReply(api, message) {
-  const senderId = message.data.uidFrom;
-  const idBot = api.getBotId();
-
-  try {
-    if (!message.data.quote || !message.data.quote.globalMsgId) return false;
-
-    const quotedMsgId = message.data.quote.globalMsgId.toString();
-    if (!tiktokSelectionsMap.has(quotedMsgId)) return false;
-
-    const videoData = tiktokSelectionsMap.get(quotedMsgId);
-    if (videoData.userRequest !== senderId) return false;
-
-    const content = removeMention(message);
-    const [selection, typeVideo = "normal"] = content.trim().split(" ");
-
-    const selectedIndex = parseInt(selection) - 1;
-    if (isNaN(selectedIndex) || selectedIndex < 0 || selectedIndex >= videoData.collection.length) {
-      const object = {
-        caption: `Lựa chọn không hợp lệ. Vui lòng chọn một số từ danh sách.`,
-      };
-      await sendMessageWarningRequest(api, message, object, 30000);
-      return true;
-    }
-
-    const msgDel = {
-      type: message.type,
-      threadId: message.threadId,
-      data: {
-        cliMsgId: message.data.quote.cliMsgId,
-        msgId: message.data.quote.globalMsgId,
-        uidFrom: idBot,
-      },
-    };
-    await api.deleteMessage(msgDel, false);
-    await api.addReaction("CLOCK", message);
-    // await api.undoMessage(message);
-    tiktokSelectionsMap.delete(quotedMsgId);
-
-    const selectedVideo = videoData.collection[selectedIndex];
-    let qualityType = "540p";
-    switch (typeVideo.toLowerCase()) {
-      case "audio":
-        qualityType = "audio";
-        break;
-      default:
-        qualityType = selectedVideo.video.quality;
-    }
-    await sendTikTokVideo(api, message, selectedVideo, false, qualityType);
-    return true;
-  } catch (error) {
-    console.error("Lỗi xử lý reply TikTok:", error);
-    const object = {
-      caption: `Đã xảy ra lỗi khi xử lý tin nhắn của bạn. Vui lòng thử lại sau.`,
-    };
-    await sendMessageWarningRequest(api, message, object, 30000);
-    return true;
   }
 }
 

@@ -11,6 +11,7 @@ import { getGlobalPrefix } from "../service.js";
 import path from "path";
 import fs from "fs";
 import { checkExstentionFileRemote, downloadFile } from "../../utils/util.js";
+import { cancelConfiguredPRMessages, queueConfiguredPRMessages } from "./pr-zalo.js";
 
 const TIME_TO_LIVE = 720000;
 const DEFAULT_FORM_NAME = "Form 1";
@@ -52,6 +53,7 @@ export async function handleConfigPRCommand(api, message, aliasCommand) {
       `Hướng dẫn tính năng cấu hình gửi tin nhắn định kỳ đến đa cộng đồng/nhóm` +
       `\nKích hoạt tính năng: ${prefix + aliasCommand} on` +
       `\nVô hiệu hóa tính năng: ${prefix + aliasCommand} off` +
+      `\nGửi ngay một lượt: ${prefix + aliasCommand} send` +
       `\nTự động thêm group mới: ${prefix + aliasCommand} auto <on|off>` +
       `\nXem cấu hình hiện tại: ${prefix + aliasCommand} show` +
       `\nQuản lý nhóm:` +
@@ -88,12 +90,41 @@ export async function handleConfigPRCommand(api, message, aliasCommand) {
   const argsCommand = contentCommand.split(" ");
   const command = argsCommand[0].toLowerCase();
 
+  if (command === "send") {
+    if (!Array.isArray(config.prObjects) || config.prObjects.length === 0) {
+      await sendMessageFailed(api, message, "Chưa có nội dung PR để gửi.", false, TIME_TO_LIVE);
+      return true;
+    }
+
+    const queued = queueConfiguredPRMessages(api, config);
+    if (!queued.accepted) {
+      await sendMessageFailed(api, message, "Một lượt PR đang chạy hoặc đang chờ, không tạo thêm lượt trùng.", false, TIME_TO_LIVE);
+      return true;
+    }
+    await sendMessageComplete(api, message, "✅ Đã đưa lượt PR vào hàng đợi nền. Bot vẫn xử lý các tính năng khác bình thường.", true, TIME_TO_LIVE);
+    void queued.promise.then(
+      () => sendMessageComplete(api, message, "✅ Lượt PR đã hoàn tất.", true, TIME_TO_LIVE),
+      (error) => sendMessageFailed(api, message, `Lượt PR lỗi: ${error?.message || error}`, false, TIME_TO_LIVE)
+    ).catch(() => {});
+    return true;
+  }
+
   if (command === "on" || command === `off`) {
     if (command === "on") {
       config.activePr = true;
     } else {
       config.activePr = false;
+      // Persist a cancellation epoch so PR loops running in other
+      // shard/process instances can observe `off` as well.
+      config.prCancelToken = (Number(config.prCancelToken) || 0) + 1;
+      // activePr only prevents the next cron run. Explicitly invalidate the
+      // current/queued run as well so `prs off` takes effect immediately.
+      cancelConfiguredPRMessages(botId);
     }
+
+    // Commit the state before replying. Otherwise an active loop can keep
+    // sending while the confirmation message is being delivered.
+    writeWebConfig(botId, config);
 
     const statusMessage = config.activePr ? "kích hoạt" : "vô hiệu hóa";
     const caption = `Đã ${statusMessage} tính năng gửi tin nhắn định kỳ đến đa cộng đồng/nhóm.`;
@@ -102,8 +133,6 @@ export async function handleConfigPRCommand(api, message, aliasCommand) {
     } else {
       await sendMessageFailed(api, message, caption, true, TIME_TO_LIVE);
     }
-
-    writeWebConfig(botId, config);
     return true;
   }
 

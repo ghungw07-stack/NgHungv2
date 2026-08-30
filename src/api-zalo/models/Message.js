@@ -69,6 +69,14 @@ export function MessageStyle(
     throw new Error("Invalid Length, Offset! Length and Offset must be numbers");
   }
 
+  if (Array.isArray(color) && color.length > 0) {
+    const styles = Array.from({ length }, (_, index) => MessageStyle(
+      offset + index, 1, color[index % color.length], size,
+      bold, italic, underline, strike, false
+    )).flat();
+    return autoFormat ? JSON.stringify({ styles, ver: 0 }) : styles;
+  }
+
   let styleValue = [];
 
   if (bold) styleValue.push("b");
@@ -78,6 +86,8 @@ export function MessageStyle(
   if (color) styleValue.push("c_" + color.replace("#", ""));
   if (size) styleValue.push("f_" + size);
 
+  // Gop cac thuoc tinh cua cung mot doan vao mot entry. Gui nhieu entry trung
+  // offset co the khien Zalo mobile lo raw markup (<b><font ...>) trong tin nhan.
   const styleObject = {
     start: offset,
     len: length,
@@ -95,12 +105,31 @@ export function MessageStyle(
 }
 
 export function MultiMsgStyle(listStyle) {
-  const styles = listStyle.map((style) => {
+  const rawStyles = listStyle.flatMap((style) => {
     if (typeof style === "string") {
-      return JSON.parse(style).styles[0];
+      return JSON.parse(style).styles;
     }
     return style;
-  });
+  }).flat();
+
+  // Chuan hoa o mot noi cho tat ca command: moi doan text chi co mot style
+  // entry. Cac entry trung range la nguyen nhan mot so client Zalo hien raw
+  // markup thay vi rich-text.
+  const stylesByRange = new Map();
+  for (const style of rawStyles) {
+    if (!style || typeof style.start !== "number" || typeof style.len !== "number") continue;
+    const key = `${style.start}:${style.len}`;
+    const current = stylesByRange.get(key) || { ...style, st: "" };
+    const tokens = new Set(
+      `${current.st || ""},${style.st || ""}`
+        .split(",")
+        .map((token) => token.trim())
+        .filter(Boolean)
+    );
+    current.st = [...tokens].join(",");
+    stylesByRange.set(key, current);
+  }
+  const styles = [...stylesByRange.values()];
 
   const styleFormat = JSON.stringify({
     styles: styles,

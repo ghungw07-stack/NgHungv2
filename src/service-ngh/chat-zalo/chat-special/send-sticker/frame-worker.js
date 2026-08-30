@@ -1,5 +1,6 @@
 import { spawn } from "child_process";
 import { Canvas, loadImage } from "skia-canvas";
+import sharp from "sharp";
 import { asyncPool } from "../../../../api-zalo/utils.js";
 
 async function processFrames() {
@@ -70,19 +71,44 @@ async function processFrames() {
       }
     };
 
-    const originalImage = await loadImage(downloadedImage);
+    const metadata = await sharp(downloadedImage, { animated: true }).metadata().catch(() => ({}));
+    const sourcePageCount = Math.max(1, Number(metadata.pages || 1));
+    const sourceDelays = Array.from(
+      { length: sourcePageCount },
+      (_, page) => Math.max(10, Number(metadata.delay?.[page] || 100))
+    );
+    const sourceDuration = sourceDelays.reduce((sum, delay) => sum + delay, 0);
+    const sourceCanvases = [];
 
-    const resizedCanvas = new Canvas(size, size);
-    const resizedCtx = resizedCanvas.getContext("2d");
-    resizedCtx.imageSmoothingEnabled = true;
-    resizedCtx.imageSmoothingQuality = "high";
+    // Decode every source frame to PNG first. skia-canvas only reads the first
+    // frame of animated WebP/GIF when opening the original file directly.
+    for (let page = 0; page < sourcePageCount; page++) {
+      const frameBuffer = sourcePageCount > 1
+        ? await sharp(downloadedImage, { page }).png().toBuffer()
+        : downloadedImage;
+      const originalImage = await loadImage(frameBuffer);
+      const resizedCanvas = new Canvas(size, size);
+      const resizedCtx = resizedCanvas.getContext("2d");
+      resizedCtx.imageSmoothingEnabled = true;
+      resizedCtx.imageSmoothingQuality = "high";
 
-    const scale = Math.max(size / originalImage.width, size / originalImage.height);
-    const scaledWidth = originalImage.width * scale;
-    const scaledHeight = originalImage.height * scale;
-    const x = (size - scaledWidth) / 2;
-    const y = (size - scaledHeight) / 2;
-    resizedCtx.drawImage(originalImage, x, y, scaledWidth, scaledHeight);
+      const scale = Math.max(size / originalImage.width, size / originalImage.height);
+      const scaledWidth = originalImage.width * scale;
+      const scaledHeight = originalImage.height * scale;
+      resizedCtx.drawImage(originalImage, (size - scaledWidth) / 2, (size - scaledHeight) / 2, scaledWidth, scaledHeight);
+      sourceCanvases.push(resizedCanvas);
+    }
+
+    const getSourceCanvas = (outputFrame) => {
+      if (sourceCanvases.length === 1) return sourceCanvases[0];
+      const sourceTime = ((outputFrame * 1000) / FRAME_RATE) % sourceDuration;
+      let elapsed = 0;
+      for (let page = 0; page < sourceDelays.length; page++) {
+        elapsed += sourceDelays[page];
+        if (sourceTime < elapsed) return sourceCanvases[page];
+      }
+      return sourceCanvases[sourceCanvases.length - 1];
+    };
 
     const maskCanvas = new Canvas(size, size);
     const maskCtx = maskCanvas.getContext("2d");
@@ -116,6 +142,7 @@ async function processFrames() {
     const framePromises = Array.from({ length: endFrame - startFrame }, (_, index) => {
       const i = startFrame + index;
       return (async () => {
+        const resizedCanvas = getSourceCanvas(i);
         const angle = (((i * 360) / totalFrames) * Math.PI) / 180;
         const rotatedSize = Math.abs(size * Math.cos(angle)) + Math.abs(size * Math.sin(angle));
         const offset = (rotatedSize - size) / 2;

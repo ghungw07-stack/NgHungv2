@@ -1,13 +1,16 @@
 import { sendMessageStateQuote } from "../../service-ngh/chat-zalo/chat-style/chat-style.js";
 import { getGlobalPrefix } from "../../service-ngh/service.js";
 import { getUserInfoData } from "../../service-ngh/info-service/user-info.js";
-import { isAdmin } from "../../index.js";
+import { isAdmin, isBotLeader } from "../../index.js";
 import { removeMention } from "../../utils/format-util.js";
 import { createTraitCheckImage } from "../../utils/canvas/trait-check-canvas.js";
 import { createMatchmakingImage } from "../../utils/canvas/matchmaking.js";
-import { createMarriageStatusImage } from "../../utils/canvas/marriage-status-canvas.js";
+import { createMarriageStatusImage, createMarriageCardImage } from "../../utils/canvas/marriage-status-canvas.js";
 import { loadMarriages, findMarriage } from "./hung-data.js";
 import { registerMarriagePending, registerDivorcePending } from "./hung-reaction.js";
+import { GoogleGenAI } from "@google/genai";
+import { getNextApiKeyMedia } from "../../utils/api-key-manager.js";
+import { readRecentUserChatsWithHistory } from "../../utils/recent-chat-memory.js";
 
 // =========================================================
 // HELPERS
@@ -39,9 +42,25 @@ function isValidDate(str) {
   return /^\d{4}-\d{2}-\d{2}$/.test(str) && !isNaN(new Date(str).getTime());
 }
 
+function parseMarriageDate(str) {
+  const raw = String(str || "").trim();
+  if (isValidDate(raw)) return raw;
+  const match = /^(\d{1,2})[/-](\d{1,2})(?:[/-](\d{4}))?$/.exec(raw);
+  if (!match) return null;
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  const year = Number(match[3] || new Date().getFullYear());
+  const date = new Date(year, month - 1, day);
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null;
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
 async function resolveUserInfo(api, uid, fallbackName) {
   try {
-    const info = await getUserInfoData(api, uid);
+    const info = await Promise.race([
+      getUserInfoData(api, uid),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("user info timeout")), 3500)),
+    ]);
     return {
       name: info?.name || info?.displayName || fallbackName || "Người dùng",
       avatar: info?.avatar || info?.avatarFull || null,
@@ -50,6 +69,17 @@ async function resolveUserInfo(api, uid, fallbackName) {
     };
   } catch {
     return { name: fallbackName || "Người dùng", avatar: null, gender: "Không xác định", birthday: "Ẩn" };
+  }
+}
+
+async function isAdminSafe(botId, uid) {
+  try {
+    return await Promise.race([
+      isAdmin(botId, uid),
+      new Promise((resolve) => setTimeout(() => resolve(false), 2500)),
+    ]);
+  } catch {
+    return false;
   }
 }
 
@@ -226,6 +256,48 @@ function pickComment(traitKey, percent) {
   return list[2];
 }
 
+async function getChatSamplesFromMemory(api, threadId, uid) {
+  return Promise.race([
+    readRecentUserChatsWithHistory(api.getBotId(), threadId, uid, 25),
+    new Promise((resolve) => setTimeout(() => resolve([]), 2500)),
+  ]);
+}
+
+async function createAIComment(userName, traitLabel, percent, samples, fallback) {
+  try {
+    const client = new GoogleGenAI({
+      apiKey: getNextApiKeyMedia("GEMINI"),
+      httpOptions: { timeout: 20000 },
+    });
+    const analysisId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const prompt =
+      `Nhận xét vui bằng tiếng Việt, từ 35 đến tối đa 50 từ, dựa trên cách nhắn tin. ` +
+      `Tên: ${JSON.stringify(userName)}; chủ đề: ${JSON.stringify(traitLabel)}; điểm vui: ${percent}/100; ` +
+      `tin nhắn gần đây: ${JSON.stringify(samples)}. Mã lượt: ${analysisId}. ` +
+      `Mỗi lượt chọn một góc nhìn và cách diễn đạt khác lượt trước. ` +
+      `Không markdown, không tục, không khẳng định đặc điểm nhạy cảm là thật.`;
+    const [response] = await Promise.all([
+      Promise.race([
+        client.models.generateContent({
+          model: "gemini-3.5-flash-lite",
+          contents: prompt,
+          config: { temperature: 1.25, topP: 0.95 },
+        }),
+        new Promise((resolve) => setTimeout(() => resolve(null), 18000)),
+      ]),
+      new Promise((resolve) => setTimeout(resolve, 5000)),
+    ]);
+    if (!response) return fallback;
+    const cleaned = String(response.text || "")
+      .replace(/[*_#`]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    return cleaned ? cleaned.slice(0, 360) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 function resolveTraitLabel(raw) {
   const key = normalizeKey(raw);
   if (TRAIT_INDEX[key]) return { key, ...TRAIT_INDEX[key] };
@@ -240,11 +312,24 @@ function getSenderUid(message) {
   return message.data?.uidFrom || message.senderID || message.sender_id || message.senderId;
 }
 
+function extractSentMessageIds(sent) {
+  return [...new Set([
+    sent?.message?.msgId,
+    sent?.message?.cliMsgId,
+    sent?.msgId,
+    sent?.cliMsgId,
+    sent?.data?.msgId,
+    sent?.data?.cliMsgId,
+    sent?.attachment?.[0]?.msgId,
+    sent?.attachment?.[0]?.cliMsgId,
+  ].filter(Boolean).map(String))];
+}
+
 // =========================================================
 // 1) TRAIT (1 user) — ảnh canvas
 // =========================================================
 
-async function handleTraitCommand(api, message, traitRaw) {
+async function processTraitCommand(api, message, traitRaw) {
   const threadId = message.threadId;
   const mentions = getMentions(message);
   const senderUid = getSenderUid(message);
@@ -258,7 +343,7 @@ async function handleTraitCommand(api, message, traitRaw) {
 
   const userInfo = await resolveUserInfo(api, targetUid, mentions.length === 0 ? "Bạn" : "Người này");
   const trait = resolveTraitLabel(traitRaw);
-  const isTargetAdmin = await isAdmin(api.getBotId(), targetUid);
+  const isTargetAdmin = await isAdminSafe(api.getBotId(), targetUid);
 
   let percent;
   if (isTargetAdmin && ADMIN_GOOD_TRAITS.has(trait.key)) {
@@ -268,7 +353,15 @@ async function handleTraitCommand(api, message, traitRaw) {
   } else {
     percent = randomPercent(0, 100);
   }
-  const comment = pickComment(trait.key, percent);
+  const fallbackComment = pickComment(trait.key, percent);
+  const chatSamples = await getChatSamplesFromMemory(api, threadId, targetUid);
+  const comment = await createAIComment(
+    userInfo.name,
+    trait.label,
+    percent,
+    chatSamples,
+    fallbackComment
+  );
 
   let imagePath = null;
   try {
@@ -289,6 +382,10 @@ async function handleTraitCommand(api, message, traitRaw) {
   }
 }
 
+async function handleTraitCommand(api, message, traitRaw) {
+  return processTraitCommand(api, message, traitRaw);
+}
+
 // =========================================================
 // 2) INFO (tổng quan tất cả nhóm) — text
 // =========================================================
@@ -299,7 +396,7 @@ async function handleInfoCommand(api, message) {
 
   const targetUid = mentions.length === 0 ? senderUid : mentions[0].uid;
   const userInfo = await resolveUserInfo(api, targetUid, mentions.length === 0 ? "Bạn" : "Người này");
-  const isTargetAdmin = await isAdmin(api.getBotId(), targetUid);
+  const isTargetAdmin = await isAdminSafe(api.getBotId(), targetUid);
 
   let lines = [`📋 TỔNG QUAN — ${userInfo.name}\n`];
   for (const [group, traits] of Object.entries(TRAIT_GROUPS)) {
@@ -338,7 +435,7 @@ async function handleCoupleCommand(api, message, kieu) {
   } else {
     return sendMessageStateQuote(
       api, message,
-      `❌ Thiếu người để ghép! Cú pháp: !hung ${kieu} @a [@b]`,
+      `❌ Thiếu người để ghép! Cú pháp: !soc ${kieu} @a [@b]`,
       false, 30000, false
     );
   }
@@ -380,10 +477,10 @@ async function handleKethonCommand(api, message, restArgs) {
 
   const isCheckMode = restArgs[0] && normalizeKey(restArgs[0]) === "check";
 
-  // !hung kethon check @tag -> xem tình trạng người khác
+  // !soc kethon check @tag -> xem tình trạng người khác
   if (isCheckMode) {
     if (mentions.length === 0) {
-      return sendMessageStateQuote(api, message, `❌ Cú pháp: !hung kethon check @tag`, false, 30000, false);
+      return sendMessageStateQuote(api, message, `❌ Cú pháp: !soc kethon check @tag`, false, 30000, false);
     }
     const uid = mentions[0].uid;
     const record = findMarriage(records, uid);
@@ -396,13 +493,13 @@ async function handleKethonCommand(api, message, restArgs) {
     return sendMarriageCard(api, message, userInfo, partnerInfo, record.date);
   }
 
-  // !hung kethon (không tag) -> xem giấy chứng nhận của bản thân
+  // !soc kethon (không tag) -> xem giấy chứng nhận của bản thân
   if (mentions.length === 0) {
     const record = findMarriage(records, senderUid);
     if (!record) {
       return sendMessageStateQuote(
         api, message,
-        `💔 Bạn hiện đang độc thân.\n📌 Cầu hôn ai đó: !hung kethon @tag [yyyy-mm-dd]`,
+        `💔 Bạn hiện đang độc thân.\n📌 Cầu hôn ai đó: !soc kethon @tag [yyyy-mm-dd]`,
         false, 30000, false
       );
     }
@@ -412,7 +509,7 @@ async function handleKethonCommand(api, message, restArgs) {
     return sendMarriageCard(api, message, selfInfo, partnerInfo, record.date);
   }
 
-  // !hung kethon @a [@b] [yyyy-mm-dd] -> cầu hôn / se duyên
+  // !soc kethon @a [@b] [yyyy-mm-dd] -> cầu hôn / se duyên
   let uid1, uid2;
   if (mentions.length >= 2) {
     uid1 = mentions[0].uid;
@@ -436,7 +533,7 @@ async function handleKethonCommand(api, message, restArgs) {
     );
   }
 
-  let dateArg = restArgs.find((a) => isValidDate(a));
+  const dateArg = restArgs.map(parseMarriageDate).find(Boolean);
   const date = dateArg || todayStr();
 
   const info1 = await resolveUserInfo(api, uid1, "Người A");
@@ -452,13 +549,13 @@ async function handleKethonCommand(api, message, restArgs) {
       : `💍 ${info1.name} muốn cầu hôn ${info2.name}!\nHãy thả ❤️ vào tin nhắn này để đồng ý kết hôn (trong 5 phút).`;
 
   const sent = await sendMessageStateQuote(api, message, proposeText, false, 300000, false);
-  const msgId = sent?.message?.msgId?.toString();
-  if (!msgId) {
+  const msgIds = extractSentMessageIds(sent);
+  if (msgIds.length === 0) {
     return sendMessageStateQuote(api, message, `❌ Có lỗi khi gửi yêu cầu, vui lòng thử lại.`, false, 30000, false);
   }
 
   registerMarriagePending({
-    msgId,
+    msgIds,
     threadId: message.threadId,
     message,
     uidsRequired: requiredUids,
@@ -471,7 +568,7 @@ async function handleKethonCommand(api, message, restArgs) {
 async function sendMarriageCard(api, message, userInfoA, userInfoB, date) {
   let imagePath = null;
   try {
-    imagePath = await createMarriageStatusImage(userInfoA, userInfoB, date);
+    imagePath = await createMarriageCardImage(userInfoA, userInfoB, date);
     await api.sendMessage(
       { msg: "", ttl: 600000, attachments: [imagePath], isUseProphylactic: true },
       message.threadId,
@@ -486,6 +583,70 @@ async function sendMarriageCard(api, message, userInfoA, userInfoB, date) {
 async function handleLyhonCommand(api, message) {
   const senderUid = getSenderUid(message);
   const records = loadMarriages();
+  const mentions = getMentions(message);
+  const normalizeId = (value) => String(value ?? "").replace(/_0$/, "").split("_")[0];
+  const mainBotId = api.apiManager?.isMainBot ? api.getBotId() : api.apiManager?.idBotMainWithBot;
+  const manager = api.apiManager || {};
+  const isMainBotSender = normalizeId(senderUid) === normalizeId(mainBotId);
+  const isOwnerSender = normalizeId(senderUid) === normalizeId(manager.ownerId);
+  const isAdminSender = await isAdminSafe(api.getBotId(), senderUid);
+  const isLeaderSender = isBotLeader(api.getBotId(), senderUid);
+
+  if (isLeaderSender && mentions.length === 0) {
+    const ownRecord = findMarriage(records, senderUid);
+    if (!ownRecord) {
+      return sendMessageStateQuote(api, message, "❌ Bot leader hiện không có hôn nhân để ly hôn.", false, 30000, false);
+    }
+    const partnerUid = ownRecord.uid1 === senderUid ? ownRecord.uid2 : ownRecord.uid1;
+    const selfInfo = await resolveUserInfo(api, senderUid, "Bot leader");
+    const partnerInfo = await resolveUserInfo(api, partnerUid, "Người ấy");
+    const text = `⚖️ Bot leader yêu cầu cưỡng chế ly hôn với ${partnerInfo.name}.\nChỉ cần một ❤️ trong 5 phút để hoàn tất.`;
+    const sent = await sendMessageStateQuote(api, message, text, false, 300000, false);
+    const msgIds = extractSentMessageIds(sent);
+    if (msgIds.length === 0) return;
+    registerDivorcePending({
+      msgIds,
+      threadId: message.threadId,
+      message,
+      allowedUids: [senderUid, partnerUid],
+      senderUid,
+      partnerUid,
+      forced: true,
+    });
+    return;
+  }
+
+  if ((isMainBotSender || isOwnerSender || isAdminSender || isLeaderSender) && mentions.length >= 2) {
+    const uid1 = mentions[0].uid;
+    const uid2 = mentions[1].uid;
+    const record = findMarriage(records, uid1);
+    const isPair = record && (
+      (String(record.uid1) === String(uid1) && String(record.uid2) === String(uid2)) ||
+      (String(record.uid1) === String(uid2) && String(record.uid2) === String(uid1))
+    );
+    if (!isPair) {
+      return sendMessageStateQuote(api, message, "❌ Hai người được tag hiện không kết hôn với nhau.", false, 30000, false);
+    }
+    const info1 = await resolveUserInfo(api, uid1, "Người A");
+    const info2 = await resolveUserInfo(api, uid2, "Người B");
+    const text =
+      `⚖️ Main bot yêu cầu cưỡng chế ly hôn ${info1.name} và ${info2.name}.\n` +
+      `Main bot hoặc một trong hai người thả ❤️ trong 5 phút để hoàn tất.`;
+    const sent = await sendMessageStateQuote(api, message, text, false, 300000, false);
+    const msgIds = extractSentMessageIds(sent);
+    if (msgIds.length === 0) return;
+    registerDivorcePending({
+      msgIds,
+      threadId: message.threadId,
+      message,
+      allowedUids: [senderUid, uid1, uid2],
+      senderUid: uid1,
+      partnerUid: uid2,
+      forced: true,
+    });
+    return;
+  }
+
   const record = findMarriage(records, senderUid);
 
   if (!record) {
@@ -502,13 +663,13 @@ async function handleLyhonCommand(api, message) {
     `(không thả tim = không đồng ý, lời huỷ tự huỷ)`;
 
   const sent = await sendMessageStateQuote(api, message, text, false, 300000, false);
-  const msgId = sent?.message?.msgId?.toString();
-  if (!msgId) {
+  const msgIds = extractSentMessageIds(sent);
+  if (msgIds.length === 0) {
     return sendMessageStateQuote(api, message, `❌ Có lỗi khi gửi yêu cầu, vui lòng thử lại.`, false, 30000, false);
   }
 
   registerDivorcePending({
-    msgId,
+    msgIds,
     threadId: message.threadId,
     message,
     requiredUid: partnerUid,
@@ -523,8 +684,8 @@ async function handleLyhonCommand(api, message) {
 
 function buildHelpMessage(prefix) {
   return (
-    `👑 HUNG BOT — PHÂN TÍCH VUI 👑\n\n` +
-    `📌 Cú pháp: ${prefix}hung <trait> [@tag]\n` +
+    `👑 SOC BOT — PHÂN TÍCH VUI 👑\n\n` +
+    `📌 Cú pháp: ${prefix}soc <trait> [@tag]\n` +
     `  • Không tag → phân tích chính bạn\n` +
     `  • Có tag → phân tích người được tag\n\n` +
     `🎯 TRAIT (1 user, ra ảnh), vài ví dụ:\n` +
@@ -532,15 +693,16 @@ function buildHelpMessage(prefix) {
     `  simp, chungtinh, langnhang, dam,\n` +
     `  deptrai, depgai, xau, namtinh, nutinh,\n` +
     `  giau, ngheo, gay, les\n` +
-    `  📋 Tổng quan: ${prefix}hung info [@tag]\n\n` +
-    `❤️ COUPLE (2 user, ra ảnh): ${prefix}hung <kieu> @a [@b]\n` +
+    `  📋 Tổng quan: ${prefix}soc info [@tag]\n\n` +
+    `❤️ COUPLE (2 user, ra ảnh): ${prefix}soc <kieu> @a [@b]\n` +
     `  ghepdoi, tinhban\n\n` +
     `💍 KẾT HÔN (cần thả ❤️ xác nhận):\n` +
-    `  • ${prefix}hung kethon @tag [yyyy-mm-dd] → cầu hôn (người kia xác nhận)\n` +
-    `  • ${prefix}hung kethon @a @b [yyyy-mm-dd] → se duyên 2 người (cả 2 xác nhận)\n` +
-    `  • ${prefix}hung kethon → xem giấy chứng nhận của bạn (ra ảnh)\n` +
-    `  • ${prefix}hung kethon check @tag → xem tình trạng người khác (ra ảnh)\n` +
-    `  • ${prefix}hung lyhon → ly hôn (đối phương xác nhận bằng ❤️)\n\n` +
+    `  • ${prefix}soc kethon @tag [dd/mm hoặc yyyy-mm-dd] → cầu hôn (người kia xác nhận)\n` +
+    `  • ${prefix}soc kethon @a @b [dd/mm hoặc yyyy-mm-dd] → se duyên 2 người (cả 2 xác nhận)\n` +
+    `  • ${prefix}soc kethon → xem giấy chứng nhận của bạn (ra ảnh)\n` +
+    `  • ${prefix}soc kethon check @tag → xem tình trạng người khác (ra ảnh)\n` +
+    `  • ${prefix}soc lyhon → ly hôn (đối phương xác nhận bằng ❤️)\n` +
+    `  • ${prefix}soc lyhon @a @b → main bot cưỡng chế (1 trong 2 thả ❤️)\n\n` +
     `✨ Gõ có dấu / không dấu / in hoa / khoảng trắng đều được.\n` +
     `📎 Lưu ý: Kết quả CHỈ MANG TÍNH VUI, không phán xét người thật.`
   );
@@ -554,7 +716,7 @@ export async function handleHungCommand(api, message, aliasCommand) {
   const prefix = getGlobalPrefix(api.getBotId());
   const rawContent = removeMention(message) || "";
   const escapedPrefix = prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const escapedAlias = String(aliasCommand || "hung").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const escapedAlias = String(aliasCommand || "soc").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const cmdRegex = new RegExp(`^\\s*${escapedPrefix}?${escapedAlias}\\s*`, "i");
   const argsStr = rawContent.replace(cmdRegex, "").trim();
   const args = argsStr.split(/\s+/).filter(Boolean);

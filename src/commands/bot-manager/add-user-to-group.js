@@ -17,7 +17,10 @@ function normalizeMembers(value) {
   const groupFromMap = value?.gridInfoMap && Object.values(value.gridInfoMap)[0];
   const candidates = [
     Array.isArray(value) ? value : null,
+    Array.isArray(value?.data) ? value.data : null,
     value?.members,
+    value?.friends,
+    value?.data?.friends,
     value?.currentMems,
     value?.memVerList,
     value?.data?.members,
@@ -58,9 +61,27 @@ export function registerI4ImageTarget(sendResult, message, target) {
 async function inviteMembers(api, message, members) {
   const currentInfo = await api.getInfoOneGroup(message.threadId);
   const currentIds = new Set(normalizeMembers(currentInfo).map((member) => member.id));
-  const pending = members.filter((member) => !currentIds.has(member.id) && member.id !== String(api.getBotId()));
+  // Zalo chi cho add thang ban be cua tai khoan vao group. Goi invite/v2 voi
+  // UID nguoi la co the bi Zalo doi thanh loi moi rieng. Loc nguoi la ra de
+  // lenh nay tuyet doi khong phat sinh link/loi moi cho ho.
+  const friendsResponse = await api.getAllFriends();
+  const friendIds = new Set(normalizeMembers(friendsResponse).map((friend) => friend.id));
+  const candidates = members.filter(
+    (member) => !currentIds.has(member.id) && member.id !== String(api.getBotId())
+  );
+  const pending = candidates.filter((member) => friendIds.has(member.id));
+  const skippedStrangers = candidates.length - pending.length;
   if (!pending.length) {
-    await api.sendMessage({ msg: "ℹ️ Những người đã chọn đều đang ở trong nhóm.", quote: message }, message.threadId, message.type);
+    await api.sendMessage(
+      {
+        msg: skippedStrangers
+          ? `❌ Không thể add thẳng ${skippedStrangers} người vì họ chưa là bạn bè của tài khoản bot. Bot không gửi lời mời riêng.`
+          : "ℹ️ Những người đã chọn đều đang ở trong nhóm.",
+        quote: message,
+      },
+      message.threadId,
+      message.type
+    );
     return;
   }
 
@@ -77,15 +98,24 @@ async function inviteMembers(api, message, members) {
   for (let index = 0; index < pending.length; index += BATCH_SIZE) {
     const batch = pending.slice(index, index + BATCH_SIZE);
     try {
-      await api.addUserToGroup(message.threadId, batch.map((member) => member.id));
-      success += batch.length;
+      const result = await api.addUserToGroup(message.threadId, batch.map((member) => member.id));
+      const errorMembers = Array.isArray(result?.errorMembers) ? result.errorMembers : [];
+      success += batch.length - errorMembers.length;
+      failed += errorMembers.length;
+      for (const error of errorMembers) rememberError(error);
     } catch (batchError) {
       // Một UID bị Zalo chặn có thể làm hỏng cả batch. Thử lại từng người để
       // `add all` vẫn mời được những UID hợp lệ còn lại.
       for (const member of batch) {
         try {
-          await api.addUserToGroup(message.threadId, [member.id]);
-          success++;
+          const result = await api.addUserToGroup(message.threadId, [member.id]);
+          const errorMembers = Array.isArray(result?.errorMembers) ? result.errorMembers : [];
+          if (errorMembers.length) {
+            failed++;
+            rememberError(errorMembers[0]);
+          } else {
+            success++;
+          }
         } catch (memberError) {
           failed++;
           rememberError(memberError || batchError);
@@ -109,7 +139,7 @@ async function inviteMembers(api, message, members) {
 
   await api.sendMessage(
     {
-      msg: `✅ Đã gửi mời: ${success}\n❌ Không mời được: ${failed}${errorSummary ? `\n\nLý do:\n${errorSummary}` : ""}`,
+      msg: `✅ Đã add trực tiếp: ${success}\n❌ Add thất bại: ${failed}\n⏭️ Bỏ qua người lạ: ${skippedStrangers}${errorSummary ? `\n\nLý do:\n${errorSummary}` : ""}`,
       quote: message,
       ttl: 60000,
     },
@@ -222,26 +252,30 @@ export async function handleAddUserToGroupCommand(api, message, aliasCommand) {
 export async function handleAddUserToGroupReply(api, message, isAdminLevelHighest = false) {
   const quotedMsgId = message.data?.quote?.globalMsgId;
   if (!quotedMsgId) return false;
+
+  const i4Session = i4ImageTargets.get(String(quotedMsgId));
+  const session = selectionSessions.get(String(quotedMsgId));
+  if (!i4Session && !session) return false;
+
   const normalizedText = removeMention(message).trim();
   const rawText = typeof message.data?.content === "string" ? message.data.content : "";
   const addIndex = rawText.search(/(?:^|\s)add(?=\s|$)/iu);
   const text = addIndex >= 0 ? rawText.slice(addIndex).trim() : normalizedText;
   if (!/^add(?:\s|$)/iu.test(text)) return false;
+
   if (!isAdminLevelHighest) {
     await api.sendMessage({ msg: "❌ Chỉ quản trị viên cấp cao được mời thành viên.", quote: message }, message.threadId, message.type);
     return true;
   }
 
   const requesterId = String(message.data.uidFrom);
-  const i4Session = i4ImageTargets.get(String(quotedMsgId));
+
   if (i4Session) {
     if (i4Session.requesterId !== requesterId) return true;
     await inviteMembers(api, message, [i4Session.target]);
     return true;
   }
 
-  const session = selectionSessions.get(String(quotedMsgId));
-  if (!session) return false;
   if (session.requesterId !== requesterId || session.targetGroupId !== String(message.threadId)) return true;
 
   const selection = text.replace(/^add\s*/iu, "").trim();

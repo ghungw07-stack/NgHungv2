@@ -10,12 +10,15 @@ import {
 } from "../../chat-zalo/chat-style/chat-style.js";
 import { removeMention } from "../../../utils/format-util.js";
 import fs from "fs";
+import path from "path";
+import { DATA_ROOT } from "../../../utils/io-json.js";
 import {
   createWerewolfDeathImage,
   createWerewolfEndImage,
   createWerewolfLobbyImage,
   createWerewolfNightImage,
   createWerewolfPhaseImage,
+  createWerewolfRankImage,
   createWerewolfRoleImage,
 } from "../../../utils/canvas/ma-soi.js";
 import {
@@ -59,8 +62,8 @@ const friendRequestCooldown = new Map();
 const FRIEND_RETRY_MS = 15_000;
 const FRIEND_RETRY_LIMIT = 20;
 const FRIEND_REQUEST_COOLDOWN_MS = 5 * 60_000;
-const RANK_FILE = new URL("../../../../assets/data/ma_soi_rank.json", import.meta.url);
-const IMAGE_REF_FILE = new URL("../../../../assets/data/ma_soi_image_refs.json", import.meta.url);
+const RANK_FILE = path.join(DATA_ROOT, "data", "ma_soi_rank.json");
+const IMAGE_REF_FILE = path.join(DATA_ROOT, "data", "ma_soi_image_refs.json");
 
 function loadRankData() {
   try {
@@ -821,7 +824,6 @@ async function startGame(api, message, room, canManage = false) {
       title: "VÁN MA SÓI BẮT ĐẦU",
       subtitle: `Phòng ${room.code} · ${room.players.length} người chơi`,
       duration: Math.ceil(START_DELAY_MS / 1000),
-      note: "Kiểm tra tin nhắn riêng để nhận vai. Setup đầu ván sắp bắt đầu.",
       accent: "#B58CFF",
       players: storyPlayers(room),
     })
@@ -843,7 +845,6 @@ async function beginSetup(api, room) {
       title: "SETUP ĐẦU VÁN",
       subtitle: "Thần Tình Yêu đang bí mật ghép đôi",
       duration: Math.ceil(SETUP_TIMEOUT_MS / 1000),
-      note: "Chat nhóm đang khóa. Cupid hành động qua tin nhắn riêng.",
       accent: "#EC72A8",
       players: storyPlayers(room),
     })
@@ -1190,7 +1191,6 @@ async function beginDay(api, room) {
       title: `NGÀY ${room.day}`,
       subtitle: "Thảo luận và bỏ phiếu treo cổ",
       duration: Math.ceil(DAY_TIMEOUT_MS / 1000),
-      note: "Chat nhóm đã mở. Vote nhanh bằng v1, v2... hoặc v0 để bỏ phiếu trắng.",
       accent: "#F8C75C",
       players: storyPlayers(room),
     })
@@ -1261,25 +1261,53 @@ function recordGameResult(room, winner) {
   rankData[botId][threadId] ||= {};
   const winnerIds = new Set(winner.winners.map(normalizeId));
   for (const player of room.players) {
-    const current = rankData[botId][threadId][player.id] || { name: player.name, games: 0, wins: 0 };
+    const current = rankData[botId][threadId][player.id] || { name: player.name, games: 0, wins: 0, points: 0 };
+    // Điểm rank là số trận thắng; dữ liệu cũ cũng được chuẩn hóa theo luật này.
+    current.points = Number(current.wins || 0);
     current.name = player.name;
     current.games += 1;
-    if (winnerIds.has(player.id)) current.wins += 1;
+    if (winnerIds.has(player.id)) {
+      current.wins += 1;
+      current.points += 1;
+    }
     current.lastPlayedAt = Date.now();
     rankData[botId][threadId][player.id] = current;
   }
   saveRankData();
 }
 
-function groupRankText(api, threadId) {
-  const entries = Object.values(rankData[normalizeId(api.getBotId())]?.[normalizeId(threadId)] || {});
-  if (!entries.length) return "🏆 Nhóm chưa có dữ liệu xếp hạng Ma Sói.";
-  const sorted = entries
-    .sort((a, b) => b.wins - a.wins || b.games - a.games)
+function groupRankData(api, threadId) {
+  return Object.entries(rankData[normalizeId(api.getBotId())]?.[normalizeId(threadId)] || {})
+    .map(([id, player]) => {
+      const games = Number(player.games || 0);
+      const wins = Number(player.wins || 0);
+      const points = wins;
+      return { id, ...player, games, wins, points, winRate: games ? Math.round((wins / games) * 100) : 0, title: rankTitle(wins) };
+    })
+    .sort((a, b) => b.points - a.points || b.wins - a.wins || b.games - a.games)
     .slice(0, 10);
-  return `🏆 BẢNG XẾP HẠNG MA SÓI\n${sorted
-    .map((player, index) => `${index + 1}. ${player.name} — ${player.wins} thắng/${player.games} ván · ${rankTitle(player.wins)}`)
-    .join("\n")}`;
+}
+
+async function sendGroupRank(api, message) {
+  const entries = groupRankData(api, message.threadId);
+  if (!entries.length) return reply(api, message, "🏆 Nhóm chưa có dữ liệu xếp hạng Ma Sói.");
+  let imagePath = null;
+  try {
+    imagePath = await createWerewolfRankImage({
+      groupName: message.data?.groupName || `Nhóm ${message.threadId}`,
+      players: entries,
+    });
+    return await api.sendMessage(
+      { msg: "🏆 Bảng xếp hạng Ma Sói", attachments: [imagePath], ttl: 300_000 },
+      message.threadId,
+      message.type
+    );
+  } catch (error) {
+    console.error("[MaSoi] Không tạo được canvas rank:", error?.message || error);
+    return reply(api, message, entries.map((player, index) => `${index + 1}. ${player.name} — ${player.points} điểm`).join("\n"));
+  } finally {
+    await removeGeneratedImage(imagePath);
+  }
 }
 
 async function finishGame(api, room, winner) {
@@ -1337,6 +1365,9 @@ async function submitDayVote(api, room, player, token, { confirmDirect = false }
   if (String(token) !== "0") target = targetFromToken(room, token);
   if (String(token) !== "0" && !target) {
     return { success: false, message: "Số phiếu không hợp lệ. Gõ list trong chat riêng để xem." };
+  }
+  if (target && target.id === player.id) {
+    return { success: false, message: "Bạn không thể tự bỏ phiếu cho chính mình." };
   }
 
   room.votes.set(player.id, target?.id || null);
@@ -1495,7 +1526,17 @@ async function handlePrivateGameAction(api, message, room, parts) {
     room.actions.wolfVotes.set(player.id, targets.map((target) => target.id));
     if (player.role === ROLE.WOLF_SEER) room.actions.wolfSeerTarget = null;
     if (player.role === ROLE.CURSE_WOLF) room.actions.framedTarget = null;
-    await sendDirect(api, player.id, `✅ Đã chọn cắn: ${targets.map((target) => target.name).join(", ")}.`);
+    
+    const targetNames = targets.map((target) => target.name).join(", ");
+    await sendDirect(api, player.id, `✅ Đã chọn cắn: ${targetNames}.`);
+    
+    // Broadcast cho các đồng đội Sói khác
+    await Promise.all(
+      wolfPack(room)
+        .filter((wolf) => wolf.id !== player.id)
+        .map((wolf) => sendDirect(api, wolf.id, `🐺 Đồng đội ${player.name} chọn cắn: ${targetNames}`).catch(() => {}))
+    );
+    
     return true;
   }
   if (action === "soi" && [ROLE.SEER, ROLE.WOLF_SEER].includes(player.role)) {
@@ -1751,7 +1792,7 @@ export async function handleWerewolfCommand(api, message, canManage = false, gro
 
   if (["create", "tao"].includes(sub)) return createRoom(api, message, parts.slice(2), groupInfo);
   if (["rules", "rule", "luat"].includes(sub)) return reply(api, message, RULES, 600_000);
-  if (sub === "rank") return reply(api, message, groupRankText(api, message.threadId), 300_000);
+  if (sub === "rank") return sendGroupRank(api, message);
   if (["help", "hd", "huongdan"].includes(sub)) {
     const prefix = getGlobalPrefix(api.getBotId());
     return reply(
@@ -1798,10 +1839,12 @@ export async function handleWerewolfCommand(api, message, canManage = false, gro
 }
 
 export async function handleWerewolfReaction(api, reaction) {
-  const msgId = normalizeId(reaction.data?.content?.rMsg?.[0]?.gMsgID || "");
+  const rMsg = reaction.data?.content?.rMsg?.[0];
+  const msgIds = [rMsg?.gMsgID, rMsg?.cMsgID].filter(Boolean).map(normalizeId);
   const reactionType = reaction.data?.content?.rType;
-  if (!msgId || reactionType !== 5) return false;
-  const key = lobbyReactions.get(msgId);
+  if (!msgIds.length || ![3, 5].includes(Number(reactionType))) return false;
+  const msgId = msgIds.find((id) => lobbyReactions.has(id));
+  const key = msgId && lobbyReactions.get(msgId);
   const room = key ? rooms.get(key) : null;
   if (!room || room.botId !== api.getBotId()) return false;
   const senderId = normalizeId(reaction.data.uidFrom);

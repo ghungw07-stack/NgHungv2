@@ -24,6 +24,23 @@ import { capitalizeWords } from "../../../utils/format-text.js";
 const PLATFORM = "nhaccuatui";
 const TIME_TO_SELECT = 60000;
 
+async function isCachedVoiceUsable(cachedMusic) {
+  const fileUrl = cachedMusic?.fileUrl;
+  if (!fileUrl) return false;
+  try {
+    const response = await axios.get(fileUrl, {
+      headers: { Range: "bytes=0-0" },
+      responseType: "stream",
+      timeout: 8000,
+      validateStatus: (status) => status >= 200 && status < 400,
+    });
+    response.data?.destroy?.();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 class NhacCuaTui {
   constructor() {
     this.baseUrl = "https://graph.nhaccuatui.com";
@@ -136,20 +153,22 @@ class NhacCuaTui {
     let linkMusic;
     let quality;
 
-    const losslessItem = songInfo.streamURL.find((item) => item.type === "lossless");
-    const hqItem = songInfo.streamURL.find((item) => item.type === "320");
-    const lqItem = songInfo.streamURL.find((item) => item.type === "128");
+    const streams = Array.isArray(songInfo.streamURL) ? songInfo.streamURL : [];
+    const losslessItem = streams.find((item) => item.type === "lossless" && !item.onlyVIP && (item.stream || item.download));
+    const hqItem = streams.find((item) => item.type === "320" && !item.onlyVIP && (item.stream || item.download));
+    const lqItem = streams.find((item) => item.type === "128" && !item.onlyVIP && (item.stream || item.download));
 
     if (isLosssless && losslessItem) {
       quality = losslessItem.typeUI;
-      linkMusic = losslessItem.download;
+      linkMusic = losslessItem.stream || losslessItem.download;
     } else {
       if (hqItem && !hqItem.onlyVIP) {
-        linkMusic = hqItem.download;
+        linkMusic = hqItem.stream || hqItem.download;
         quality = hqItem.typeUI;
       } else {
-        linkMusic = lqItem.download;
-        quality = lqItem.typeUI;
+        const fallbackItem = lqItem || streams.find((item) => !item.onlyVIP && (item.stream || item.download));
+        linkMusic = fallbackItem?.stream || fallbackItem?.download || null;
+        quality = fallbackItem?.typeUI || fallbackItem?.type || "128kbps";
       }
     }
 
@@ -491,7 +510,13 @@ export async function handleSendTrackNhacCuaTui(api, message, songInfo, subComma
     nhacCuaTuiInstance.processSongData(songInfo, { subCommand }),
   ]);
 
-  const cachedMusic = await getCachedMedia(PLATFORM, songInfo.id, quality, songInfo.title);
+  if (!linkMusic) {
+    await sendMessageFailed(api, message, "Bài hát này hiện không có stream công khai để phát.", false, 30000);
+    return true;
+  }
+
+  let cachedMusic = await getCachedMedia(PLATFORM, songInfo.id, quality, songInfo.title);
+  if (cachedMusic && !(await isCachedVoiceUsable(cachedMusic))) cachedMusic = null;
   let voiceUrl;
 
   const object = {

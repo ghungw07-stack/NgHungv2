@@ -516,10 +516,12 @@ export async function handleHorseRaceCommand(api, message) {
 }
 
 export async function handleHorseRaceReaction(api, reaction) {
-  const msgId = normalizeId(reaction.data?.content?.rMsg?.[0]?.gMsgID || "");
+  const rMsg = reaction.data?.content?.rMsg?.[0];
+  const msgIds = [rMsg?.gMsgID, rMsg?.cMsgID].filter(Boolean).map(normalizeId);
   const reactionType = reaction.data?.content?.rType;
-  if (!msgId || reactionType !== 5) return false;
-  const key = lobbyReactions.get(msgId);
+  if (!msgIds.length || ![3, 5].includes(Number(reactionType))) return false;
+  const msgId = msgIds.find((id) => lobbyReactions.has(id));
+  const key = msgId && lobbyReactions.get(msgId);
   const room = key ? rooms.get(key) : null;
   if (!room || room.botId !== normalizeId(api.getBotId())) return false;
 

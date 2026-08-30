@@ -47,6 +47,22 @@ const CONFIG = {
   limitMinute: 90,
 };
 const PLATFORM_YOUTUBE = "youtube";
+const YOUTUBE_USER_AGENT =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.1 Safari/537.36";
+
+const getYoutubeDownloadOptions = (proxy) => ({
+  noPlaylist: true,
+  // Required by current YouTube player challenges. Without an enabled JS
+  // runtime yt-dlp may extract unusable CDN URLs and downloads end in 403.
+  jsRuntimes: "node",
+  retries: 5,
+  fragmentRetries: 10,
+  retrySleep: "http:linear=1:5:1",
+  socketTimeout: 30,
+  proxy,
+  addHeader: [`referer:https://www.youtube.com/`, `user-agent:${YOUTUBE_USER_AGENT}`],
+});
+
 export const audioFormat = "bestaudio[filesize<80M]/bestaudio[filesize_approx<80M]/worstaudio[ext=m4a]/worstaudio";
 const videoFormat360 = "bestvideo[height<=360][vcodec^=avc1]+bestaudio/best[height<=360][vcodec^=avc1]";
 const videoFormat720 =
@@ -162,16 +178,18 @@ export const downloadYoutubeVideo = (videoUrl, videoId, format, platform = PLATF
       let options =
         format === audioFormat
           ? {
+              ...getYoutubeDownloadOptions(PROXY),
               output: videoPath,
+              extractAudio: true,
+              audioFormat: "mp3",
               format: format,
               noCheckCertificates: true,
               noWarnings: true,
               preferFreeFormats: true,
               bufferSize: "16K",
-              proxy: PROXY,
-              addHeader: ["referer:youtube.com"],
             }
           : {
+              ...getYoutubeDownloadOptions(PROXY),
               output: videoPath,
               format: format,
               mergeOutputFormat: "mp4",
@@ -179,11 +197,6 @@ export const downloadYoutubeVideo = (videoUrl, videoId, format, platform = PLATF
               noWarnings: true,
               preferFreeFormats: true,
               bufferSize: "16K",
-              proxy: PROXY,
-              addHeader: [
-                "referer:youtube.com",
-                "user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.1 Safari/537.36",
-              ],
             };
 
       if (platform !== PLATFORM_YOUTUBE) {
@@ -246,16 +259,11 @@ async function getYoutubeDirectAudioUrl(videoUrl) {
 
   const settingConfig = readSettingConfig();
   const output = await youtubedl(videoUrl, {
+    ...getYoutubeDownloadOptions(settingConfig["PROXY_HTTP"] || undefined),
     getUrl: true,
     format: audioFormat,
-    noPlaylist: true,
     noCheckCertificates: true,
     noWarnings: true,
-    proxy: settingConfig["PROXY_HTTP"] || undefined,
-    addHeader: [
-      "referer:youtube.com",
-      "user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/127 Safari/537.36",
-    ],
   });
   const directUrl = String(output || "")
     .split(/\r?\n/)

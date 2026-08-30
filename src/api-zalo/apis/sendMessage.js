@@ -22,7 +22,9 @@ const attachmentUrlType = {
 };
 
 const DEFAULT_TEXT_STYLE = {
-  color: "1f2937",
+  // Không ép màu mặc định: Zalo PC/Web sẽ tự chọn màu chữ phù hợp
+  // với light/dark mode.
+  color: null,
   size: "18",
   bold: false,
   italic: false,
@@ -30,15 +32,16 @@ const DEFAULT_TEXT_STYLE = {
   strike: false,
 };
 const STYLE_SIZES = new Set(["10", "11", "12", "13", "14", "15", "16", "17", "18", "20", "22", "24"]);
-const STYLE_COLORS = new Set(["db342e", "f7b503", "15a85f", "1f2937"]);
+const STYLE_COLORS = new Set(["db342e", "f27806", "f7b503", "15a85f"]);
+const RAINBOW_COLORS = ["15a85f", "f7b503", "db342e"];
 const LEGACY_COLORS = {
   ff0000: "db342e",
   ef4444: "db342e",
+  ef6c00: "f27806",
   "00ff00": "15a85f",
   "10b981": "15a85f",
   ffff00: "f7b503",
   f59e0b: "f7b503",
-  "000000": "1f2937",
 };
 
 function getDefaultMessageStyle(api) {
@@ -47,11 +50,11 @@ function getDefaultMessageStyle(api) {
 
   const text = custom.text || {};
   const colorValue = String(custom.textColor || "").replace(/^#/, "").toLowerCase();
-  const color = STYLE_COLORS.has(colorValue) ? colorValue : LEGACY_COLORS[colorValue] || DEFAULT_TEXT_STYLE.color;
+  const color = STYLE_COLORS.has(colorValue) ? colorValue : LEGACY_COLORS[colorValue] || null;
   const sizeValue = String(custom.textSize || "");
 
   return {
-    color,
+    color: custom.textRainbow ? RAINBOW_COLORS : color,
     size: STYLE_SIZES.has(sizeValue) ? sizeValue : DEFAULT_TEXT_STYLE.size,
     bold: text.bold === true,
     italic: text.italic === true,
@@ -60,24 +63,74 @@ function getDefaultMessageStyle(api) {
   };
 }
 
+function getDefaultServerMessageStyle(api) {
+  const custom = api.apiManager?.getDataManager?.()?.chatStyle || {};
+  const colorValue = String(custom.color || "").replace(/^#/, "").toLowerCase();
+  const color = STYLE_COLORS.has(colorValue) ? colorValue : LEGACY_COLORS[colorValue] || null;
+  const sizeValue = String(custom.size || "");
+  return {
+    color: custom.rainbow ? RAINBOW_COLORS : color,
+    size: STYLE_SIZES.has(sizeValue) ? sizeValue : DEFAULT_TEXT_STYLE.size,
+    bold: custom.bold !== undefined ? custom.bold === true : true,
+    italic: custom.italic === true,
+    underline: custom.underline === true,
+    strike: custom.strike === true,
+  };
+}
+
+function getConfiguredServerName(api) {
+  try {
+    return String(api.apiManager?.getDataConfig?.()?.infoOwner?.nameServer || "").trim();
+  } catch {
+    return "";
+  }
+}
+
 function applyDefaultMessageStyle(api, message) {
+  // Message da co style rieng thi giu nguyen payload. Chen them mot lop style
+  // trung offset (dac biet o dau mention) lam mot so client Zalo hien raw
+  // markup nhu <b><font ...> thay vi render rich-text.
   if (message.style || typeof message.msg !== "string" || message.msg.length === 0) return message;
 
   const textStyle = getDefaultMessageStyle(api);
+  const styles = [
+    MessageStyle(
+      0,
+      message.msg.length,
+      textStyle.color,
+      textStyle.size,
+      textStyle.bold,
+      textStyle.italic,
+      textStyle.underline,
+      textStyle.strike
+    ),
+  ];
+
+  // Nhiều lệnh cũ gửi thẳng qua api.sendMessage và chỉ chèn nameServer vào
+  // chuỗi, không tạo style riêng. Phủ serverStyle lên mọi vị trí nameServer
+  // để giao diện tùy chỉnh luôn đồng nhất mà không phải vá từng command.
+  const serverName = getConfiguredServerName(api);
+  if (serverName) {
+    const serverStyle = getDefaultServerMessageStyle(api);
+    let offset = message.msg.indexOf(serverName);
+    while (offset !== -1) {
+      styles.push(MessageStyle(
+        offset,
+        serverName.length,
+        serverStyle.color,
+        serverStyle.size,
+        serverStyle.bold,
+        serverStyle.italic,
+        serverStyle.underline,
+        serverStyle.strike
+      ));
+      offset = message.msg.indexOf(serverName, offset + serverName.length);
+    }
+  }
+
   return {
     ...message,
-    style: MultiMsgStyle([
-      MessageStyle(
-        0,
-        message.msg.length,
-        textStyle.color,
-        textStyle.size,
-        textStyle.bold,
-        textStyle.italic,
-        textStyle.underline,
-        textStyle.strike
-      ),
-    ]),
+    style: MultiMsgStyle(styles),
   };
 }
 
@@ -189,24 +242,39 @@ export const sendMessageFactory = apiFactory()((api, appContext, utils) => {
     return await utils.resolve(response);
   }
   function handleMentions(type, msg, mentions) {
-    let totalMentionLen = 0;
+    let furthestMentionEnd = 0;
     const mentionsFinal =
       Array.isArray(mentions) && type == MessageType.GroupMessage
         ? mentions
             // .filter((m) => m.pos >= 0 && m.uid && m.len > 0)
             .map((m) => {
-              totalMentionLen += m.len;
-              const uid = String(m.uid ?? m.id);
+              // Mention ẩn của lệnh `all` dùng len=0 và pos nằm ngoài nội dung.
+              // Chỉ kiểm tra biên với mention thực sự chiếm ký tự trong tin nhắn.
+              if (Number(m.len) > 0) {
+                furthestMentionEnd = Math.max(furthestMentionEnd, Number(m.pos) + Number(m.len));
+              }
+              const explicitType = Number(m.type);
+              // Với payload type 1, id là nguồn chuẩn và uid bắt buộc phải trùng id.
+              const rawUid = explicitType === 1 && m.id !== undefined ? m.id : m.uid ?? m.id;
+              // Zalo's tag-all marker is a numeric -1. Converting it to the
+              // string "-1" makes the client render @ALL as plain text.
+              const uid = rawUid === -1 || rawUid === "-1" ? -1 : String(rawUid);
+              const normalizedId = explicitType === 1 && m.id !== undefined
+                ? String(m.id)
+                : m.id !== undefined && uid !== -1
+                  ? String(m.id)
+                  : undefined;
               return {
                 pos: m.pos,
                 uid,
-                ...(m.id !== undefined ? { id: String(m.id) } : {}),
+                ...(normalizedId !== undefined ? { id: normalizedId, uid: normalizedId } : {}),
                 len: m.len,
-                type: uid === "-1" ? 1 : 0,
+                // Giữ type 1/2 do caller chỉ định; mention thường mặc định type 0.
+                type: [1, 2].includes(explicitType) ? explicitType : uid === -1 ? 1 : 0,
               };
             })
         : [];
-    if (totalMentionLen > msg.length) {
+    if (furthestMentionEnd > msg.length) {
       throw new ZaloApiError("Invalid mentions: total mention characters exceed message length");
     }
     return {
@@ -221,6 +289,9 @@ export const sendMessageFactory = apiFactory()((api, appContext, utils) => {
     ttl
   ) {
     if (!msg || msg.length == 0) throw new ZaloApiError("Missing message content");
+    // Một số command handler dựng message tạm (ví dụ `!game daily` ->
+    // `!daily`) để tái sử dụng parser. Khi reply, quote phải trỏ về tin gốc.
+    quote = quote?.__originalQuoteMessage || quote;
     const isGroupMessage = type == MessageType.GroupMessage;
     const { mentionsFinal, msgFinal } = handleMentions(type, msg, mentions);
     msg = msgFinal;
@@ -323,7 +394,8 @@ export const sendMessageFactory = apiFactory()((api, appContext, utils) => {
                 hdSize: String(attachment.totalSize),
                 zsource: -1,
                 ttl: ttl,
-                jcp: '{"convertible":"jxl"}',
+                // Đánh dấu ảnh chất lượng gốc để client Zalo hiển thị nhãn Original.
+                jcp: '{"sendSource":1,"convertible":"jxl","is_original":1}',
                 groupLayoutId: isMultiFile ? groupLayoutId : undefined,
                 isGroupLayout: isMultiFile ? 1 : undefined,
                 idInGroup: isMultiFile ? indexInGroupLayout-- : undefined,

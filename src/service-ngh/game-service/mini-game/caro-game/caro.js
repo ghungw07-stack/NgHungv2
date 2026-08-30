@@ -502,15 +502,16 @@ export async function handleCaroCommand(api, message, aliasCommand, prefix) {
  * Handle player's reaction to accept challenge
  */
 export async function handleCaroReaction(api, reaction) {
-  const msgId = reaction.data?.content?.rMsg[0]?.gMsgID?.toString() || "";
+  const rMsg = reaction.data?.content?.rMsg?.[0];
+  const msgIds = [rMsg?.gMsgID, rMsg?.cMsgID].filter(Boolean).map(String);
+  const msgId = msgIds.find((id) => reactionMapChallenge.has(id));
   if (!msgId) return false;
-  if (!reactionMapChallenge.has(msgId)) return false;
   const relatedData = reactionMapChallenge.get(msgId);
   const senderId = reaction.data.uidFrom;
   if (senderId !== relatedData.challengedId) return false;
 
   const rType = reaction.data.content.rType;
-  if (rType !== 5) return false;
+  if (![3, 5].includes(Number(rType))) return false;
 
   reactionMapChallenge.delete(msgId);
   const challenge = relatedData.challenge;
