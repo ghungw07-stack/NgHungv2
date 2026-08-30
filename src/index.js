@@ -476,26 +476,6 @@ export function setupBotListeners(api) {
   // Xử Lý Tin Nhắn Riêng Và Tin Nhắn Nhóm
   api.listener.on("message", async (message) => {
     const receivedAt = performance.now();
-    // Truy vấn prefix là lệnh tối giản, phải luôn phản hồi kể cả khi bot con
-    // đang tắt các automation của nhóm hoặc chưa kịp dựng cache quyền. Xử lý
-    // trực tiếp tại listener để không bị chặn bởi các guard phía sau.
-    const rawContent = message.data?.content;
-    if (typeof rawContent === "string" && /^prefix$/iu.test(rawContent.trim())) {
-      try {
-        const currentPrefix = getGlobalPrefix(api.getBotId());
-        await api.sendMessage(
-          {
-            msg: currentPrefix ? `Prefix hiện tại của bot là: ${currentPrefix}` : "Bot hiện tại không có prefix",
-            ttl: 300000,
-          },
-          message.threadId,
-          message.type
-        );
-      } catch (error) {
-        console.error(`[prefix-direct] bot=${api.getBotId()} lỗi gửi phản hồi:`, error?.message || error);
-      }
-      return;
-    }
     // Ghi cache là tác vụ phụ: không để một round-trip database làm chậm
     // luồng phản hồi của bot. Queue riêng và có giới hạn để DB chậm không
     // khiến số promise tăng vô hạn.
