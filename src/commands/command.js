@@ -260,6 +260,7 @@ import { handleTrolGayLessCommand } from "./send-all/checkgayless.js";
 import { handleAntiInvite } from "../service-ngh/anti-service/anti-invite.js";
 import { handleHeartReactionDeleteCommand } from "../automations/reaction-delete.js";
 import { resolveReactionInput } from "../api-zalo/models/Reaction.js";
+import { MessageType } from "../api-zalo/index.js";
 import { handleEventSendMessage } from "./bot-manager/event-sendmsg.js";
 import { canUseBarePrefix } from "../utils/bare-prefix-cooldown.js";
 import { getCommandCooldownSeconds } from "../utils/command-cooldown.js";
