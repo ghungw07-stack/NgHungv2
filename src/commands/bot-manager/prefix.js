@@ -1,9 +1,12 @@
 import { getGlobalPrefix, setGlobalPrefix } from "../../service-ngh/service.js";
 import { commandFilePath } from "../../utils/io-json.js";
 import { readFileSync, writeFileSync } from "../../utils/util.js";
+import { nameServer as globalNameServer } from "../../database/index.js";
 
 function withServerName(api, text) {
-  const serverName = String(api.apiManager?.getDataConfig?.()?.infoOwner?.nameServer || "").trim();
+  const serverName = String(
+    api.apiManager?.getDataConfig?.()?.infoOwner?.nameServer || globalNameServer || ""
+  ).trim();
   return serverName ? `${serverName}\n${text}` : text;
 }
 

@@ -152,8 +152,10 @@ const ADMIN_REPLY_COOLDOWN = 24 * 60 * 60 * 1000; // 24 hours
 const lastAutoReplyTime = new Map();
 const AUTO_REPLY_COOLDOWN = 1 * 60 * 60 * 1000; // 1 hour to prevent spam
 
-// === Chống flood: chặn xử lý trùng cliMsgId, scoped theo từng bot ===
-// key: `${idBot}_${cliMsgId}` -> timestamp. Trùng 1 lần là bỏ qua luôn, không delay.
+// === Chống flood: chặn xử lý trùng cliMsgId trên toàn bộ bot trong tiến trình ===
+// Khi nhiều bot cùng nhận một event Zalo, cliMsgId giống nhau nhưng trước đây
+// khóa theo botId khiến mỗi bot trả lời một lần. Khóa theo thread + cliMsgId để
+// một tin trong một nhóm chỉ được dispatch cho đúng một bot.
 const processedCliMsgIds = new Map();
 const CLI_MSG_DEDUPE_TTL = 30 * 1000; // giữ 30s rồi tự dọn, đủ để chặn spam dồn dập
 const rentalExpiryJobs = new Map();
@@ -194,7 +196,8 @@ function isDuplicateCliMsg(idBot, message) {
   const cliMsgId = message?.data?.cliMsgId ?? message?.data?.msgId;
   if (!cliMsgId) return false; // không lấy được id thì không chặn được, cho qua bình thường
 
-  const key = `${idBot}_${cliMsgId}`;
+  const threadId = message?.threadId ?? message?.data?.threadId ?? "direct";
+  const key = `${threadId}_${cliMsgId}`;
   if (processedCliMsgIds.has(key)) {
     return true;
   }
