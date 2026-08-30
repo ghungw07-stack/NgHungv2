@@ -2,6 +2,11 @@ import { getGlobalPrefix, setGlobalPrefix } from "../../service-ngh/service.js";
 import { commandFilePath } from "../../utils/io-json.js";
 import { readFileSync, writeFileSync } from "../../utils/util.js";
 
+function withServerName(api, text) {
+  const serverName = String(api.apiManager?.getDataConfig?.()?.infoOwner?.nameServer || "").trim();
+  return serverName ? `${serverName}\n${text}` : text;
+}
+
 export async function handlePrefixCommand(api, message, threadId, isAdmin) {
   const content = message.data.content.trim();
   const idBot = api.getBotId();
@@ -16,7 +21,7 @@ export async function handlePrefixCommand(api, message, threadId, isAdmin) {
   if (!args) {
     await api.sendMessage(
       {
-        msg: currentPrefix ? `Prefix hiện tại của bot là: ${currentPrefix}` : `Bot hiện tại không có prefix`,
+        msg: withServerName(api, currentPrefix ? `Prefix hiện tại của bot là: ${currentPrefix}` : `Bot hiện tại không có prefix`),
         ttl: 300000,
       },
       threadId,
@@ -28,7 +33,7 @@ export async function handlePrefixCommand(api, message, threadId, isAdmin) {
   if (!isAdmin) {
     await api.sendMessage(
       {
-        msg: "❌ Bạn không có quyền thay đổi prefix của bot!",
+        msg: withServerName(api, "❌ Bạn không có quyền thay đổi prefix của bot!"),
         ttl: 300000,
       },
       threadId,
@@ -40,7 +45,7 @@ export async function handlePrefixCommand(api, message, threadId, isAdmin) {
   if (args.includes(" ")) {
     await api.sendMessage(
       {
-        msg: "❌ Prefix không được chứa khoảng trắng!",
+        msg: withServerName(api, "❌ Prefix không được chứa khoảng trắng!"),
         ttl: 300000,
       },
       threadId,
@@ -55,7 +60,7 @@ export async function handlePrefixCommand(api, message, threadId, isAdmin) {
     setGlobalPrefix(idBot, newPrefix);
     await api.sendMessage(
       {
-        msg: `✅ Áp dụng thay đổi thành công!\n${newPrefix ? "Prefix mới là:  " + args : "Không set prefix nào!"}`,
+        msg: withServerName(api, `✅ Áp dụng thay đổi thành công!\n${newPrefix ? "Prefix mới là:  " + args : "Không set prefix nào!"}`),
         quote: message,
         ttl: 300000,
       },
@@ -66,7 +71,7 @@ export async function handlePrefixCommand(api, message, threadId, isAdmin) {
     console.error("Lỗi khi cập nhật prefix:", error);
     await api.sendMessage(
       {
-        msg: "❌ Đã xảy ra lỗi khi thay đổi prefix!",
+        msg: withServerName(api, "❌ Đã xảy ra lỗi khi thay đổi prefix!"),
         quote: message,
         ttl: 300000,
       },
