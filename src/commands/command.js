@@ -907,6 +907,15 @@ function isBareGameCommand(command) {
 }
 
 async function handleCoreGameCommand(api, message, command, groupSettings, aliasCommand = command) {
+  const botId = api.getBotId();
+  const managerCommand = getManagerCommandConfig(botId);
+  const normalizedCommand = String(command || "").trim().toLowerCase();
+  if (
+    managerCommand.notAllowedCommand?.includes("all") ||
+    managerCommand.notAllowedCommand?.includes(normalizedCommand)
+  ) {
+    return false;
+  }
   switch (command) {
     case "minigame":
     case "biggame":
