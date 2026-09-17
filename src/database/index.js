@@ -7,6 +7,7 @@ import { JSON_DATA_PATH } from "../utils/io-json.js";
 import { initializeBotLanguages } from "../utils/bot-language.js";
 import { configureDatabaseState } from "./state.js";
 import { initializeBotCredentialVault } from "../security/bot-credential-vault.js";
+import { MongoConnection } from "./mongo-connection.js";
 
 // Mặc định tất cả bot dùng chung một MongoDB. Chỉ tách khi chủ động đổi
 // `database`/`uri` trong database-config.json.
