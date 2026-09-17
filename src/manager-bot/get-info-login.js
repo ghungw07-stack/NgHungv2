@@ -68,10 +68,11 @@ export async function request(ctx, url, options, raw = false) {
     agent: ctx.options.agent,
   });
   const response = await ctx.options.polyfill(url, _options);
-  const setCookieRaw = response.headers.get("set-cookie");
-  if (setCookieRaw && !raw) {
-    const splitCookies = setCookieRaw.split(", ");
-    for (const cookie of splitCookies) {
+  const cookieHeaders = typeof response.headers?.getSetCookie === "function"
+    ? response.headers.getSetCookie()
+    : (response.headers?.get("set-cookie") ? [response.headers.get("set-cookie")] : []);
+  if (cookieHeaders.length > 0 && !raw) {
+    for (const cookie of cookieHeaders) {
       const parsed = toughCookie.Cookie.parse(cookie);
       try {
         if (parsed) await ctx.cookie.setCookie(parsed, origin);
@@ -83,7 +84,8 @@ export async function request(ctx, url, options, raw = false) {
     const redirectOptions = Object.assign({}, options);
     redirectOptions.method = "GET";
     if (!raw) redirectOptions.headers["Referer"] = "https://id.zalo.me/";
-    return await request(ctx, redirectURL, redirectOptions);
+    const resolvedRedirect = new URL(redirectURL, url).toString();
+    return await request(ctx, resolvedRedirect, redirectOptions);
   }
   return response;
 }
@@ -116,13 +118,14 @@ async function loadLoginPage(ctx) {
 }
 async function getLoginInfo(ctx, version) {
   const form = new URLSearchParams();
-  form.append("continue", "https://zalo.me/pc");
+  form.append("continue", "https://chat.zalo.me/");
   form.append("v", version);
   return await request(ctx, "https://id.zalo.me/account/logininfo", {
     headers: {
       accept: "*/*",
       "accept-language": "vi-VN,vi;q=0.9,fr-FR;q=0.8,fr;q=0.7,en-US;q=0.6,en;q=0.5",
       "content-type": "application/x-www-form-urlencoded",
+      origin: "https://id.zalo.me",
       priority: "u=1, i",
       "sec-ch-ua": '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"',
       "sec-ch-ua-mobile": "?0",
@@ -130,7 +133,7 @@ async function getLoginInfo(ctx, version) {
       "sec-fetch-dest": "empty",
       "sec-fetch-mode": "cors",
       "sec-fetch-site": "same-origin",
-      Referer: "https://id.zalo.me/account?continue=https%3A%2F%2Fzalo.me%2Fpc",
+      Referer: "https://id.zalo.me/account?continue=https%3A%2F%2Fchat.zalo.me%2F",
       "Referrer-Policy": "strict-origin-when-cross-origin",
     },
     body: form,
@@ -142,13 +145,14 @@ async function getLoginInfo(ctx, version) {
 async function verifyClient(ctx, version) {
   const form = new URLSearchParams();
   form.append("type", "device");
-  form.append("continue", "https://zalo.me/pc");
+  form.append("continue", "https://chat.zalo.me/");
   form.append("v", version);
   return await request(ctx, "https://id.zalo.me/account/verify-client", {
     headers: {
       accept: "*/*",
       "accept-language": "vi-VN,vi;q=0.9,fr-FR;q=0.8,fr;q=0.7,en-US;q=0.6,en;q=0.5",
       "content-type": "application/x-www-form-urlencoded",
+      origin: "https://id.zalo.me",
       priority: "u=1, i",
       "sec-ch-ua": '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"',
       "sec-ch-ua-mobile": "?0",
@@ -156,7 +160,7 @@ async function verifyClient(ctx, version) {
       "sec-fetch-dest": "empty",
       "sec-fetch-mode": "cors",
       "sec-fetch-site": "same-origin",
-      Referer: "https://id.zalo.me/account?continue=https%3A%2F%2Fzalo.me%2Fpc",
+      Referer: "https://id.zalo.me/account?continue=https%3A%2F%2Fchat.zalo.me%2F",
       "Referrer-Policy": "strict-origin-when-cross-origin",
     },
     body: form,
@@ -167,13 +171,14 @@ async function verifyClient(ctx, version) {
 }
 async function generate(ctx, version) {
   const form = new URLSearchParams();
-  form.append("continue", "https://zalo.me/pc");
+  form.append("continue", "https://chat.zalo.me/");
   form.append("v", version);
   return await request(ctx, "https://id.zalo.me/account/authen/qr/generate", {
     headers: {
       accept: "*/*",
       "accept-language": "vi-VN,vi;q=0.9,fr-FR;q=0.8,fr;q=0.7,en-US;q=0.6,en;q=0.5",
       "content-type": "application/x-www-form-urlencoded",
+      origin: "https://id.zalo.me",
       priority: "u=1, i",
       "sec-ch-ua": '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"',
       "sec-ch-ua-mobile": "?0",
@@ -181,7 +186,7 @@ async function generate(ctx, version) {
       "sec-fetch-dest": "empty",
       "sec-fetch-mode": "cors",
       "sec-fetch-site": "same-origin",
-      Referer: "https://id.zalo.me/account?continue=https%3A%2F%2Fzalo.me%2Fpc",
+      Referer: "https://id.zalo.me/account?continue=https%3A%2F%2Fchat.zalo.me%2F",
       "Referrer-Policy": "strict-origin-when-cross-origin",
     },
     body: form,
@@ -200,6 +205,7 @@ async function waitingScan(ctx, version, code, signal) {
       accept: "*/*",
       "accept-language": "vi-VN,vi;q=0.9,fr-FR;q=0.8,fr;q=0.7,en-US;q=0.6,en;q=0.5",
       "content-type": "application/x-www-form-urlencoded",
+      origin: "https://id.zalo.me",
       priority: "u=1, i",
       "sec-ch-ua": '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"',
       "sec-ch-ua-mobile": "?0",
@@ -253,6 +259,7 @@ async function waitingConfirm(api, message, ctx, version, code, signal, qrResult
       accept: "*/*",
       "accept-language": "vi-VN,vi;q=0.9,fr-FR;q=0.8,fr;q=0.7,en-US;q=0.6,en;q=0.5",
       "content-type": "application/x-www-form-urlencoded",
+      origin: "https://id.zalo.me",
       priority: "u=1, i",
       "sec-ch-ua": '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"',
       "sec-ch-ua-mobile": "?0",
@@ -366,6 +373,15 @@ export async function loginQR(api, message, ctx, options = {}) {
     }
 
     const controller = new AbortController();
+    if (options.signal) {
+      options.signal.addEventListener("abort", () => {
+        controller.abort();
+        reject({
+          isAborted: true,
+          error: "Phiên lấy QR đã bị hủy để tạo phiên mới.",
+        });
+      });
+    }
     const timeout = setTimeout(() => {
       controller.abort();
       return reject({
@@ -415,6 +431,7 @@ export async function loginQR(api, message, ctx, options = {}) {
       data: scanResult.data,
     });
    } catch (error) {
+    if (error?.isAborted) return reject(error);
     return reject({
       error: `Lỗi không xác định trong luồng QR Login!\nChi Tiết: ${error?.message || error}`,
     });
@@ -431,7 +448,7 @@ export const createContext = (apiType = Zalo.API_TYPE, apiVersion = Zalo.API_VER
   API_VERSION: apiVersion,
   imei: "",
   cookie: new toughCookie.CookieJar(),
-  userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0",
+  userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
   options: { polyfill: global.fetch, ...createZaloProxyTransport() },
   secretKey: null,
 });
@@ -441,17 +458,33 @@ export async function handleGetCookieImeiByQR(api, message, options = {}) {
   const sessionKey = `${api.getBotId()}:${senderId}`;
 
   if (sessionGetLogin.has(sessionKey)) {
-    const caption = `Bạn đã yêu cầu get data login trước đó. vui lòng quét QR đã gửi trước đó để có thể lấy thông tin cookie imei`;
-    await sendMessageWarning(api, message, caption, true, TIME_LIVE_QRCODE);
-    return;
+    const prev = sessionGetLogin.get(sessionKey);
+    const elapsed = Date.now() - (prev?.timestamp || 0);
+    // Cho phép hủy phiên cũ và tạo lại nếu đã qua ít nhất 10 giây
+    if (elapsed > 10000 && prev?.controller) {
+      try {
+        prev.controller.abort();
+      } catch {}
+      sessionGetLogin.delete(sessionKey);
+    } else {
+      const caption = `Bạn đã yêu cầu get data login trước đó. vui lòng quét QR đã gửi trước đó để có thể lấy thông tin cookie imei`;
+      await sendMessageWarning(api, message, caption, true, TIME_LIVE_QRCODE);
+      return;
+    }
   }
 
+  const sessionController = new AbortController();
+  sessionGetLogin.set(sessionKey, {
+    timestamp: Date.now(),
+    controller: sessionController,
+  });
+
   try {
-    sessionGetLogin.set(sessionKey, {
-      timestamp: Date.now(),
-    });
     const ctx = createContext();
-    const loginQRResult = await loginQR(api, message, ctx, options);
+    const loginQRResult = await loginQR(api, message, ctx, {
+      ...options,
+      signal: sessionController.signal,
+    });
     if (!loginQRResult) {
       await sendMessageFailed(api, message, "Không thể get info login...!", true, TIME_TO_LIVE);
       return;
@@ -509,6 +542,9 @@ export async function handleGetCookieImeiByQR(api, message, options = {}) {
       ctx: ctx,
     };
   } catch (error) {
+    if (error?.isAborted) {
+      return null;
+    }
     await sendMessageFailed(
       api,
       message,
@@ -518,7 +554,7 @@ export async function handleGetCookieImeiByQR(api, message, options = {}) {
     );
     return null;
   } finally {
-    if (sessionGetLogin.has(sessionKey)) {
+    if (sessionGetLogin.get(sessionKey)?.controller === sessionController) {
       sessionGetLogin.delete(sessionKey);
     }
   }
