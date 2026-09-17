@@ -3468,6 +3468,7 @@ export async function handleCommand(
 
   if (isChangeSetting) {
     groupSettingsAll.setChanged();
+    void groupSettingsAll.save();
   }
 
   return numHandleCommand;
