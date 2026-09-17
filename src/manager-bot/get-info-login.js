@@ -200,88 +200,110 @@ async function waitingScan(ctx, version, code, signal) {
   form.append("code", code);
   form.append("continue", "https://chat.zalo.me/");
   form.append("v", version);
-  return await request(ctx, "https://id.zalo.me/account/authen/qr/waiting-scan", {
-    headers: {
-      accept: "*/*",
-      "accept-language": "vi-VN,vi;q=0.9,fr-FR;q=0.8,fr;q=0.7,en-US;q=0.6,en;q=0.5",
-      "content-type": "application/x-www-form-urlencoded",
-      origin: "https://id.zalo.me",
-      priority: "u=1, i",
-      "sec-ch-ua": '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"',
-      "sec-ch-ua-mobile": "?0",
-      "sec-ch-ua-platform": '"Windows"',
-      "sec-fetch-dest": "empty",
-      "sec-fetch-mode": "cors",
-      "sec-fetch-site": "same-origin",
-      Referer: "https://id.zalo.me/account?continue=https%3A%2F%2Fchat.zalo.me%2F",
-      "Referrer-Policy": "strict-origin-when-cross-origin",
-    },
-    body: form,
-    method: "POST",
-    signal,
-  })
-    .then((res) => res.json())
-    .then((data) => {
+
+  while (!signal.aborted) {
+    try {
+      const res = await request(ctx, "https://id.zalo.me/account/authen/qr/waiting-scan", {
+        headers: {
+          accept: "*/*",
+          "accept-language": "vi-VN,vi;q=0.9,fr-FR;q=0.8,fr;q=0.7,en-US;q=0.6,en;q=0.5",
+          "content-type": "application/x-www-form-urlencoded",
+          origin: "https://id.zalo.me",
+          priority: "u=1, i",
+          "sec-ch-ua": '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"',
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": '"Windows"',
+          "sec-fetch-dest": "empty",
+          "sec-fetch-mode": "cors",
+          "sec-fetch-site": "same-origin",
+          Referer: "https://id.zalo.me/account?continue=https%3A%2F%2Fchat.zalo.me%2F",
+          "Referrer-Policy": "strict-origin-when-cross-origin",
+        },
+        body: form,
+        method: "POST",
+        signal,
+      });
+      const data = await res.json();
       if (data.error_code == 8) {
-        return waitingScan(ctx, version, code, signal);
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        continue;
       }
       return data;
-    })
-    .catch(console.error);
+    } catch (err) {
+      if (signal.aborted) return null;
+      console.error("[waitingScan error]", err?.message || err);
+      return null;
+    }
+  }
+  return null;
 }
 async function waitingConfirm(api, message, ctx, version, code, signal, qrResultMessage) {
-  const botId = api.getBotId();
-  const threadId = message.threadId;
+  try {
+    const botId = typeof api?.getBotId === "function" ? api.getBotId() : null;
+    const threadId = message?.threadId;
+    const quotedMsgId = qrResultMessage?.message?.msgId || qrResultMessage?.attachment?.[0]?.msgId;
+    if (botId && threadId && quotedMsgId) {
+      const cacheMessage = await getMessageByThreadAndMsgId(botId, threadId, quotedMsgId);
+      if (cacheMessage) {
+        const msgDel = {
+          type: cacheMessage.type,
+          threadId: cacheMessage.threadId,
+          data: {
+            cliMsgId: cacheMessage.cliMsgId,
+            msgId: cacheMessage.msgId,
+            uidFrom: botId,
+          },
+        };
+        await api.deleteMessage(msgDel, false).catch(() => {});
+      }
+    }
+    await sendMessageComplete(api, message, `Vui lòng nhấn xác nhận trên điện thoại!`, false, 60000).catch(() => {});
+  } catch (err) {
+    console.error("[waitingConfirm notify error]", err?.message || err);
+  }
+
   const form = new URLSearchParams();
   form.append("code", code);
   form.append("gToken", "");
   form.append("gAction", "CONFIRM_QR");
   form.append("continue", "https://chat.zalo.me/");
   form.append("v", version);
-  const quotedMsgId = qrResultMessage?.message?.msgId || qrResultMessage?.attachment?.[0]?.msgId;
-  const cacheMessage = quotedMsgId ? await getMessageByThreadAndMsgId(botId, threadId, quotedMsgId) : null;
-  if (cacheMessage) {
-    const msgDel = {
-      type: cacheMessage.type,
-      threadId: cacheMessage.threadId,
-      data: {
-        cliMsgId: cacheMessage.cliMsgId,
-        msgId: cacheMessage.msgId,
-        uidFrom: botId,
-      },
-    };
-    await api.deleteMessage(msgDel, false);
-  }
 
-  await sendMessageComplete(api, message, `Vui lòng nhấn xác nhận trên điện thoại!`, false, 60000);
-  return await request(ctx, "https://id.zalo.me/account/authen/qr/waiting-confirm", {
-    headers: {
-      accept: "*/*",
-      "accept-language": "vi-VN,vi;q=0.9,fr-FR;q=0.8,fr;q=0.7,en-US;q=0.6,en;q=0.5",
-      "content-type": "application/x-www-form-urlencoded",
-      origin: "https://id.zalo.me",
-      priority: "u=1, i",
-      "sec-ch-ua": '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"',
-      "sec-ch-ua-mobile": "?0",
-      "sec-ch-ua-platform": '"Windows"',
-      "sec-fetch-dest": "empty",
-      "sec-fetch-mode": "cors",
-      "sec-fetch-site": "same-origin",
-      Referer: "https://id.zalo.me/account?continue=https%3A%2F%2Fchat.zalo.me%2F",
-      "Referrer-Policy": "strict-origin-when-cross-origin",
-    },
-    body: form,
-    method: "POST",
-    signal,
-  })
-    .then((res) => res.json())
-    .then((data) => {
+  while (!signal.aborted) {
+    try {
+      const res = await request(ctx, "https://id.zalo.me/account/authen/qr/waiting-confirm", {
+        headers: {
+          accept: "*/*",
+          "accept-language": "vi-VN,vi;q=0.9,fr-FR;q=0.8,fr;q=0.7,en-US;q=0.6,en;q=0.5",
+          "content-type": "application/x-www-form-urlencoded",
+          origin: "https://id.zalo.me",
+          priority: "u=1, i",
+          "sec-ch-ua": '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"',
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": '"Windows"',
+          "sec-fetch-dest": "empty",
+          "sec-fetch-mode": "cors",
+          "sec-fetch-site": "same-origin",
+          Referer: "https://id.zalo.me/account?continue=https%3A%2F%2Fchat.zalo.me%2F",
+          "Referrer-Policy": "strict-origin-when-cross-origin",
+        },
+        body: form,
+        method: "POST",
+        signal,
+      });
+      const data = await res.json();
       if (data.error_code == 8) {
-        return waitingConfirm(ctx, version, code, signal);
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        continue;
       }
       return data;
-    })
-    .catch(console.error);
+    } catch (err) {
+      if (signal.aborted) return null;
+      console.error("[waitingConfirm polling error]", err?.message || err);
+      return null;
+    }
+  }
+  return null;
 }
 async function checkSession(ctx) {
   return await request(
@@ -324,8 +346,7 @@ async function establishSession(ctx) {
         "upgrade-insecure-requests": "1",
       },
       method: "GET",
-    },
-    true
+    }
   );
 }
 
@@ -406,6 +427,17 @@ export async function loginQR(api, message, ctx, options = {}) {
       return reject({
         error: "Không nhận được xác nhận mã QR từ bạn!",
       });
+
+    if (confirmResult.error_code == -13) {
+      return reject({
+        error: "Bạn đã từ chối đăng nhập mã QR này!",
+      });
+    } else if (confirmResult.error_code != 0) {
+      return reject({
+        error: `Đã xảy ra lỗi!\nChi Tiết: ${JSON.stringify(confirmResult, null, 2)}`,
+      });
+    }
+
     const checkSessionResult = await checkSession(ctx);
     if (!checkSessionResult)
       return reject({
@@ -415,16 +447,6 @@ export async function loginQR(api, message, ctx, options = {}) {
     // Establish session to get fresh cookies from chat.zalo.me
     await establishSession(ctx);
 
-    if (confirmResult.error_code == 0) {
-    } else if (confirmResult.error_code == -13) {
-      return reject({
-        error: "Bạn đã từ chối đăng nhập mã QR này!",
-      });
-    } else {
-      return reject({
-        error: `Đã xảy ra lỗi!\nChi Tiết: ${JSON.stringify(confirmResult, null, 2)}`,
-      });
-    }
     clearTimeout(timeout);
     resolve({
       cookies: ctx.cookie.toJSON().cookies,
