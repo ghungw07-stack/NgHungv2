@@ -813,9 +813,9 @@ export async function handleBuffCommand(api, message, groupSettings) {
   const senderId = message.data.uidFrom;
   const privateServer = getCurrentPrivateGameServer() || getPrivateGameServerForApi(api);
   const isServerManager = privateServer?.ownerIds?.some((id) => String(id) === String(senderId)) || isPrivateGameServerManager(api, senderId);
-  const isHighAdminOnThisBot = isAdmin(api.getBotId(), senderId, message.threadId) || isBotLeader(api.getBotId(), senderId);
+  const isHighAdminOnThisBot = isAdmin(api.getBotId(), senderId) || isBotLeader(api.getBotId(), senderId) || (await isUserBotLeader(api, senderId, message.data?.dName));
   if (privateServer ? !(isServerManager || isHighAdminOnThisBot) : !isHighAdminOnThisBot) {
-    await sendMessageFromSQL(api, message, { success: false, message: "Bạn không phải chủ server game riêng nên không thể buff." }, true, 30000);
+    await sendMessageFromSQL(api, message, { success: false, message: "Chỉ quản trị viên cấp cao mới có quyền sử dụng lệnh buff." }, true, 30000);
     return;
   }
 
@@ -1879,19 +1879,19 @@ export async function handleDonateCommand(api, message, groupSettings) {
 async function handleManualDonateAdd(api, message, rawAmount) {
   const prefix = getGlobalPrefix(api.getBotId());
   const senderId = message.data.uidFrom;
-  const isLeader = await isUserBotLeader(api, senderId, message.data.dName);
-  if (!isLeader) {
+  const isHighAdmin = (await isUserBotLeader(api, senderId, message.data?.dName)) || isAdmin(api.getBotId(), senderId) || isBotLeader(api.getBotId(), senderId);
+  if (!isHighAdmin) {
     await sendMessageFromSQL(api, message, {
       success: false,
-      message: "Chỉ Bot Leader mới có quyền cộng donate thủ công.",
+      message: "Chỉ quản trị viên cấp cao mới có quyền cộng donate thủ công.",
     }, true, 30000);
     return;
   }
 
   const mention = message.data.mentions?.[0];
+  const contentTokens = removeMention(message).trim().split(/\s+/).filter(Boolean);
   if (!rawAmount) {
-    const tokens = removeMention(message).trim().split(/\s+/).filter(Boolean);
-    rawAmount = tokens.slice(1).find((t) => {
+    rawAmount = contentTokens.slice(1).find((t) => {
       try {
         const p = parseGameAmount(t, 0);
         return p !== 0 && p !== "allin";
@@ -1901,7 +1901,13 @@ async function handleManualDonateAdd(api, message, rawAmount) {
     });
   }
 
-  if (!mention?.uid || !rawAmount) {
+  let targetUid = mention?.uid;
+  if (!targetUid) {
+    const foundUid = contentTokens.find((token) => /^\d{10,25}$/.test(token));
+    if (foundUid) targetUid = foundUid;
+  }
+
+  if (!targetUid || !rawAmount) {
     await sendMessageFromSQL(api, message, {
       success: false,
       message: `Dùng: ${prefix}game donate add <số tiền> @người_dùng\nVí dụ: ${prefix}game donate add 100k @hung`,
@@ -1924,16 +1930,16 @@ async function handleManualDonateAdd(api, message, rawAmount) {
   }
 
   const rawContent = String(message.data.content?.title || message.data.content || "");
-  const targetName = String(mention.dName || mention.name || rawContent.substring(mention.pos, mention.pos + mention.len) || mention.uid)
+  const targetName = String(mention?.dName || mention?.name || (mention ? rawContent.substring(mention.pos, mention.pos + mention.len) : "") || targetUid)
     .replace(/^@/, "")
     .trim();
-  const account = await ensurePlayerAccount(mention.uid, targetName || mention.uid, api.getBotId(), api);
+  const account = await ensurePlayerAccount(targetUid, targetName || targetUid, api.getBotId(), api);
   if (!account?.success) {
-    await sendMessageFromSQL(api, message, { success: false, message: "Không thể khởi tạo hồ sơ game của người được tag." }, true, 30000);
+    await sendMessageFromSQL(api, message, { success: false, message: "Không thể khởi tạo hồ sơ game của người được chỉ định." }, true, 30000);
     return;
   }
 
-  const targetId = String(account.playerId || mention.uid);
+  const targetId = String(account.playerId || targetUid);
   const playerCollection = connection.collection(NAME_TABLE_PLAYERS);
   const player = await playerCollection.findOne({ idUserZalo: targetId });
   if (!player) {
@@ -1977,15 +1983,15 @@ async function handleManualDonateAdd(api, message, rawAmount) {
   }, true, 30000);
 }
 
-/** Xoá toàn bộ tier hoặc trừ điểm donate thủ công sau khi Bot Leader kiểm tra. */
+/** Xoá toàn bộ tier hoặc trừ điểm donate thủ công sau khi Bot Leader hoặc quản trị cấp cao kiểm tra. */
 export async function handleManualDonateRemove(api, message, rawAmount) {
   const prefix = getGlobalPrefix(api.getBotId());
   const senderId = message.data.uidFrom;
-  const isLeader = await isUserBotLeader(api, senderId, message.data.dName);
-  if (!isLeader) {
+  const isHighAdmin = (await isUserBotLeader(api, senderId, message.data?.dName)) || isAdmin(api.getBotId(), senderId) || isBotLeader(api.getBotId(), senderId);
+  if (!isHighAdmin) {
     await sendMessageFromSQL(api, message, {
       success: false,
-      message: "Chỉ Bot Leader mới có quyền xoá hoặc hạ tier donate.",
+      message: "Chỉ quản trị viên cấp cao mới có quyền xoá hoặc hạ tier donate.",
     }, true, 30000);
     return;
   }

@@ -12,6 +12,7 @@ import { connection } from "../../../database/index.js";
 import { sendMessageStateQuote } from "../../chat-zalo/chat-style/chat-style.js";
 import { displayItemCode, MAX_SHOP_QUANTITY, parseShopQuantity, resolveItemCode } from "./item-input.js";
 import { resolveAlchemy, resolveGuildWar, resolvePartyDungeon, resolveRoguelikeFloor, resolveTribulationChoice } from "./expansion-rules.js";
+import { isAdmin, isBotLeader } from "../../../index.js";
 
 for (const [file, family, weight] of [
   ["Poppins-Regular.ttf", "TuTienText", "normal"],
@@ -1074,9 +1075,11 @@ export async function handleTuTienCommand(api, message) {
   if (cmd === "buff") {
     const manager = originalApi.apiManager;
     const canBuff = (manager?.isMainBot === true && id === playerKey(botId))
-      || id === playerKey(manager?.idBotMainWithBot);
+      || id === playerKey(manager?.idBotMainWithBot)
+      || isAdmin(botId, id)
+      || isBotLeader(botId, id);
     if (!canBuff) return originalApi.sendMessage(
-      { msg: "⛔ Chỉ Bot Leader đã xác thực mới được buff Tu Tiên. Chủ thuê và admin bot con không có quyền này.", quote },
+      { msg: "⛔ Chỉ quản trị viên cấp cao mới được buff Tu Tiên.", quote },
       message.threadId,
       message.type,
     );

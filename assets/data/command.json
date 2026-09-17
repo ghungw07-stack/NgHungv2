@@ -10,7 +10,6 @@
     "703481102696579246": "}",
     "629974840291463983": "$",
     "626785955735131567": ">",
-    "628610835953511727": "!",
     "549817247255135264": "\"",
     "622470776561634095": "0",
     "629688945818965679": "\\",
@@ -30,7 +29,7 @@
     "641793762671350447": ",",
     "647554692297775919": "!",
     "648257804163767727": "!",
-    "612651863441394479": "0",
+    "612651863441394479": "!",
     "625881101060857647": "!",
     "623066325423018287": "!",
     "622784691555808303": "!",
@@ -48,6 +47,242 @@
     "640322143506320559": "0"
   },
   "managerCommand": {
+    "639637933780310831": {
+      "notAllowedCommand": [
+        "attack"
+      ],
+      "customerCommand": {
+        "attack": {
+          "defaultChildBlockInitialized": true
+        },
+        "": {},
+        "game": {
+          "countdown": 5,
+          "permission": "all"
+        },
+        "duangua": {},
+        "duaxe": {},
+        "bcr": {},
+        "cophieuao": {
+          "alias": [
+            "cpa"
+          ],
+          "countdown": 3
+        },
+        "sticker": {},
+        "maybay": {},
+        "tutien": {
+          "countdown": 3
+        },
+        "vongquay": {},
+        "chanle": {
+          "alias": [
+            "cl"
+          ]
+        },
+        "alias": {},
+        "quyetchien": {
+          "alias": [
+            "qc"
+          ]
+        },
+        "xocdia": {
+          "alias": [
+            "xda"
+          ]
+        },
+        "xidach": {
+          "alias": []
+        },
+        "join": {},
+        "cuoptien": {},
+        "youtube": {
+          "permission": "all"
+        },
+        "command": {},
+        "giveaway": {},
+        "gameactive": {},
+        "spamgroup": {},
+        "ban": {},
+        "setcmd": {},
+        "baucua": {},
+        "thap": {
+          "countdown": 3
+        },
+        "sut": {},
+        "domin": {},
+        "taixiu": {},
+        "check": {},
+        "social": {},
+        "nuoithu": {},
+        "daga": {},
+        "adminbot": {},
+        "settinggroup": {},
+        "cosplay": {
+          "permission": "all"
+        },
+        "boy": {},
+        "giaxang": {},
+        "lienquanmobile": {},
+        "simsimi": {
+          "permission": "all"
+        },
+        "gemini": {
+          "permission": "all"
+        },
+        "deletemessage": {
+          "permission": "adminBox"
+        },
+        "girl": {},
+        "bot": {},
+        "whitelist": {},
+        "target": {},
+        "masoi": {
+          "alias": [
+            "msoi"
+          ]
+        },
+        "nohu": {},
+        "google": {},
+        "thoitiet": {},
+        "googleaisearch": {},
+        "truyentranh": {},
+        "bantho": {
+          "alias": [
+            "ngu"
+          ]
+        },
+        "help": {},
+        "gpt": {},
+        "googlenews": {},
+        "tvpl": {},
+        "image": {},
+        "pinterest": {},
+        "anime": {},
+        "vdboy": {},
+        "vdvuto": {
+          "permission": "adminLevelHigh"
+        },
+        "vdgirl": {},
+        "vdsexy": {
+          "permission": "adminLevelHigh"
+        },
+        "vdcos": {},
+        "vdanime": {},
+        "info": {},
+        "i4image": {},
+        "uid": {},
+        "qrcard": {},
+        "card": {},
+        "detail": {},
+        "speedtest": {},
+        "benchmark": {},
+        "gifvd": {},
+        "giftext": {},
+        "clock": {},
+        "donenat": {},
+        "stickerzalo": {},
+        "tenorsticker": {},
+        "stickerlocal": {},
+        "sendgif": {},
+        "sendfile": {},
+        "editvoice": {},
+        "editvideo": {},
+        "simphongthuy": {},
+        "phatnguoi": {},
+        "mycard": {},
+        "saoke": {},
+        "nongtrai": {},
+        "banca": {},
+        "baicao": {},
+        "tienlen": {},
+        "keobuabao": {},
+        "vietlott655": {},
+        "facebookprofile": {},
+        "i4tiktok": {},
+        "tiktok": {},
+        "capcut": {},
+        "shopee": {},
+        "truyensex": {},
+        "dich": {},
+        "qrbank": {},
+        "getlink": {},
+        "getmessage": {},
+        "getvoice": {},
+        "dinhgia": {},
+        "ptg": {},
+        "quocgia": {},
+        "lovelink": {},
+        "soundcloud": {},
+        "mixcloud": {},
+        "zingmp3": {},
+        "zingchart": {},
+        "nhaccuatui": {},
+        "spotify": {},
+        "spotifydownload": {},
+        "voice": {},
+        "truyencuoi": {},
+        "tarrot": {},
+        "poststatus": {},
+        "createqr": {},
+        "qrcode": {},
+        "lichhoathinh3dtrungquoc": {},
+        "hoathinh3dtrungquoc": {},
+        "hoathinh3dtrungquocthuyetminh": {},
+        "motphim": {},
+        "khophim": {},
+        "lienminhhuyenthoai": {},
+        "doanso": {},
+        "noitu": {},
+        "doantu": {},
+        "vuatiengviet": {},
+        "duoihinhbatchu": {},
+        "caro": {},
+        "covua": {},
+        "cotuong": {},
+        "ailatrieuphu": {},
+        "cauca": {},
+        "zaclwarrior": {},
+        "xoso": {},
+        "football": {},
+        "lich": {},
+        "spamsms": {
+          "permission": "adminLevelHigh"
+        },
+        "checkvirus": {},
+        "checkdomain": {},
+        "checkip": {},
+        "giavang": {},
+        "matchmaking": {},
+        "lamnet": {},
+        "pexelsimage": {},
+        "mybot": {},
+        "sicbo": {},
+        "longho": {},
+        "roulette": {},
+        "keno": {},
+        "nuoirong": {},
+        "buff": {},
+        "welcome": {},
+        "anti": {},
+        "download": {},
+        "autorailink": {},
+        "listgroups": {},
+        "leave": {},
+        "mute": {
+          "permission": "adminBox"
+        },
+        "undo": {},
+        "blockbot": {},
+        "tagall": {},
+        "prefix": {
+          "permission": "adminBox"
+        },
+        "deletechat": {},
+        "setvnd": {},
+        "getlogin": {}
+      }
+    },
     "704116272630681902": {
       "notAllowedCommand": [],
       "customerCommand": {
@@ -467,227 +702,9 @@
         "thuebot": {},
         "datamembergroup": {},
         "tutien": {},
-        "ngh...": {}
-      }
-    },
-    "628610835953511727": {
-      "notAllowedCommand": [
-        "vdsex",
-        "vdboy",
-        "spamsms"
-      ],
-      "customerCommand": {
-        "antinude": {},
-        "mybot": {},
-        "bot": {},
-        "deletemessage": {},
-        "sticker": {},
-        "getlink": {},
-        "tiktok": {},
-        "tagall": {},
-        "bithuat": {},
-        "gameactive": {},
-        "cauca": {},
-        "buff": {},
-        "dangky": {},
-        "game": {},
-        "info": {},
-        "settinggroup": {},
-        "group": {},
-        "upgradecommunity": {},
-        "bye": {},
-        "welcome": {},
-        "add": {},
-        "command": {},
-        "detail": {},
-        "setcmd": {},
-        "speedtest": {},
-        "spamsms": {},
-        "getlogin": {},
-        "taixiu": {},
-        "ailatrieuphu": {},
-        "xidach": {},
-        "vdsexy": {},
-        "autodownload": {},
-        "antilink": {},
-        "voice": {},
-        "myacc": {},
-        "alias": {},
-        "antiundo": {},
-        "approve": {},
-        "caro": {},
-        "soundcloud": {},
-        "duoihinhbatchu": {},
-        "nhaccuatui": {},
-        "help": {},
-        "gemini": {},
-        "undo": {},
-        "vdsex": {},
-        "boy": {},
-        "mute": {},
-        "gpt": {},
-        "baucua": {},
-        "thoitiet": {},
-        "prefix": {},
-        "all": {},
-        "card": {},
-        "pinterest": {},
-        "topchat": {},
-        "sendimage": {},
-        "masoi": {},
-        "simsimi": {},
-        "google": {},
-        "googlenews": {},
-        "googleaisearch": {},
-        "image": {},
-        "girl": {},
-        "cosplay": {},
-        "anime": {},
-        "vdboy": {},
-        "vdvuto": {},
-        "vdgirl": {},
-        "vdcos": {},
-        "vdanime": {},
-        "qrcard": {},
-        "benchmark": {},
-        "gifvd": {},
-        "giftext": {},
-        "clock": {},
-        "stickerzalo": {},
-        "tenorsticker": {},
-        "stickerlocal": {},
-        "sendgif": {},
-        "sendfile": {},
-        "editvoice": {},
-        "editvideo": {},
-        "simphongthuy": {},
-        "phatnguoi": {},
-        "login": {},
-        "logout": {},
-        "mycard": {},
-        "nongtrai": {},
-        "chanle": {},
-        "keobuabao": {},
-        "vietlott655": {},
-        "facebookprofile": {},
-        "i4tiktok": {},
-        "youtube": {},
-        "capcut": {},
-        "truyensex": {},
-        "truyentranh": {},
-        "dich": {},
-        "qrbank": {},
-        "getmessage": {},
-        "getvoice": {},
-        "dinhgia": {},
-        "quocgia": {},
-        "lovelink": {},
-        "social": {},
-        "mixcloud": {},
-        "zingmp3": {},
-        "zingchart": {},
-        "spotify": {},
-        "spotifydownload": {},
-        "truyencuoi": {},
-        "tarrot": {},
-        "poststatus": {},
-        "createqr": {},
-        "qrcode": {},
-        "lichhoathinh3dtrungquoc": {},
-        "hoathinh3dtrungquoc": {},
-        "hoathinh3dtrungquocthuyetminh": {},
-        "motphim": {},
-        "khophim": {},
-        "lienquanmobile": {},
-        "lienminhhuyenthoai": {},
-        "doanso": {},
-        "noitu": {},
-        "doantu": {},
-        "vuatiengviet": {},
-        "zaclwarrior": {},
-        "xoso": {},
-        "lich": {},
-        "checkvirus": {},
-        "checkdomain": {},
-        "checkip": {},
-        "giavang": {},
-        "check": {},
-        "matchmaking": {},
-        "lamnet": {},
-        "pexelsimage": {},
-        "geminiveo": {},
-        "creategroup": {},
-        "dispersegroup": {},
-        "sendvideo": {},
-        "sendvoice": {},
-        "setmute": {},
-        "gim": {},
-        "gimtn": {},
-        "createpoll": {},
-        "spampoll": {},
-        "report": {},
-        "download": {},
-        "privatebot": {},
-        "truyenchu": {},
-        "truyenhentai": {},
-        "mybank": {},
-        "data": {},
-        "scanqrcode": {},
-        "scanqr": {},
-        "supportgame": {},
-        "manager": {},
-        "adminbot": {},
-        "sendtask": {},
-        "kickimg": {},
-        "blockimg": {},
-        "anti": {},
-        "autojoin": {},
-        "ban": {},
-        "heartdelete": {},
-        "call": {},
-        "spamgroup": {},
-        "scold": {},
-        "updategroup": {},
-        "learn": {},
-        "autoreply": {},
-        "reply": {},
-        "todo": {},
-        "checkorder": {},
-        "convertfile": {},
-        "cliphot": {},
-        "senduser": {},
-        "sendp": {},
-        "inviteall": {},
-        "kick": {},
-        "kickall": {},
-        "block": {},
-        "target": {},
-        "danhsachden": {},
-        "tagreaction": {},
-        "setvnd": {},
-        "join": {},
-        "leave": {},
-        "leaveall": {},
-        "leavelock": {},
-        "listgroups": {},
-        "scangroups": {},
-        "blockbot": {},
-        "whitelist": {},
-        "resource": {},
-        "track": {},
-        "spamjoin": {},
-        "prservice": {},
-        "autorailink": {},
-        "pmreply": {},
-        "prservices": {},
-        "quickmessage": {},
-        "unreadmark": {},
-        "blockfeed": {},
-        "zautoreply": {},
-        "reminder": {},
-        "deletechat": {},
-        "nhiemvu": {},
-        "donenat": {}
+        "ngh...": {},
+        "duaxe": {},
+        "nuoirong": {}
       }
     },
     "549817247255135264": {
@@ -981,7 +998,8 @@
         "reloadconfig": {},
         "attack": {
           "defaultChildBlockInitialized": true
-        }
+        },
+        "duaxe": {}
       }
     },
     "629688945818965679": {
@@ -1211,7 +1229,9 @@
         "reloadconfig": {},
         "attack": {
           "defaultChildBlockInitialized": true
-        }
+        },
+        "duaxe": {},
+        "": {}
       }
     },
     "632172834531738543": {
@@ -1424,7 +1444,8 @@
           "permission": "adminLevelHigh"
         },
         "mute": {
-          "alias": []
+          "alias": [],
+          "permission": "adminBot"
         },
         "unmute": {},
         "prefix": {},
@@ -1493,7 +1514,9 @@
         "block": {
           "permission": "adminBox"
         },
-        "target": {},
+        "target": {
+          "permission": "adminBot"
+        },
         "listkey": {},
         "danhsachden": {},
         "tagreaction": {},
@@ -1611,7 +1634,18 @@
         "tutien": {},
         "football": {},
         "datamembergroup": {},
-        "ngh...": {}
+        "ngh...": {},
+        "duaxe": {},
+        "quyetchien": {
+          "alias": [
+            "qc"
+          ]
+        },
+        "cophieuao": {
+          "alias": [
+            "cpa"
+          ]
+        }
       }
     },
     "252844083442091428": {
@@ -2131,7 +2165,8 @@
         "resetdaily": {},
         "resethu": {},
         "addusertogroup": {},
-        "anbox": {}
+        "anbox": {},
+        "duaxe": {}
       }
     },
     "621528714194863791": {
@@ -2809,7 +2844,8 @@
         "nova": {},
         "tvpl": {},
         "i4image": {},
-        "reloadconfig": {}
+        "reloadconfig": {},
+        "duaxe": {}
       }
     },
     "641793762671350447": {
@@ -3047,7 +3083,12 @@
           "alias": [
             "gay"
           ]
-        }
+        },
+        "duaxe": {},
+        "cophieuao": {},
+        "xocdia": {},
+        "": {},
+        "nuoirong": {}
       }
     },
     "648257804163767727": {
@@ -3306,7 +3347,8 @@
         "event.sendmsg": {},
         "deletechat": {},
         "anbox": {},
-        "reloadconfig": {}
+        "reloadconfig": {},
+        "duaxe": {}
       }
     },
     "646990513898202415": {
@@ -3533,7 +3575,8 @@
         "masoi": {},
         "event.sendmsg": {},
         "deletechat": {},
-        "nova": {}
+        "nova": {},
+        "duaxe": {}
       }
     },
     "645020777312267823": {
@@ -4002,7 +4045,8 @@
         "covua": {},
         "cotuong": {},
         "football": {},
-        "anbox": {}
+        "anbox": {},
+        "duaxe": {}
       }
     },
     "623103180537290415": {
@@ -4226,7 +4270,8 @@
         "masoi": {},
         "event.sendmsg": {},
         "deletechat": {},
-        "reloadconfig": {}
+        "reloadconfig": {},
+        "duaxe": {}
       }
     },
     "632914231864555311": {
@@ -4482,7 +4527,8 @@
         "anbox": {},
         "covua": {},
         "cotuong": {},
-        "nuoithu": {}
+        "nuoithu": {},
+        "duaxe": {}
       }
     },
     "566131398505847328": {
@@ -4544,6 +4590,24 @@
     "2800504935021225803": {
       "notAllowedCommand": [],
       "customerCommand": {}
+    },
+    "632323424650500399": {
+      "notAllowedCommand": [
+        "attack"
+      ],
+      "customerCommand": {
+        "attack": {
+          "defaultChildBlockInitialized": true
+        },
+        "": {},
+        "bot": {},
+        "tutien": {},
+        "game": {},
+        "gameactive": {},
+        "cophieuao": {},
+        "adminbot": {},
+        "baucua": {}
+      }
     }
   },
   "commands": [
@@ -4705,6 +4769,21 @@
       "permission": "all",
       "countdown": 2,
       "icon": "🏇",
+      "type": 5,
+      "author": "NgHung",
+      "active": true
+    },
+    {
+      "name": "duaxe",
+      "alias": [
+        "car",
+        "racing"
+      ],
+      "description": "Tạo phòng đua xe cược tiền 2-8 người, thả tim để vào và chạy bằng GIF (thắng -5% vào quỹ lì xì)",
+      "syntax": "{p}duaxe <tiền_cược> | {p}duaxe start",
+      "permission": "all",
+      "countdown": 2,
+      "icon": "🏎️",
       "type": 5,
       "author": "NgHung",
       "active": true
@@ -5411,7 +5490,7 @@
         "ga"
       ],
       "description": "Tham gia Giveaway trong nhóm; chỉ tài khoản Main Bot được tạo, test hoặc hủy",
-      "syntax": "{p}game giveaway | {p}giveaway tạo 15b 36/64 | {p}giveaway test | {p}giveaway hủy",
+      "syntax": "{p}game giveaway | {p}giveaway tạo 15b 36/64 | {p}giveaway start | {p}giveaway test | {p}giveaway hủy",
       "permission": "all",
       "countdown": 3,
       "icon": "🎁",
@@ -5484,8 +5563,24 @@
       "icon": "🎲",
       "type": 5,
       "author": "NGH",
-      "active": true,
+      "active": false,
       "alias": []
+    },
+    {
+      "name": "banca",
+      "alias": [
+        "ban-ca",
+        "fish",
+        "bancafish"
+      ],
+      "description": "Bắn cá cược theo phiên, có GIF hiệu ứng săn cá",
+      "syntax": "{p}banca <1-5/cá> <số_tiền>",
+      "permission": "all",
+      "countdown": 3,
+      "icon": "🐟",
+      "type": 5,
+      "author": "NGH",
+      "active": true
     },
     {
       "name": "bcr",
@@ -5598,6 +5693,24 @@
       "permission": "all",
       "countdown": 3,
       "icon": "👊",
+      "type": 5,
+      "author": "NGH",
+      "active": true
+    },
+    {
+      "name": "xsn",
+      "alias": [
+        "xoso45s",
+        "xs45s",
+        "lode45s",
+        "lode",
+        "xsmb45s"
+      ],
+      "description": "Chơi Xổ Số Miền Bắc Siêu Tốc 45s (Đề 1 ăn 70, Lô 27 giải)",
+      "syntax": "{p}xsn <de/lo/3c/xien/chan/le/tai/xiu> <số> <tiền/điểm>",
+      "permission": "all",
+      "countdown": 2,
+      "icon": "🎰",
       "type": 5,
       "author": "NGH",
       "active": true
@@ -7006,7 +7119,7 @@
       ],
       "description": "Lấy imei cookie đăng nhập cho bạn",
       "syntax": "{p}getlogin",
-      "permission": "adminLevelHigh",
+      "permission": "all",
       "countdown": 45,
       "icon": "📦",
       "type": 1,
@@ -7201,7 +7314,7 @@
       "icon": "💰",
       "type": 3,
       "author": "NGH",
-      "active": false
+      "active": true
     },
     {
       "name": "setvnd",
@@ -7629,13 +7742,246 @@
       "type": 3,
       "author": "NgHung (port từ NBT Go)",
       "active": true
+    },
+    {
+      "name": "quyetchien",
+      "alias": [
+        "qchien",
+        "bandito",
+        "wildbandito"
+      ],
+      "description": "Game Quyết Chiến quay thưởng dạng slot nhiều lượt",
+      "syntax": "{p}quyetchien <tiền> [x<số lượt>]",
+      "permission": "all",
+      "countdown": 1,
+      "icon": "🤠",
+      "type": 5,
+      "author": "NGH",
+      "active": true
+    },
+    {
+      "name": "cophieuao",
+      "alias": [],
+      "description": "Mua bán cổ phiếu ảo theo giá thị trường",
+      "syntax": "{p}cophieuao <buy|sell|info|market> ...",
+      "permission": "all",
+      "countdown": 1,
+      "icon": "📈",
+      "type": 5,
+      "author": "NGH",
+      "active": true
+    },
+    {
+      "name": "xocdia",
+      "alias": [
+        "xoc",
+        "xoc-dia"
+      ],
+      "description": "Chơi Xóc Đĩa 4 quân hoặc soi kết quả gần đây",
+      "syntax": "{p}xocdia <chan/le/tai/xiu/4do/4trang/3do/3trang/2do2trang/tu> <số_tiền> | {p}xocdia soicau",
+      "permission": "all",
+      "countdown": 3,
+      "icon": "🔴",
+      "type": 5,
+      "author": "NGH",
+      "active": true
+    },
+    {
+      "name": "sicbo",
+      "alias": [
+        "sic-bo"
+      ],
+      "description": "Cược Sic Bo 3 xúc xắc",
+      "syntax": "{p}sicbo <cửa> <số_tiền>",
+      "permission": "all",
+      "countdown": 3,
+      "icon": "🎲",
+      "type": 5,
+      "author": "NGH",
+      "active": true
+    },
+    {
+      "name": "longho",
+      "alias": [
+        "long-ho"
+      ],
+      "description": "Cược Long Hổ",
+      "syntax": "{p}longho <cửa> <số_tiền>",
+      "permission": "all",
+      "countdown": 3,
+      "icon": "🐉",
+      "type": 5,
+      "author": "NGH",
+      "active": true
+    },
+    {
+      "name": "roulette",
+      "alias": [
+        "rulet"
+      ],
+      "description": "Cược Roulette",
+      "syntax": "{p}roulette <cửa> <số_tiền>",
+      "permission": "all",
+      "countdown": 3,
+      "icon": "🎰",
+      "type": 5,
+      "author": "NGH",
+      "active": true
+    },
+    {
+      "name": "keno",
+      "alias": [],
+      "description": "Chơi Keno dự đoán số",
+      "syntax": "{p}keno <số_tiền> <số...>",
+      "permission": "all",
+      "countdown": 3,
+      "icon": "🎟️",
+      "type": 5,
+      "author": "NGH",
+      "active": true
+    },
+    {
+      "name": "thap",
+      "alias": [
+        "leothap",
+        "tower"
+      ],
+      "description": "Leo tháp cược tiền",
+      "syntax": "{p}thap <số_tiền> [de|vua|kho]",
+      "permission": "all",
+      "countdown": 3,
+      "icon": "🏰",
+      "type": 5,
+      "author": "NGH",
+      "active": true
+    },
+    {
+      "name": "maybay",
+      "alias": [
+        "maybaycrash",
+        "crash"
+      ],
+      "description": "Game Máy Bay Crash",
+      "syntax": "{p}maybay <số_tiền> [mốc_tự_rút]",
+      "permission": "all",
+      "countdown": 3,
+      "icon": "✈️",
+      "type": 5,
+      "author": "NGH",
+      "active": true
+    },
+    {
+      "name": "sut",
+      "alias": [
+        "sút",
+        "penalty",
+        "pen"
+      ],
+      "description": "Sút penalty cược tiền",
+      "syntax": "{p}sut <số_tiền> <ô_1-9>",
+      "permission": "all",
+      "countdown": 3,
+      "icon": "⚽",
+      "type": 5,
+      "author": "NGH",
+      "active": true
+    },
+    {
+      "name": "domin",
+      "alias": [
+        "mines",
+        "mine"
+      ],
+      "description": "Dò mìn cược tiền",
+      "syntax": "{p}domin <số_tiền> [ô]",
+      "permission": "all",
+      "countdown": 3,
+      "icon": "💣",
+      "type": 5,
+      "author": "NGH",
+      "active": true
+    },
+    {
+      "name": "vongquay",
+      "alias": [
+        "wheel",
+        "luckywheel",
+        "quay",
+        "vq"
+      ],
+      "description": "Vòng quay may mắn cược tiền",
+      "syntax": "{p}vongquay <số_tiền>",
+      "permission": "all",
+      "countdown": 3,
+      "icon": "🎯",
+      "type": 5,
+      "author": "NGH",
+      "active": true
+    },
+    {
+      "name": "nohu",
+      "alias": [
+        "no-hu"
+      ],
+      "description": "Game nổ hũ",
+      "syntax": "{p}nohu <số_tiền>",
+      "permission": "all",
+      "countdown": 3,
+      "icon": "🎰",
+      "type": 5,
+      "author": "NGH",
+      "active": true
+    },
+    {
+      "name": "cuoptien",
+      "alias": [
+        "cuop"
+      ],
+      "description": "Cướp tiền người chơi",
+      "syntax": "{p}cuoptien <@người|random>",
+      "permission": "all",
+      "countdown": 5,
+      "icon": "🥷",
+      "type": 5,
+      "author": "NGH",
+      "active": true
+    },
+    {
+      "name": "daga",
+      "alias": [
+        "da-ga",
+        "dagacua"
+      ],
+      "description": "Đá gà cược tiền",
+      "syntax": "{p}daga <cửa> <số_tiền>",
+      "permission": "all",
+      "countdown": 3,
+      "icon": "🐓",
+      "type": 5,
+      "author": "NGH",
+      "active": true
+    },
+    {
+      "name": "nuoirong",
+      "alias": [
+        "nuoi-rong"
+      ],
+      "description": "Nuôi rồng và tham gia game rồng",
+      "syntax": "{p}nuoirong",
+      "permission": "all",
+      "countdown": 3,
+      "icon": "🐲",
+      "type": 5,
+      "author": "NGH",
+      "active": false
     }
   ],
   "mainBotCommand": {
     "commands": [
       "attack",
       "ngh...",
-      "all"
+      "all",
+      "game"
     ]
   }
 }

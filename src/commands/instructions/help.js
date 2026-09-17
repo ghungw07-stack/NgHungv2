@@ -494,7 +494,7 @@ export async function gameInfoCommand(api, message, groupSettings) {
       },
       donate: {
         command: `${prefix}game donate`,
-        description: `Lấy mã QR donate; Leader: ${prefix}game donate add 100k @user | ${prefix}game donate xoa @user`,
+        description: `Lấy mã QR donate; Admin: ${prefix}game donate add 100k @user | ${prefix}game donate xoa @user`,
         icon: "🎖️",
       },
       xoatier: {
