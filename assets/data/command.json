@@ -4593,8 +4593,7 @@
     },
     "632323424650500399": {
       "notAllowedCommand": [
-        "attack",
-        "donateadd"
+        "attack"
       ],
       "customerCommand": {
         "attack": {
