@@ -948,6 +948,9 @@ async function handleCoreGameCommand(api, message, command, groupSettings, alias
       await handleGameHideCommand(api, message, groupSettings);
       return true;
     case "mycard":
+    case "hoso":
+    case "profile":
+    case "card":
       await handleMyCard(api, message, groupSettings);
       return true;
     case "testmycard":
@@ -2040,6 +2043,10 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
           case "xoa-tier":
           case "resettier":
           case "reset-tier":
+          case "mycard":
+          case "hoso":
+          case "profile":
+          case "card":
           case "testmycard":
           case "giveaway":
           case "resetdaily":
@@ -3316,6 +3323,10 @@ export async function handleCommand(
               break;
             }
 
+            case "mycard":
+            case "hoso":
+            case "profile":
+            case "card":
             case "testmycard":
             case "giveaway":
             case "resetdaily":
