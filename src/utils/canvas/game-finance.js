@@ -3,16 +3,31 @@ import Big from "big.js";
 import { createCanvas, loadImage } from "canvas";
 import { FONT_MAIN, formatCurrency } from "../format-util.js";
 import { writeFilePromise } from "../util.js";
+import { getActiveCanvasStyle } from "./theme.js";
+import { renderCollectionStyle } from "./collection-style-renderers.js";
+import { renderPortraitStyle } from "./portrait-style-renderers.js";
+import { drawGameTierBackground, getGameTierTextColor } from "./game-tier-background.js";
 
 const TIERS = [
-  { key: "silver", name: "BẠC", min: "0", color: "#d9e2ea", deep: "#506172", dark: "#111923", glow: "rgba(217,226,234,0.30)", daily: "3000000000", sendLimit: "50000000000", receiveLimit: "15000000000" },
-  { key: "gold", name: "VÀNG", min: "50000", color: "#ffd568", deep: "#9b6414", dark: "#211707", glow: "rgba(255,213,104,0.30)", daily: "5000000000", sendLimit: "100000000000", receiveLimit: "30000000000" },
-  { key: "platinum", name: "BẠCH KIM", min: "100000", color: "#a7f0f2", deep: "#4d8591", dark: "#0d1c23", glow: "rgba(167,240,242,0.28)", daily: "12000000000", sendLimit: "300000000000", receiveLimit: "120000000000" },
-  { key: "emerald", name: "LỤC BẢO", min: "200000", color: "#50c878", deep: "#187a38", dark: "#0a2612", glow: "rgba(80,200,120,0.30)", daily: "30000000000", sendLimit: "1200000000000", receiveLimit: "300000000000" },
-  { key: "ruby", name: "HỒNG NGỌC", min: "500000", color: "#ff7388", deep: "#971d45", dark: "#290b18", glow: "rgba(255,115,136,0.30)", daily: "90000000000", sendLimit: "3600000000000", receiveLimit: "800000000000" },
-  { key: "diamond", name: "KIM CƯƠNG", min: "1000000", color: "#70d3ff", deep: "#3159ad", dark: "#0a1530", glow: "rgba(112,211,255,0.30)", daily: "200000000000", sendLimit: "8000000000000", receiveLimit: "1800000000000" },
-  { key: "gold_dragon", name: "KIM LONG", min: "2000000", color: "#ffd45a", deep: "#a86408", dark: "#211204", glow: "rgba(255,212,90,0.38)", daily: "500000000000", sendLimit: "20000000000000", receiveLimit: "5000000000000" },
-  { key: "angel", name: "MỸ NHÂN", min: "2500000", color: "#ffa3d1", deep: "#a84576", dark: "#2e0f1d", glow: "rgba(255,163,209,0.38)", daily: "500000000000", sendLimit: "20000000000000", receiveLimit: "5000000000000" },
+  { key: "silver", name: "Bạc", min: "0", donate: "Hạng mặc định", color: "#b0c4de", deep: "#506172", dark: "#111923", glow: "rgba(176,196,222,0.30)", daily: "3000000000", sendLimit: "50000000000", receiveLimit: "15000000000", dailyText: "3 TỶ", sendText: "50 TỶ", recvText: "15 TỶ", extra: "Hạn mức cộng dồn / 30 ngày", rate: 0 },
+  { key: "gold", name: "Vàng", min: "10000", donate: "Ủng hộ 10.000đ", color: "#ffd700", deep: "#9b6414", dark: "#211707", glow: "rgba(255,215,0,0.30)", daily: "5000000000", sendLimit: "100000000000", receiveLimit: "30000000000", dailyText: "5 TỶ", sendText: "100 TỶ", recvText: "30 TỶ", extra: "Hạn mức cộng dồn / 30 ngày", rate: 0 },
+  { key: "platinum", name: "Bạch Kim", min: "20000", donate: "Ủng hộ 20.000đ", color: "#e5e4e2", deep: "#4d8591", dark: "#0d1c23", glow: "rgba(229,228,226,0.28)", daily: "12000000000", sendLimit: "300000000000", receiveLimit: "120000000000", dailyText: "12 TỶ", sendText: "300 TỶ", recvText: "120 TỶ", extra: "Hạn mức cộng dồn / 30 ngày", rate: 0 },
+  { key: "emerald", name: "Lục Bảo", min: "40000", donate: "Ủng hộ 40.000đ", color: "#2ecc71", deep: "#187a38", dark: "#0a2612", glow: "rgba(46,204,113,0.30)", daily: "30000000000", sendLimit: "1200000000000", receiveLimit: "300000000000", dailyText: "30 TỶ", sendText: "1,2 K TỶ", recvText: "300 TỶ", extra: "Hạn mức cộng dồn / 30 ngày", rate: 0 },
+  { key: "ruby", name: "Hồng Ngọc", min: "70000", donate: "Ủng hộ 70.000đ", color: "#ff4d6d", deep: "#971d45", dark: "#290b18", glow: "rgba(255,77,109,0.30)", daily: "90000000000", sendLimit: "3600000000000", receiveLimit: "800000000000", dailyText: "90 TỶ", sendText: "3,6 K TỶ", recvText: "800 TỶ", extra: "Hạn mức cộng dồn / 30 ngày", rate: 0 },
+  { key: "diamond", name: "Kim Cương", min: "100000", donate: "Ủng hộ 100.000đ", color: "#00d2ff", deep: "#3159ad", dark: "#0a1530", glow: "rgba(0,210,255,0.30)", daily: "200000000000", sendLimit: "8000000000000", receiveLimit: "1800000000000", dailyText: "200 TỶ", sendText: "8 K TỶ", recvText: "1,8 K TỶ", extra: "NH 6%/ngày · Hạn mức / 30 ngày", rate: 0.06 },
+  { key: "gold_dragon", name: "Kim Long", min: "150000", donate: "Ủng hộ 150.000đ", color: "#ffb703", deep: "#a86408", dark: "#211204", glow: "rgba(255,183,3,0.38)", daily: "500000000000", sendLimit: "20000000000000", receiveLimit: "5000000000000", dailyText: "500 TỶ", sendText: "20 K TỶ", recvText: "5 K TỶ", extra: "NH 12%/ngày · Hạn mức / 30 ngày", rate: 0.12 },
+  { key: "huyen_vu", name: "Huyền Vũ", min: "200000", donate: "Ủng hộ 200.000đ", color: "#52b788", deep: "#2d6a4f", dark: "#081c15", glow: "rgba(82,183,136,0.38)", daily: "700000000000", sendLimit: "20000000000000", receiveLimit: "4500000000000", dailyText: "700 TỶ", sendText: "20 K TỶ", recvText: "4,5 K TỶ", extra: "NH 12%/ngày · Hạn mức / 30 ngày", rate: 0.12 },
+  { key: "angel", name: "Mỹ Nhân", min: "250000", donate: "Hạng đặc biệt", color: "#ffa3d1", deep: "#a84576", dark: "#2e0f1d", glow: "rgba(255,163,209,0.38)", daily: "700000000000", sendLimit: "20000000000000", receiveLimit: "4500000000000", dailyText: "700 TỶ", sendText: "20 K TỶ", recvText: "4,5 K TỶ", extra: "Hạng đặc biệt Mỹ Nhân", rate: 0.12 },
+  { key: "bach_ho", name: "Bạch Hổ", min: "300000", donate: "Ủng hộ 300.000đ", color: "#caf0f8", deep: "#48cae4", dark: "#03045e", glow: "rgba(202,240,248,0.38)", daily: "1000000000000", sendLimit: "40000000000000", receiveLimit: "9000000000000", dailyText: "1 K TỶ", sendText: "40 K TỶ", recvText: "9 K TỶ", extra: "NH 16%/ngày · Hạn mức / 30 ngày", rate: 0.16 },
+  { key: "con_bang", name: "Côn Bằng", min: "400000", donate: "Ủng hộ 400.000đ", color: "#48cae4", deep: "#0077b6", dark: "#03045e", glow: "rgba(72,202,228,0.38)", daily: "2000000000000", sendLimit: "80000000000000", receiveLimit: "18000000000000", dailyText: "2 K TỶ", sendText: "80 K TỶ", recvText: "18 K TỶ", extra: "NH 20%/ngày · Hạn mức / 30 ngày", rate: 0.20 },
+  { key: "thanh_long", name: "Thanh Long", min: "500000", donate: "Ủng hộ 500.000đ", color: "#2dc653", deep: "#1b4332", dark: "#081c15", glow: "rgba(45,198,83,0.38)", daily: "3000000000000", sendLimit: "120000000000000", receiveLimit: "27000000000000", dailyText: "3 K TỶ", sendText: "120 K TỶ", recvText: "27 K TỶ", extra: "NH 24%/ngày · Hạn mức / 30 ngày", rate: 0.24 },
+  { key: "chu_tuoc", name: "Chu Tước", min: "600000", donate: "Ủng hộ 600.000đ", color: "#f77f00", deep: "#d62828", dark: "#370617", glow: "rgba(247,127,0,0.38)", daily: "4500000000000", sendLimit: "180000000000000", receiveLimit: "40500000000000", dailyText: "4,5 K TỶ", sendText: "180 K TỶ", recvText: "40,5 K TỶ", extra: "NH 30%/ngày · Hạn mức / 30 ngày", rate: 0.30 },
+  { key: "ky_lan", name: "Kỳ Lân", min: "700000", donate: "Ủng hộ 700.000đ", color: "#ffd166", deep: "#f48c06", dark: "#370617", glow: "rgba(255,209,102,0.38)", daily: "7000000000000", sendLimit: "280000000000000", receiveLimit: "63000000000000", dailyText: "7 K TỶ", sendText: "280 K TỶ", recvText: "63 K TỶ", extra: "NH 36%/ngày · Hạn mức / 30 ngày", rate: 0.36 },
+  { key: "hon_don", name: "Hỗn Độn", min: "780000", donate: "Ủng hộ 780.000đ", color: "#b5179e", deep: "#7209b7", dark: "#240046", glow: "rgba(181,23,151,0.38)", daily: "10000000000000", sendLimit: "400000000000000", receiveLimit: "90000000000000", dailyText: "10 K TỶ", sendText: "400 K TỶ", recvText: "90 K TỶ", extra: "NH 45%/ngày · Hạn mức / 30 ngày", rate: 0.45 },
+  { key: "vo_cuc", name: "Vô Cực", min: "850000", donate: "Ủng hộ 850.000đ", color: "#7209b7", deep: "#560bad", dark: "#10002b", glow: "rgba(114,9,183,0.38)", daily: "14000000000000", sendLimit: "560000000000000", receiveLimit: "126000000000000", dailyText: "14 K TỶ", sendText: "560 K TỶ", recvText: "126 K TỶ", extra: "NH 48%/ngày · Hạn mức / 30 ngày", rate: 0.48 },
+  { key: "can_khon", name: "Càn Khôn", min: "900000", donate: "Ủng hộ 900.000đ", color: "#9d4edd", deep: "#3c096c", dark: "#10002b", glow: "rgba(157,78,221,0.38)", daily: "20000000000000", sendLimit: "800000000000000", receiveLimit: "180000000000000", dailyText: "20 K TỶ", sendText: "800 K TỶ", recvText: "180 K TỶ", extra: "NH 50%/ngày · Hạn mức / 30 ngày", rate: 0.50 },
+  { key: "vinh_hang", name: "Vĩnh Hằng", min: "950000", donate: "Ủng hộ 950.000đ", color: "#4895ef", deep: "#3f37c9", dark: "#03045e", glow: "rgba(72,149,239,0.38)", daily: "28000000000000", sendLimit: "1100000000000000", receiveLimit: "252000000000000", dailyText: "28 K TỶ", sendText: "1100 K TỶ", recvText: "252 K TỶ", extra: "NH 52%/ngày · Hạn mức / 30 ngày", rate: 0.52 },
+  { key: "chi_ton", name: "Chí Tôn", min: "1000000", donate: "Ủng hộ 1.000.000đ", color: "#ffb703", deep: "#fb8500", dark: "#211204", glow: "rgba(255,183,3,0.45)", daily: "40000000000000", sendLimit: "1600000000000000", receiveLimit: "360000000000000", dailyText: "40 K TỶ", sendText: "1600 K TỶ", recvText: "360 K TỶ", extra: "NH 55%/ngày · Hạn mức / 30 ngày", rate: 0.55 },
 ];
 
 const KIM_LONG_DRAGON_PATH = path.resolve("./assets/resources/game/kim-long-dragon.png");
@@ -61,6 +76,11 @@ export function getGameTier(rankPoints) {
   return TIERS[0];
 }
 
+/** Danh sách hạng donate dùng chung cho menu, QR và các màn hình game. */
+export function getGameTiers() {
+  return TIERS.map((tier) => ({ ...tier }));
+}
+
 export function getGameTierProgress(rankPoints) {
   const points = Math.max(0, Number(rankPoints) || 0);
   const tier = getGameTier(points);
@@ -78,13 +98,26 @@ export function getGameTierByName(input) {
     .toLowerCase()
     .replace(/đ/g, "d")
     .replace(/[^a-z0-9]/g, "");
-  const aliases = {
+    const aliases = {
     bac: "silver", silver: "silver",
     vang: "gold", gold: "gold",
     bachkim: "platinum", platinum: "platinum",
-    kimcuong: "diamond", diamond: "diamond",
+    lucbao: "emerald", emerald: "emerald",
     hongngoc: "ruby", ruby: "ruby",
+    kimcuong: "diamond", diamond: "diamond",
     kimlong: "gold_dragon", gold_dragon: "gold_dragon", golddragon: "gold_dragon",
+    huyenvu: "huyen_vu", huyen_vu: "huyen_vu",
+    bachho: "bach_ho", bach_ho: "bach_ho",
+    conbang: "con_bang", con_bang: "con_bang",
+    thanhlong: "thanh_long", thanh_long: "thanh_long",
+    chutuoc: "chu_tuoc", chu_tuoc: "chu_tuoc",
+    kylan: "ky_lan", ky_lan: "ky_lan",
+    hondon: "hon_don", hon_don: "hon_don",
+    vocuc: "vo_cuc", vo_cuc: "vo_cuc",
+    cankhon: "can_khon", can_khon: "can_khon",
+    vinhhang: "vinh_hang", vinh_hang: "vinh_hang",
+    chiton: "chi_ton", chi_ton: "chi_ton",
+    mynam: "angel", mynhan: "angel", angel: "angel"
   };
   return TIERS.find((tier) => tier.key === aliases[normalized]) || null;
 }
@@ -105,6 +138,44 @@ export function getPlayerTitle(playerInfo = {}) {
   if (games >= 20 && netProfit > 0) return "KẺ SĂN KÈO";
   if (games >= 10 && winRate >= 50) return "DÂN CHƠI CÓ SỐ";
   return "NGƯỜI CHƠI MỚI";
+}
+
+/** Các danh hiệu tích luỹ để hiển thị trên hồ sơ game. */
+export function getPlayerAchievements(playerInfo = {}) {
+  const games = Math.max(0, Number(playerInfo.totalGames) || 0);
+  const wins = Math.max(0, Number(playerInfo.totalWinGames) || 0);
+  const winRate = games ? (wins / games) * 100 : Number(playerInfo.winRate) || 0;
+  const balance = new Big(playerInfo.balance || 0);
+  const profit = new Big(playerInfo.netProfit || 0);
+  const points = Number(playerInfo.rankPoints) || 0;
+  const achievements = [getPlayerTitle(playerInfo)];
+
+  if (games >= 200) achievements.push("HUYỀN THOẠI BÀN CHƠI");
+  else if (games >= 100) achievements.push("CAO THỦ BỀN BỈ");
+  else if (games >= 30) achievements.push("DÂN CHƠI KỲ CỰU");
+  else if (games >= 10) achievements.push("NGƯỜI CHƠI CHĂM CHỈ");
+  else achievements.push("TÂN THỦ KHỞI ĐỘNG");
+
+  if (wins >= 100) achievements.push("BÁCH THẮNG VƯƠNG");
+  else if (wins >= 50) achievements.push("CHIẾN THẮNG GIẢ");
+  else if (wins >= 20) achievements.push("NGƯỜI CHIẾN THẮNG");
+  else if (wins >= 5) achievements.push("KHỞI ĐẦU THUẬN LỢI");
+
+  if (games >= 10 && winRate >= 75) achievements.push("BÀN TAY VÀNG");
+  else if (games >= 10 && winRate >= 60) achievements.push("CAO THỦ CHIẾN THUẬT");
+  else if (games >= 10 && winRate >= 50) achievements.push("PHONG ĐỘ ỔN ĐỊNH");
+
+  if (profit.gte("1000000000")) achievements.push("TỶ PHÚ LỢI NHUẬN");
+  else if (profit.gte("100000000")) achievements.push("THỢ SĂN LỢI NHUẬN");
+  else if (profit.gt(0)) achievements.push("NGƯỜI CHƠI SINH LỜI");
+
+  if (balance.gte("10000000000")) achievements.push("ĐẠI GIA GAME");
+  else if (balance.gte("1000000000")) achievements.push("TỶ PHÚ GAME");
+  else if (balance.gte("100000000")) achievements.push("TÀI PHIỆT TẬP SỰ");
+
+  const tier = getGameTier(points);
+  if (tier.key !== "silver") achievements.push(`HẠNG ${tier.name.toUpperCase()}`);
+  return [...new Set(achievements)].slice(0, 7);
 }
 
 function roundedRect(ctx, x, y, width, height, radius) {
@@ -403,6 +474,24 @@ function drawLabelValue(ctx, label, value, x, y, width, tier, valueColor = "#fff
 }
 
 export async function createGameRankImage(players, title = "BẢNG XẾP HẠNG GAME", viewer = null) {
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) {
+    const topPlayers = players.slice(0, 10);
+    const avatars = await Promise.all(topPlayers.map((player) => safeLoadImage(player.avatar)));
+    return renderCollectionStyle(activeStyle, {
+      kicker: "MYBOT • GAME ECONOMY",
+      title,
+      subtitle: "Top người chơi giàu nhất toàn hệ thống",
+      footer: viewer ? `Vị trí của bạn: ${viewer.rank || "--"} • ${compactMoney(viewer.balance)} VNĐ` : "Bảng xếp hạng tài sản game",
+      items: topPlayers.map((player, index) => ({
+        title: player.playerName || "Người chơi",
+        subtitle: player.hideTier ? "ẨN HẠNG" : getGameTier(player.rankPoints).name,
+        meta: `${compactMoney(player.balance)} VNĐ`,
+        image: avatars[index],
+        badge: String(player.rank || index + 1).padStart(2, "0"),
+      })),
+    }, "game_rank");
+  }
   const width = 900;
   const height = 1332;
   const topTier = getGameTier(players[0]?.rankPoints || 0);
@@ -458,10 +547,11 @@ export async function createGameRankImage(players, title = "BẢNG XẾP HẠNG 
   ctx.lineTo(87, 68); ctx.lineTo(105, 55); ctx.lineTo(101, 83); ctx.closePath();
   ctx.stroke();
   ctx.beginPath(); ctx.moveTo(53, 92); ctx.lineTo(99, 92); ctx.stroke();
+  const displayTitle = typeof title === "string" ? title : (title?.title || "BẢNG XẾP HẠNG GAME");
   ctx.textAlign = "left";
   ctx.fillStyle = "#ffffff";
-  ctx.font = fitFont(ctx, title, 550, 38, 25);
-  ctx.fillText(title, 122, 65);
+  ctx.font = fitFont(ctx, displayTitle, 550, 38, 25);
+  ctx.fillText(displayTitle, 122, 65);
   ctx.fillStyle = "rgba(255,255,255,0.58)";
   ctx.font = `bold 14px ${FONT_MAIN}`;
   ctx.fillText("TOP 10 NGƯỜI GIÀU NHẤT TOÀN HỆ THỐNG", 122, 103);
@@ -471,14 +561,26 @@ export async function createGameRankImage(players, title = "BẢNG XẾP HẠNG 
   ctx.fillText(new Date().toLocaleDateString("vi-VN"), 838, 84);
 
   const topTen = players.slice(0, 10);
-  const [avatars, dragonImage, beautyImage] = await Promise.all([
+  const frameMap = {};
+  const backgroundMap = {};
+  const artworkMap = {};
+  const fullCreatureTiers = new Set(["gold_dragon", "huyen_vu", "bach_ho", "con_bang", "thanh_long", "chu_tuoc", "ky_lan"]);
+  const allNeededTiers = new Set([
+    ...topTen.map((p) => getGameTier(p.rankPoints).key),
+    viewer ? getGameTier(viewer.rankPoints).key : "silver"
+  ]);
+
+  const [avatars] = await Promise.all([
     Promise.all(topTen.map((player) => safeLoadImage(player.avatar))),
-    topTen.some((player) => getGameTier(player.rankPoints).key === "gold_dragon") || getGameTier(viewer?.rankPoints).key === "gold_dragon"
-      ? safeLoadImage(KIM_LONG_DRAGON_PATH)
-      : null,
-    topTen.some((player) => getGameTier(player.rankPoints).key === "angel") || getGameTier(viewer?.rankPoints).key === "angel"
-      ? safeLoadImage(MY_NHAN_BG_PATH)
-      : null,
+    ...Array.from(allNeededTiers).map(async (key) => {
+      [frameMap[key], backgroundMap[key], artworkMap[key]] = await Promise.all([
+        key === "silver" ? null : safeLoadImage(path.resolve(`./assets/resources/game/tiers/frames/${key}.png`)),
+        safeLoadImage(key === "angel" ? MY_NHAN_BG_PATH : path.resolve(`./assets/resources/game/tiers/backgrounds/${key}.jpg`)),
+        key === "angel"
+          ? safeLoadImage(MY_NHAN_BG_PATH)
+          : fullCreatureTiers.has(key) ? safeLoadImage(path.resolve(`./assets/resources/game/tiers/artworks/${key}.png`)) : null,
+      ]);
+    })
   ]);
   
   const rowX = 42;
@@ -488,80 +590,18 @@ export async function createGameRankImage(players, title = "BẢNG XẾP HẠNG 
 
   const drawRow = (ctx, y, player, index, avatar, isViewer = false) => {
     const tier = getGameTier(player.rankPoints);
+    const textColor = getGameTierTextColor(tier);
+    const isDefaultTier = tier.key === "silver";
     const isPremium = ["emerald", "ruby", "diamond", "angel"].includes(tier.key);
     const isDragon = tier.key === "gold_dragon";
     
-    ctx.save();
-    ctx.beginPath();
-    roundedRect(ctx, rowX, y, rowWidth, rowHeight, 20);
-
-    // Nền row
-    if (tier.key === "angel") {
-      ctx.fillStyle = "rgba(20, 22, 28, 0.85)";
-      ctx.fill();
-      ctx.clip();
-      if (beautyImage) {
-        ctx.globalAlpha = 0.5;
-        const sh = rowWidth * (beautyImage.height/beautyImage.width);
-        ctx.drawImage(beautyImage, rowX, y - sh/2 + rowHeight/2, rowWidth, sh);
-        ctx.globalAlpha = 1;
-      }
-      const wash = ctx.createLinearGradient(rowX, y, rowX + rowWidth, y);
-      wash.addColorStop(0, `${tier.color}66`);
-      wash.addColorStop(0.5, "rgba(0,0,0,0.2)");
-      wash.addColorStop(1, `${tier.color}22`);
-      ctx.fillStyle = wash;
-      ctx.fill();
-      ctx.shadowColor = tier.color;
-      ctx.shadowBlur = 15;
-      ctx.strokeStyle = `${tier.color}AA`;
-      ctx.lineWidth = 2;
-      ctx.stroke();
-    } else if (isPremium) {
-      ctx.fillStyle = "rgba(20, 22, 28, 0.75)";
-      ctx.fill();
-      const wash = ctx.createLinearGradient(rowX, y, rowX + rowWidth, y);
-      wash.addColorStop(0, `${tier.color}33`);
-      wash.addColorStop(0.5, "rgba(0,0,0,0)");
-      wash.addColorStop(1, `${tier.color}11`);
-      ctx.fillStyle = wash;
-      ctx.fill();
-      
-      // Viền Neon Aurora
-      ctx.shadowColor = tier.color;
-      ctx.shadowBlur = 15;
-      ctx.strokeStyle = tier.color;
-      ctx.lineWidth = 2.5;
-      ctx.stroke();
-    } else if (isDragon) {
-      ctx.fillStyle = "rgba(10, 10, 12, 0.85)";
-      ctx.fill();
-      ctx.clip();
-      if (dragonImage) {
-        ctx.globalAlpha = 0.4;
-        ctx.drawImage(dragonImage, rowX, y - rowHeight, rowWidth, rowWidth * (dragonImage.height/dragonImage.width));
-        ctx.globalAlpha = 1;
-      }
-      ctx.shadowColor = tier.color;
-      ctx.shadowBlur = 15;
-      ctx.strokeStyle = `${tier.color}AA`;
-      ctx.lineWidth = 2;
-      ctx.stroke();
-    } else {
-      ctx.fillStyle = "rgba(25, 27, 33, 0.65)";
-      ctx.fill();
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      if (index < 3) {
-        ctx.shadowColor = tier.color;
-        ctx.shadowBlur = 10;
-        ctx.strokeStyle = `${tier.color}88`;
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
-      }
-    }
-    ctx.restore();
+    drawGameTierBackground(ctx, rowX, y, rowWidth, rowHeight, tier, {
+      radius: 20,
+      prominent: index < 3,
+      selected: isViewer,
+      background: artworkMap[tier.key] || backgroundMap[tier.key],
+      backgroundCover: Boolean(artworkMap[tier.key]),
+    });
 
     // Số hạng
     ctx.textAlign = "center";
@@ -572,40 +612,57 @@ export async function createGameRankImage(players, title = "BẢNG XẾP HẠNG 
     ctx.strokeStyle = tier.color;
     ctx.lineWidth = 2;
     ctx.stroke();
-    ctx.fillStyle = index === 0 ? tier.color : "#ffffff";
+    ctx.fillStyle = index === 0 ? textColor : "#ffffff";
     ctx.font = `bold 18px ${FONT_MAIN}`;
     ctx.fillText(String(player.rank || (isViewer ? "–" : index + 1)), 82, y + 44);
 
-    // Avatar
+    // Avatar và Frame căn tâm đồng trục tuyệt đối
+    const avCenterX = 143;
+    const avCenterY = y + 43;
+    const avRadius = 26;
+
     ctx.save();
     ctx.beginPath();
-    ctx.arc(143, y + 43, 31, 0, Math.PI * 2);
+    ctx.arc(avCenterX, avCenterY, avRadius, 0, Math.PI * 2);
+    ctx.fillStyle = "#1a1d26";
+    ctx.fill();
     ctx.clip();
-    if (avatar) ctx.drawImage(avatar, 143 - 31, y + 43 - 31, 62, 62);
-    ctx.restore();
-    ctx.beginPath();
-    ctx.arc(143, y + 43, 33, 0, Math.PI * 2);
-    ctx.strokeStyle = tier.color;
-    ctx.lineWidth = 2;
-    if (isPremium || isDragon) {
-      ctx.save();
-      ctx.shadowColor = tier.color;
-      ctx.shadowBlur = 10;
-      ctx.stroke();
-      ctx.restore();
+    if (avatar) {
+      const scale = Math.max((avRadius * 2) / avatar.width, (avRadius * 2) / avatar.height);
+      const aw = avatar.width * scale;
+      const ah = avatar.height * scale;
+      ctx.drawImage(avatar, avCenterX - aw / 2, avCenterY - ah / 2, aw, ah);
     } else {
+      ctx.fillStyle = "#ffffff";
+      ctx.font = `bold 20px ${FONT_MAIN}`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText((player.playerName || "P").trim().charAt(0).toUpperCase(), avCenterX, avCenterY);
+    }
+    ctx.restore();
+
+    // Khung frame Avatar 3D theo tier bao trọn avatar
+    const playerFrame = isDefaultTier ? null : frameMap[tier.key];
+    if (playerFrame) {
+      const fSize = 84;
+      ctx.drawImage(playerFrame, avCenterX - fSize / 2, avCenterY - fSize / 2, fSize, fSize);
+    } else if (!isDefaultTier) {
+      ctx.beginPath();
+      ctx.arc(avCenterX, avCenterY, avRadius + 2, 0, Math.PI * 2);
+      ctx.strokeStyle = tier.color;
+      ctx.lineWidth = 2;
       ctx.stroke();
     }
 
     // Tên
     ctx.textAlign = "left";
     ctx.fillStyle = "#ffffff";
-    ctx.font = fitFont(ctx, player.playerName || "Người chơi", 355, 25, 16);
+    ctx.font = fitFont(ctx, player.playerName || "Người chơi", 300, 25, 16);
     ctx.fillText(player.playerName || "Người chơi", 187, y + 30);
     
     // Badge danh hiệu
-    const titleText = `${tier.name.toUpperCase()} • ${getPlayerTitle(player)}`;
-    ctx.font = fitFont(ctx, titleText, 300, 13, 9);
+    const titleText = player.hideTier ? "ẨN HẠNG" : `${tier.name.toUpperCase()} • ${getPlayerTitle(player)}`;
+    ctx.font = fitFont(ctx, titleText, 275, 13, 9);
     const badgeW = ctx.measureText(titleText).width + 24;
     roundedRect(ctx, 187, y + 52, badgeW, 23, 11);
     if (isPremium) {
@@ -614,11 +671,11 @@ export async function createGameRankImage(players, title = "BẢNG XẾP HẠNG 
       ctx.strokeStyle = `${tier.color}`;
       ctx.lineWidth = 1;
       ctx.stroke();
-      ctx.fillStyle = tier.color;
+      ctx.fillStyle = textColor;
     } else {
       ctx.fillStyle = "rgba(3,6,10,0.72)";
       ctx.fill();
-      ctx.fillStyle = tier.color;
+      ctx.fillStyle = textColor;
     }
     ctx.fillText(titleText, 199, y + 64);
 
@@ -627,8 +684,8 @@ export async function createGameRankImage(players, title = "BẢNG XẾP HẠNG 
     ctx.fillStyle = "rgba(255,255,255,0.48)";
     ctx.font = `bold 11px ${FONT_MAIN}`;
     ctx.fillText("TÀI SẢN", 826, y + 24);
-    ctx.fillStyle = tier.color;
-    ctx.font = fitFont(ctx, compactMoney(player.balance), 245, 28, 10);
+    ctx.fillStyle = textColor;
+    ctx.font = fitFont(ctx, compactMoney(player.balance), 185, 28, 10);
     if (isPremium || isDragon) {
       ctx.save();
       ctx.shadowColor = tier.color;
@@ -666,7 +723,7 @@ export async function createGameRankImage(players, title = "BẢNG XẾP HẠNG 
   ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(44, viewerY); ctx.lineTo(334, viewerY); ctx.moveTo(566, viewerY); ctx.lineTo(856, viewerY); ctx.stroke();
   ctx.textAlign = "center";
-  ctx.fillStyle = viewer ? getGameTier(viewer.rankPoints).color : "rgba(255,255,255,0.45)";
+  ctx.fillStyle = viewer ? getGameTierTextColor(getGameTier(viewer.rankPoints)) : "rgba(255,255,255,0.45)";
   ctx.font = `bold 14px ${FONT_MAIN}`;
   ctx.fillText("VỊ TRÍ CỦA BẠN", width / 2, viewerY);
 
@@ -684,7 +741,87 @@ export async function createGameRankImage(players, title = "BẢNG XẾP HẠNG 
   await writeFilePromise(filePath, canvas.toBuffer());
   return filePath;
 }
+async function renderGamePlayerCardClassic(playerInfo) {
+  const W = 1080, H = 720;
+  const tier = getGameTier(playerInfo.rankPoints);
+  const avatar = await safeLoadImage(playerInfo.avatarFull || playerInfo.avatar);
+  const canvas = createCanvas(W, H);
+  const ctx = canvas.getContext("2d");
+  ctx.textBaseline = "middle";
+  const rr = (x, y, w, h, r, fill, stroke = null, line = 1) => {
+    ctx.beginPath(); roundedRect(ctx, x, y, w, h, r); ctx.fillStyle = fill; ctx.fill();
+    if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = line; ctx.stroke(); }
+  };
+  const line = (x1, y1, x2, y2, color = "rgba(240,196,93,.28)") => {
+    ctx.strokeStyle = color; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  };
+  const label = (text, x, y, align = "left") => {
+    ctx.textAlign = align; ctx.fillStyle = "rgba(255,255,255,.76)"; ctx.font = `bold 18px ${FONT_MAIN}`; ctx.fillText(text, x, y);
+  };
+  const avatarCircle = (cx, cy) => {
+    ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, 76, 0, Math.PI * 2); ctx.clip();
+    if (avatar) ctx.drawImage(avatar, cx - 76, cy - 76, 152, 152);
+    else { ctx.fillStyle = "#39424f"; ctx.fillRect(cx - 76, cy - 76, 152, 152); ctx.fillStyle = "#fff"; ctx.textAlign = "center"; ctx.font = `bold 56px ${FONT_MAIN}`; ctx.fillText((playerInfo.playerName || "P")[0].toUpperCase(), cx, cy); }
+    ctx.restore(); ctx.beginPath(); ctx.arc(cx, cy, 80, 0, Math.PI * 2); ctx.strokeStyle = tier.color; ctx.lineWidth = 6; ctx.stroke();
+  };
+  const stat = (x, y, w, h, title, value, color, note = "") => {
+    rr(x, y, w, h, 8, "rgba(255,255,255,.055)", "rgba(245,191,80,.30)");
+    ctx.textAlign = "left"; ctx.fillStyle = "#f8f8f8"; ctx.font = `bold 20px ${FONT_MAIN}`; ctx.fillText(title.toUpperCase(), x + 20, y + 34);
+    ctx.fillStyle = color; ctx.font = fitFont(ctx, value, w - 40, 38, 24); ctx.fillText(value, x + 20, y + 75);
+    if (note) { ctx.fillStyle = "rgba(255,255,255,.50)"; ctx.font = `bold 13px ${FONT_MAIN}`; ctx.fillText(note, x + 20, y + h - 14); }
+  };
+
+  const bg = ctx.createLinearGradient(0, 0, W, H);
+  bg.addColorStop(0, "#46504d"); bg.addColorStop(.4, "#171c1e"); bg.addColorStop(1, "#252d2c");
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+  const glow = ctx.createRadialGradient(130, 90, 0, 130, 90, 620);
+  glow.addColorStop(0, `${tier.color}30`); glow.addColorStop(1, "rgba(0,0,0,0)"); ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H);
+  rr(36, 36, 1008, 648, 10, "rgba(10,13,15,.90)", "rgba(255,255,255,.24)", 1.2);
+  line(340, 36, 340, 684, "rgba(245,191,80,.32)");
+
+  avatarCircle(188, 134);
+  ctx.textAlign = "center"; ctx.fillStyle = tier.color; ctx.font = `bold 18px ${FONT_MAIN}`; ctx.fillText("THÔNG TIN NGƯỜI CHƠI", 188, 240);
+  ctx.fillStyle = "#fff"; ctx.font = fitFont(ctx, playerInfo.playerName || "Người chơi", 250, 29, 19); ctx.fillText(playerInfo.playerName || "Người chơi", 188, 288);
+  line(66, 325, 310, 325);
+  ctx.fillStyle = "rgba(255,255,255,.58)"; ctx.font = `bold 13px ${FONT_MAIN}`; ctx.fillText(`DANH HIỆU • ${playerInfo.totalGames || 0} TRẬN`, 188, 345);
+  const achievements = getPlayerAchievements(playerInfo);
+  achievements.forEach((text, index) => {
+    const y = 366 + index * 29;
+    rr(54, y, 268, 24, 5, "rgba(255,255,255,.07)", "rgba(255,255,255,.18)");
+    ctx.fillStyle = index === 0 ? tier.color : "#4be0d0"; ctx.beginPath(); ctx.arc(77, y + 12, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.textAlign = "left"; ctx.fillStyle = "#f2f2f2"; ctx.font = fitFont(ctx, text, 210, 12, 9); ctx.fillText(text, 91, y + 13);
+  });
+  // Không hiển thị mã nội bộ (đặc biệt private:<server>:<uid>) trên thẻ;
+  // mã dài làm tràn khung và không có giá trị với người chơi.
+  ctx.fillStyle = tier.color; ctx.font = `bold 24px ${FONT_MAIN}`; ctx.fillText("♠   ♥   ♦   ♣", 188, 642);
+
+  const rX = 376, rW = 634;
+  label("SỐ DƯ", rX, 88);
+  const balance = compactMoney(playerInfo.balance);
+  ctx.fillStyle = tier.color; ctx.font = fitFont(ctx, balance, 470, 68, 38); ctx.textAlign = "left"; ctx.fillText(balance, rX, 151);
+  ctx.fillStyle = "#f5c75d"; ctx.font = `bold 26px ${FONT_MAIN}`; ctx.textAlign = "right"; ctx.fillText("VNĐ", rX + rW, 171);
+  line(rX, 216, rX + rW, 216);
+  const profit = new Big(playerInfo.netProfit || 0); const gain = profit.gte(0); const profitColor = gain ? "#42ddca" : "#ff637a";
+  ctx.textAlign = "left"; ctx.fillStyle = "#fff"; ctx.font = `bold 27px ${FONT_MAIN}`; ctx.fillText("Lợi nhuận", rX, 255);
+  ctx.fillStyle = profitColor; ctx.font = `bold 29px ${FONT_MAIN}`; ctx.fillText(`${gain ? "▲" : "▼"}  ${gain ? "+" : "−"}${compactMoney(profit.abs())} VNĐ`, rX + 176, 255);
+  line(rX, 286, rX + rW, 286);
+  stat(rX, 304, 312, 124, "Tổng thắng", compactMoney(playerInfo.totalWinnings || 0), "#42ddca");
+  stat(rX + 322, 304, 312, 124, "Tổng thua", compactMoney(new Big(playerInfo.totalLosses || 0).abs()), "#ff637a");
+  stat(rX, 438, 312, 124, "Tỉ lệ thắng", `${playerInfo.winRate || 0}%`, "#fff", `${playerInfo.totalWinGames || 0} thắng • ${Math.max(0, (playerInfo.totalGames || 0) - (playerInfo.totalWinGames || 0))} thua`);
+  stat(rX + 322, 438, 312, 124, "Lượt chơi", String(playerInfo.totalGames || 0), "#fff", "TỔNG SỐ TRẬN");
+  line(rX, 582, rX + rW, 582);
+  ctx.textAlign = "left"; ctx.fillStyle = "rgba(255,255,255,.56)"; ctx.font = `bold 14px ${FONT_MAIN}`; ctx.fillText(`Tham gia: ${playerInfo.registrationTime || "—"}`, rX, 616);
+  ctx.textAlign = "right"; ctx.fillText(`Hạng: ${tier.name}`, rX + rW, 616);
+  line(rX, 642, rX + rW, 642);
+  ctx.textAlign = "center"; ctx.fillStyle = tier.color; ctx.font = `bold 22px ${FONT_MAIN}`; ctx.fillText("CHÚC BẠN CÓ NHỮNG VÁN CHƠI MAY MẮN", rX + rW / 2, 668);
+  const filePath = path.resolve(`./assets/temp/game_mycard_${Date.now()}.png`);
+  await writeFilePromise(filePath, canvas.toBuffer());
+  return filePath;
+}
+
 export async function createGamePlayerCard(playerInfo) {
+  // MyCard có thiết kế riêng, không dùng renderer portrait toàn cục.
+  if (playerInfo.mycardStyle !== "legacy") return renderGamePlayerCardClassic(playerInfo);
   const W = 1100;
   const H = 720;
   const tier = getGameTier(playerInfo.rankPoints);
@@ -698,8 +835,17 @@ export async function createGamePlayerCard(playerInfo) {
   const ctx = canvas.getContext("2d");
   ctx.textBaseline = "middle";
 
-  // NỀN CƠ BẢN
-  ctx.fillStyle = "#0A0A0C"; 
+  // Nền studio tối, có chiều sâu nhưng không lấn át số liệu.
+  const pageBg = ctx.createLinearGradient(0, 0, W, H);
+  pageBg.addColorStop(0, "#182029");
+  pageBg.addColorStop(0.45, "#090d12");
+  pageBg.addColorStop(1, "#111720");
+  ctx.fillStyle = pageBg;
+  ctx.fillRect(0, 0, W, H);
+  const ambient = ctx.createRadialGradient(W * 0.78, H * 0.16, 0, W * 0.78, H * 0.16, W * 0.72);
+  ambient.addColorStop(0, `${tier.color}28`);
+  ambient.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = ambient;
   ctx.fillRect(0, 0, W, H);
 
   // BACKGROUND
@@ -796,8 +942,15 @@ export async function createGamePlayerCard(playerInfo) {
     } else {
       ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
       ctx.shadowBlur = 20;
-      ctx.fillStyle = "#1C1C1E";
+      const panel = ctx.createLinearGradient(x, y, x + w, y + h);
+      panel.addColorStop(0, "rgba(35, 42, 51, 0.96)");
+      panel.addColorStop(1, "rgba(18, 23, 31, 0.96)");
+      ctx.fillStyle = panel;
       ctx.fill();
+      ctx.shadowColor = "transparent";
+      ctx.strokeStyle = "rgba(255,255,255,0.12)";
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
     }
     ctx.restore();
   };
@@ -814,6 +967,11 @@ export async function createGamePlayerCard(playerInfo) {
 
   drawCardBg(lX, lY, leftW, leftH);
 
+  ctx.textAlign = "left";
+  ctx.fillStyle = tier.color;
+  ctx.font = `bold 13px ${FONT_MAIN}`;
+  ctx.fillText("HỒ SƠ GAME", lX + 30, lY + 34);
+
   const avX = lX + leftW / 2;
   const avY = lY + 140;
   const avR = 85;
@@ -823,7 +981,19 @@ export async function createGamePlayerCard(playerInfo) {
   ctx.arc(avX, avY, avR, 0, Math.PI * 2);
   ctx.clip();
   const avatar = await safeLoadImage(playerInfo.avatarFull || playerInfo.avatar);
-  ctx.drawImage(avatar, avX - avR, avY - avR, avR * 2, avR * 2);
+  if (avatar) {
+    ctx.drawImage(avatar, avX - avR, avY - avR, avR * 2, avR * 2);
+  } else {
+    const fallback = ctx.createLinearGradient(avX - avR, avY - avR, avX + avR, avY + avR);
+    fallback.addColorStop(0, "#566273");
+    fallback.addColorStop(1, "#1b222c");
+    ctx.fillStyle = fallback;
+    ctx.fillRect(avX - avR, avY - avR, avR * 2, avR * 2);
+    ctx.fillStyle = "#fff";
+    ctx.textAlign = "center";
+    ctx.font = `bold 62px ${FONT_MAIN}`;
+    ctx.fillText((playerInfo.playerName || "P").trim().charAt(0).toUpperCase(), avX, avY);
+  }
   ctx.restore();
 
   // Viền avatar (Đẹp, thanh lịch)
@@ -875,11 +1045,6 @@ export async function createGamePlayerCard(playerInfo) {
   ctx.fillStyle = tier.color;
   ctx.fillText(badgeText, avX, avY + 180 + badgeH / 2);
 
-  // Player ID
-  ctx.fillStyle = textSecondary;
-  ctx.font = `14px ${FONT_MAIN}`;
-  ctx.fillText(`Mã người chơi: ${playerInfo.idUser || "N/A"}`, avX, avY + 240);
-
   // Progress Bar
   const pbW = leftW - 80;
   const pbH = 14;
@@ -919,7 +1084,7 @@ export async function createGamePlayerCard(playerInfo) {
   ctx.textAlign = "left";
   ctx.fillStyle = textSecondary;
   ctx.font = `bold 16px ${FONT_MAIN}`;
-  ctx.fillText("Tổng Số Dư", rX + 40, lY + 50);
+  ctx.fillText("SỐ DƯ GAME", rX + 40, lY + 50);
 
   const balanceText = compactMoney(playerInfo.balance);
   ctx.fillStyle = textPrimary;
@@ -968,6 +1133,13 @@ export async function createGamePlayerCard(playerInfo) {
   ctx.fillStyle = textPrimary;
   ctx.font = `bold 22px ${FONT_MAIN}`;
   ctx.fillText(`${compactMoney(playerInfo.rankPoints)} VNĐ`, rX + rW - 40, lY + 175);
+
+  ctx.strokeStyle = `${tier.color}55`;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(rX + 40, lY + 132);
+  ctx.lineTo(rX + rW - 40, lY + 132);
+  ctx.stroke();
 
   // 4 STAT CARDS
   const statY = lY + balH + 30;
@@ -1023,7 +1195,216 @@ export async function createGamePlayerCard(playerInfo) {
   return filePath;
 }
 
+async function renderGameBankTransferReceipt(data) {
+  const width = 900;
+  const height = 980;
+  const senderColor = "#ff5d78";
+  const receiverColor = "#42e0cc";
+  const gold = "#f5bf50";
+  const [senderAvatar, receiverAvatar] = await Promise.all([
+    safeLoadImage(data.sender.avatar),
+    safeLoadImage(data.receiver.avatar),
+  ]);
+  const canvas = createCanvas(width, height);
+  const ctx = canvas.getContext("2d");
+  ctx.textBaseline = "middle";
+
+  const outer = (x, y, w, h, radius, fill, stroke, lineWidth = 1) => {
+    ctx.beginPath();
+    roundedRect(ctx, x, y, w, h, radius);
+    ctx.fillStyle = fill;
+    ctx.fill();
+    if (stroke) {
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = lineWidth;
+      ctx.stroke();
+    }
+  };
+  const avatar = (image, centerX, centerY, color) => {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, 43, 0, Math.PI * 2);
+    ctx.clip();
+    if (image) {
+      ctx.drawImage(image, centerX - 43, centerY - 43, 86, 86);
+    } else {
+      const fallback = ctx.createLinearGradient(centerX - 43, centerY - 43, centerX + 43, centerY + 43);
+      fallback.addColorStop(0, "#50545d");
+      fallback.addColorStop(1, "#171a20");
+      ctx.fillStyle = fallback;
+      ctx.fillRect(centerX - 43, centerY - 43, 86, 86);
+    }
+    ctx.restore();
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, 45, 0, Math.PI * 2);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 5;
+    ctx.stroke();
+  };
+  const metric = (x, y, w, label, compact, raw, color) => {
+    const fill = ctx.createLinearGradient(x, y, x + w, y + 108);
+    fill.addColorStop(0, "rgba(255,255,255,0.08)");
+    fill.addColorStop(1, "rgba(255,255,255,0.035)");
+    outer(x, y, w, 108, 10, fill, "rgba(245,191,80,0.35)");
+    ctx.textAlign = "center";
+    ctx.fillStyle = "rgba(255,255,255,0.65)";
+    ctx.font = `bold 16px ${FONT_MAIN}`;
+    ctx.fillText(label, x + w / 2, y + 24);
+    ctx.fillStyle = color;
+    ctx.font = fitFont(ctx, compact, w - 30, 34, 22);
+    ctx.fillText(compact, x + w / 2, y + 57);
+    ctx.fillStyle = "rgba(255,255,255,0.74)";
+    ctx.font = fitFont(ctx, `${raw} VNĐ`, w - 22, 16, 11);
+    ctx.fillText(`${raw} VNĐ`, x + w / 2, y + 89);
+  };
+  const directionArrow = (x, y, color) => {
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 4;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(x - 18, y);
+    ctx.lineTo(x + 17, y);
+    ctx.lineTo(x + 6, y - 12);
+    ctx.moveTo(x + 17, y);
+    ctx.lineTo(x + 6, y + 12);
+    ctx.stroke();
+    ctx.restore();
+  };
+  const downMarker = (y) => {
+    outer(width / 2 - 28, y - 27, 56, 56, 28, "#111217", "rgba(255,255,255,0.10)");
+    ctx.save();
+    ctx.strokeStyle = gold;
+    ctx.lineWidth = 4;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    for (const offset of [-7, 5]) {
+      ctx.beginPath();
+      ctx.moveTo(width / 2 - 8, y + offset - 4);
+      ctx.lineTo(width / 2, y + offset + 4);
+      ctx.lineTo(width / 2 + 8, y + offset - 4);
+      ctx.stroke();
+    }
+    ctx.restore();
+  };
+
+  const background = ctx.createLinearGradient(0, 0, width, height);
+  background.addColorStop(0, "#10171a");
+  background.addColorStop(0.52, "#05080b");
+  background.addColorStop(1, "#090b10");
+  ctx.fillStyle = background;
+  ctx.fillRect(0, 0, width, height);
+  const glow = ctx.createRadialGradient(150, 240, 0, 150, 240, 720);
+  glow.addColorStop(0, "rgba(255,255,255,0.055)");
+  glow.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, width, height);
+  outer(22, 18, width - 44, height - 36, 18, "rgba(4,6,9,0.76)", "rgba(255,255,255,0.20)", 1.2);
+
+  // Bank glyph and heading.
+  ctx.save();
+  ctx.strokeStyle = gold;
+  ctx.fillStyle = gold;
+  ctx.lineWidth = 5;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(54, 67);
+  ctx.lineTo(77, 54);
+  ctx.lineTo(100, 67);
+  ctx.stroke();
+  ctx.fillRect(59, 72, 36, 5);
+  for (const x of [62, 74, 86]) ctx.fillRect(x, 77, 6, 16);
+  ctx.fillRect(58, 94, 38, 5);
+  ctx.restore();
+  ctx.textAlign = "left";
+  ctx.fillStyle = "#f8f8f8";
+  ctx.font = `bold 40px ${FONT_MAIN}`;
+  ctx.fillText("BIẾN ĐỘNG SỐ DƯ", 118, 70);
+  ctx.fillStyle = "rgba(255,255,255,0.67)";
+  ctx.font = `bold 20px ${FONT_MAIN}`;
+  ctx.fillText("Giao dịch chuyển tiền thành công", 119, 108);
+  ctx.strokeStyle = "rgba(245,191,80,0.43)";
+  ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(44, 134); ctx.lineTo(856, 134); ctx.stroke();
+
+  // Sender panel.
+  outer(44, 154, 812, 242, 14, "rgba(255,255,255,0.065)", "rgba(255,93,120,0.55)", 1.5);
+  avatar(senderAvatar, 120, 214, "#ff9dad");
+  ctx.textAlign = "left";
+  ctx.fillStyle = senderColor;
+  ctx.font = `bold 17px ${FONT_MAIN}`;
+  ctx.fillText("NGƯỜI CHUYỂN", 182, 191);
+  ctx.fillStyle = "#fff";
+  ctx.font = fitFont(ctx, data.sender.name || "Người gửi", 560, 34, 22);
+  ctx.fillText(data.sender.name || "Người gửi", 182, 229);
+  ctx.textAlign = "right";
+  ctx.fillStyle = senderColor;
+  ctx.font = `bold 30px ${FONT_MAIN}`;
+  ctx.fillText("−", 813, 213);
+  metric(70, 275, 336, "SỐ DƯ TRƯỚC", compactMoney(data.sender.balanceBefore), fullNumber(data.sender.balanceBefore), "#fff");
+  directionArrow(450, 323, senderColor);
+  metric(494, 275, 336, "SỐ DƯ SAU", compactMoney(data.sender.balanceAfter), fullNumber(data.sender.balanceAfter), senderColor);
+
+  downMarker(430);
+  outer(189, 466, 522, 157, 13, "rgba(255,255,255,0.075)", "rgba(245,191,80,0.42)");
+  ctx.textAlign = "center";
+  ctx.fillStyle = "rgba(255,255,255,0.67)";
+  ctx.font = `bold 20px ${FONT_MAIN}`;
+  ctx.fillText("SỐ TIỀN CHUYỂN", width / 2, 499);
+  ctx.fillStyle = gold;
+  ctx.font = fitFont(ctx, compactMoney(data.amount), 470, 62, 38);
+  ctx.fillText(compactMoney(data.amount), width / 2, 549);
+  ctx.fillStyle = "rgba(255,255,255,0.78)";
+  ctx.font = fitFont(ctx, `${fullNumber(data.amount)} VNĐ`, 470, 18, 12);
+  ctx.fillText(`${fullNumber(data.amount)} VNĐ`, width / 2, 597);
+  downMarker(652);
+
+  // Receiver panel.
+  outer(44, 684, 812, 242, 14, "rgba(255,255,255,0.065)", "rgba(66,224,204,0.52)", 1.5);
+  ctx.textAlign = "left";
+  ctx.fillStyle = receiverColor;
+  ctx.font = `bold 31px ${FONT_MAIN}`;
+  ctx.fillText("+", 83, 742);
+  ctx.textAlign = "right";
+  ctx.fillStyle = receiverColor;
+  ctx.font = `bold 17px ${FONT_MAIN}`;
+  ctx.fillText("NGƯỜI NHẬN", 716, 719);
+  ctx.fillStyle = "#fff";
+  ctx.font = fitFont(ctx, data.receiver.name || "Người nhận", 550, 34, 22);
+  ctx.fillText(data.receiver.name || "Người nhận", 716, 758);
+  avatar(receiverAvatar, 782, 746, "#8ceee0");
+  metric(70, 805, 336, "SỐ DƯ TRƯỚC", compactMoney(data.receiver.balanceBefore), fullNumber(data.receiver.balanceBefore), "#fff");
+  directionArrow(450, 853, receiverColor);
+  metric(494, 805, 336, "SỐ DƯ SAU", compactMoney(data.receiver.balanceAfter), fullNumber(data.receiver.balanceAfter), receiverColor);
+
+  const filePath = path.resolve(`./assets/temp/game_bank_${Date.now()}.png`);
+  await writeFilePromise(filePath, canvas.toBuffer());
+  return filePath;
+}
+
 export async function createGameBankTransferImage(data) {
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) {
+    const [senderAvatar, receiverAvatar] = await Promise.all([
+      safeLoadImage(data.sender.avatar), safeLoadImage(data.receiver.avatar),
+    ]);
+    return renderPortraitStyle(activeStyle, {
+      kind: "bank-transfer",
+      kicker: "MYBOT • GAME BANKING",
+      title: "CHUYỂN TIỀN THÀNH CÔNG",
+      names: [data.sender.name || "Người gửi", data.receiver.name || "Người nhận"],
+      avatars: [senderAvatar, receiverAvatar],
+      primaryLabel: "SỐ TIỀN GIAO DỊCH",
+      primaryValue: `${compactMoney(data.amount)} VNĐ`,
+      secondaryLabel: "MÃ GIAO DỊCH",
+      secondaryValue: data.referenceCode || "N/A",
+      body: `Số dư người gửi ${compactMoney(data.sender.balanceAfter)} • Người nhận ${compactMoney(data.receiver.balanceAfter)} VNĐ`,
+      footer: "Giao dịch nội bộ Game Banking",
+    }, "game_bank");
+  }
+  // Mặc định dùng phiếu dọc theo mẫu Game Bank; vẫn giữ mẫu cũ cho các luồng
+  // nội bộ nào cần tương thích với giao diện trước đây.
+  if (data.receiptStyle !== "legacy") return renderGameBankTransferReceipt(data);
   const width = 900;
   const height = 980;
   const tier = getGameTier(data.sender.rankPoints);
@@ -1297,8 +1678,36 @@ export async function createGameBankTransferImage(data) {
 
 export async function createGameStatementImage(data) {
   const transactions = data.transactions || [];
+  const totalGames = Math.max(0, Number(data.totalGames) || 0);
+  const totalWinGames = Math.max(0, Number(data.totalWinGames) || 0);
+  const totalLossGames = Math.max(0, totalGames - totalWinGames);
+  const winRate = totalGames > 0 ? ((totalWinGames / totalGames) * 100).toFixed(1).replace(/\.0$/, "") : (data.winRate || "0");
+  const netProfit = Number(data.netProfit || 0);
+  const profitPrefix = netProfit > 0 ? "+" : "";
+
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) {
+    return renderCollectionStyle(activeStyle, {
+      kicker: "MYBOT • LỊCH SỬ THẮNG THUA",
+      title: "SAO KÊ THẮNG THUA",
+      subtitle: `${data.playerName || "Người chơi"} • Thắng ${totalWinGames}/${totalGames} (${winRate}%) • LN ${profitPrefix}${compactMoney(netProfit)} VNĐ`,
+      footer: `${transactions.length} ván gần nhất • Số dư ${compactMoney(data.balance)} VNĐ • ${formatDate()}`,
+      items: transactions.map((transaction) => {
+        const isWin = transaction.direction === "in";
+        const isPush = transaction.direction === "push";
+        const sign = isWin ? "+" : isPush ? "±" : "−";
+        const badge = isWin ? "THẮNG" : isPush ? "HÒA" : "THUA";
+        return {
+          title: transaction.counterpartyName || "Ván đấu",
+          subtitle: `${formatDate(transaction.createdAt)} • ${transaction.referenceCode || "N/A"}${transaction.detail ? ` • ${transaction.detail}` : ""}`,
+          meta: `${sign}${compactMoney(transaction.amount)} VNĐ`,
+          badge,
+        };
+      }),
+    }, "game_statement");
+  }
   const width = 1080;
-  const height = Math.max(520, 270 + transactions.length * 92);
+  const height = Math.max(560, 310 + transactions.length * 92);
   const tier = getGameTier(data.rankPoints);
   const dragonImage = tier.key === "gold_dragon" ? await safeLoadImage(KIM_LONG_DRAGON_PATH) : null;
   const canvas = createCanvas(width, height);
@@ -1310,42 +1719,72 @@ export async function createGameStatementImage(data) {
   ctx.textAlign = "left";
   ctx.fillStyle = tier.color;
   ctx.font = `bold 14px ${FONT_MAIN}`;
-  ctx.fillText("GAME BANKING", 46, 42);
+  ctx.fillText("MYBOT • LỊCH SỬ GAME", 46, 42);
   ctx.fillStyle = "#ffffff";
   ctx.font = `bold 40px ${FONT_MAIN}`;
-  ctx.fillText("SAO KÊ GIAO DỊCH", 46, 82);
+  ctx.fillText("SAO KÊ THẮNG THUA", 46, 82);
   ctx.fillStyle = "rgba(255,255,255,0.48)";
   ctx.font = `bold 13px ${FONT_MAIN}`;
-  ctx.fillText(`10 GIAO DỊCH GẦN NHẤT  •  ${formatDate()}`, 46, 120);
+  ctx.fillText(`10 VÁN ĐẤU GẦN NHẤT  •  ${formatDate()}`, 46, 120);
 
-  drawPanel(ctx, 46, 150, 988, 88, tier, true);
+  // Main account panel
+  drawPanel(ctx, 46, 146, 988, 76, tier, true);
   ctx.fillStyle = "rgba(255,255,255,0.48)";
-  ctx.font = `bold 13px ${FONT_MAIN}`;
-  ctx.fillText("CHỦ TÀI KHOẢN", 72, 178);
+  ctx.font = `bold 12px ${FONT_MAIN}`;
+  ctx.fillText("CHỦ TÀI KHOẢN", 72, 168);
   ctx.fillStyle = "#ffffff";
-  ctx.font = fitFont(ctx, data.playerName || "Người chơi", 380, 23, 16);
-  ctx.fillText(data.playerName || "Người chơi", 72, 211);
-  drawTierBadge(ctx, tier, 462, 178, 132, 28);
+  ctx.font = fitFont(ctx, data.playerName || "Người chơi", 380, 22, 16);
+  ctx.fillText(data.playerName || "Người chơi", 72, 198);
+  drawTierBadge(ctx, tier, 462, 168, 132, 28);
   ctx.textAlign = "right";
   ctx.fillStyle = "rgba(255,255,255,0.48)";
-  ctx.font = `bold 13px ${FONT_MAIN}`;
-  ctx.fillText("SỐ DƯ HIỆN TẠI", 1004, 178);
+  ctx.font = `bold 12px ${FONT_MAIN}`;
+  ctx.fillText("SỐ DƯ HIỆN TẠI", 1004, 168);
   ctx.fillStyle = tier.color;
-  ctx.font = fitFont(ctx, `${compactMoney(data.balance)} VNĐ`, 360, 28, 17);
-  ctx.fillText(`${compactMoney(data.balance)} VNĐ`, 1004, 211);
+  ctx.font = fitFont(ctx, `${compactMoney(data.balance)} VNĐ`, 360, 26, 17);
+  ctx.fillText(`${compactMoney(data.balance)} VNĐ`, 1004, 198);
+
+  // Stats summary bar
+  drawPanel(ctx, 46, 230, 988, 52, tier);
+  ctx.textAlign = "left";
+  ctx.font = `bold 13px ${FONT_MAIN}`;
+  ctx.fillStyle = "rgba(255,255,255,0.65)";
+  ctx.fillText("Tổng ván:", 72, 256);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillText(`${totalGames}`, 142, 256);
+
+  ctx.fillStyle = "#5ee4b4";
+  ctx.fillText(`Thắng: ${totalWinGames}`, 230, 256);
+  ctx.fillStyle = "#ff7185";
+  ctx.fillText(`Thua: ${totalLossGames}`, 370, 256);
+
+  ctx.fillStyle = "#ffd166";
+  ctx.fillText(`Tỉ lệ: ${winRate}%`, 510, 256);
+
+  ctx.textAlign = "right";
+  ctx.fillStyle = "rgba(255,255,255,0.65)";
+  ctx.fillText("Lợi nhuận ròng:", 840, 256);
+  ctx.fillStyle = netProfit > 0 ? "#5ee4b4" : netProfit < 0 ? "#ff7185" : "#ffffff";
+  ctx.font = `bold 14px ${FONT_MAIN}`;
+  ctx.fillText(`${profitPrefix}${compactMoney(netProfit)} VNĐ`, 1004, 256);
 
   if (transactions.length === 0) {
-    drawPanel(ctx, 46, 270, 988, 180, tier);
+    drawPanel(ctx, 46, 296, 988, 180, tier);
     ctx.textAlign = "center";
     ctx.fillStyle = "rgba(255,255,255,0.52)";
-    ctx.font = `bold 22px ${FONT_MAIN}`;
-    ctx.fillText("CHƯA CÓ GIAO DỊCH CHUYỂN TIỀN", width / 2, 360);
+    ctx.font = `bold 20px ${FONT_MAIN}`;
+    ctx.fillText("CHƯA CÓ LỊCH SỬ VÁN ĐẤU GẦN ĐÂY", width / 2, 380);
+    ctx.font = `14px ${FONT_MAIN}`;
+    ctx.fillStyle = "rgba(255,255,255,0.35)";
+    ctx.fillText("Hãy tham gia Tài Xỉu, Bầu Cua, Baccarat... để lưu sao kê ván đấu!", width / 2, 415);
   }
 
   transactions.forEach((transaction, index) => {
     const incoming = transaction.direction === "in";
-    const color = incoming ? "#5ee4b4" : "#ff7185";
-    const y = 264 + index * 92;
+    const isPush = transaction.direction === "push";
+    const color = isPush ? "#ffd166" : incoming ? "#5ee4b4" : "#ff7185";
+    const symbol = isPush ? "•" : incoming ? "+" : "−";
+    const y = 296 + index * 92;
     drawPanel(ctx, 46, y, 988, 76, tier);
     roundedRect(ctx, 66, y + 17, 42, 42, 14);
     ctx.fillStyle = `${color}20`;
@@ -1353,21 +1792,22 @@ export async function createGameStatementImage(data) {
     ctx.fillStyle = color;
     ctx.textAlign = "center";
     ctx.font = `bold 22px ${FONT_MAIN}`;
-    ctx.fillText(incoming ? "+" : "−", 87, y + 39);
+    ctx.fillText(symbol, 87, y + 39);
     ctx.textAlign = "left";
     ctx.fillStyle = "#ffffff";
-    ctx.font = fitFont(ctx, transaction.counterpartyName || "Người chơi", 330, 19, 14);
-    ctx.fillText(transaction.counterpartyName || "Người chơi", 128, y + 28);
+    ctx.font = fitFont(ctx, transaction.counterpartyName || "Trò chơi", 330, 19, 14);
+    ctx.fillText(transaction.counterpartyName || "Trò chơi", 128, y + 28);
     ctx.fillStyle = "rgba(255,255,255,0.38)";
     ctx.font = `bold 11px ${FONT_MAIN}`;
-    ctx.fillText(`${formatDate(transaction.createdAt)}  •  ${transaction.referenceCode}`, 128, y + 54);
+    const subText = `${formatDate(transaction.createdAt)}  •  ${transaction.referenceCode}${transaction.detail ? `  •  ${transaction.detail}` : ""}`;
+    ctx.fillText(subText, 128, y + 54);
     ctx.textAlign = "right";
     ctx.fillStyle = color;
-    ctx.font = fitFont(ctx, `${incoming ? "+" : "−"}${compactMoney(transaction.amount)} VNĐ`, 300, 22, 15);
-    ctx.fillText(`${incoming ? "+" : "−"}${compactMoney(transaction.amount)} VNĐ`, 1004, y + 28);
+    ctx.font = fitFont(ctx, `${symbol}${compactMoney(transaction.amount)} VNĐ`, 300, 22, 15);
+    ctx.fillText(`${symbol}${compactMoney(transaction.amount)} VNĐ`, 1004, y + 28);
     ctx.fillStyle = "rgba(255,255,255,0.42)";
     ctx.font = `bold 11px ${FONT_MAIN}`;
-    ctx.fillText(`Số dư: ${compactMoney(transaction.balanceAfter)} VNĐ`, 1004, y + 54);
+    ctx.fillText(transaction.balanceAfter ? `Số dư: ${compactMoney(transaction.balanceAfter)} VNĐ` : (isPush ? "Hoàn cược" : (incoming ? "Thắng cược" : "Thua cược")), 1004, y + 54);
   });
 
   const filePath = path.resolve(`./assets/temp/game_statement_${Date.now()}.png`);
@@ -1375,7 +1815,123 @@ export async function createGameStatementImage(data) {
   return filePath;
 }
 
+/** Thẻ sổ tiết kiệm: màu, huy hiệu và lãi suất đều lấy theo hạng người chơi. */
+export async function createGameSavingsImage(data) {
+  const width = 1080;
+  const height = 640;
+  const tier = getGameTier(data.rankPoints);
+  const [artwork, avatar] = await Promise.all([
+    safeLoadImage(path.resolve(`./assets/resources/game/tiers/artworks/${tier.key}.png`)),
+    safeLoadImage(data.avatar),
+  ]);
+  const canvas = createCanvas(width, height);
+  const ctx = canvas.getContext("2d");
+  // Layout theo mẫu thẻ ngân hàng; bảng màu/nền luôn lấy từ hạng hiện tại.
+  const base = ctx.createLinearGradient(0, 0, width, height);
+  base.addColorStop(0, tier.dark);
+  base.addColorStop(0.58, "#07120f");
+  base.addColorStop(1, tier.deep);
+  ctx.fillStyle = base;
+  ctx.fillRect(0, 0, width, height);
+  if (artwork) {
+    ctx.save();
+    ctx.globalAlpha = 0.11;
+    ctx.drawImage(artwork, 702, 10, 400, 400);
+    ctx.restore();
+  }
+  const glow = ctx.createRadialGradient(100, 610, 20, 100, 610, 750);
+  glow.addColorStop(0, `${tier.color}5c`);
+  glow.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, width, height);
+  ctx.textBaseline = "middle";
+
+  // Viền và nền thẻ đúng kiểu mẫu: thẻ lớn, header, sau đó 4 ô số liệu.
+  ctx.save();
+  ctx.shadowColor = `${tier.color}8c`;
+  ctx.shadowBlur = 26;
+  roundedRect(ctx, 30, 30, 1020, 580, 30);
+  ctx.fillStyle = "rgba(5,13,12,0.86)";
+  ctx.fill();
+  ctx.shadowColor = "transparent";
+  ctx.strokeStyle = `${tier.color}bd`;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.restore();
+
+  drawAvatar(ctx, avatar, 136, 146, 142, tier.color);
+  ctx.textAlign = "left";
+  ctx.fillStyle = tier.color;
+  ctx.font = `bold 30px ${FONT_MAIN}`;
+  ctx.fillText("TÀI KHOẢN NGÂN HÀNG", 258, 100);
+  ctx.fillStyle = "#fff";
+  ctx.font = fitFont(ctx, data.playerName || "Người chơi", 530, 46, 26);
+  ctx.fillText(data.playerName || "Người chơi", 258, 152);
+  drawTierBadge(ctx, tier, 258, 181, 132, 34);
+  ctx.textAlign = "right";
+  ctx.fillStyle = tier.color;
+  ctx.font = `bold 27px ${FONT_MAIN}`;
+  ctx.fillText("♠ ♥ ♦ ♣", 1010, 100);
+  ctx.strokeStyle = `${tier.color}66`;
+  ctx.lineWidth = 1.3;
+  ctx.beginPath();
+  ctx.moveTo(64, 250);
+  ctx.lineTo(1016, 250);
+  ctx.stroke();
+
+  const locked = data.savingsUnlocked === false;
+  const values = [
+    ["SỐ DƯ VÍ CHÍNH", `${compactMoney(data.balance)} VNĐ`, tier.color],
+    ["SỔ TIẾT KIỆM", locked ? "Đang khóa" : `${compactMoney(data.savings)} VNĐ`, locked ? "#44e3ae" : tier.color],
+    ["LÃI MỖI NGÀY", locked ? "—" : `${Math.round((data.rate || 0) * 100)}%`, "#44e3ae"],
+    ["CÒN CHUYỂN / NHẬN", `${compactMoney(tier.sendLimit)} / ${compactMoney(tier.receiveLimit)}`, "#fff"],
+  ];
+  values.forEach(([label, value, color], index) => {
+    const col = index % 2;
+    const row = Math.floor(index / 2);
+    const x = 64 + col * 488;
+    const y = 282 + row * 142;
+    roundedRect(ctx, x, y, 464, 118, 18);
+    ctx.fillStyle = "rgba(255,255,255,0.045)";
+    ctx.fill();
+    ctx.strokeStyle = `${tier.color}55`;
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    ctx.textAlign = "left";
+    ctx.fillStyle = "rgba(255,255,255,0.63)";
+    ctx.font = `bold 20px ${FONT_MAIN}`;
+    ctx.fillText(label, x + 24, y + 36);
+    ctx.fillStyle = color;
+    ctx.font = fitFont(ctx, value, 416, index === 3 ? 31 : 43, 21);
+    ctx.fillText(value, x + 24, y + 82);
+  });
+  ctx.textAlign = "center";
+  ctx.fillStyle = locked ? "rgba(255,255,255,0.72)" : "#44e3ae";
+  ctx.font = `bold 19px ${FONT_MAIN}`;
+  ctx.fillText(locked ? "🔒 Ngân Hàng Sinh Lời là đặc quyền hạng Kim Cương" : `🔓 Ngân Hàng Sinh Lời • Hạng ${tier.name}`, width / 2, 574);
+  const filePath = path.resolve(`./assets/temp/game_savings_${Date.now()}.png`);
+  await writeFilePromise(filePath, canvas.toBuffer("image/png"));
+  return filePath;
+}
+
 export async function createGameMissionImage(data) {
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) {
+    const { tier: currentTier, nextTier, points } = getGameTierProgress(data.rankPoints);
+    const missions = [
+      ["HẠNG BẠC", "Mặc định", "Mọi người chơi đều bắt đầu từ hạng Bạc"],
+      ["HẠNG VÀNG", "10.000 VNĐ", "Tổng tiền nạp đạt đủ mốc"],
+      ["LỤC BẢO", "40.000 VNĐ", "Hạng tăng theo tổng tiền đã nạp"],
+      ["KIM CƯƠNG", "100.000 VNĐ", "Chơi game không cộng tiến độ hạng"],
+    ];
+    return renderCollectionStyle(activeStyle, {
+      kicker: "MYBOT • GAME MISSION",
+      title: "NHIỆM VỤ LÊN HẠNG",
+      subtitle: `${data.playerName || "Người chơi"} • ${currentTier.name} • Đã nạp ${fullNumber(points)} VNĐ`,
+      footer: nextTier ? `Còn ${fullNumber(Number(nextTier.min) - points)} VNĐ để lên ${nextTier.name}` : "Đã đạt hạng cao nhất",
+      items: missions.map(([title, meta, subtitle], index) => ({ title, subtitle, meta, badge: String(index + 1).padStart(2, "0") })),
+    }, "game_mission");
+  }
   const width = 980;
   const height = 900;
   const { tier, nextTier, points, progress } = getGameTierProgress(data.rankPoints);
@@ -1423,9 +1979,9 @@ export async function createGameMissionImage(data) {
 
   const missions = [
     { icon: "🥈", title: "HẠNG BẠC", reward: "Mặc định", note: "Mọi người chơi đều bắt đầu từ hạng Bạc" },
-    { icon: "🥇", title: "HẠNG VÀNG", reward: "50.000 VNĐ", note: "Tổng tiền nạp đạt đủ mốc" },
-    { icon: "💚", title: "LỤC BẢO", reward: "200.000 VNĐ", note: "Hạng chỉ tăng theo tổng tiền đã nạp" },
-    { icon: "💎", title: "KIM CƯƠNG", reward: "1.000.000 VNĐ", note: "Chơi game không cộng tiến độ hạng" },
+    { icon: "🥇", title: "HẠNG VÀNG", reward: "10.000 VNĐ", note: "Tổng tiền nạp đạt đủ mốc" },
+    { icon: "💚", title: "LỤC BẢO", reward: "40.000 VNĐ", note: "Hạng chỉ tăng theo tổng tiền đã nạp" },
+    { icon: "💎", title: "KIM CƯƠNG", reward: "100.000 VNĐ", note: "Chơi game không cộng tiến độ hạng" },
   ];
   missions.forEach((mission, index) => {
     const y = 414 + index * 100;
@@ -1450,43 +2006,441 @@ export async function createGameMissionImage(data) {
   ctx.textAlign = "center";
   ctx.fillStyle = "rgba(255,255,255,0.38)";
   ctx.font = `bold 12px ${FONT_MAIN}`;
-  ctx.fillText("BẠC 0  •  VÀNG 50K  •  BẠCH KIM 100K  •  LỤC BẢO 200K  •  HỒNG NGỌC 500K  •  KIM CƯƠNG 1M", width / 2, 842);
+  ctx.fillText("BẠC 0  •  VÀNG 10K  •  BẠCH KIM 20K  •  LỤC BẢO 40K  •  HỒNG NGỌC 70K  •  KIM CƯƠNG 100K", width / 2, 842);
 
   const filePath = path.resolve(`./assets/temp/game_mission_${Date.now()}.png`);
   await writeFilePromise(filePath, canvas.toBuffer());
   return filePath;
 }
 
+
+function drawLuxuryVIPTierAvatar(ctx, cx, cy, avatarImg, tier, initial = "N") {
+  const R_AVATAR = 60;   // Avatar người dùng
+  const R_RING1 = 66;    // Vành màu pastel nhạt
+  const R_RING2 = 74;    // Vành màu tier phát sáng
+  const R_OUTER = 86;    // Vành mảnh bên ngoài
+
+  ctx.save();
+
+  // 1. Ánh sáng hào quang phía sau (Aura)
+  const glow = ctx.createRadialGradient(cx, cy, R_AVATAR, cx, cy, R_OUTER + 45);
+  glow.addColorStop(0, `${tier.color}44`);
+  glow.addColorStop(0.5, `${tier.color}15`);
+  glow.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(cx, cy, R_OUTER + 45, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 2. Vành tròn ngoài cùng (Mảnh, thanh lịch)
+  ctx.beginPath();
+  ctx.arc(cx, cy, R_OUTER, 0, Math.PI * 2);
+  ctx.strokeStyle = `${tier.color}66`;
+  ctx.lineWidth = 1.8;
+  ctx.stroke();
+
+  // 3. Vành đai giữa (Màu tier phát sáng rực rỡ)
+  ctx.beginPath();
+  ctx.arc(cx, cy, R_RING2, 0, Math.PI * 2);
+  ctx.strokeStyle = tier.color;
+  ctx.lineWidth = 4;
+  ctx.shadowColor = tier.color;
+  ctx.shadowBlur = 16;
+  ctx.stroke();
+  ctx.shadowColor = "transparent";
+
+  // 4. Vành đai trong (Màu sáng pastel làm tôn avatar)
+  ctx.beginPath();
+  ctx.arc(cx, cy, R_RING1, 0, Math.PI * 2);
+  ctx.strokeStyle = `${tier.color}aa`;
+  ctx.lineWidth = 5;
+  ctx.stroke();
+
+  // 5. Viền chỉ trắng tinh tế sát mép avatar
+  ctx.beginPath();
+  ctx.arc(cx, cy, R_AVATAR + 1, 0, Math.PI * 2);
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.75)";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // 6. Các viên kim cương trang trí quanh vành R_OUTER
+  const drawDiamond = (x, y, size, color, glowColor = null) => {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(Math.PI / 4);
+    ctx.fillStyle = color;
+    if (glowColor) {
+      ctx.shadowColor = glowColor;
+      ctx.shadowBlur = 10;
+    }
+    ctx.fillRect(-size / 2, -size / 2, size, size);
+    ctx.restore();
+  };
+
+  // 4 Kim cương lớn tại 4 hướng:
+  drawDiamond(cx, cy - R_OUTER, 20, tier.color, tier.color); // Đỉnh trên (to nhất)
+  drawDiamond(cx, cy - R_OUTER, 9, "#ffffff");               // Lõi trắng trong viên đỉnh trên
+  drawDiamond(cx, cy + R_OUTER, 14, tier.color, tier.color); // Đỉnh dưới
+  drawDiamond(cx - R_OUTER, cy, 14, tier.color, tier.color); // Đỉnh trái
+  drawDiamond(cx + R_OUTER, cy, 14, tier.color, tier.color); // Đỉnh phải
+
+  // 4 Điểm chấm kim cương nhỏ góc 45 độ
+  for (let angle = 45; angle < 360; angle += 90) {
+    const rad = (angle * Math.PI) / 180;
+    const px = cx + Math.cos(rad) * R_OUTER;
+    const py = cy + Math.sin(rad) * R_OUTER;
+    drawDiamond(px, py, 5, "rgba(255, 255, 255, 0.85)");
+  }
+
+  // 7. Lồng ảnh Avatar người chơi vào tâm
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, R_AVATAR, 0, Math.PI * 2);
+  ctx.fillStyle = "#181b24";
+  ctx.fill();
+  ctx.clip();
+
+  if (avatarImg) {
+    const scale = Math.max((R_AVATAR * 2) / avatarImg.width, (R_AVATAR * 2) / avatarImg.height);
+    const aw = avatarImg.width * scale;
+    const ah = avatarImg.height * scale;
+    ctx.drawImage(avatarImg, cx - aw / 2, cy - ah / 2, aw, ah);
+  } else {
+    ctx.fillStyle = "#fff8db";
+    ctx.font = `bold 60px ${FONT_MAIN}`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(initial, cx, cy);
+  }
+  ctx.restore();
+
+  ctx.restore();
+}
+
 export async function createVIPTierImage(data) {
-  const width = 1200, height = 900, left = 300, pad = 28;
-  const { tier } = getGameTierProgress(data.rankPoints);
-  const canvas = createCanvas(width, height), ctx = canvas.getContext("2d");
-  drawBackground(ctx, width, height, tier);
-  drawPanel(ctx, 18, 18, width - 36, height - 36, tier, true);
-  ctx.textBaseline = "middle";
+  const W = 1280;
+  // listStartY(410) + 18×rowH(70)=1260 + gap(20) + footer(80) = 1770 → dùng 1780
+  const H = 1780;
+  const { tier: currentTier, nextTier } = getGameTierProgress(data.rankPoints);
+  const canvas = createCanvas(W, H);
+  const ctx = canvas.getContext("2d");
 
-  // Profile rail.
-  ctx.strokeStyle = "rgba(255,255,255,.16)"; ctx.beginPath(); ctx.moveTo(left, 18); ctx.lineTo(left, height - 18); ctx.stroke();
+  // Nền tổng siêu sang
+  ctx.fillStyle = "#0c0d12";
+  ctx.fillRect(0, 0, W, H);
+
+  // Gradient huyền ảo nền theo màu tier
+  const bgGrad = ctx.createRadialGradient(W * 0.2, H * 0.2, 50, W * 0.2, H * 0.2, W * 0.8);
+  bgGrad.addColorStop(0, currentTier.glow || "rgba(80, 40, 120, 0.15)");
+  bgGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, W, H);
+
+  // Background artwork mờ tương ứng hạng
+  const bgPath = currentTier.key === "angel"
+    ? MY_NHAN_BG_PATH
+    : path.resolve(`./assets/resources/game/tiers/backgrounds/${currentTier.key}.jpg`);
+  const bgImg = await safeLoadImage(bgPath);
+  if (bgImg) {
+    ctx.save();
+    const scale = Math.max(W / bgImg.width, H / bgImg.height);
+    const bgW = bgImg.width * scale;
+    const bgH = bgImg.height * scale;
+    ctx.globalAlpha = 0.16;
+    ctx.drawImage(bgImg, (W - bgW) / 2, (H - bgH) / 2, bgW, bgH);
+    ctx.fillStyle = "rgba(4, 8, 15, 0.58)";
+    ctx.fillRect(0, 0, W, H);
+    // Preserve the complete source composition in the center instead of
+    // cropping its subject to fill the tall card.
+    const containScale = Math.min((W * 0.96) / bgImg.width, (H * 0.96) / bgImg.height);
+    const containW = bgImg.width * containScale;
+    const containH = bgImg.height * containScale;
+    ctx.globalAlpha = 0.11;
+    ctx.drawImage(bgImg, (W - containW) / 2, (H - containH) / 2, containW, containH);
+    ctx.restore();
+  }
+
+  // Khung viền ngoài cùng sắc nét với 4 góc trang trí
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.15)";
+  ctx.lineWidth = 1.5;
+  roundedRect(ctx, 30, 30, W - 60, H - 60, 12);
+  ctx.stroke();
+
+  // 4 Góc trang trí màu vàng hoàng kim
+  const drawCorner = (cx, cy, ox, oy) => {
+    ctx.strokeStyle = "#ffd700";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy + oy * 20);
+    ctx.lineTo(cx, cy);
+    ctx.lineTo(cx + ox * 20, cy);
+    ctx.stroke();
+  };
+  drawCorner(46, 46, 1, 1);
+  drawCorner(W - 46, 46, -1, 1);
+  drawCorner(46, H - 46, 1, -1);
+  drawCorner(W - 46, H - 46, -1, -1);
+
+  // ===== CỘT TRÁI (LEFT PANEL) =====
+  const avatarCenterX = 205;
+  const avatarCenterY = 150;
   let avatarImg = data.avatarUrl ? await safeLoadImage(data.avatarUrl) : null;
-  drawAvatar(ctx, avatarImg, 150, 145, 145, tier.color);
-  ctx.textAlign = "center"; ctx.fillStyle = tier.color; ctx.font = `bold 18px ${FONT_MAIN}`; ctx.fillText("HẠNG THÀNH VIÊN", 150, 245);
-  ctx.fillStyle = "#fff"; ctx.font = fitFont(ctx, data.playerName || "Người chơi", 245, 25, 16); ctx.fillText(data.playerName || "Người chơi", 150, 295);
-  ctx.strokeStyle = `${tier.color}66`; ctx.beginPath(); ctx.moveTo(60, 325); ctx.lineTo(240, 325); ctx.stroke();
-  ctx.fillStyle = tier.color; ctx.font = `bold 42px ${FONT_MAIN}`; ctx.fillText(tier.name.replace("BẠCH KIM", "Bạch Kim").replace("HỒNG NGỌC", "Hồng Ngọc").replace("KIM CƯƠNG", "Kim Cương"), 150, 375);
-  ctx.fillStyle = "rgba(255,255,255,.75)"; ctx.font = `bold 18px ${FONT_MAIN}`; ctx.fillText("Vĩnh Viễn", 150, 415);
-  ctx.font = `bold 28px ${FONT_MAIN}`; ctx.fillText("♠   ♥   ♦   ♣", 150, 825);
+  const initial = (data.playerName || "N").trim().charAt(0).toUpperCase();
 
-  const x = left + pad, w = width - x - pad, gap = 18, cardW = (w - gap) / 2;
-  ctx.textAlign = "left"; ctx.fillStyle = "#fff"; ctx.font = `bold 24px ${FONT_MAIN}`; ctx.fillText("HẠN MỨC HÔM NAY", x, 62);
-  const metric = (mx, my, label, value, color = tier.color) => { drawPanel(ctx, mx, my, cardW, 100, tier); ctx.fillStyle = "#fff"; ctx.font = `bold 16px ${FONT_MAIN}`; ctx.fillText(label, mx + 20, my + 30); ctx.fillStyle = color; ctx.font = `bold 38px ${FONT_MAIN}`; ctx.fillText(value, mx + 20, my + 72); ctx.fillStyle = color; ctx.fillRect(mx + 20, my + 89, cardW - 40, 4); };
-  metric(x, 88, "HẠN MỨC CHUYỂN ĐI", compactMoney(Number(tier.sendLimit)));
-  metric(x + cardW + gap, 88, "HẠN MỨC NHẬN VỀ", compactMoney(Number(tier.receiveLimit)));
-  metric(x, 200, "DAILY", compactMoney(Number(tier.daily)), "#ffd568");
-  metric(x + cardW + gap, 200, "SỐ DƯ", compactMoney(Number(data.balance)), "#fff");
-  ctx.fillStyle = "#fff"; ctx.font = `bold 20px ${FONT_MAIN}`; ctx.fillText("CÁC HẠNG THÀNH VIÊN", x, 370);
-  TIERS.slice(0, 6).forEach((t, i) => { const y = 392 + i * 62; drawPanel(ctx, x, y, w, 52, t, t.key === tier.key); ctx.fillStyle = t.color; ctx.font = `bold 18px ${FONT_MAIN}`; ctx.fillText(t.name, x + 18, y + 27); ctx.fillStyle = "rgba(255,255,255,.78)"; ctx.font = `bold 14px ${FONT_MAIN}`; ctx.textAlign = "right"; ctx.fillText(`Daily ${compactMoney(Number(t.daily))} · Chuyển ${compactMoney(Number(t.sendLimit))} · Nhận ${compactMoney(Number(t.receiveLimit))}`, x + w - 16, y + 27); ctx.textAlign = "left"; });
-  ctx.textAlign = "center"; ctx.fillStyle = "#ffd568"; ctx.font = `bold 20px ${FONT_MAIN}`; ctx.fillText("Chúc Bạn 8386 | Mãi Đỉnh Mãi Đỉnh", left + (width - left) / 2, 850);
+  // Vẽ Khung Avatar Vector Đẳng Cấp theo đúng tone màu Tier
+  drawLuxuryVIPTierAvatar(ctx, avatarCenterX, avatarCenterY, avatarImg, currentTier, initial);
+
+  // Hạng thành viên
+  ctx.textAlign = "center";
+  ctx.textBaseline = "alphabetic";
+  ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+  ctx.font = `bold 18px ${FONT_MAIN}`;
+  ctx.fillText("HẠNG THÀNH VIÊN", avatarCenterX, 275);
+
+  // Tên người chơi
+  ctx.fillStyle = "#ffffff";
+  ctx.font = fitFont(ctx, data.playerName || "Người chơi", 280, 26, 16);
+  ctx.fillText(data.playerName || "Người chơi", avatarCenterX, 310);
+
+  // Tên Tier hiện tại
+  ctx.fillStyle = currentTier.color;
+  ctx.font = `bold 44px ${FONT_MAIN}`;
+  ctx.fillText(currentTier.name, avatarCenterX, 390);
+
+  // Có hiệu lực đến (hoặc Vĩnh viễn)
+  ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
+  ctx.font = `16px ${FONT_MAIN}`;
+  ctx.fillText("Có hiệu lực đến", avatarCenterX, 425);
+  ctx.fillStyle = "#ffffff";
+  ctx.font = `bold 18px ${FONT_MAIN}`;
+  const expireDate = data.vipExpireAt ? formatDate(data.vipExpireAt).split(" ")[1] : "06/10/2026";
+  ctx.fillText(expireDate, avatarCenterX, 450);
+
+  // Ủng hộ trong 30 ngày (quy đổi từ rankPoints hoặc donate)
+  ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+  ctx.font = `bold 15px ${FONT_MAIN}`;
+  ctx.fillText("ỦNG HỘ TRONG 30 NGÀY", avatarCenterX, 510);
+  ctx.fillStyle = "#ffffff";
+  ctx.font = `bold 26px ${FONT_MAIN}`;
+  const userDonateVND = Number(data.rankPoints || 0);
+  ctx.fillText(fullNumber(userDonateVND) + "đ", avatarCenterX, 545);
+
+  // Ủng hộ thêm lên hạng tiếp theo
+  ctx.fillStyle = "rgba(255, 255, 255, 0.65)";
+  ctx.font = `14px ${FONT_MAIN}`;
+  if (nextTier) {
+    const remainVND = Math.max(0, Number(nextTier.min) - userDonateVND);
+    ctx.fillText(`Ủng hộ thêm ${fullNumber(remainVND)}đ lên ${nextTier.name}`, avatarCenterX, 605);
+  } else {
+    ctx.fillText("Đã đạt bậc hạng Tối Cao!", avatarCenterX, 605);
+  }
+
+  // Box ĐẶC QUYỀN HÔM NAY (Left rail)
+  const dqBoxX = 65;
+  const dqBoxY = 720;
+  const dqBoxW = 280;
+  const dqBoxH = 260;
+  ctx.fillStyle = "rgba(255, 255, 255, 0.02)";
+  roundedRect(ctx, dqBoxX, dqBoxY, dqBoxW, dqBoxH, 12);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
+  ctx.stroke();
+
+  // Tiêu đề box đặc quyền
+  ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
+  ctx.font = `bold 16px ${FONT_MAIN}`;
+  ctx.fillText("ĐẶC QUYỀN HÔM NAY", avatarCenterX, dqBoxY + 30);
+
+  // CHUYỂN ĐI
+  ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+  ctx.font = `bold 13px ${FONT_MAIN}`;
+  ctx.fillText("CHUYỂN ĐI", avatarCenterX, dqBoxY + 70);
+  ctx.fillStyle = currentTier.color;
+  ctx.font = `bold 24px ${FONT_MAIN}`;
+  ctx.fillText(currentTier.sendText || compactMoney(Number(currentTier.sendLimit)), avatarCenterX, dqBoxY + 98);
+
+  // NHẬN VỀ
+  ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+  ctx.font = `bold 13px ${FONT_MAIN}`;
+  ctx.fillText("NHẬN VỀ", avatarCenterX, dqBoxY + 140);
+  ctx.fillStyle = currentTier.color;
+  ctx.font = `bold 24px ${FONT_MAIN}`;
+  ctx.fillText(currentTier.recvText || compactMoney(Number(currentTier.receiveLimit)), avatarCenterX, dqBoxY + 168);
+
+  // QUÀ DAILY
+  ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+  ctx.font = `bold 13px ${FONT_MAIN}`;
+  ctx.fillText("QUÀ DAILY", avatarCenterX, dqBoxY + 210);
+  ctx.fillStyle = currentTier.color;
+  ctx.font = `bold 24px ${FONT_MAIN}`;
+  ctx.fillText(currentTier.dailyText || compactMoney(Number(currentTier.daily)), avatarCenterX, dqBoxY + 238);
+
+  // Đường phân cách dọc
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.1)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(375, 45);
+  ctx.lineTo(375, H - 90);
+  ctx.stroke();
+
+  // ===== CỘT PHẢI (RIGHT PANEL) =====
+  const rightX = 395;
+  const rightW = W - rightX - 55;
+
+  // HẠN MỨC 24 GIỜ
+  ctx.textAlign = "left";
+  ctx.fillStyle = "#ffffff";
+  ctx.font = `bold 24px ${FONT_MAIN}`;
+  ctx.fillText("HẠN MỨC 30 NGÀY", rightX, 82);
+
+  // 4 Thẻ chỉ số (2 hàng x 2 cột)
+  const cardGap = 20;
+  const cardW = (rightW - cardGap) / 2;
+  const cardH = 110;
+
+  const drawMetricCard = (mx, my, label, value, sub = "") => {
+    ctx.fillStyle = "rgba(255, 255, 255, 0.03)";
+    roundedRect(ctx, mx, my, cardW, cardH, 10);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.09)";
+    ctx.stroke();
+
+    // Dấu góc viền mờ
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.25)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(mx + 10, my + 20);
+    ctx.lineTo(mx + 10, my + 10);
+    ctx.lineTo(mx + 20, my + 10);
+    ctx.stroke();
+
+    ctx.fillStyle = "rgba(255, 255, 255, 0.75)";
+    ctx.font = `bold 15px ${FONT_MAIN}`;
+    ctx.fillText(label, mx + 24, my + 30);
+
+    ctx.fillStyle = "#ffffff";
+    ctx.font = `bold 34px ${FONT_MAIN}`;
+    ctx.fillText(value, mx + 24, my + 72);
+
+    if (sub) {
+      ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
+      ctx.font = `13px ${FONT_MAIN}`;
+      ctx.fillText(sub, mx + 24, my + 96);
+    }
+  };
+
+  // Row 1
+  drawMetricCard(rightX, 105, "HẠN MỨC CHUYỂN ĐI", currentTier.sendText || compactMoney(Number(currentTier.sendLimit)), "Đã dùng 0 / " + (currentTier.sendText || compactMoney(Number(currentTier.sendLimit))));
+  drawMetricCard(rightX + cardW + cardGap, 105, "HẠN MỨC NHẬN VỀ", currentTier.recvText || compactMoney(Number(currentTier.receiveLimit)), "Đã dùng 0 / " + (currentTier.recvText || compactMoney(Number(currentTier.receiveLimit))));
+
+  // Row 2
+  drawMetricCard(rightX, 235, "DAILY", currentTier.dailyText || compactMoney(Number(currentTier.daily)), "");
+  drawMetricCard(rightX + cardW + cardGap, 235, "SỐ DƯ", compactMoney(Number(data.balance || 0)), "");
+
+  // CÁC HẠNG THÀNH VIÊN Header
+  ctx.fillStyle = "#ffffff";
+  ctx.font = `bold 22px ${FONT_MAIN}`;
+  ctx.fillText("CÁC HẠNG THÀNH VIÊN", rightX, 390);
+
+  // 18 rows of 64px with a 6px gap, sharing the leaderboard finish.
+  const listStartY = 410;
+  const rowH = 70;
+  const rowW = rightW;
+
+  // Match the badge and the creature / emblem inside each rectangular background.
+  const badgeMap = {};
+  const backgroundMap = {};
+  const artworkMap = {};
+  const fullCreatureTiers = new Set(["gold_dragon", "huyen_vu", "bach_ho", "con_bang", "thanh_long", "chu_tuoc", "ky_lan"]);
+  await Promise.all(TIERS.map(async (t) => {
+    [badgeMap[t.key], backgroundMap[t.key], artworkMap[t.key]] = await Promise.all([
+      safeLoadImage(path.resolve(`./assets/resources/game/tiers/badges/${t.key}.png`)),
+      safeLoadImage(path.resolve(`./assets/resources/game/tiers/backgrounds/${t.key}.jpg`)),
+      fullCreatureTiers.has(t.key) ? safeLoadImage(path.resolve(`./assets/resources/game/tiers/artworks/${t.key}.png`)) : null,
+    ]);
+  }));
+
+  // Layout 3 cột chia đều trên nửa phải
+  // Leave a visible artwork area between the tier name and the daily column.
+  const colDailyMid = rightX + 365;
+  const colSendMid  = rightX + 535;
+  const colRecvMid  = rightX + 720;
+
+  for (let i = 0; i < TIERS.length; i++) {
+    const t = TIERS[i];
+    const y = listStartY + i * rowH;
+    const rowH2 = rowH - 6;
+    const isCurrent = t.key === currentTier.key;
+    const color = getGameTierTextColor(t);
+
+    drawGameTierBackground(ctx, rightX, y, rowW, rowH2, t, {
+      radius: 12,
+      selected: isCurrent,
+      background: artworkMap[t.key] || backgroundMap[t.key],
+      backgroundCover: Boolean(artworkMap[t.key]),
+    });
+
+    // Badge icon bên trái
+    const bImg = badgeMap[t.key];
+    if (bImg) {
+      ctx.drawImage(bImg, rightX + 12, y + (rowH2 - 46) / 2, 46, 46);
+    }
+
+    // Tên Hạng dạng Gradient nổi bật
+    ctx.textAlign = "left";
+    const nameY = y + 27;
+    const nameGrad = ctx.createLinearGradient(rightX + 66, y + 10, rightX + 66, y + 32);
+    nameGrad.addColorStop(0, "#ffffff");
+    nameGrad.addColorStop(1, color);
+    ctx.fillStyle = nameGrad;
+    ctx.font = `bold 19px ${FONT_MAIN}`;
+    ctx.fillText(t.name.toUpperCase(), rightX + 66, nameY);
+
+    // Mốc donate nhỏ bên dưới
+    ctx.fillStyle = "rgba(255, 255, 255, 0.62)";
+    ctx.font = `11px ${FONT_MAIN}`;
+    ctx.fillText(t.donate || `Ủng hộ ${fullNumber(t.min)}đ`, rightX + 66, y + 47);
+
+    // Ba Cột Thông Số (QUÀ NGÀY / CHUYỂN ĐI / NHẬN VỀ)
+    ctx.textAlign = "center";
+
+    // Header labels (màu sắc tinh tế ăn nhập theo tier)
+    ctx.font = `bold 11px ${FONT_MAIN}`;
+    ctx.fillStyle = isCurrent ? color : "rgba(200, 225, 255, 0.75)";
+    ctx.fillText("QUÀ NGÀY", colDailyMid, y + 22);
+    ctx.fillText("CHUYỂN ĐI", colSendMid, y + 22);
+    ctx.fillText("NHẬN VỀ", colRecvMid, y + 22);
+
+    // Giá trị (Số lớn, màu vàng kim/cam sang trọng)
+    const valColor = "#ffd166";
+    ctx.font = `bold 18px ${FONT_MAIN}`;
+    ctx.fillStyle = valColor;
+    ctx.fillText(t.dailyText || compactMoney(Number(t.daily)), colDailyMid, y + 46);
+    ctx.fillText(t.sendText || compactMoney(Number(t.sendLimit)), colSendMid, y + 46);
+
+    ctx.fillText(t.recvText || compactMoney(Number(t.receiveLimit)), colRecvMid, y + 43);
+    ctx.fillStyle = "rgba(255, 255, 255, 0.62)";
+    ctx.font = `10px ${FONT_MAIN}`;
+    ctx.fillText(t.extra || "Hạn mức / 30 ngày", colRecvMid, y + 57);
+  }
+
+  // Footer
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#ffffff";
+  ctx.font = `bold 20px ${FONT_MAIN}`;
+  ctx.fillText("Chúc Bạn 8386 | Mãi Đỉnh Mãi Đỉnh", W / 2 + 100, H - 45);
+
+  // Ký hiệu bài dưới góc trái
+  ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+  ctx.font = `bold 24px ${FONT_MAIN}`;
+  ctx.fillText("♠", 90, H - 45);
+  ctx.fillStyle = "#e63946";
+  ctx.fillText("♥", 130, H - 45);
+  ctx.fillText("♦", 170, H - 45);
+  ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+  ctx.fillText("♣", 210, H - 45);
+
   const filePath = path.resolve(`./assets/temp/vip_tier_${Date.now()}.png`);
-  await writeFilePromise(filePath, canvas.toBuffer());
+  await writeFilePromise(filePath, canvas.toBuffer("image/png"));
   return filePath;
 }

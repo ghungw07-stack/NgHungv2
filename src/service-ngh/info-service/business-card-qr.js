@@ -10,6 +10,8 @@ import {
 } from "../chat-zalo/chat-style/chat-style.js";
 import { tempDir } from "../../utils/io-json.js";
 import { deleteFile } from "../../utils/util.js";
+import { getActiveCanvasStyle } from "../../utils/canvas/theme.js";
+import { renderQrStyle } from "../../utils/canvas/qr-style-renderers.js";
 
 
 async function ensureTempDir() {
@@ -119,6 +121,18 @@ async function drawBusinessCardQR(userInfo, qrPath, uid) {
   ctx.fillText(userInfo.name || `Người dùng`, width / 2, boxY + 120);
 
   const qrLoaded = await loadImage(qrPath);
+  const style = getActiveCanvasStyle();
+  if (style !== 1) {
+    const styledCanvas = renderQrStyle(style, {
+      qrImage: qrLoaded, kicker: "MYBOT • ZALO PROFILE", title: "KẾT BẠN VỚI TÔI", subtitle: "Quét bằng ứng dụng Zalo",
+      label: "TÀI KHOẢN", value: userInfo.name || "Người dùng", secondaryLabel: "UID", secondaryValue: uid,
+      footer: "Mở Zalo và bấm nút quét QR để kết bạn",
+    });
+    const styledPath = path.join(tempDir, `business_card_style${style}_${uid}_${Date.now()}.png`);
+    await fs.promises.writeFile(styledPath, styledCanvas.toBuffer("image/png"));
+    try { if (avatarPath && fs.existsSync(avatarPath)) await deleteFile(avatarPath); } catch { }
+    return styledPath;
+  }
   const qrMaxSize = 400;
   const marginBottom = 120;
   const availableHeight = boxHeight - 220 - marginBottom;

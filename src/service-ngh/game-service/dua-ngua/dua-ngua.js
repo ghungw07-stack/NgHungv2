@@ -335,8 +335,22 @@ async function settleRace(room, winner) {
 
   // Ghi thống kê sau khi toàn bộ tiền đã chuyển thành công; lỗi thống kê không ảnh hưởng kết quả cược.
   await Promise.allSettled([
-    ...losers.map((loser) => updatePlayerBalance(loser.uid, "0", false, room.betAmount.neg().toString())),
-    updatePlayerBalance(winner.uid, "0", true, winnerProfit.toString()),
+    ...losers.map((loser) =>
+      updatePlayerBalance(loser.uid, "0", false, room.betAmount.neg().toString(), {
+        gameName: "Đua Ngựa",
+        gameKey: "duangua",
+        choice: `Ngựa số ${loser.horseId || "?"}`,
+        betAmount: room.betAmount.toString(),
+        detail: "Về đích sau",
+      })
+    ),
+    updatePlayerBalance(winner.uid, "0", true, winnerProfit.toString(), {
+      gameName: "Đua Ngựa",
+      gameKey: "duangua",
+      choice: `Ngựa số ${winner.horseId || "?"}`,
+      betAmount: room.betAmount.toString(),
+      detail: "Ngựa về nhất",
+    }),
     ...losers.map((loser) => addGameRankPoints(loser.uid, { won: false })),
     addGameRankPoints(winner.uid, { won: true }),
   ]);

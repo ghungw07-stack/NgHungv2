@@ -9,7 +9,16 @@ function getQuotedUserId(quote) {
 function getHttpUrl(value) {
   try {
     const url = new URL(String(value || "").trim());
-    return ["http:", "https:"].includes(url.protocol) ? url.toString() : null;
+    if (!["http:", "https:"].includes(url.protocol)) return null;
+
+    // Link chia sẻ Drive là trang HTML `/file/d/.../view`, không phải bytes ảnh.
+    // Đổi sang endpoint tải trực tiếp để getImageInfo/Zalo không cố parse HTML.
+    const driveMatch = url.hostname === "drive.google.com" &&
+      url.pathname.match(/^\/file\/d\/([^/]+)\/view$/i);
+    if (driveMatch) {
+      return `https://drive.google.com/uc?export=download&id=${encodeURIComponent(driveMatch[1])}`;
+    }
+    return url.toString();
   } catch {
     return null;
   }
@@ -218,10 +227,19 @@ export async function handleFakeMessageCommand(api, message) {
       replyText = `${replyText} ${tagName}`;
       mentions = [MessageMention(String(tagId), tagName.length, tagOffset)];
     }
-  } else if (fakeMediaUrl) {
-    // Reply media trên Zalo thường kèm tên người sở hữu tin được trả lời.
+  } else {
+    // Khi tạo fake quote, luôn mention người sở hữu tin được reply. Trước đây
+    // chỉ fake ảnh/file mới được tag nên fake text hiển thị như reply thường.
+    // Reply text trên Zalo thường kèm tên người sở hữu tin được trả lời.
     const quotedName = String(
-      repliedMentionName || quote?.dName || quote?.displayName || quote?.senderName || ""
+      repliedMentionName ||
+        quote?.dName ||
+        quote?.fromD ||
+        quote?.displayName ||
+        quote?.senderName ||
+        quote?.ownerName ||
+        quote?.name ||
+        "bạn"
     )
       .replace(/^@+/, "")
       .trim();

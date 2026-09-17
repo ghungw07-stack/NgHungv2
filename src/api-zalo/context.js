@@ -1,3 +1,5 @@
+import { createZaloProxyTransport } from "./proxy.js";
+
 const _5_MINUTES = 5 * 60 * 1000;
 class CallbacksMap extends Map {
   constructor(...args) {
@@ -50,6 +52,7 @@ export const createContext = (credentials, options, apiType = 30, apiVersion = 6
     {
       polyfill: global.fetch,
     },
+    createZaloProxyTransport(),
     {
       apiVersion: apiVersion,
       typeLogin: apiType,

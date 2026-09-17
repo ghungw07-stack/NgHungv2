@@ -1,6 +1,7 @@
 import { MessageMention, MessageType } from "zlbotngh";
 import { sendMessageStateQuote } from "../chat-zalo/chat-style/chat-style.js";
 import { removeMention } from "../../utils/format-util.js";
+import { applyAntiPunishment } from "./anti-punishment.js";
 
 let stickerWarnings = {};
 let stickerCooldown = {};
@@ -58,7 +59,7 @@ export async function antiAllEffectSticker(
         threadId,
         MessageType.GroupMessage
       );
-      await blockAllUser(api, message, threadId, senderId, senderName);
+      await blockAllUser(api, message, threadId, senderId, senderName, groupSettings);
       return true;
     }
 
@@ -68,7 +69,8 @@ export async function antiAllEffectSticker(
       threadId,
       senderId,
       senderName,
-      threshold
+      threshold,
+      groupSettings
     );
     return true;
   } catch (error) {
@@ -105,9 +107,9 @@ export async function handleAntiAllEffectStickerCommand(api, message, groupSetti
   return true;
 }
 
-async function blockAllUser(api, message, threadId, senderId, senderName) {
+async function blockAllUser(api, message, threadId, senderId, senderName, groupSettings) {
   try {
-    await api.blockUsers(threadId, [senderId]);
+    await applyAntiPunishment(api, message, threadId, senderId, senderName, groupSettings);
   } catch (error) {
   }
 }
@@ -118,7 +120,8 @@ async function updateAllStickerWarnings(
   threadId,
   senderId,
   senderName,
-  threshold
+  threshold,
+  groupSettings
 ) {
   const currentTime = Date.now();
   if (!stickerWarnings[senderId]) {
@@ -134,7 +137,7 @@ async function updateAllStickerWarnings(
 
   if (warnCount >= threshold) {
     try {
-      await blockAllUser(api, message, threadId, senderId, senderName);
+      await blockAllUser(api, message, threadId, senderId, senderName, groupSettings);
       stickerWarnings[senderId] = [];
     } catch (error) {
     }

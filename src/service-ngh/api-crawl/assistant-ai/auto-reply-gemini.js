@@ -3,7 +3,7 @@ import path from "path";
 import { removeMention } from "../../../utils/format-util.js";
 import { getGlobalPrefix } from "../../service.js";
 import { sendMessageStateQuote } from "../../chat-zalo/chat-style/chat-style.js";
-import { askNovaCommand } from "./nova.js";
+import { askNovaCommand, isNovaSessionActive } from "./nova.js";
 import { setNovaEnabled } from "../../../utils/nova-store.js";
 import { sendReactionWaitingCountdown } from "../../../commands/manager-command/check-countdown.js";
 import { sleep } from "../../../utils/util.js";
@@ -25,7 +25,8 @@ function saveCommandJson(data) {
 
 function getCommandCountdown(name) {
   const config = loadCommandJson();
-  return config.commands.find(c => c.name === name)?.countdown || 30; // Mặc định 30 giây
+  const configured = config.commands.find(c => c.name === name)?.countdown;
+  return Number.isFinite(Number(configured)) ? Math.max(0, Number(configured)) : 30;
 }
 
 function setCommandCountdown(name, seconds) {
@@ -91,16 +92,24 @@ export async function handleAutoReplyGemini(api, message, groupSettings, isSelf)
   const threadId = message.threadId;
   if (!groupSettings[threadId]?.autoReplyCommand) return false;
   const mentions = message.data?.mentions;
-  if (!Array.isArray(mentions) || mentions.length === 0) return false;
   const botId = api.getBotId();
-  const botMentioned = mentions.some(m => m.uid === botId);
-  if (!botMentioned) return false;
   const content = removeMention(message).trim();
   if (!content) return false;
+  const botMentioned = Array.isArray(mentions) && mentions.some(m => String(m.uid) === String(botId));
+  // Ngoài tag trực tiếp, nhận lời gọi ở đầu tin nhắn để bot không chen vào
+  // những cuộc trò chuyện chỉ tình cờ nhắc từ "bot" ở giữa câu.
+  const calledByName = /^(?:ê\s+)?(?:bot|nova|nove)(?:\s*(?:ơi|ê|e|à|ạ)){0,2}(?=$|[\s,!?…])/iu.test(content);
+  const continuingSession = isNovaSessionActive(api, message);
+  if (!botMentioned && !calledByName && !continuingSession) return false;
+  // Không coi lệnh có prefix là một lượt hội thoại tiếp theo.
+  if (continuingSession && content.startsWith(getGlobalPrefix(api.getBotId()))) return false;
 
   const commandName = "autoreply";
   const cooldown = getCommandCountdown(commandName) * 1000;
-  const cooldownKey = `${threadId}:${commandName}`;
+  // Giới hạn theo bot để nhiều nhóm cùng gọi AI cũng không dồn request lên
+  // nhà cung cấp và chạm rate limit. Tin đến trong thời gian chờ sẽ được
+  // gom vào cùng countdown, chỉ lượt cuối mới gọi AI.
+  const cooldownKey = `ai-global:${commandName}`;
   const currentTime = Date.now();
   const lastUsage = commandUsage[cooldownKey] || 0;
   const timeLeft = cooldown - (currentTime - lastUsage);

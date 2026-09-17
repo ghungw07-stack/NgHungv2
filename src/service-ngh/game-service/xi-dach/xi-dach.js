@@ -1352,7 +1352,13 @@ async function settleRound(api, table) {
       }
     }
 
-    await updatePlayerBalance(p.id, netDelta.toNumber(), netDelta.gt(0), netDelta.toNumber());
+    await updatePlayerBalance(p.id, netDelta.toNumber(), netDelta.gt(0), netDelta.toNumber(), {
+      gameName: "Xì Dách",
+      gameKey: "xidach",
+      choice: outcomeLabel,
+      betAmount: table.bet?.toNumber?.() || Number(table.bet) || 0,
+      detail: `${typeLabel(playerEval)} (${playerEval.total})`,
+    });
     await addGameRankPoints(p.id, { won: netDelta.gt(0) });
     dealerNetTotal = dealerNetTotal.minus(netDelta);
 
@@ -1364,7 +1370,13 @@ async function settleRound(api, table) {
     });
   }
 
-  await updatePlayerBalance(table.dealer.id, dealerNetTotal.toNumber(), dealerNetTotal.gt(0), dealerNetTotal.toNumber());
+  await updatePlayerBalance(table.dealer.id, dealerNetTotal.toNumber(), dealerNetTotal.gt(0), dealerNetTotal.toNumber(), {
+    gameName: "Xì Dách (Cái)",
+    gameKey: "xidach",
+    choice: "Nhà Cái",
+    betAmount: table.bet?.toNumber?.() || Number(table.bet) || 0,
+    detail: `${typeLabel(dealerEval)} (${dealerEval.total})`,
+  });
   await addGameRankPoints(table.dealer.id, { won: dealerNetTotal.gt(0) });
 
   // Không thu hồi ảnh "đang diễn ra" cũ nữa — ảnh kết quả được gửi nối tiếp,

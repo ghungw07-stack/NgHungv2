@@ -102,6 +102,7 @@ export class Listener extends EventEmitter {
     }
     logger(this.appContext, true).verbose(`Application is starting...`);
     this.ws = new WebSocket(this.wsURL, {
+      agent: this.appContext.options.agent,
       headers: {
         "accept-encoding": "gzip, deflate, br, zstd",
         "accept-language": "en-US,en;q=0.9",

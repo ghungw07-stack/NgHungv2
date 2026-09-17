@@ -1,3 +1,4 @@
+import { getBusinessAccount } from "./business-account.js";
 import * as cv from "../../utils/canvas/index.js";
 import { deepParseJSON, deepStringifyJSON, removeMention } from "../../utils/format-util.js";
 import { getGlobalPrefix } from "../service.js";
@@ -71,7 +72,7 @@ export async function userInfoCommandText(api, message, aliasCommand) {
   content = content.replace("text", "").trim();
 
   try {
-    const targetUserId =
+    let targetUserId =
       message.data.mentions?.[0]?.uid ||
       (content === "-f" ? message.data?.idTo || threadId : content ? content : senderId);
     if (targetUserId === threadId && message.type === 1) {
@@ -202,6 +203,8 @@ export async function getUserInfoData(api, userId) {
 // UID người dùng có thể chỉ hợp lệ với một bot cụ thể. Khi bot hiện tại
 // không tra được, thử các bot đang chạy trong cùng hệ thống.
 export async function getUserInfoAcrossBots(api, userId) {
+  userId = String(userId || "").replace(/^private:[^:]+:/, "").replace(/_0$/, "");
+  if (!userId || !/^\d+$/.test(userId)) return null;
   try {
     const direct = await getUserInfoData(api, userId);
     if (direct) return direct;
@@ -236,8 +239,10 @@ function getBestAvatarUrl(data, acceptAnyImageUrl = false) {
     if (depth > 5 || value == null) return;
     if (typeof value === "string") {
       const normalizedUrl = value.trim().replace(/\\\//g, "/").replace(/^\/\//, "https://");
-      const hint = `${key} ${normalizedUrl}`.toLowerCase();
-      if (/^https?:\/\//i.test(normalizedUrl) && !/(cover|background|wallpaper)/.test(key) &&
+      const normalizedKey = String(key).toLowerCase();
+      const hint = `${normalizedKey} ${normalizedUrl}`.toLowerCase();
+      const isCoverImage = /(cover|background|wallpaper|banner|bg[_-]?profile|profile[_-]?bg)/.test(hint);
+      if (/^https?:\/\//i.test(normalizedUrl) && !isCoverImage &&
           (acceptAnyImageUrl || /(avatar|avt|profile|photo|image|zalo|jpg|jpeg|png|webp)/i.test(hint))) {
         let score = 0;
         if (/(full|original|origin|large|720|1080|2048|high)/.test(hint)) score += 100;
@@ -268,7 +273,7 @@ function getBestCoverUrl(data) {
     if (typeof value === "string") {
       const url = value.trim().replace(/\\\//g, "/").replace(/^\/\//, "https://");
       const hint = `${key} ${url}`.toLowerCase();
-      if (/^https?:\/\//i.test(url) && /(cover|background|wallpaper|bg_profile|banner)/.test(hint)) {
+      if (/^https?:\/\//i.test(url) && /(cover|background|wallpaper|banner|bg[_-]?profile|profile[_-]?bg)/.test(hint)) {
         let score = 0;
         if (/(cover|bg_profile|background)/.test(hint)) score += 80;
         if (/(full|original|origin|large|720|1080|2048|high)/.test(hint)) score += 60;
@@ -294,7 +299,15 @@ export function getAllInfoUser(userInfo) {
   const lastActionTime = userInfo.lastActionTime || 0;
   const isOnline = currentTime - lastActionTime <= 180000;
 
-  const bestAvatar = userInfo.avatarFull || userInfo.bk_full_avatar || getBestAvatarUrl(userInfo) || userInfo.avatar;
+  const cover = userInfo.cover || getBestCoverUrl(userInfo);
+  const avatarCandidates = [
+    userInfo.avatarFull,
+    userInfo.bk_full_avatar,
+    getBestAvatarUrl(userInfo),
+    userInfo.avatarFallback,
+    userInfo.avatar,
+  ].filter(Boolean);
+  const bestAvatar = avatarCandidates.find((url) => normalizeImageUrl(url) !== normalizeImageUrl(cover)) || null;
   return {
     title: "Thông Tin Người Dùng",
     uid: userInfo.userId || "Không xác định",
@@ -302,12 +315,11 @@ export function getAllInfoUser(userInfo) {
     name: formatName(userInfo.zaloName),
     avatar: bestAvatar,
     avatarFallback: userInfo.avatarFallback,
-    cover: userInfo.cover,
+    cover,
     avatarFull: bestAvatar,
     gender: formatGender(userInfo.gender),
     genderId: userInfo.gender,
-    businessAccount: userInfo.bizPkg?.label ? "Có" : "Không",
-    businessType: getTextTypeBusiness(userInfo.bizPkg.pkgId),
+    ...getBusinessAccount(userInfo),
     isActive: userInfo.isActive,
     isActivePC: userInfo.isActivePC,
     isActiveWeb: userInfo.isActiveWeb,
@@ -324,6 +336,17 @@ export function getAllInfoUser(userInfo) {
   };
 }
 
+function normalizeImageUrl(url) {
+  if (!url) return "";
+  try {
+    const parsed = new URL(String(url).trim().replace(/\\\//g, "/").replace(/^\/\//, "https://"));
+    parsed.hash = "";
+    return parsed.toString();
+  } catch {
+    return String(url).trim();
+  }
+}
+
 function randomEmoji() {
   const emojis = ["😊", "🌟", "🎉", "🌈", "🌺", "🍀", "🌞", "🌸"];
   return emojis[Math.floor(Math.random() * emojis.length)];
@@ -336,10 +359,6 @@ function formatName(name) {
 
 function formatGender(gender) {
   return gender === 0 ? "Nam 👨" : gender === 1 ? "Nữ 👩" : "Không xác định 🤖";
-}
-
-function getTextTypeBusiness(type) {
-  return type === 1 ? "Basic" : type === 3 ? "Pro" : type === 2 ? "Không xác định" : "Chưa Đăng Ký";
 }
 
 function formatTimestamp(timestamp) {
@@ -371,4 +390,29 @@ function formatDate(date) {
 
 async function sendErrorMessage(api, message, threadId, errorMsg) {
   await api.sendMessage({ msg: errorMsg, quote: message }, threadId, message.type);
+}
+
+/**
+ * Lấy globalId (UID toàn cục Zalo) của user từ cache — không gọi API.
+ * globalId giống nhau trên mọi bot account, dùng để block toàn hệ thống.
+ * @param {string} botId - botId của bot đang xử lý
+ * @param {string} userId - UID local của user (theo góc nhìn bot này)
+ * @returns {string|null} globalId hoặc null nếu chưa có trong cache
+ */
+export function getCachedGlobalId(botId, userId) {
+  const normalizedId = String(userId || "").replace(/_0$/, "");
+  const cacheKey = `${botId}:${normalizedId}`;
+  const cached = basicUserCache.get(cacheKey)?.data;
+  if (cached) {
+    const gid = cached.globalId || cached.global_id;
+    return gid ? String(gid) : null;
+  }
+  // Thử cả key với _0 suffix
+  const cacheKeyWithSuffix = `${botId}:${normalizedId}_0`;
+  const cachedWithSuffix = basicUserCache.get(cacheKeyWithSuffix)?.data;
+  if (cachedWithSuffix) {
+    const gid = cachedWithSuffix.globalId || cachedWithSuffix.global_id;
+    return gid ? String(gid) : null;
+  }
+  return null;
 }

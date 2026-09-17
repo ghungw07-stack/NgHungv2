@@ -8,6 +8,8 @@ import { getUserInfoData } from "../../service-ngh/info-service/user-info.js";
 import { isAdmin } from "../../index.js";
 import { createCanvas, loadImage } from "canvas";
 import { removeMention } from "../../utils/format-util.js";
+import { getActiveCanvasStyle } from "../../utils/canvas/theme.js";
+import { renderPortraitStyle } from "../../utils/canvas/portrait-style-renderers.js";
 
 async function loadAvatar(avatarUrl) {
   try {
@@ -32,6 +34,16 @@ async function loadAvatar(avatarUrl) {
 }
 
 export async function createLesCheckImage(name, percent, msgType = "gay", avatarUrl = null) {
+  const style = getActiveCanvasStyle();
+  if (style !== 1) {
+    const avatar = await loadAvatar(avatarUrl);
+    return renderPortraitStyle(style, {
+      kind: "profile", kicker: "MYBOT • FUN CHECK", title: `KẾT QUẢ CHECK ${msgType.toUpperCase()}`,
+      names: [name], avatars: [avatar], primaryLabel: `MỨC ĐỘ ${msgType.toUpperCase()}`,
+      primaryValue: `${percent}%`, secondaryLabel: "PHÂN TÍCH", secondaryValue: percent >= 80 ? "CỰC CAO" : percent >= 50 ? "ĐÁNG CHÚ Ý" : "NHẸ NHÀNG",
+      body: "Kết quả được tạo ngẫu nhiên và chỉ mang tính giải trí.", footer: "MYBOT • ENTERTAINMENT",
+    }, "fun-check");
+  }
   const width = 1060, height = 400;
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext("2d");
@@ -114,7 +126,7 @@ export async function createLesCheckImage(name, percent, msgType = "gay", avatar
   ctx.font = "italic 15px Arial";
   ctx.fillStyle = "rgba(255,255,255,0.5)";
   ctx.textAlign = "center";
-  ctx.fillText("Bot 1.5.5 by Ha Huy Hoang", width / 2, height - 20);
+  ctx.fillText("Bot 1.5.5 by Nguyễn Gia Hưng", width / 2, height - 20);
 
   const outputDir = "./assets/temp";
   await fsPromises.mkdir(outputDir, { recursive: true });

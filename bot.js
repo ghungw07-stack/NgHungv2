@@ -1,9 +1,26 @@
 import { spawn, execSync } from "child_process";
 import { ensureLogFiles, logManagerBot } from "./src/utils/io-json.js";
+
+// PM2 có thể gọi thẳng bot.js thay vì qua npm script. Nạp file key riêng ở
+// supervisor để worker con luôn nhận được master key sau reboot/pm2 resurrect.
+for (const envFile of [".env", ".env.credentials", ".env.scavio"]) {
+  try {
+    process.loadEnvFile(envFile);
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+  }
+}
+
 const isWindows = process.platform === "win32";
 const RESTART_DELAY_MS = 1000;
 const MAX_RESTART_DELAY_MS = 30000;
 const STABLE_UPTIME_MS = 60000;
+// Bound each tab/process by default so several bot instances cannot let V8
+// reserve the majority of host RAM. Set NGH_CHILD_MAX_OLD_SPACE_MB=0 to opt out.
+const configuredHeapMb = process.env.NGH_CHILD_MAX_OLD_SPACE_MB;
+const CHILD_MAX_OLD_SPACE_MB = configuredHeapMb === "0"
+  ? 0
+  : Math.max(256, Number(configuredHeapMb) || 768);
 let botProcess = null;
 let restartTimer = null;
 let isQuitting = false;
@@ -26,13 +43,11 @@ function startBot() {
   if (botProcess && botProcess.exitCode === null && !botProcess.killed) return;
   logManagerBot("Bot starting...");
   console.log("Bot starting...");
-  if (typeof printBanner === "function") {
-    printBanner();
-  } else {
-    console.warn("printBanner is not defined, skipping banner output.");
-  }
   const runtimeEntry = process.env.NGH_RUNTIME_ENTRY || "src/index.js";
-  botProcess = spawn(process.execPath, [runtimeEntry], {
+  const nodeArgs = CHILD_MAX_OLD_SPACE_MB > 0
+    ? [`--max-old-space-size=${CHILD_MAX_OLD_SPACE_MB}`, runtimeEntry]
+    : [runtimeEntry];
+  botProcess = spawn(process.execPath, nodeArgs, {
     cwd: process.cwd(),
     stdio: "inherit",
     detached: !isWindows,

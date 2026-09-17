@@ -2,6 +2,8 @@ import path from "path";
 import { createCanvas, loadImage } from "canvas";
 import { FONT_MAIN, formatCurrency } from "../format-util.js";
 import { writeFilePromise } from "../util.js";
+import { getActiveCanvasStyle } from "./theme.js";
+import { renderCollectionStyle } from "./collection-style-renderers.js";
 
 const GAME_WIDTH = 960;
 const GAME_HEIGHT = 540;
@@ -160,7 +162,56 @@ async function drawDiceRow(ctx, dice, centerX, centerY, diceSize = 84) {
   }
 }
 
+// V2 của Tài Xỉu bám bố cục V1: hai cửa ở hai bên, xúc xắc ở giữa và
+// thanh tổng kết quả phía dưới. Chỉ thay art direction sang bàn đỏ/gold.
+async function createTaiXiuV2Image(result, taiTotal, xiuTotal, jackpotInfo) {
+  const width = 900, height = 414;
+  const canvas = createCanvas(width, height), ctx = canvas.getContext("2d");
+  const isTai = result.result === "tai";
+  const gold = "#e8c86c", red = "#ff605d", cyan = "#25c9ef";
+  const background = ctx.createLinearGradient(0, 0, width, height);
+  background.addColorStop(0, "#26090b"); background.addColorStop(.52, "#641014"); background.addColorStop(1, "#17090c");
+  ctx.fillStyle = background; ctx.fillRect(0, 0, width, height);
+  roundedRect(ctx, 16, 16, width - 32, height - 32, 24);
+  ctx.strokeStyle = "rgba(232,200,108,.58)"; ctx.lineWidth = 2; ctx.stroke();
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillStyle = gold; ctx.font = `bold 30px ${FONT_MAIN}`; ctx.fillText(jackpotInfo?.isJackpot ? "PHIÊN ĐẶC BIỆT" : "KẾT QUẢ TÀI XỈU", width / 2, 45);
+  const panel = (x, label, amount, active, color, range) => {
+    roundedRect(ctx, x, 114, 212, 177, 20); ctx.fillStyle = active ? "rgba(170,38,38,.38)" : "rgba(25,8,13,.58)"; ctx.fill();
+    ctx.strokeStyle = active ? color : "rgba(255,255,255,.14)"; ctx.lineWidth = active ? 3 : 1; ctx.stroke();
+    ctx.fillStyle = color; ctx.font = `bold 36px ${FONT_MAIN}`; ctx.fillText(label, x + 106, 151);
+    ctx.fillStyle = active ? "#ffe37c" : "rgba(255,255,255,.58)"; ctx.font = `bold 16px ${FONT_MAIN}`; ctx.fillText(active ? "• THẮNG" : range, x + 106, 198);
+    ctx.fillStyle = "#fff8ef"; ctx.font = `bold ${fitText(ctx, formatCurrency(amount, 1_000_000_000_000), 170, 24, 16)}px ${FONT_MAIN}`; ctx.fillText(formatCurrency(amount, 1_000_000_000_000), x + 106, 242);
+  };
+  panel(35, "TÀI", taiTotal, isTai, red, "11 – 17");
+  panel(653, "XỈU", xiuTotal, !isTai, cyan, "4 – 10");
+  const cx = 450, cy = 194, radius = 108;
+  ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2); ctx.fillStyle = "#e9dfc1"; ctx.fill();
+  ctx.strokeStyle = "#d1bb7c"; ctx.lineWidth = 6; ctx.stroke(); ctx.beginPath(); ctx.arc(cx, cy, radius - 12, 0, Math.PI * 2); ctx.strokeStyle = "#b9a878"; ctx.lineWidth = 2; ctx.stroke();
+  const dicePositions = [[-34, -28], [35, -12], [0, 39]];
+  for (let index = 0; index < result.dice.length; index++) {
+    const [dx, dy] = dicePositions[index] || [0, 0];
+    try {
+      const image = await loadImage(path.join(DICE_ASSET_DIR, `dice_${result.dice[index]}.png`));
+      ctx.save(); ctx.shadowColor = "rgba(0,0,0,.42)"; ctx.shadowBlur = 10; ctx.shadowOffsetY = 6;
+      ctx.drawImage(image, cx + dx - 30, cy + dy - 30, 60, 60); ctx.restore();
+    } catch { /* V1 fallback already reports missing dice assets. */ }
+  }
+  roundedRect(ctx, 35, 320, width - 70, 60, 20); ctx.fillStyle = "rgba(169,39,40,.64)"; ctx.fill(); ctx.strokeStyle = isTai ? red : cyan; ctx.lineWidth = 2; ctx.stroke();
+  ctx.textAlign = "left"; ctx.fillStyle = isTai ? red : cyan; ctx.font = `bold 29px ${FONT_MAIN}`; ctx.fillText(isTai ? "TÀI" : "XỈU", 66, 350);
+  ctx.fillStyle = "rgba(255,255,255,.48)"; ctx.font = `bold 26px ${FONT_MAIN}`; ctx.fillText("• TỔNG", 130, 350);
+  ctx.textAlign = "center"; ctx.fillStyle = "#fffdf3"; ctx.font = `bold 48px ${FONT_MAIN}`; ctx.fillText(String(result.total), 450, 350);
+  ctx.textAlign = "right"; ctx.fillStyle = "rgba(255,255,255,.45)"; ctx.font = `bold 16px ${FONT_MAIN}`; ctx.fillText("XÚC XẮC", 785, 347); ctx.fillStyle = "#fffdf3"; ctx.font = `bold 25px ${FONT_MAIN}`; ctx.fillText(result.dice.join("  "), 836, 350);
+  if (jackpotInfo?.isJackpot) { ctx.textAlign = "center"; ctx.fillStyle = gold; ctx.font = `bold 14px ${FONT_MAIN}`; ctx.fillText(`NỔ HŨ • ${formatCurrency(jackpotInfo.jackpotAmount)} VNĐ`, width / 2, 402); }
+  const filePath = path.resolve(`./assets/temp/taixiu_result_v2_${Date.now()}.png`);
+  await writeFilePromise(filePath, canvas.toBuffer()); return filePath;
+}
+
 export async function createTaiXiuResultImage(result, taiTotal, xiuTotal, jackpotInfo) {
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) {
+    return createTaiXiuV2Image(result, taiTotal, xiuTotal, jackpotInfo);
+  }
   const canvas = createCanvas(GAME_WIDTH, GAME_HEIGHT);
   const ctx = canvas.getContext("2d");
   const isTai = result.result === "tai";
@@ -216,6 +267,20 @@ export async function createTaiXiuResultImage(result, taiTotal, xiuTotal, jackpo
 }
 
 export async function createWaitingImage(remainingSeconds, taiTotal, xiuTotal) {
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) {
+    const seconds = Math.max(0, Math.ceil(Number(remainingSeconds) || 0));
+    return renderCollectionStyle(activeStyle, {
+      kicker: "MYBOT • CASINO LIVE • TÀI XỈU",
+      title: `CÒN ${String(seconds).padStart(2, "0")} GIÂY`,
+      subtitle: "Đang nhận cược • Chọn cửa của bạn",
+      footer: "TÀI: >tx tai [tiền] • XỈU: >tx xiu [tiền]",
+      items: [
+        { title: "CỬA TÀI", subtitle: "Tổng từ 11 đến 17", meta: `${formatCurrency(taiTotal)} VNĐ`, badge: "TÀI" },
+        { title: "CỬA XỈU", subtitle: "Tổng từ 4 đến 10", meta: `${formatCurrency(xiuTotal)} VNĐ`, badge: "XỈU" },
+      ],
+    }, "taixiu_waiting");
+  }
   const canvas = createCanvas(GAME_WIDTH, GAME_HEIGHT);
   const ctx = canvas.getContext("2d");
 
@@ -274,6 +339,22 @@ export async function createWaitingImage(remainingSeconds, taiTotal, xiuTotal) {
 }
 
 export async function createSoiCauImage(history, maxHistory = 20) {
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) {
+    const recent = history.slice(-maxHistory).reverse();
+    return renderCollectionStyle(activeStyle, {
+      kicker: "MYBOT • TÀI XỈU ANALYTICS",
+      title: "LỊCH SỬ SOI CẦU",
+      subtitle: `${recent.length} phiên gần nhất • Theo dõi tổng và bộ xúc xắc`,
+      footer: "Dữ liệu lịch sử chỉ mang tính tham khảo",
+      items: recent.map((entry, index) => ({
+        title: Number(entry.total) > 10 ? "TÀI" : "XỈU",
+        subtitle: `Xúc xắc ${(entry.dice || []).join(" • ")}`,
+        meta: `TỔNG ${entry.total}`,
+        badge: String(recent.length - index).padStart(2, "0"),
+      })),
+    }, "taixiu_soicau");
+  }
   const width = 800;
   const height = 600;
   const padding = 40;
@@ -630,6 +711,22 @@ function drawDicePathGraph(ctx, history, width, height, maxHistory = 20) {
 
 // Thêm hàm mới để vẽ kết quả Vietlott
 export async function createVietlott655ResultImage(mainNumbers, extraNumber, isJackpot = false) {
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) {
+    const allNumbers = [...mainNumbers, extraNumber];
+    return renderCollectionStyle(activeStyle, {
+      kicker: "MYBOT • LOTTERY LIVE",
+      title: isJackpot ? "VIETLOTT 6/55 • JACKPOT" : "KẾT QUẢ VIETLOTT 6/55",
+      subtitle: "Sáu số chính và một số đặc biệt",
+      footer: isJackpot ? "Chúc mừng kỳ quay Jackpot" : "Đối chiếu vé của bạn",
+      items: allNumbers.map((number, index) => ({
+        title: String(number).padStart(2, "0"),
+        subtitle: index === allNumbers.length - 1 ? "SỐ ĐẶC BIỆT" : `SỐ CHÍNH ${index + 1}`,
+        meta: index === allNumbers.length - 1 ? "EXTRA" : "MAIN",
+        badge: String(index + 1).padStart(2, "0"),
+      })),
+    }, "vietlott655_result");
+  }
   const width = 800;
   const height = 200;
   const canvas = createCanvas(width, height);
@@ -696,6 +793,23 @@ export async function createVietlott655ResultImage(mainNumbers, extraNumber, isJ
 
 // Thêm hàm vẽ ảnh chờ cho Vietlott
 export async function createVietlott655WaitingImage(remainingSeconds, totalPlayers, totalBets, jackpotAmount) {
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) {
+    const seconds = Math.max(0, Number(remainingSeconds) || 0);
+    const minutes = Math.floor(seconds / 60);
+    const leftSeconds = Math.floor(seconds % 60);
+    return renderCollectionStyle(activeStyle, {
+      kicker: "MYBOT • LOTTERY LIVE",
+      title: `VIETLOTT 6/55 • ${String(minutes).padStart(2, "0")}:${String(leftSeconds).padStart(2, "0")}`,
+      subtitle: "Kỳ quay đang nhận vé",
+      footer: `Jackpot hiện tại ${formatCurrency(jackpotAmount)} VNĐ`,
+      items: [
+        { title: "NGƯỜI CHƠI", subtitle: "Đã tham gia kỳ quay", meta: String(totalPlayers), badge: "USER" },
+        { title: "TỔNG VÉ", subtitle: "Vé đã được ghi nhận", meta: String(totalBets), badge: "BET" },
+        { title: "JACKPOT", subtitle: "Giá trị giải đặc biệt", meta: `${formatCurrency(jackpotAmount)} VNĐ`, badge: "VIP" },
+      ],
+    }, "vietlott655_waiting");
+  }
   const width = 600;
   const height = 300;
   const canvas = createCanvas(width, height);

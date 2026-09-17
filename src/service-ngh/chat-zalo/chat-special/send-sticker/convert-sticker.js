@@ -146,7 +146,7 @@ export async function processAndSendSticker(
       await sendMessageWarning(api, message, tempContent, false);
       return;
     } else if (metaData.duration > 60000) {
-      await sendMessageWarning(api, message, `Hà Huy Hoàng chưa cho phép thành viên tạo sticker video quá 60 giây.`, false);
+      await sendMessageWarning(api, message, `Nguyễn Gia Hưng chưa cho phép thành viên tạo sticker video quá 60 giây.`, false);
       return;
     }
   }

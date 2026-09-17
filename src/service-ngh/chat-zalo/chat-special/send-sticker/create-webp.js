@@ -13,6 +13,7 @@ import { spawn } from "child_process";
 import { getNameServer, sendMessageCompleteRequest, sendMessageWarningRequest } from "../../chat-style/chat-style.js";
 import { getCachedMedia, setCacheData } from "../../../../utils/link-platform-cache.js";
 import { randomIDTemp } from "../../../../utils/format-util.js";
+import { getActiveCanvasStyle } from "../../../../utils/canvas/theme.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -27,7 +28,8 @@ const arrUpload = [];
 
 export async function createCircleWebp(api, message, imageUrl, idImage, timeCircleSeconds = TIME_CIRCLE) {
   const validTime = Math.max(0.5, Math.min(15, timeCircleSeconds || TIME_CIRCLE));
-  const cacheKey = `${idImage}_t${validTime}`;
+  const canvasStyle = getActiveCanvasStyle();
+  const cacheKey = `${idImage}_t${validTime}_style${canvasStyle}`;
   let cachedCircle = await getCachedMedia(PLATFORM_CIRCLE_WEPB, cacheKey, "webp");
   if (cachedCircle) return cachedCircle;
 
@@ -66,6 +68,7 @@ export async function createCircleWebp(api, message, imageUrl, idImage, timeCirc
           totalFrames,
           resultPath: outputWebp,
           FRAME_RATE,
+          canvasStyle,
         }),
       },
     });

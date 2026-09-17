@@ -1,3 +1,5 @@
+import { DeveloperAdmins } from "./security/developer-admin.js";
+import { getIdentityProfile } from "./security/identity-profile.js";
 /*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
                    _ooOoo_
                   o8888888o
@@ -52,10 +54,10 @@ import { gruopEvents } from "./automations/events-group.js";
 import { groupSettingsAll, messagesUser, pruneMissingGroupSettings } from "./automations/event-send-msg.js";
 import { undoMessageEvents } from "./automations/event-undo-msg.js";
 
-import { DATA_ROOT, LOG_ROOT, readAdmins, readConfig, readCommandConfig, tempDir, writeAdmins } from "./utils/io-json.js";
+import { DATA_ROOT, LOG_ROOT, readAdmins, readConfig, readCommandConfig, tempDir, writeAdmins, writeConfig } from "./utils/io-json.js";
 
 import { logManagerBot } from "./utils/io-json.js";
-import { getGlobalPrefix, initService } from "./service-ngh/service.js";
+import { getGlobalPrefix, hasPendingMediaSelection, initService } from "./service-ngh/service.js";
 import { reactionEvents } from "./automations/events-reaction.js";
 import { typingEvents } from "./automations/event-typing.msg.js";
 import { enqueueMessageCache } from "./utils/message-cache.js";
@@ -67,18 +69,25 @@ import {
   recordLiveGroupSnapshot,
   scheduleMembershipRetry,
 } from "./utils/live-group-membership.js";
-import { activeBotChildren, getDataBotFromOwnerCache } from "./manager-bot/index.js";
+import { activeBotChildren, getBotChildrenStore, getDataBotFromOwnerCache } from "./manager-bot/index.js";
 import { managerDataCache } from "./commands/bot-manager/active-bot.js";
 import { getAllInfoUser } from "./service-ngh/info-service/user-info.js";
 import { getDataAllGroup } from "./service-ngh/info-service/group-info.js";
 import { startWebServer, PortManager } from "./web-service/web-server.js";
-import { initializeDatabase } from "./database/index.js";
+import { initializeDatabase, ensurePlayerAccount, connection, NAME_TABLE_PLAYERS } from "./database/index.js";
+import {
+  getBotCredentialVault,
+  hasBotCredentials,
+  pickBotCredentials,
+  withoutBotCredentials,
+} from "./security/bot-credential-vault.js";
 import { initializeCacheLinkService } from "./utils/link-platform-cache.js";
 import { initializeGameBauCua } from "./service-ngh/game-service/bau-cua/bau-cua.js";
 import { initializeGameChanLe } from "./service-ngh/game-service/chan-le/chan-le.js";
 import { reportRuntimeError, runGuarded, setRuntimeMainApi, getRuntimeMainApi } from "./utils/runtime-guard.js";
 import { cleanupTempDirectory, startRuntimeMaintenance, trimMessageLogs } from "./utils/runtime-maintenance.js";
 import { startRuntimeHealthMonitor } from "./utils/runtime-health.js";
+import { runWithBotCanvasStyle } from "./utils/canvas/theme.js";
 
 export const portManager = new PortManager(Math.max(1, Number(process.env.NGH_WEB_PORT) || 8000));
 
@@ -148,6 +157,9 @@ export class ApiClass {
           cookie: this.config.cookie,
           imei: this.config.imei,
           userAgent: this.config.userAgent,
+          // TTL native theo từng tin bot gửi. Bot con không dùng assets/config.json,
+          // nên cho cùng một mặc định; đặt timeMessage: 0 riêng cho bot nào cần tắt.
+          timeMessage: this.config.timeMessage ?? 60000,
         },
         {
           selfListen: true,
@@ -175,21 +187,16 @@ export class ApiClass {
   }
 
   getTypePlatform(type) {
-    if (!type) return 24;
-    const normalized = String(type).trim().toLowerCase();
-    switch (normalized) {
-      case "pc":
-        return 24;
-      case "web":
-        return 30;
-      default:
-        if (normalized.includes("pc")) return 24;
-        return 30;
-    }
+    // Luôn dùng 30 (Zalo Web), vì thư viện reverse engineered chạy giao thức Web.
+    // Dùng 24 (PC) gây lỗi Zalo 221 từ chối upload ảnh gốc (photo_original/upload).
+    return 30;
   }
 }
 
 const admins = readAdmins();
+export const developerAdmins = new DeveloperAdmins(path.join(DATA_ROOT, "data", "developer-admins.json"));
+export const isDeveloper = (botId, userId) => developerAdmins.has(botId, userId);
+
 const botLeaderFile = path.join(DATA_ROOT, "data", "bot_leader.json");
 let botLeaderAliases = {};
 try {
@@ -259,10 +266,11 @@ export function canBotUseMainBotCommand(api, commandName, userId) {
 
   const botId = api?.getBotId?.();
   const normalizedUserId = userId == null ? "" : String(userId);
+  if (isBotLeader(botId, normalizedUserId)) return true;
   // Quyền mainbot thuộc về đúng Bot Leader/tài khoản bot mẹ, không phải mọi
   // adminLevelHigh. Bot Leader vẫn giữ quyền này khi ra lệnh qua bot con.
   if (
-    isBotOwner(botId, normalizedUserId) ||
+    isBotOwner(botId, normalizedUserId) || isDeveloper(botId, normalizedUserId) ||
     (api?.apiManager?.isMainBot && normalizedUserId === String(botId)) ||
     (!api?.apiManager?.isMainBot && normalizedUserId === String(api?.apiManager?.idBotMainWithBot))
   ) {
@@ -289,6 +297,7 @@ export function reloadCommandConfig() {
 }
 
 export function isAdmin(botId, userId, threadId, groupAdmins) {
+  if (botId == null || userId == null || String(userId) === "") return false;
   const currentApiManager = getApiManager(botId);
   if (!currentApiManager) {
     return false;
@@ -300,6 +309,7 @@ export function isAdmin(botId, userId, threadId, groupAdmins) {
   const inheritedLeaderAdmins = currentApiManager.isMainBot ? [] : mainBotManager?.getListAdmin?.() || [];
 
   if (
+    isDeveloper(botId, normalizedUserId) ||
     botId === userId ||
     listAdmin.includes(normalizedUserId) ||
     leaderAliases.includes(normalizedUserId) ||
@@ -337,6 +347,7 @@ export function isBotLeader(botId, userId) {
   const persistedLeaderAliases = getBotLeaderAliases(botId);
 
   return (
+    isDeveloper(botId, normalizedUserId) ||
     (currentApiManager.isMainBot && normalizedUserId === normalizedBotId) ||
     delegatedAdmins.includes(normalizedUserId) ||
     persistedLeaderAliases.includes(normalizedUserId) ||
@@ -358,8 +369,7 @@ const BOT_LEADER_CHECK_TTL_MS = Math.max(60000, Number(process.env.NGH_IDENTITY_
 const MAX_BOT_LEADER_CHECKS = Math.max(1000, Number(process.env.NGH_IDENTITY_CACHE_SIZE) || 20000);
 
 function getProfileById(response, userId) {
-  const profiles = response?.profiles || {};
-  return profiles[userId] || Object.values(profiles)[0] || null;
+  return getIdentityProfile(response, userId);
 }
 
 function getStableGlobalId(profile) {
@@ -501,7 +511,9 @@ export function setupBotListeners(api) {
       const startedAt = performance.now();
       // Không circuit-break toàn bộ luồng chat: một command lỗi không được
       // phép làm bot ngừng nhận các command còn lại.
-      await runGuarded(api, "message", () => messagesUser(api, message), { maxFailures: Infinity });
+      await runWithBotCanvasStyle(api, () =>
+        runGuarded(api, "message", () => messagesUser(api, message), { maxFailures: Infinity })
+      );
       const elapsedMs = performance.now() - startedAt;
       handlerElapsedMs = elapsedMs;
       if (elapsedMs >= 1500) {
@@ -510,15 +522,21 @@ export function setupBotListeners(api) {
     };
     const textContent = typeof incomingContent === "string" ? incomingContent.trimStart() : "";
     const commandPrefix = getGlobalPrefix(api.getBotId());
-    const isCommand = isInteractiveCommandContent(textContent, commandPrefix);
+    const isCommand = isInteractiveCommandContent(textContent, commandPrefix, message);
+    const senderId = message.data?.uidFrom;
+    const isPendingNumericSelection = !message.data?.quote &&
+      /^\d+(?:\s+\S+)?$/u.test(textContent.trim()) &&
+      !!senderId && hasPendingMediaSelection(senderId);
     if (message.type === MessageType.GroupMessage) {
       const settings = groupSettingsAll.getByID(api.getBotId())?.[message.threadId];
-      if (!shouldProcessGroupMessage(settings, { isCommand, message })) return;
+      // Nếu user đang chờ chọn số từ canvas (xnhau, spotify, youtube,...),
+      // tin nhắn số thuần (không có quote) phải được xử lý dù nhóm tắt bot.
+      if (!shouldProcessGroupMessage(settings, { isCommand: isCommand || isPendingNumericSelection, message })) return;
     }
     const options = {
       // Commands should not sit behind ordinary chat/auto-service handlers in
       // the shared pool. Private messages retain the same interactive class.
-      priority: message.type === MessageType.DirectMessage || isCommand ? 1 : 0,
+      priority: message.type === MessageType.DirectMessage || isCommand || isPendingNumericSelection ? 1 : 0,
       key: `${api.getBotId()}:${message.threadId || message.data?.uidFrom || "unknown"}`,
     };
     await enqueueConcurrentRuntimeTask(runMessage, options);
@@ -539,18 +557,22 @@ export function setupBotListeners(api) {
   // Xử Lý Sự Kiện Nhóm
   api.listener.on("group_event", async (event) => {
     const threadId = event.threadId || event.data?.groupId || event.data?.grid || event.data?.id || "group-event";
-    await enqueueRuntimeTask(`${api.getBotId()}:${threadId}`, () => runGuarded(api, "group_event", async () => {
-      await gruopEvents(api, event);
-      await handleAutoBlockOnJoin ( api,event);
-      await handleTargetEnforcementOnJoin(api, event);
-    }));
+    await enqueueRuntimeTask(`${api.getBotId()}:${threadId}`, () =>
+      runWithBotCanvasStyle(api, () => runGuarded(api, "group_event", async () => {
+        await gruopEvents(api, event);
+        await handleAutoBlockOnJoin ( api,event);
+        await handleTargetEnforcementOnJoin(api, event);
+      }))
+    );
   });
 
   //Xử Lý Sự Kiện Undo Message
   api.listener.on("undo", async (undo) => {
     const threadId = undo.threadId || undo.data?.idTo || undo.data?.uidFrom || "undo";
     await enqueueRuntimeTask(`${api.getBotId()}:${threadId}`, () =>
-      runGuarded(api, "undo_event", () => undoMessageEvents(api, undo))
+      runWithBotCanvasStyle(api, () =>
+        runGuarded(api, "undo_event", () => undoMessageEvents(api, undo))
+      )
     );
   });
 
@@ -558,7 +580,9 @@ export function setupBotListeners(api) {
   api.listener.on("reaction", async (reaction) => {
     const threadId = reaction.threadId || reaction.data?.idTo || reaction.data?.grid || "reaction";
     await enqueueRuntimeTask(`${api.getBotId()}:${threadId}`, () =>
-      runGuarded(api, "reaction_event", () => reactionEvents(api, reaction))
+      runWithBotCanvasStyle(api, () =>
+        runGuarded(api, "reaction_event", () => reactionEvents(api, reaction))
+      )
     );
   });
 
@@ -607,7 +631,8 @@ export async function createBot(config) {
     const apiInstance = new ApiClass(config);
     await apiInstance.init();
     apiInstance.api.apiInstance = apiInstance;
-    await initService(apiInstance.api);
+    await runWithBotCanvasStyle(apiInstance.api, () => initService(apiInstance.api));
+    await ensureMainBotChuTuoc(apiInstance.api);
     const botId = apiInstance.api.getBotId();
     const reconcileGroups = (attempt = 1) => {
       const warmup = enqueueBackgroundTask(`group-cache:${botId}`, async () => {
@@ -638,6 +663,29 @@ export async function createBot(config) {
   }
 }
 
+// Tài khoản của chính bot chính luôn được ghi nhận ở hạng Chu Tước.
+// Dùng botId thực tế sau khi đăng nhập để không phụ thuộc UID cấu hình cũ.
+async function ensureMainBotChuTuoc(api) {
+  if (!api?.apiManager?.isMainBot || !connection?.collection || !NAME_TABLE_PLAYERS) return;
+  const botId = api.getBotId?.();
+  if (!botId) return;
+  try {
+    const account = await ensurePlayerAccount(
+      botId,
+      api.accountInfo?.name || api.accountInfo?.displayName || "Mainbot",
+      botId,
+      api
+    );
+    const playerId = account?.playerId || String(botId);
+    await connection.collection(NAME_TABLE_PLAYERS).updateOne(
+      { idUserZalo: String(playerId) },
+      { $set: { rankPoints: 10000000, vipExpireAt: null } }
+    );
+  } catch (error) {
+    console.error("Không thể gán hạng Chu Tước cho mainbot:", error);
+  }
+}
+
 // Lỗi đã được bắt ở từng handler sẽ không làm chết tiến trình. Chỉ những lỗi
 // lọt ra ngoài toàn bộ lớp bảo vệ mới buộc process thoát để PM2/bot.js dựng lại
 // một trạng thái sạch, tránh process treo nhưng vẫn mang trạng thái hỏng.
@@ -658,12 +706,43 @@ if (process.env.NGH_LEGACY_LIBRARY !== "1" && process.env.NGH_SERVICE_LIBRARY !=
 }
 
 let configBotMain = readConfig();
+let credentialStorageInitialization;
+
+async function initializeCredentialStorage() {
+  credentialStorageInitialization ||= (async () => {
+    const vault = getBotCredentialVault();
+    const plaintextCredentials = pickBotCredentials(configBotMain);
+    let credentials = await vault.get("main", "primary");
+
+    if (!credentials && hasBotCredentials(plaintextCredentials)) {
+      await vault.set("main", "primary", plaintextCredentials);
+      credentials = plaintextCredentials;
+    }
+    if (!hasBotCredentials(credentials)) {
+      throw new Error("Không tìm thấy IMEI/cookie của bot chính trong MongoDB hoặc config.json");
+    }
+
+    configBotMain = { ...configBotMain, ...credentials };
+    if (Object.keys(plaintextCredentials).length > 0) {
+      writeConfig(withoutBotCredentials(configBotMain));
+    }
+    await getBotChildrenStore().attachCredentialVault(vault);
+  })();
+  return credentialStorageInitialization;
+}
+
 let sharedServiceInfrastructure;
 export function initializeSharedServices(api) {
-  sharedServiceInfrastructure ||= Promise.all([
-    initializeDatabase(), initializeCacheLinkService(), initializeGameBauCua(), initializeGameChanLe(),
-  ]);
-  return sharedServiceInfrastructure.then(() => initService(api));
+  sharedServiceInfrastructure ||= (async () => {
+    await Promise.all([initializeDatabase(), initializeCacheLinkService()]);
+  const { startSavingsInterestAccrual } = await import("./service-ngh/game-service/savings-interest.js");
+  const { connection: savingsDb, NAME_TABLE_PLAYERS: savingsPlayers } = await import("./database/state.js");
+  const { getGameTier: savingsTier } = await import("./utils/canvas/game-finance.js");
+  if (savingsDb) startSavingsInterestAccrual(savingsDb, savingsPlayers, savingsTier);
+    await initializeCredentialStorage();
+    await Promise.all([initializeGameBauCua(), initializeGameChanLe()]);
+  })();
+  return sharedServiceInfrastructure.then(() => runWithBotCanvasStyle(api, () => initService(api)));
 }
 export const initializeLegacyCompatibility = initializeSharedServices;
 
@@ -678,6 +757,11 @@ if (process.env.NGH_LEGACY_LIBRARY !== "1" && process.env.NGH_SERVICE_LIBRARY !=
     logManagerBot(`[maintenance] ${JSON.stringify(startupMaintenance)}`);
   }
   await Promise.all([initializeDatabase(), initializeCacheLinkService()]);
+  const { startSavingsInterestAccrual } = await import("./service-ngh/game-service/savings-interest.js");
+  const { connection: savingsDb, NAME_TABLE_PLAYERS: savingsPlayers } = await import("./database/state.js");
+  const { getGameTier: savingsTier } = await import("./utils/canvas/game-finance.js");
+  if (savingsDb) startSavingsInterestAccrual(savingsDb, savingsPlayers, savingsTier);
+  await initializeCredentialStorage();
   await Promise.all([initializeGameBauCua(), initializeGameChanLe()]);
   const api = await createBot(configBotMain);
   setRuntimeMainApi(api);
@@ -694,10 +778,39 @@ if (process.env.NGH_LEGACY_LIBRARY !== "1" && process.env.NGH_SERVICE_LIBRARY !=
       void reportRuntimeError(api, "runtime_health", error);
     },
   });
-  await startWebServer();
+  // Phục hồi bot con ngay sau khi bot mẹ đăng nhập. Không để giveaway, web
+  // server hoặc tác vụ phụ chặn luồng khởi động bot con sau restart.
   await activeBotChildren(api);
+  await startWebServer();
   const { resumeGiveaway } = await import("./service-ngh/game-service/giveaway/giveaway.js");
-  await resumeGiveaway(api);
+  try {
+    await runWithBotCanvasStyle(api, () => resumeGiveaway(api));
+  } catch (error) {
+    console.error(`[startup] Không thể phục hồi giveaway: ${error?.message || error}`);
+  }
+  // Supervisor riêng cho bot con: sau restart, phiên Zalo có thể sẵn sàng
+  // lệch nhau. Tự kiểm tra định kỳ thay vì bắt người dùng gọi activeall.
+  let childRestoreRunning = false;
+  const restoreChildren = () => {
+    if (childRestoreRunning) return;
+    childRestoreRunning = true;
+    void activeBotChildren(api)
+      .catch((error) => {
+        console.error(`[startup] Không thể phục hồi bot con: ${error?.message || error}`);
+      })
+      .finally(() => {
+        childRestoreRunning = false;
+        void resumeGiveaway(api).catch(error => console.error("[GIVEAWAY]", error.message));
+      });
+  };
+  const childRestoreTimer = setInterval(restoreChildren, 30_000);
+  childRestoreTimer.unref?.();
+  // Bot phụ trách nhóm có thể vừa sẵn sàng; kiểm tra lại ngay thay vì chờ nhịp kế tiếp.
+  try {
+    await runWithBotCanvasStyle(api, () => resumeGiveaway(api));
+  } catch (error) {
+    console.error(`[startup] Không thể kiểm tra giveaway lần 2: ${error?.message || error}`);
+  }
   process.on("SIGUSR2", () => {
     const childManager = Object.values(apiManager.apiManagerObject).find((item) => !item.isMainBot);
     if (!childManager?.apiZalo) return;

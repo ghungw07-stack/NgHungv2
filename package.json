@@ -7,9 +7,14 @@
   "main": "src/api-zalo/index.js",
   "type": "module",
   "scripts": {
-    "start": "node src/index.js",
-    "start:legacy": "node src/index.js",
-    "bot": "node bot.js",
+    "start": "node --env-file-if-exists=.env --env-file-if-exists=.env.credentials --env-file-if-exists=.env.scavio bot.js",
+    "start:legacy": "node --env-file-if-exists=.env --env-file-if-exists=.env.credentials --env-file-if-exists=.env.scavio src/index.js",
+    "bot": "node --env-file-if-exists=.env --env-file-if-exists=.env.credentials --env-file-if-exists=.env.scavio bot.js",
+    "start:v2": "node --env-file-if-exists=.env --env-file-if-exists=.env.credentials --env-file-if-exists=.env.scavio v2/src/main.ts",
+    "check:v2": "tsc -p v2/tsconfig.json",
+    "test:v2": "node --test v2/test/*.test.ts",
+    "credentials:migrate": "node --env-file-if-exists=.env --env-file-if-exists=.env.credentials scripts/migrate-bot-credentials.mjs",
+    "sendtask:prune-videos": "node scripts/prune-sendtask-videos.mjs",
     "test": "node --test test/*.test.js"
   },
   "author": "NGH",
@@ -27,6 +32,7 @@
     "canvas": "^3.2.3",
     "chalk": "^5.4.1",
     "cheerio": "^1.1.2",
+    "chess.js": "^1.4.0",
     "cloudmersive-convert-api-client": "^2.8.0",
     "crypto": "^1.0.1",
     "crypto-js": "^4.2.0",
@@ -85,5 +91,9 @@
   "exports": {
     ".": "./src/api-zalo/index.js"
   },
-  "keywords": []
+  "keywords": [],
+  "devDependencies": {
+    "@types/node": "^26.5.1",
+    "typescript": "^7.0.2"
+  }
 }

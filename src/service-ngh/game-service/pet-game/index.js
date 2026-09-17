@@ -4,6 +4,8 @@ import fsp from "fs/promises";
 import path from "path";
 import { getGlobalPrefix } from "../../service.js";
 import { clearImagePath } from "../../../utils/canvas/index.js";
+import { getActiveCanvasStyle } from "../../../utils/canvas/theme.js";
+import { renderPortraitStyle } from "../../../utils/canvas/portrait-style-renderers.js";
 
 const SPECIES = {
   meo: { name: "Mèo", icon: "🐱", color: "#f1ad58" },
@@ -77,7 +79,15 @@ function drawPet(ctx, pet, cx, cy) {
 }
 
 async function renderProfile(pet, ownerName) {
-  const W = 920, H = 1120, canvas = createCanvas(W, H), ctx = canvas.getContext("2d"), state = mood(pet), spec = SPECIES[pet.species];
+  const style = getActiveCanvasStyle();
+  const state = mood(pet), spec = SPECIES[pet.species];
+  if (style !== 1) return renderPortraitStyle(style, {
+    kind: "profile", kicker: "MYBOT • PET CARE", title: `${spec.icon} ${pet.name}`,
+    names: [ownerName], primaryLabel: "TRẠNG THÁI", primaryValue: state.text,
+    secondaryLabel: "CẤP ĐỘ", secondaryValue: `Lv.${pet.level} • 🪙 ${pet.coins}`,
+    body: `Đói ${pet.hunger}% · Vui ${pet.happy}% · Sạch ${pet.clean}% · Năng lượng ${pet.energy}% · Sức khỏe ${pet.health}%`, footer: "MYBOT • NUÔI THÚ",
+  }, "pet-profile");
+  const W = 920, H = 1120, canvas = createCanvas(W, H), ctx = canvas.getContext("2d");
   const bg = ctx.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, "#82c9e8"); bg.addColorStop(.55, "#d9f0e5"); bg.addColorStop(1, "#f7dfb4"); ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = "rgba(255,255,255,.28)"; for (const [x,y,r] of [[120,120,60],[770,145,85],[650,360,48]]) { ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2);ctx.fill(); }
   ctx.fillStyle = "#7fb36b"; ctx.beginPath(); ctx.ellipse(460, 660, 510, 180, 0, 0, Math.PI * 2); ctx.fill();

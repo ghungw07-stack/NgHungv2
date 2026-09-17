@@ -17,6 +17,8 @@ import { DATA_STICKER_FILE_PATH, tempDir } from "../../../../utils/io-json.js";
 import { deleteFile, downloadFile, getFileTypeRemote, readFilePromise, writeFileSync } from "../../../../utils/util.js";
 import { getVideoMetadata } from "../../../../api-zalo/utils.js";
 import { handleSpamStickerCommand, handleStopSpamCommand, handleSetDelayCommand } from "./spam-sticker.js";
+import { getActiveCanvasStyle } from "../../../../utils/canvas/theme.js";
+import { renderCollectionStyle } from "../../../../utils/canvas/collection-style-renderers.js";
 
 class StickerManager {
   constructor() {
@@ -231,6 +233,33 @@ async function drawStickerList(categoryId) {
   try {
     const category = dataSticker.data[categoryId];
     if (!category || !category.stickers || !category.stickers.length) return null;
+
+    const activeStyle = getActiveCanvasStyle();
+    if (activeStyle !== 1) {
+      const stickers = category.stickers.slice(0, 16);
+      const images = await Promise.all(stickers.map(async (sticker) => {
+        for (const url of [sticker.stickerUrl, sticker.stickerSpriteUrl].filter(Boolean)) {
+          try {
+            const response = await axios.get(url, { responseType: "arraybuffer", timeout: 5000 });
+            return await loadImage(Buffer.from(response.data));
+          } catch {}
+        }
+        return null;
+      }));
+      return renderCollectionStyle(activeStyle, {
+        kicker: "MYBOT • STICKER LIBRARY",
+        title: category.name || `GÓI STICKER ${categoryId}`,
+        subtitle: `${category.stickers.length} sticker • Chọn theo ID`,
+        footer: "Gửi ID sticker để sử dụng",
+        items: stickers.map((sticker, index) => ({
+          title: `STICKER ${sticker.id}`,
+          subtitle: category.name || "Zalo Sticker",
+          meta: `ID ${sticker.id}`,
+          image: images[index],
+          badge: String(index + 1).padStart(2, "0"),
+        })),
+      }, "sticker_list");
+    }
 
     const STICKER_SIZE = 130; // Kích thước mỗi sticker
     const PADDING = 10; // Khoảng cách giữa các sticker

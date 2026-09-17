@@ -1,3 +1,4 @@
+import { getGameMentionUid } from "../../../utils/game-mentions.js";
 import { updatePlayerBalance, getPlayerBalance, addGameRankPoints } from "../../../database/player.js";
 import { isHaveLoginAccount, nameServer } from "../../../database/index.js";
 import { checkBeforeJoinGame, checkPlayerBanned } from "../index.js";
@@ -105,7 +106,13 @@ export async function handleKBBCommand(api, message, groupSettings) {
   const netWinnings = winnings.minus(betAmount);
 
   // Cập nhật số dư
-  await updatePlayerBalance(senderId, netWinnings, result === "win");
+  await updatePlayerBalance(senderId, netWinnings, result === "win", result === "win" ? netWinnings : 0, {
+    gameName: "Kéo Búa Bao",
+    gameKey: "keobuabao",
+    choice: playerChoice,
+    betAmount: betAmount.toNumber(),
+    detail: `Bot: ${botChoice} (${result === "win" ? "Thắng" : result === "lose" ? "Thua" : "Hòa"})`,
+  });
   await addGameRankPoints(senderId, { won: result === "win" });
 
   // Format tin nhắn kết quả
@@ -129,7 +136,7 @@ export async function handleKBBCommand(api, message, groupSettings) {
     await api.sendMessage(
       {
         msg: resultMessage,
-        mentions: [{ pos: 2, uid: senderId, len: message.data.dName.length }],
+        mentions: [{ pos: 2, uid: getGameMentionUid(message), len: message.data.dName.length }],
         attachments: [imagePath],
         isUseProphylactic: true,
         ttl: TTL_IMAGE,
@@ -149,7 +156,7 @@ export async function handleKBBCommand(api, message, groupSettings) {
     await api.sendMessage(
       {
         msg: resultMessage,
-        mentions: [{ pos: 2, uid: senderId, len: message.data.dName.length }],
+        mentions: [{ pos: 2, uid: getGameMentionUid(message), len: message.data.dName.length }],
       },
       threadId,
       message.type
@@ -170,14 +177,14 @@ function normalizeChoice(choice) {
 function randomChoice(playerChoice) {
   const rand = Math.random() * 100;
   
-  if (rand < 45) {
-    // 45% thua - trả về lựa chọn thắng playerChoice
+  if (rand < 80) {
+    // 80% thua - trả về lựa chọn thắng playerChoice
     return Object.values(CHOICES).find(choice => choice.beats === playerChoice.key);
-  } else if (rand < 70) {
-    // 25% hòa - trả về cùng lựa chọn với player
+  } else if (rand < 90) {
+    // 10% hòa - trả về cùng lựa chọn với player
     return playerChoice;
   } else {
-    // 30% thắng - trả về lựa chọn thua playerChoice
+    // 10% thắng - trả về lựa chọn thua playerChoice
     return Object.values(CHOICES).find(choice => playerChoice.beats === choice.key);
   }
 }

@@ -3,6 +3,8 @@ import path from "path";
 import { createCanvas, loadImage } from "canvas";
 import GIFEncoder from "gifencoder";
 import { tempDir } from "../io-json.js";
+import { getActiveCanvasStyle } from "./theme.js";
+import { renderCollectionStyle } from "./collection-style-renderers.js";
 import { FONT_MAIN, randomIDTemp } from "../format-util.js";
 
 const WIDTH = 760;
@@ -120,6 +122,24 @@ async function loadAvatars(players) {
 }
 
 export async function createHorseRaceLobbyImage({ hostName, betLabel, players, maxPlayers = 8 }) {
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) {
+    return renderCollectionStyle(activeStyle, {
+      kicker: "MYBOT • HORSE RACING CLUB",
+      title: "PHÒNG ĐUA NGỰA",
+      subtitle: `Chủ phòng ${hostName} • ${players.length}/${maxPlayers} tay đua`,
+      footer: `Cược ${betLabel} VNĐ/người • Thả tim vào ảnh để ghi danh`,
+      items: Array.from({ length: maxPlayers }, (_, index) => {
+        const player = players[index];
+        return {
+          title: player?.name || "VỊ TRÍ TRỐNG",
+          subtitle: player ? `Tay đua số ${index + 1}` : "Đang chờ ghi danh",
+          meta: player ? "ĐÃ VÀO PHÒNG" : "TRỐNG",
+          badge: String(index + 1).padStart(2, "0"),
+        };
+      }),
+    }, "horse_lobby");
+  }
   const width = 900;
   const columns = 2;
   const rows = Math.ceil(maxPlayers / columns);
@@ -219,6 +239,15 @@ export async function createHorseRaceGif(players) {
   const encoder = new GIFEncoder(WIDTH, height);
   const output = fs.createWriteStream(outputPath);
   const avatars = await loadAvatars(players);
+  const activeStyle = getActiveCanvasStyle();
+  const racePalettes = {
+    1: { top: "#102A43", bottom: "#1F3B54", header: "#071827", laneA: "#315C45", laneB: "#294E3B", accent: "#93C5FD", text: "#F8FAFC" },
+    2: { top: "#f1f5f3", bottom: "#f1f5f3", header: "#ffffff", laneA: "#e0f0e9", laneB: "#ffffff", accent: "#087f68", text: "#183b35" },
+    3: { top: "#E8D9B8", bottom: "#C8AA70", header: "#2B241B", laneA: "#907B50", laneB: "#766642", accent: "#D6B56C", text: "#FFFAF0" },
+    4: { top: "#FFF1F2", bottom: "#FECDD3", header: "#111827", laneA: "#F9A8B8", laneB: "#FBC5D0", accent: "#FB7185", text: "#FFFFFF" },
+    5: { top: "#29135F", bottom: "#0D5961", header: "rgba(15,23,42,.82)", laneA: "#315478", laneB: "#3E4774", accent: "#5EEAD4", text: "#F8FAFC" },
+  };
+  const racePalette = racePalettes[activeStyle] || racePalettes[1];
   const finishOrder = shuffleIndexes(players.length);
   const rankByPlayer = new Map(finishOrder.map((playerIndex, rank) => [playerIndex, rank]));
   const finishFrames = finishOrder.map((_, rank) => 28 + rank * 2);
@@ -235,26 +264,26 @@ export async function createHorseRaceGif(players) {
 
   for (let frame = 0; frame < TOTAL_FRAMES; frame += 1) {
     const sky = ctx.createLinearGradient(0, 0, 0, height);
-    sky.addColorStop(0, "#102A43");
-    sky.addColorStop(1, "#1F3B54");
+    sky.addColorStop(0, racePalette.top);
+    sky.addColorStop(1, racePalette.bottom);
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, WIDTH, height);
 
-    ctx.fillStyle = "#071827";
+    ctx.fillStyle = racePalette.header;
     ctx.fillRect(0, 0, WIDTH, HEADER_HEIGHT);
-    ctx.fillStyle = "#F8FAFC";
+    ctx.fillStyle = racePalette.text;
     ctx.font = `bold 28px ${FONT_MAIN}`;
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
-    ctx.fillText("🏇 ĐƯỜNG ĐUA", 24, 34);
-    ctx.fillStyle = "#93C5FD";
+    ctx.fillText(activeStyle === 3 ? "THE ROYAL RACE" : activeStyle === 4 ? "SAKURA DERBY" : activeStyle === 5 ? "AURORA RACE" : "🏇 ĐƯỜNG ĐUA", 24, 34);
+    ctx.fillStyle = racePalette.accent;
     ctx.font = `bold 14px ${FONT_MAIN}`;
     ctx.fillText(`${players.length} tay đua • GIF mô phỏng trực tiếp`, 26, 65);
 
     for (let index = 0; index < players.length; index += 1) {
       const laneTop = HEADER_HEIGHT + index * LANE_HEIGHT;
       const laneCenter = laneTop + LANE_HEIGHT / 2;
-      ctx.fillStyle = index % 2 === 0 ? "#315C45" : "#294E3B";
+      ctx.fillStyle = index % 2 === 0 ? racePalette.laneA : racePalette.laneB;
       ctx.fillRect(0, laneTop, WIDTH, LANE_HEIGHT);
       ctx.strokeStyle = "rgba(255,255,255,0.24)";
       ctx.setLineDash([10, 8]);

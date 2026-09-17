@@ -2,13 +2,11 @@ import { MongoClient } from "mongodb";
 import Big from "big.js";
 import chalk from "chalk";
 import path from "path";
-import { claimDailyReward, getMyCard } from "./player.js";
-import { getTopPlayers } from "./jdbc.js";
 import { readFilePromise } from "../utils/util.js";
 import { JSON_DATA_PATH } from "../utils/io-json.js";
-import { initializeBotStyles } from "../utils/bot-style.js";
 import { initializeBotLanguages } from "../utils/bot-language.js";
 import { configureDatabaseState } from "./state.js";
+import { initializeBotCredentialVault } from "../security/bot-credential-vault.js";
 
 // Mặc định tất cả bot dùng chung một MongoDB. Chỉ tách khi chủ động đổi
 // `database`/`uri` trong database-config.json.
@@ -213,6 +211,7 @@ export async function initializeDatabase() {
     });
     await mongoClient.connect();
     const db = mongoClient.db(databaseName);
+    await initializeBotCredentialVault(db);
     const databaseConnection = new MongoConnection(db, playersTable, accountTable);
     configureDatabaseState({
       serverName: config.nameServer,
@@ -222,7 +221,7 @@ export async function initializeDatabase() {
       databaseConnection,
     });
 
-    await Promise.all([initializeBotStyles(db), initializeBotLanguages(db)]);
+    await initializeBotLanguages(db);
 
     await Promise.all([
       db.collection(playersTable).createIndex({ username: 1 }, { unique: true }),
@@ -241,6 +240,10 @@ export async function initializeDatabase() {
       db.collection("game_transactions").createIndex({ referenceCode: 1 }, { unique: true }),
       db.collection("game_transactions").createIndex({ senderId: 1, createdAt: -1 }),
       db.collection("game_transactions").createIndex({ receiverId: 1, createdAt: -1 }),
+      db.collection("game_history").createIndex({ playerId: 1, createdAt: -1 }),
+      db.collection("game_history").createIndex({ idUserZalo: 1, createdAt: -1 }),
+      db.collection("game_history").createIndex({ username: 1, createdAt: -1 }),
+      db.collection("game_history").createIndex({ createdAt: -1 }),
     ]);
     console.log(chalk.green(`✓ Khởi tạo MongoDB thành công (${databaseName})`));
       return;

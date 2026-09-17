@@ -10,8 +10,10 @@ import { handleHungReaction } from "../commands/send-all/hung-reaction.js";
 import { handleXiDachReaction } from "../service-ngh/game-service/xi-dach/xi-dach.js";
 import { handleWerewolfReaction } from "../service-ngh/game-service/ma-soi/index.js";
 import { handleHorseRaceReaction } from "../service-ngh/game-service/dua-ngua/dua-ngua.js";
+import { handleCarRaceReaction } from "../service-ngh/game-service/dua-xe/dua-xe.js";
 import { handleCardTableReaction } from "../service-ngh/game-service/card-tables/card-tables.js";
 import { handleGiveawayReaction } from "../service-ngh/game-service/giveaway/giveaway.js";
+import { handleTuTienReaction } from "../service-ngh/game-service/tu-tien/index.js";
 import { isUserBlocked } from "../commands/bot-manager/group-manage.js";
 //Xử Lý Sự Kiện Reaction
 export async function reactionEvents(api, reaction) {
@@ -32,8 +34,10 @@ export async function reactionEvents(api, reaction) {
     handleXiDachReaction(api, reaction),
     handleWerewolfReaction(api, reaction),
     handleHorseRaceReaction(api, reaction),
+    handleCarRaceReaction(api, reaction),
     handleCardTableReaction(api, reaction),
     handleGiveawayReaction(api, reaction),
+    handleTuTienReaction(api, reaction),
   ]);
   // Xóa tự động chạy sau các handler game để không tranh chấp tin nhắn game.
   await handleHeartReactionDelete(api, reaction);

@@ -1,5 +1,5 @@
 import { MultiMsgStyle, MessageStyle } from "../../api-zalo/index.js";
-import { getCommandConfig, getManagerCommandCustomConfig, isAdmin, reloadCommandConfig } from "../../index.js";
+import { getCommandConfig, getGlobalApi, getManagerCommandCustomConfig, isAdmin, reloadCommandConfig } from "../../index.js";
 import * as cv from "../../utils/canvas/index.js";
 import { checkBeforeJoinGame, checkPlayerBanned } from "../../service-ngh/game-service/index.js";
 import { getGlobalPrefix } from "../../service-ngh/service.js";
@@ -437,6 +437,41 @@ export async function gameInfoCommand(api, message, groupSettings) {
         description: "Nhận phần thưởng hàng ngày",
         icon: "🔖",
       },
+      trocap: {
+        command: `${prefix}game trocap`,
+        description: "Trợ cấp 21% Daily theo quyền lợi hạng",
+        icon: "🤝",
+      },
+      cuutro: {
+        command: `${prefix}game cuutro`,
+        description: "Cứu trợ phá sản cho hạng Vàng trở lên",
+        icon: "🛟",
+      },
+      hoantra: {
+        command: `${prefix}game hoantra`,
+        description: "Nhận 5% tiền hoàn trả đã tích lũy khi thua",
+        icon: "♻️",
+      },
+      hoivien: {
+        command: `${prefix}game hoivien nhan`,
+        description: "Nhận ngẫu nhiên 1–500 tỷ trong khung 19h hằng ngày",
+        icon: "🎖️",
+      },
+      lixi: {
+        command: `${prefix}game lixi`,
+        description: "Tự chọn người nhận lì xì mỗi giờ",
+        icon: "🧧",
+      },
+      quy: {
+        command: `${prefix}game quy`,
+        description: "Xem quỹ trích 5% tiền thắng để phát lì xì",
+        icon: "👹",
+      },
+      nganhang: {
+        command: `${prefix}game nganhang`,
+        description: "Sổ tiết kiệm theo hạng: gửi, rút và xem lịch sử",
+        icon: "🏦",
+      },
       giveaway: {
         command: `${prefix}game giveaway`,
         description: "Tham gia Giveaway đang mở trong nhóm",
@@ -454,18 +489,33 @@ export async function gameInfoCommand(api, message, groupSettings) {
       },
       tier: {
         command: `${prefix}game tier [@tag]`,
-        description: "Xem hạng và tổng tiền đã nạp",
+        description: `Xem hạng và tổng tiền đã nạp; Leader: ${prefix}game tier xoa @user`,
         icon: "🛡️",
       },
       donate: {
         command: `${prefix}game donate`,
-        description: "Lấy mã QR donate và tự động nhận hạng thành viên VIP trong 30 ngày",
+        description: `Lấy mã QR donate; Leader: ${prefix}game donate add 100k @user | ${prefix}game donate xoa @user`,
         icon: "🎖️",
+      },
+      xoatier: {
+        command: `${prefix}game xoatier [@tag]`,
+        description: `Xoá toàn bộ tier (hoặc trừ điểm: ${prefix}game xoatier 100k @user)`,
+        icon: "🗑️",
       },
       nongtrai: {
         command: `${prefix}game nongtrai`,
         description: "Chơi trò chơi Nông Trại",
         icon: "🎲",
+      },
+      cuoptien: {
+        command: `${prefix}game cuoptien <@người|random>`,
+        description: "Cướp mục tiêu chỉ định/ngẫu nhiên hoặc mua khiên bảo vệ",
+        icon: "🥷",
+      },
+      daga: {
+        command: `${prefix}daga <do|xanh|hoa> <tiền>`,
+        description: "Đá Gà hoạt hình — cược Gà Đỏ, Gà Xanh hoặc Hòa",
+        icon: "🐓",
       },
       taixiu: {
         command: `${prefix}game taixiu`,
@@ -492,9 +542,39 @@ export async function gameInfoCommand(api, message, groupSettings) {
         description: "Chơi trò chơi Chẵn Lẻ",
         icon: "🎲",
       },
+      thap: {
+        command: `${prefix}thap <tiền> [de/vua/kho]`,
+        description: "Tháp Tiền — leo 8 tầng; chọn ô an toàn hoặc rút thưởng",
+        icon: "🏰",
+      },
+      maybay: {
+        command: `${prefix}maybay <tiền> [mốc tự rút]`,
+        description: "Máy Bay Crash — ví dụ maybay 20k 2 tự rút ở 2x; báo hệ số mỗi 10 giây",
+        icon: "✈️",
+      },
+      sut: {
+        command: `${prefix}sut <tiền> <ô 1-9>`,
+        description: "Sút Penalty 11m — chọn ô/điểm sút, xem kết quả GIF",
+        icon: "⚽",
+      },
+      quyetchien: {
+        command: `${prefix}quyetchien <tiền>`,
+        description: "Quyết Chiến Tiền Thưởng — slot cao bồi 5×3, WILD và SCATTER",
+        icon: "🤠",
+      },
+      vongquay: {
+        command: `${prefix}vongquay <tiền>`,
+        description: "Vòng Quay May Mắn — nhân tiền cược lên đến x50",
+        icon: "🎯",
+      },
       baucua: {
         command: `${prefix}game baucua`,
         description: "Chơi trò chơi Bầu Cua",
+        icon: "🎲",
+      },
+      xocdia: {
+        command: `${prefix}game xocdia <cửa> <tiền>`,
+        description: "Xóc Đĩa — cược chẵn/lẻ, tài/xỉu hoặc các cửa màu",
         icon: "🎲",
       },
       keobuabao: {
@@ -517,6 +597,7 @@ export async function gameInfoCommand(api, message, groupSettings) {
       zaclwarrior: { command: `${prefix}game zaclwarrior`, description: "ZACL Warrior nhập vai", icon: "⚔️" },
       masoi: { command: `${prefix}game masoi`, description: "Ma Sói nhiều người", icon: "🐺" },
       duangua: { command: `${prefix}duangua`, description: "Đua ngựa nhiều người", icon: "🏇" },
+      duaxe: { command: `${prefix}duaxe`, description: "Đua xe cược tiền, 5% quỹ lì xì", icon: "🏎️" },
       vietlott655: { command: `${prefix}game vietlott655`, description: "Dự đoán Vietlott 6/55", icon: "🎟️" },
       bank: {
         command: `${prefix}game bank [số tiền] [@người nhận]`,
@@ -524,8 +605,8 @@ export async function gameInfoCommand(api, message, groupSettings) {
         icon: "💰",
       },
       saoke: {
-        command: `${prefix}game saoke`,
-        description: "Xem lịch sử chuyển và nhận tiền",
+        command: `${prefix}game saoke [@user]`,
+        description: "Xem lịch sử thắng thua game",
         icon: "🧾",
       },
     },
@@ -603,6 +684,12 @@ export async function listCommands(api, message, args) {
   const threadId = message.threadId;
   const prefix = getGlobalPrefix(api.getBotId());
   const commandConfig = getCommandConfig();
+  const getDisplayDescription = (cmd) => {
+    if (cmd.name !== "mybot") return cmd.description;
+    const mainBot = getGlobalApi();
+    const mainBotName = mainBot?.accountInfo?.name || mainBot?.accountInfo?.displayName || "mainbot";
+    return `Quản lý danh sách bot con của ${mainBotName}`;
+  };
 
   const command = args[0]?.toLowerCase();
   const subCommand = args[1]?.toLowerCase();
@@ -739,7 +826,7 @@ export async function listCommands(api, message, args) {
         commandsToShow.forEach((cmd, index) => {
           const linePrefix = `${index + 1 + startIndex}. `;
           const startPos = responseMsg.length + linePrefix.length;
-          responseMsg += `${linePrefix}${cmd.name}: ${cmd.description}\n`;
+          responseMsg += `${linePrefix}${cmd.name}: ${getDisplayDescription(cmd)}\n`;
           positions.push({ pos: startPos, len: cmd.name.length });
         });
 
@@ -822,7 +909,7 @@ export async function listCommands(api, message, args) {
       commandsToShow.forEach((cmd, index) => {
         const linePrefix = `${index + 1 + startIndex}. `;
         const startPos = responseMsg.length + linePrefix.length;
-        responseMsg += `${linePrefix}${cmd.name}: ${cmd.description}\n`;
+          responseMsg += `${linePrefix}${cmd.name}: ${getDisplayDescription(cmd)}\n`;
         positions.push({ pos: startPos, len: cmd.name.length });
       });
 

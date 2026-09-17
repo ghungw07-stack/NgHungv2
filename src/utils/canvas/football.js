@@ -3,6 +3,8 @@ import fs from "fs";
 import path from "path";
 import { FONT_MAIN, randomIDTemp } from "../format-util.js";
 import { tempDir } from "../io-json.js";
+import { getActiveCanvasStyle } from "./theme.js";
+import { renderCollectionStyle } from "./collection-style-renderers.js";
 
 function save(canvas) {
   if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
@@ -16,6 +18,21 @@ function save(canvas) {
 }
 
 export async function createFootballScheduleImage({ dateLabel, events = [] }) {
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) {
+    return renderCollectionStyle(activeStyle, {
+      kicker: "MYBOT • FOOTBALL FIXTURES",
+      title: `LỊCH BÓNG ĐÁ • ${dateLabel || "HÔM NAY"}`,
+      subtitle: events.length ? "Lịch thi đấu và trạng thái mới nhất" : "Không có trận đấu trong ngày này",
+      footer: "Nguồn dữ liệu ESPN scoreboard",
+      items: events.map((event, index) => ({
+        title: `${event.home}  vs  ${event.away}`,
+        subtitle: event.league || "Football",
+        meta: event.status || event.time || "TBD",
+        badge: String(index + 1).padStart(2, "0"),
+      })),
+    }, "football");
+  }
   const width = 1280;
   const rowH = 112;
   const height = 190 + Math.max(1, events.length) * rowH + 80;

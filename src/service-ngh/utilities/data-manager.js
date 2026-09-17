@@ -8,7 +8,7 @@ import FormData from 'form-data';
 import { MessageSendType } from "../../api-zalo/models/Message.js";
 import { removeMention } from "../../utils/format-util.js";
 import { deleteFile, downloadAndSaveVideo, uploadToUguu } from "../../utils/util.js";
-/* Author:HA HUY HOANG
+/* Author:NGUYỄN GIA HƯNG
 Date:2025-08-15
 Description:file này dùng để quản lý dữ liệu */
 const BASE_DATA_PATH = path.resolve(process.cwd(), "src", "service-ngh","chat-zalo", "chat-special", "data-send");

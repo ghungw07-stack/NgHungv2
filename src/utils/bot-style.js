@@ -1,13 +1,20 @@
-import { readSettingConfig } from "./io-json.js";
+import fs from "node:fs";
+import path from "node:path";
 
-const VALID_STYLES = new Set(["v2"]);
-const DEFAULT_STYLE = "v2";
+function readLegacyStyles() {
+  const dataRoot = process.env.NGH_DATA_ROOT || path.resolve("assets");
+  try { return JSON.parse(fs.readFileSync(path.join(dataRoot, "json-data/setting-config.json"), "utf8")).BOT_STYLE; }
+  catch { return null; }
+}
+
+const VALID_STYLES = new Set(["v1", "v2"]);
+const DEFAULT_STYLE = "v1";
 const stylesByBotId = new Map();
 let stylesCollection = null;
 
 const normalizeBotId = (botId) => botId == null ? "" : String(botId).trim();
 const normalizeStyle = (style) => {
-  const normalized = String(style || "").toLowerCase();
+  const normalized = String(style || "").trim().toLowerCase();
   return VALID_STYLES.has(normalized) ? normalized : null;
 };
 
@@ -19,10 +26,10 @@ export async function initializeBotStyles(db) {
   stylesCollection = db.collection("bot_styles");
   await stylesCollection.createIndex({ botId: 1 }, { unique: true });
 
-  const legacyStyles = readSettingConfig().BOT_STYLE;
+  const legacyStyles = readLegacyStyles();
   if (legacyStyles && typeof legacyStyles === "object" && !Array.isArray(legacyStyles)) {
     const migrations = Object.entries(legacyStyles)
-      .map(([botId]) => ({ botId: normalizeBotId(botId), style: DEFAULT_STYLE }))
+      .map(([botId, style]) => ({ botId: normalizeBotId(botId), style: normalizeStyle(style) }))
       .filter((item) => item.botId && item.style)
       .map(({ botId, style }) => stylesCollection.updateOne(
         { botId },
@@ -40,12 +47,7 @@ export async function initializeBotStyles(db) {
     if (botId && style) stylesByBotId.set(botId, style);
   }
 
-  // V1 đã bị loại bỏ: đưa toàn bộ cấu hình cũ về V2 để database không còn
-  // giữ một lựa chọn mà giao diện và canvas không hỗ trợ nữa.
-  await stylesCollection.updateMany(
-    { style: { $ne: DEFAULT_STYLE } },
-    { $set: { style: DEFAULT_STYLE, updatedAt: new Date() } }
-  );
+
 }
 
 export function getBotStyle(botId) {

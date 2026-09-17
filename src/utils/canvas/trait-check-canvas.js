@@ -3,6 +3,8 @@ import fs from "fs";
 import path from "path";
 import { roundRect } from "./shape.js";
 import { getFontCanvas } from "../format-util.js";
+import { getActiveCanvasStyle } from "./theme.js";
+import { renderPortraitStyle } from "./portrait-style-renderers.js";
 
 function isValidUrl(value) {
   try {
@@ -65,10 +67,29 @@ function genderLabel(value) {
 }
 
 export async function createTraitCheckImage(userInfo, traitLabel, percent, comment) {
-  const width = 900, height = 570;
-  const canvas = createCanvas(width, height), ctx = canvas.getContext("2d");
   const name = String(userInfo?.name || "Người dùng").slice(0, 25);
   const avatar = await loadAvatarSafe(userInfo?.avatar, name[0]?.toUpperCase());
+  const style = getActiveCanvasStyle();
+  if (style !== 1) {
+    const gender = genderLabel(userInfo?.gender);
+    const birthday = userInfo?.birthday && userInfo.birthday !== "Ẩn" ? userInfo.birthday : "Ẩn ngày sinh";
+    return renderPortraitStyle(style, {
+      kind: "trait",
+      kicker: "MYBOT • AI PERSONALITY LAB",
+      title: `ĐỘ ${String(traitLabel).toUpperCase()}`,
+      names: [name],
+      avatars: [avatar],
+      primaryLabel: "CHỈ SỐ PHÂN TÍCH",
+      primaryValue: `${percent}%`,
+      secondaryLabel: "HỒ SƠ",
+      secondaryValue: `${gender} • ${birthday}`,
+      body: comment,
+      footer: "Kết quả ngẫu nhiên chỉ mang tính giải trí",
+    }, "traitcard");
+  }
+
+  const width = 900, height = 570;
+  const canvas = createCanvas(width, height), ctx = canvas.getContext("2d");
   const accent = percent >= 70 ? "#ff647c" : percent >= 35 ? "#ffb45b" : "#55d6be";
 
   const bg = ctx.createLinearGradient(0, 0, width, height);

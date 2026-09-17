@@ -1,6 +1,7 @@
 import { MultiMsgStyle, MessageStyle, MessageType } from "../../../api-zalo/index.js";
 import { nameServer } from "../../../database/index.js";
 import { getLocalImageInfo, uploadTempFile } from "../../../utils/util.js";
+import { getGameMentionUid } from "../../../utils/game-mentions.js";
 
 // Upload ảnh trực tiếp lên Zalo Cloud (giống cách voice/video đang làm),
 // thay vì đẩy qua host ngoài (tmpfiles/uguu/litterbox) dễ bị lỗi link chết.
@@ -191,7 +192,7 @@ export async function sendMessageInsufficientAuthority(api, message, caption, ha
 export async function sendMessageQuery(api, message, caption, hasState = true) {
   try {
     const senderName = message.data.dName;
-    const senderId = message.data.uidFrom;
+    const senderId = getGameMentionUid(message);
     const threadId = message.threadId;
     const isGroup = message.type === MessageType.GroupMessage;
     const iconState = "\n❓❓❓";
@@ -224,10 +225,27 @@ export async function sendMessageQuery(api, message, caption, hasState = true) {
   }
 }
 
-export async function sendMessageWarning(api, message, caption, hasState = true, ttl) {
+// Split the body so the highlighted name never overlaps its surrounding style.
+function styleBodyWithName(bodyText, offset, textStyle, highlightedName) {
+  const start = highlightedName ? bodyText.indexOf(highlightedName) : -1;
+  const makeStyle = (pos, len, highlight = false) => MessageStyle(
+    offset + pos, len, highlight ? COLOR_GREEN : textStyle.color,
+    textStyle.size, highlight || textStyle.bold, textStyle.italic,
+    textStyle.underline, textStyle.strike
+  );
+  if (start < 0) return [makeStyle(0, bodyText.length)];
+  const end = start + highlightedName.length;
+  return [
+    ...(start > 0 ? [makeStyle(0, start)] : []),
+    makeStyle(start, highlightedName.length, true),
+    ...(end < bodyText.length ? [makeStyle(end, bodyText.length - end)] : []),
+  ];
+}
+
+export async function sendMessageWarning(api, message, caption, hasState = true, ttl, highlightedName = "") {
   try {
     const senderName = message.data.dName;
-    const senderId = message.data.uidFrom;
+    const senderId = getGameMentionUid(message);
     const threadId = message.threadId;
     const isGroup = message.type === MessageType.GroupMessage;
     const iconState = "\n🚨🚨🚨";
@@ -239,7 +257,7 @@ export async function sendMessageWarning(api, message, caption, hasState = true,
     const bodyText = `\n${caption}${hasState ? iconState : ""}`;
     const style = MultiMsgStyle([
       MessageStyle(nameOffset, nameServer.length, serverStyle.color, serverStyle.size, serverStyle.bold, serverStyle.italic, serverStyle.underline, serverStyle.strike),
-      MessageStyle(nameOffset + nameServer.length, bodyText.length, textStyle.color, textStyle.size, textStyle.bold, textStyle.italic, textStyle.underline, textStyle.strike),
+      ...styleBodyWithName(bodyText, nameOffset + nameServer.length, textStyle, highlightedName),
     ]);
 
     let msg = `${isGroup ? senderName + "\n" : ""}${nameServer}` + bodyText;
@@ -260,10 +278,10 @@ export async function sendMessageWarning(api, message, caption, hasState = true,
   }
 }
 
-export async function sendMessageComplete(api, message, caption, hasState = true, ttl = 180000) {
+export async function sendMessageComplete(api, message, caption, hasState = true, ttl = 180000, highlightedName = "") {
   try {
     const senderName = message.data.dName;
-    const senderId = message.data.uidFrom;
+    const senderId = getGameMentionUid(message);
     const threadId = message.threadId;
     const isGroup = message.type === MessageType.GroupMessage;
     const iconState = "\n✅✅✅";
@@ -275,7 +293,7 @@ export async function sendMessageComplete(api, message, caption, hasState = true
     const bodyText = `\n${caption}${hasState ? iconState : ""}`;
     const style = MultiMsgStyle([
       MessageStyle(nameOffset, nameServer.length, serverStyle.color, serverStyle.size, serverStyle.bold, serverStyle.italic, serverStyle.underline, serverStyle.strike),
-      MessageStyle(nameOffset + nameServer.length, bodyText.length, textStyle.color, textStyle.size, textStyle.bold, textStyle.italic, textStyle.underline, textStyle.strike),
+      ...styleBodyWithName(bodyText, nameOffset + nameServer.length, textStyle, highlightedName),
     ]);
 
     let msg = `${isGroup ? senderName + "\n" : ""}${nameServer}` + bodyText;
@@ -299,7 +317,7 @@ export async function sendMessageComplete(api, message, caption, hasState = true
 export async function sendMessageFailed(api, message, caption, hasState = true, ttl = 180000) {
   try {
     const senderName = message.data.dName;
-    const senderId = message.data.uidFrom;
+    const senderId = getGameMentionUid(message);
     const threadId = message.threadId;
     const isGroup = message.type === MessageType.GroupMessage;
     const iconState = "\n❌❌❌";
@@ -335,7 +353,7 @@ export async function sendMessageFailed(api, message, caption, hasState = true, 
 export async function sendMessageStateQuote(api, message, caption, state, ttl = 0, onState = true) {
   try {
     const senderName = message.data.dName;
-    const senderId = message.data.uidFrom;
+    const senderId = getGameMentionUid(message);
     const threadId = message.threadId;
     const iconState = state ? "✅✅✅" : "❌❌❌";
     const nameServer = getNameServer(api);
@@ -369,7 +387,7 @@ export async function sendMessageStateQuote(api, message, caption, state, ttl = 
 export async function sendMessageStateNotQuote(api, message, caption, state, ttl = 0, onState = true) {
   try {
     const senderName = message.data.dName;
-    const senderId = message.data.uidFrom;
+    const senderId = getGameMentionUid(message);
     const threadId = message.threadId;
     const iconState = state ? "✅✅✅" : "❌❌❌";
     const nameServer = getNameServer(api);
@@ -493,8 +511,8 @@ export async function sendMessageResultRequest(
 export async function sendMessageFromSQL(api, message, result, hasState = true, ttl = 0, mentionSender = true) {
   try {
     const threadId = message.threadId;
-    const senderId = message.data.gameUid || message.data.uidFrom;
-    const senderName = message.data.dName;
+    const senderId = getGameMentionUid(message);
+    const senderName = message.data.dName || "Người chơi";
     const isGroup = message.type === MessageType.GroupMessage;
     const nameServer = getNameServer(api);
     const serverStyle = getServerStyle(api);
@@ -512,9 +530,13 @@ export async function sendMessageFromSQL(api, message, result, hasState = true, 
     ]);
 
     let msg = `${isGroup ? senderName + "\n" : ""}${nameServer}` + bodyText;
+    const mentions = isGroup ? [
+      ...(mentionSender ? [{ pos: 0, uid: senderId, len: senderName.length }] : []),
+      ...(result.mentions || []).map((mention) => ({ ...mention, pos: mention.pos + nameOffset + nameServer.length + 1 })),
+    ] : [];
     const payload = {
       msg: msg,
-      ...(mentionSender ? { mentions: [{ pos: 0, uid: senderId, len: senderName.length }] } : {}),
+      mentions,
       style: style,
       quote: message,
       linkOn: false,
@@ -523,10 +545,9 @@ export async function sendMessageFromSQL(api, message, result, hasState = true, 
     try {
       return await api.sendMessage(payload, threadId, message.type);
     } catch (error) {
-      // Một số bot con trả code 114 khi quote/mention message nhận từ bot chính.
-      // Gửi lại dạng text thuần để lệnh game vẫn luôn có phản hồi.
-      console.error("sendMessageFromSQL payload lỗi, thử gửi text thuần:", error?.message || error);
-      return await api.sendMessage({ msg, ttl }, threadId, message.type);
+      // Quote từ bot khác có thể bị từ chối; vẫn giữ tag khi gửi lại.
+      console.error("sendMessageFromSQL payload lỗi, thử gửi không quote:", error?.message || error);
+      return await api.sendMessage({ msg, mentions, ttl, linkOn: false }, threadId, message.type);
     }
   } catch (error) {
     console.log(error);
@@ -566,8 +587,8 @@ export async function sendMessageImageNotQuote(
 export async function sendMessageFromSQLImage(api, message, result, hasState = true, waitingImagePath) {
   try {
     const threadId = message.threadId;
-    const senderId = message.data.uidFrom;
-    const senderName = message.data.dName;
+    const senderId = getGameMentionUid(message);
+    const senderName = message.data.dName || "Người chơi";
     const isGroup = message.type === MessageType.GroupMessage;
     const nameServer = getNameServer(api);
     const serverStyle = getServerStyle(api);
@@ -603,7 +624,7 @@ export async function sendMessageFromSQLImage(api, message, result, hasState = t
 
 export async function sendMessageWarningRequest(api, message, objectData, ttl = 0) {
   const threadId = message.threadId;
-  const senderId = message.data.uidFrom;
+  const senderId = getGameMentionUid(message);
   const senderName = message.data.dName;
   const isGroup = message.type === MessageType.GroupMessage;
 
@@ -629,7 +650,7 @@ export async function sendMessageWarningRequest(api, message, objectData, ttl = 
 
 export async function sendMessageProcessingRequest(api, message, objectData, ttl = 0) {
   const threadId = message.threadId;
-  const senderId = message.data.uidFrom;
+  const senderId = getGameMentionUid(message);
   const senderName = message.data.dName;
   const isGroup = message.type === MessageType.GroupMessage;
 
@@ -655,7 +676,7 @@ export async function sendMessageProcessingRequest(api, message, objectData, ttl
 
 export async function sendMessageCompleteRequest(api, message, objectData, ttl = 0) {
   const threadId = message.threadId;
-  const senderId = message.data.uidFrom;
+  const senderId = getGameMentionUid(message);
   const senderName = message.data.dName;
   const isGroup = message.type === MessageType.GroupMessage;
 
@@ -754,7 +775,7 @@ export async function sendMessageInChunks(api, message, replyText, TIME_TO_LIVE)
 
 export async function sendMessageTag(api, message, objectData, ttl = 0) {
   const threadId = message.threadId;
-  const senderId = message.data.uidFrom;
+  const senderId = getGameMentionUid(message);
   const senderName = message.data.dName;
   const isGroup = message.type === MessageType.GroupMessage;
 
@@ -789,7 +810,7 @@ export async function sendMessageTag(api, message, objectData, ttl = 0) {
 }
 
 export async function sendMessageImageTag(api, message, objectData, ttl = 0) {
-  const senderId = message.data.uidFrom;
+  const senderId = getGameMentionUid(message);
   const senderName = message.data.dName;
   const isGroup = message.type === MessageType.GroupMessage;
 

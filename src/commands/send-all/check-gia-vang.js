@@ -7,6 +7,8 @@ import { removeMention } from "../../utils/format-util.js";
 import { getGlobalPrefix } from "../../service-ngh/service.js";
 import { deleteFile } from "../../utils/util.js";
 import { parseGoldPriceHtml } from "../../utils/market-price-parser.js";
+import { getActiveCanvasStyle } from "../../utils/canvas/theme.js";
+import { renderCollectionStyle } from "../../utils/canvas/collection-style-renderers.js";
 
 const GOLD_TYPES = {
   sjc:  { name: "Vàng SJC", keywords: ["sjc"] },
@@ -58,6 +60,14 @@ function formatPrice(value) {
 }
 
 export async function createGoldImage(goldTypeName, prices, updatedAt = new Date()) {
+  const style = getActiveCanvasStyle();
+  if (style !== 1) return renderCollectionStyle(style, {
+    kicker: "THỊ TRƯỜNG • VIỆT NAM",
+    title: `BẢNG GIÁ ${goldTypeName}`,
+    subtitle: `Cập nhật ${updatedAt.toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}`,
+    footer: "Giá theo niêm yết của nguồn • Chỉ mang tính tham khảo",
+    items: prices.slice(0, 16).map((price, index) => ({ badge: String(index + 1).padStart(2, "0"), title: price.name, subtitle: `Mua vào: ${formatPrice(price.buy)}`, meta: `Bán: ${formatPrice(price.sell)}` })),
+  }, "gold");
   const canvasWidth = 1200;
   const rowH = 74;
   const heroH = 218;

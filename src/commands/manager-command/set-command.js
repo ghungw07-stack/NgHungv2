@@ -45,6 +45,11 @@ export async function handleSetCommandActive(api, message, commandParts) {
   const isBotLeader = isMainBot && isAdmin(botId, senderId);
   const isAdminLevelHigh = isAdmin(botId, senderId);
 
+  if (!isAdminLevelHigh) {
+    await sendMessageWarning(api, message, "Chỉ quản trị viên cấp cao của bot mới được cấu hình lệnh");
+    return;
+  }
+
   if (commandParts.length < 3) {
     await api.sendMessage(
       {
@@ -200,7 +205,7 @@ export async function handleSetCommandActive(api, message, commandParts) {
         return;
       }
 
-      const permissionLevel = parseInt(commandParts[3]);
+      const permissionLevel = Number(commandParts[3]);
       const newPermissionObj = permissionMap[permissionLevel];
 
       if (!newPermissionObj) {
@@ -266,8 +271,8 @@ export async function handleSetCommandActive(api, message, commandParts) {
         return;
       }
 
-      const newCountdown = parseInt(commandParts[3]);
-      if (isNaN(newCountdown) || newCountdown < 0) {
+      const newCountdown = Number(commandParts[3]);
+      if (!Number.isSafeInteger(newCountdown) || newCountdown < 0) {
         await api.sendMessage(
           {
             msg: "❌ Thời gian countdown phải là số nguyên dương",
@@ -309,15 +314,14 @@ export async function handleSetCommandActive(api, message, commandParts) {
           await sendMessageComplete(api, message, tmpCaption, false, TIME_HOUR_24);
         } else {
           customerCommand.activegroup.push(threadId);
-          writeCommandConfig(getManagerCommandConfig(botId));
+          writeCommandConfig(commandConfig);
           const tmpCaption = `Lệnh "${cmdName}" đã được mở cho tất cả thành viên trong nhóm sử dụng`;
           await sendMessageComplete(api, message, tmpCaption, true, TIME_HOUR_24);
         }
-        writeCommandConfig(commandConfig);
       } else if (action === "offgr") {
         if (customerCommand.activegroup.includes(threadId)) {
           customerCommand.activegroup = customerCommand.activegroup.filter((id) => id !== threadId);
-          writeCommandConfig(getManagerCommandConfig(botId));
+          writeCommandConfig(commandConfig);
           const tmpCaption = `Lệnh "${cmdName}" đã được tắt, thành viên trong nhóm sẽ không thể sử dụng lệnh này nếu không đủ quyền hạn`;
           await sendMessageComplete(api, message, tmpCaption, true, TIME_HOUR_24);
         } else {

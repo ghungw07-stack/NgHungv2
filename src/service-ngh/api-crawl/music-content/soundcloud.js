@@ -18,6 +18,7 @@ import { createSearchResultImage } from "../../../utils/canvas/search-canvas.js"
 import { getApiKeys, setApiKeysMedia } from "../../../utils/api-key-manager.js";
 import { asyncTaskManager } from "../../../utils/async-task.js";
 import { createCircleWebp } from "../../chat-zalo/chat-special/send-sticker/create-webp.js";
+import { withZaloRequestPriority } from "../../../api-zalo/utils.js";
 
 let clientId;
 
@@ -119,7 +120,7 @@ async function getMusicInfo(question, limit) {
   }
 }
 
-async function getMusicStreamUrl(link) {
+async function getMusicStreamUrl(link, preferProgressive = false) {
   try {
     const headers = getHeaders();
     const apiUrl = `https://api-v2.soundcloud.com/resolve?url=${link}&client_id=${clientId}`;
@@ -133,9 +134,10 @@ async function getMusicStreamUrl(link) {
       (item) => item.format?.protocol === "hls" && item.format?.mime_type?.includes("mp4a")
     ) || transcodings.find((item) => item.format?.protocol === "hls");
 
-    // Ưu tiên HLS AAC để có thể ghép/copy trực tiếp, không phải mã hóa lại toàn
-    // bộ MP3 bằng FFmpeg. Progressive MP3 vẫn là đường dự phòng nếu HLS lỗi.
-    for (const transcoding of [hls, progressive].filter(Boolean)) {
+    // Long HLS tracks can require hundreds of segment requests. Progressive
+    // lets ffmpeg download and encode them in one request.
+    const candidates = preferProgressive ? [progressive, hls] : [hls, progressive];
+    for (const transcoding of candidates.filter(Boolean)) {
       try {
         const streamResponse = await axios.get(transcoding.url, {
           params: {
@@ -170,7 +172,11 @@ const musicSelectionsMap = new LRUCache({
   ttl: TIME_TO_SELECT,
 });
 
-export async function handleMusicCommand(api, message, aliasCommand) {
+export function handleMusicCommand(api, message, aliasCommand) {
+  return withZaloRequestPriority(() => handleMusicCommandPriority(api, message, aliasCommand));
+}
+
+async function handleMusicCommandPriority(api, message, aliasCommand) {
   let imagePath = null;
   try {
     if (!clientId) clientId = await getClientId();
@@ -281,7 +287,11 @@ export async function handleMusicCommand(api, message, aliasCommand) {
   }
 }
 
-export async function handleMusicReply(api, message, isAdminLevelHighest) {
+export function handleMusicReply(api, message, isAdminLevelHighest) {
+  return withZaloRequestPriority(() => handleMusicReplyPriority(api, message, isAdminLevelHighest));
+}
+
+async function handleMusicReplyPriority(api, message, isAdminLevelHighest) {
   const senderId = message.data.uidFrom;
   const idBot = api.getBotId();
   let track;
@@ -348,9 +358,13 @@ export async function handleMusicReply(api, message, isAdminLevelHighest) {
   }
 }
 
-export async function handleSendTrackSoundCloud(api, message, track) {
+export function handleSendTrackSoundCloud(api, message, track) {
+  return withZaloRequestPriority(() => handleSendTrackSoundCloudPriority(api, message, track));
+}
+
+async function handleSendTrackSoundCloudPriority(api, message, track) {
   const startedAt = performance.now();
-  const streamData = await getMusicStreamUrl(track.permalink_url);
+  const streamData = await getMusicStreamUrl(track.permalink_url, Number(track.duration || 0) >= 60 * 60 * 1000);
   if (!streamData) {
     const object = {
       caption: `Xin lỗi, không thể lấy được bài hát này về. Vui lòng thử lại bài khác.`,

@@ -6,6 +6,7 @@ import { getGlobalPrefix } from "../service-ngh/service.js";
 import { getMessageByThreadAndMsgId } from "../utils/message-cache.js";
 import { getGroupInfoData } from "../service-ngh/info-service/group-info.js";
 import { getGroupAdmins } from "../service-ngh/info-service/group-info.js";
+import { isAdmin } from "../index.js";
 
 export async function handleHeartReactionDelete(api, reaction) {
   try {
@@ -22,6 +23,15 @@ export async function handleHeartReactionDelete(api, reaction) {
       return false;
     }
 
+    const botId = api.getBotId();
+    const threadId = reaction.threadId || reaction.data?.idTo;
+    const reactorId = reaction.data?.uidFrom || reaction.senderId;
+
+    // Chỉ admin bot mới được dùng reaction like để yêu cầu bot xóa tin nhắn.
+    if (!isAdmin(botId, reactorId, threadId)) {
+      return false;
+    }
+
     const rMsg = reaction.data?.content?.rMsg?.[0];
     if (!rMsg) return false;
 
@@ -30,8 +40,6 @@ export async function handleHeartReactionDelete(api, reaction) {
 
     if (!globalMsgId || !cliMsgId) return false;
 
-    const botId = api.getBotId();
-    const threadId = reaction.threadId;
     const foundMsg = await getMessageByThreadAndMsgId(botId, threadId, globalMsgId);
 
 

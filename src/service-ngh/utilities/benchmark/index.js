@@ -8,6 +8,8 @@ import * as cv from "../../../utils/canvas/index.js";
 import { loadImageBuffer, deleteFile } from "../../../utils/util.js";
 import { FONT_MAIN } from "../../../utils/format-util.js";
 import { searchGoogleImages } from "../../api-crawl/google/google-image.js";
+import { getActiveCanvasStyle } from "../../../utils/canvas/theme.js";
+import { renderCollectionStyle } from "../../../utils/canvas/collection-style-renderers.js";
 import {
   sendMessageCompleteRequest,
   sendMessageFromSQL,
@@ -215,6 +217,17 @@ export async function handleBenchmarkCommand(api, message) {
  * Tạo ảnh kết quả benchmark với canvas
  */
 export async function createBenchmarkImage(result) {
+  const style = getActiveCanvasStyle();
+  if (style !== 1) return renderCollectionStyle(style, {
+    kicker: "SYSTEM • CPU BENCHMARK", title: "KẾT QUẢ BENCHMARK CPU", subtitle: result.cpuModel,
+    footer: "Điểm đo tại thời điểm chạy • Dành tài nguyên cho tiến trình bot",
+    items: [
+      ["CPU CORES", result.cpuCores, "Số lõi hiện có"], ["CPU SPEED", `${result.cpuSpeedMHz} MHz`, "Xung nhịp trung bình"],
+      ["CPU LOAD", `${result.cpuUsagePercent}%`, "Công suất lúc test"], ["SINGLE THREAD", `${result.single.ops.toLocaleString("vi-VN")} ops`, "Hiệu năng đơn luồng"],
+      ["MULTI THREAD", `${result.multi.ops.toLocaleString("vi-VN")} ops`, "Hiệu năng đa luồng"], ["EFFECTIVE", result.effectiveCores.toFixed(2), "Số lõi hiệu quả ước tính"],
+      ["DURATION", `${result.single.durationMs} ms`, "Thời gian đo"],
+    ].map(([title, meta, subtitle], index) => ({ badge: String(index + 1).padStart(2, "0"), title, subtitle, meta })),
+  }, "benchmark");
   const width = 1000;
   const height = 430;
   const canvas = createCanvas(width, height);

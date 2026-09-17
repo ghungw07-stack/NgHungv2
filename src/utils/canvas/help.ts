@@ -3,6 +3,9 @@ import fs from "fs";
 import path from "path";
 import { FONT_MAIN, FONT_MENU, FONT_MENU_SORA, randomIDTemp } from "../format-util.js";
 import { tempDir } from "../io-json.js";
+import { getActiveCanvasStyle } from "./theme.js";
+import { renderCollectionStyle } from "./collection-style-renderers.js";
+import { renderMenuStyle } from "./menu-style-renderers.js";
 
 // Helper function to calculate optimal dimensions
 function calculateOptimalDimensions(helpContent, isAdminBox) {
@@ -219,8 +222,144 @@ function saveMenuCanvas(canvas) {
   });
 }
 
+/** Game help dạng dashboard: chia nhóm rõ ràng, ưu tiên khả năng đọc trên điện thoại. */
+async function createGameHelpMenuCanvas(helpContent, isAdminBox) {
+  const memberCommands = Object.entries(helpContent.allMembers || {}).map(([key, item]) => ({ key, ...item }));
+  const adminCommands = isAdminBox
+    ? Object.entries(helpContent.admin || {}).map(([key, item]) => ({ key, ...item }))
+    : [];
+  const profiles = new Set(["daily", "giveaway", "mycard", "rank", "tier", "donenat", "donate"]);
+  const banking = new Set(["bank", "saoke"]);
+  const adventure = new Set([
+    "doanso", "noitu", "doantu", "vuatiengviet", "duoihinhbatchu", "ailatrieuphu",
+    "cauca", "caro", "covua", "cotuong", "nuoithu", "tutien", "zaclwarrior", "masoi",
+  ]);
+  const groups = [
+    { title: "HỒ SƠ & PHẦN THƯỞNG", accent: "#5DE1FF", icon: "01", items: memberCommands.filter((item) => profiles.has(item.key)) },
+    { title: "CASINO & GIẢI TRÍ", accent: "#A98BFF", icon: "02", items: memberCommands.filter((item) => !profiles.has(item.key) && !banking.has(item.key) && !adventure.has(item.key)) },
+    { title: "MINI GAME & NHẬP VAI", accent: "#52E6A7", icon: "03", items: memberCommands.filter((item) => adventure.has(item.key)) },
+    { title: "NGÂN HÀNG GAME", accent: "#FFC857", icon: "04", items: memberCommands.filter((item) => banking.has(item.key)) },
+  ].filter((group) => group.items.length);
+  if (adminCommands.length) groups.push({ title: "DÀNH CHO QUẢN TRỊ VIÊN", accent: "#FF8A65", icon: "AD", items: adminCommands });
+
+  const width = 1800;
+  const columns = 3;
+  const outer = 58;
+  const gapX = 22;
+  const gapY = 18;
+  const headerHeight = 244;
+  const groupHeaderHeight = 70;
+  const cardHeight = 146;
+  const groupGap = 30;
+  const footerHeight = 106;
+  const contentHeight = groups.reduce((sum, group) =>
+    sum + groupHeaderHeight + Math.ceil(group.items.length / columns) * (cardHeight + gapY) + groupGap, 0);
+  const height = headerHeight + contentHeight + footerHeight;
+  const canvas = createCanvas(width, height);
+  const ctx = canvas.getContext("2d");
+
+  const base = ctx.createLinearGradient(0, 0, width, height);
+  base.addColorStop(0, "#081426");
+  base.addColorStop(0.5, "#0B1930");
+  base.addColorStop(1, "#07101F");
+  ctx.fillStyle = base;
+  ctx.fillRect(0, 0, width, height);
+  try {
+    const background = await loadMenuBackgroundImage();
+    ctx.save();
+    ctx.globalAlpha = 0.16;
+    drawImageCover(ctx, background, 0, 0, width, height);
+    ctx.restore();
+    ctx.fillStyle = "rgba(4, 12, 25, .72)";
+    ctx.fillRect(0, 0, width, height);
+  } catch (_) {}
+
+  const glow = ctx.createRadialGradient(width * 0.5, 0, 20, width * 0.5, 0, width * 0.62);
+  glow.addColorStop(0, "rgba(65, 190, 255, .20)");
+  glow.addColorStop(1, "rgba(65, 190, 255, 0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, width, 620);
+
+  drawRoundedBox(ctx, 24, 24, width - 48, height - 48, 34, null, "rgba(115, 201, 255, .28)", 2);
+
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#FFFFFF";
+  ctx.font = `800 68px ${FONT_MENU_SORA || FONT_MENU}`;
+  ctx.fillText("GAME CENTER", width / 2, 96);
+  ctx.fillStyle = "#8EDCFF";
+  ctx.font = `700 25px ${FONT_MENU}`;
+  ctx.fillText("SỔ TAY LỆNH • CHỌN GAME VÀ BẮT ĐẦU NGAY", width / 2, 140);
+  ctx.fillStyle = "#9FB2C8";
+  ctx.font = `500 21px ${FONT_MENU}`;
+  ctx.fillText(`${memberCommands.length} lệnh người chơi${adminCommands.length ? `  •  ${adminCommands.length} lệnh quản trị` : ""}`, width / 2, 180);
+  drawRoundedBox(ctx, width / 2 - 92, 199, 184, 8, 4, "#55CFFF");
+
+  const cardWidth = (width - outer * 2 - gapX * (columns - 1)) / columns;
+  let y = headerHeight;
+  let commandNumber = 1;
+  for (const group of groups) {
+    drawRoundedBox(ctx, outer, y + 8, 48, 48, 14, `${group.accent}20`, `${group.accent}90`, 2);
+    ctx.textAlign = "center";
+    ctx.fillStyle = group.accent;
+    ctx.font = `800 17px ${FONT_MENU}`;
+    ctx.fillText(group.icon, outer + 24, y + 39);
+    ctx.textAlign = "left";
+    ctx.fillStyle = "#F3F8FF";
+    ctx.font = `800 25px ${FONT_MENU}`;
+    ctx.fillText(group.title, outer + 66, y + 39);
+    ctx.fillStyle = "#70849B";
+    ctx.font = `600 18px ${FONT_MENU}`;
+    ctx.fillText(`${group.items.length} LỆNH`, width - outer - 76, y + 39);
+    ctx.fillStyle = `${group.accent}70`;
+    ctx.fillRect(outer, y + 66, width - outer * 2, 2);
+    y += groupHeaderHeight;
+
+    group.items.forEach((command, index) => {
+      const col = index % columns;
+      const row = Math.floor(index / columns);
+      const x = outer + col * (cardWidth + gapX);
+      const cardY = y + row * (cardHeight + gapY);
+      drawRoundedBox(ctx, x, cardY, cardWidth, cardHeight, 20, "rgba(16, 32, 55, .94)", "rgba(139, 171, 205, .22)", 1.5);
+      ctx.fillStyle = group.accent;
+      drawRoundedBox(ctx, x, cardY, 6, cardHeight, 3, group.accent);
+
+      drawRoundedBox(ctx, x + 22, cardY + 22, 48, 32, 10, `${group.accent}1F`);
+      ctx.textAlign = "center";
+      ctx.fillStyle = group.accent;
+      ctx.font = `800 16px ${FONT_MENU}`;
+      ctx.fillText(String(commandNumber).padStart(2, "0"), x + 46, cardY + 44);
+
+      ctx.textAlign = "left";
+      ctx.fillStyle = "#FFFFFF";
+      ctx.font = `700 22px ${FONT_MENU}`;
+      ctx.fillText(truncateText(ctx, command.command || command.name || command.key, cardWidth - 112), x + 84, cardY + 45);
+      ctx.fillStyle = "#AFC0D3";
+      ctx.font = `500 18px ${FONT_MENU}`;
+      wrapTextLines(ctx, command.description || "", cardWidth - 52, 2)
+        .forEach((line, lineIndex) => ctx.fillText(line, x + 24, cardY + 87 + lineIndex * 25));
+      commandNumber++;
+    });
+    y += Math.ceil(group.items.length / columns) * (cardHeight + gapY) + groupGap;
+  }
+
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#E7F2FF";
+  ctx.font = `700 21px ${FONT_MENU}`;
+  ctx.fillText("Gõ đúng cú pháp hiển thị trên thẻ để chơi", width / 2, height - 62);
+  ctx.fillStyle = "#8195AC";
+  ctx.font = `500 17px ${FONT_MENU}`;
+  ctx.fillText("Tiền và vật phẩm trong game chỉ mang tính giải trí • Không quy đổi thành tiền thật", width / 2, height - 34);
+  return saveHelpCanvas(canvas, "game_help");
+}
+
 /** Canvas riêng cho `game help`, bố cục dashboard 2 cột để dễ đọc trên điện thoại. */
 export async function createGameHelpImage(helpContent, isAdminBox) {
+  if (getActiveCanvasStyle() === 2) return renderCollectionStyle(2, {
+    kicker: "HƯỚNG DẪN LỆNH", title: "HƯỚNG DẪN SỬ DỤNG",
+    items: [...Object.values(helpContent.allMembers || {}), ...(isAdminBox ? Object.values(helpContent.admin || {}) : [])].map((item) => ({ title: item.command || item.name || item.syntax || "Lệnh", subtitle: item.description || item.desc || "", meta: item.usage || item.example || "" })),
+    footer: "Dùng đúng tiền tố của bot trước mỗi lệnh",
+  }, "help");
+  return createGameHelpMenuCanvas(helpContent, isAdminBox);
   const memberCommands = Object.entries(helpContent.allMembers || {}).map(([key, value]) => ({ key, ...value }));
   const adminCommands = isAdminBox
     ? Object.entries(helpContent.admin || {}).map(([key, value]) => ({ key, ...value }))
@@ -1007,6 +1146,11 @@ export async function createMenuGridImage({
   totalPages,
   totalCommands,
 }: MenuGridOptions): Promise<string> {
+  const canvasStyle = getActiveCanvasStyle();
+  if (canvasStyle !== 1) {
+    return renderMenuStyle(canvasStyle, { botName, commands, page, totalPages, totalCommands });
+  }
+
   const width = 2048;
   const height = 938;
   const columns = 4;
@@ -1114,6 +1258,11 @@ export async function createMenuGridImage({
 
 // Tạo Hình Lệnh !Help với giao diện hiện đại
 export async function createInstructionsImage(helpContent, isAdminBox) {
+  if (getActiveCanvasStyle() === 2) return renderCollectionStyle(2, {
+    kicker: "HƯỚNG DẪN LỆNH", title: "HƯỚNG DẪN SỬ DỤNG",
+    items: [...Object.values(helpContent.allMembers || {}), ...(isAdminBox ? Object.values(helpContent.admin || {}) : [])].map((item) => ({ title: item.command || item.name || item.syntax || "Lệnh", subtitle: item.description || item.desc || "", meta: item.usage || item.example || "" })),
+    footer: "Dùng đúng tiền tố của bot trước mỗi lệnh",
+  }, "help");
   const memberCommands = Object.values(helpContent.allMembers || {});
   const adminCommands = isAdminBox ? Object.values(helpContent.admin || {}) : [];
   const sections = [

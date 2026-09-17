@@ -17,6 +17,7 @@ export const cacheState = {
   },
   hasChanges: false,
 };
+const cacheValidationsInFlight = new Map();
 
 async function loadCache() {
   try {
@@ -134,18 +135,19 @@ function deleteCacheData(platform, id, quality = null) {
   cacheState.hasChanges = true;
 }
 
-// Cache validation TTL — skip HTTP HEAD check for recent entries
-const CACHE_VALID_TTL = 30 * 60 * 1000; // 30 phút
-const TRUSTED_HOSTS = ['zdn.vn', 'zalo.me', 'dlfl.vn', 'dlfl.me'];
-
-function isTrustedUrl(url) {
-  try {
-    const host = new URL(url).hostname;
-    return TRUSTED_HOSTS.some(h => host === h || host.endsWith('.' + h));
-  } catch {
-    return false;
+export function invalidateCachedMedia(platform, id, quality = null, expectedFileUrl = null) {
+  if (expectedFileUrl !== null) {
+    const cacheEntry = getCacheData(platform, id);
+    const linkChoose = quality ? cacheEntry?.[quality] : cacheEntry;
+    if (!linkChoose || linkChoose.fileUrl !== expectedFileUrl) return false;
   }
+  deleteCacheData(platform, id, quality);
+  return true;
 }
+
+// Cache validation TTL — skip HTTP HEAD check for recent entries or entries
+// that have just passed a remote validation.
+const CACHE_VALID_TTL = 30 * 60 * 1000; // 30 phút
 
 async function validateCache(platform, id, quality = null) {
   const cacheEntry = getCacheData(platform, id);
@@ -154,35 +156,47 @@ async function validateCache(platform, id, quality = null) {
   const linkChoose = quality ? cacheEntry[quality] : cacheEntry;
   if (!linkChoose || !linkChoose.fileUrl) return false;
 
-  // Skip validation for recent cache entries (< 30 min)
-  if (linkChoose.timestamp && Date.now() - linkChoose.timestamp < CACHE_VALID_TTL) {
+  const lastKnownValidAt = Number(linkChoose.validatedAt || linkChoose.timestamp);
+  if (lastKnownValidAt && Date.now() - lastKnownValidAt < CACHE_VALID_TTL) {
     return true;
   }
 
-  // Skip validation for trusted Zalo CDN URLs
-  const urlToCheck = Array.isArray(linkChoose.fileUrl)
-    ? (linkChoose.fileUrl[0]?.fileUrl || linkChoose.fileUrl[0])
-    : linkChoose.fileUrl;
-  if (isTrustedUrl(urlToCheck)) {
-    return true;
+  // Zalo Cloud links can expire too.  Never trust a CDN host forever; validate
+  // old links and share that probe between concurrent sendtask fan-out workers.
+  const validationKey = `${platform}:${id}:${quality || ""}`;
+  const runningValidation = cacheValidationsInFlight.get(validationKey);
+  if (runningValidation) {
+    return runningValidation;
   }
 
-  // Full validation for old or external URLs
-  let isValid = false;
+  const validationPromise = (async () => {
+    let isValid = false;
 
-  if (Array.isArray(linkChoose.fileUrl)) {
-    for (const file of linkChoose.fileUrl) {
-      isValid = await checkUrlStatus(file.fileUrl || file);
-      if (!isValid) break;
+    if (Array.isArray(linkChoose.fileUrl)) {
+      for (const file of linkChoose.fileUrl) {
+        isValid = await checkUrlStatus(file.fileUrl || file);
+        if (!isValid) break;
+      }
+    } else {
+      isValid = await checkUrlStatus(linkChoose.fileUrl);
     }
-  } else {
-    isValid = await checkUrlStatus(linkChoose.fileUrl);
-  }
 
-  if (!isValid) {
-    deleteCacheData(platform, id, quality);
-    return false;
-  }
+    if (!isValid) {
+      // A sendtask worker may have refreshed this entry while the old URL was
+      // still being probed. Only remove the exact URL that failed.
+      invalidateCachedMedia(platform, id, quality, linkChoose.fileUrl);
+      return false;
+    }
 
-  return true;
+    linkChoose.validatedAt = Date.now();
+    cacheState.hasChanges = true;
+    return true;
+  })();
+
+  cacheValidationsInFlight.set(validationKey, validationPromise);
+  try {
+    return await validationPromise;
+  } finally {
+    cacheValidationsInFlight.delete(validationKey);
+  }
 }

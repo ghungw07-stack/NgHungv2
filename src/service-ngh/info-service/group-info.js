@@ -279,15 +279,15 @@ export async function updateHistorySettingGroup(threadId, settingNew) {
   historySettingGroup[threadId] = settingNew;
 }
 
-export async function getGroupInfoData(api, threadId) {
+export async function getGroupInfoData(api, threadId, { forceRefresh = false } = {}) {
   const now = Date.now();
   const cacheKey = `${api.getBotId()}:${threadId}`;
   const cachedData = groupInfoCache.get(cacheKey);
 
-  if (cachedData && now - cachedData.timestamp < CACHE_DURATION) {
+  if (!forceRefresh && cachedData && now - cachedData.timestamp < CACHE_DURATION) {
     return cachedData.data;
   }
-  if (groupInfoRequests.has(cacheKey)) return groupInfoRequests.get(cacheKey);
+  if (!forceRefresh && groupInfoRequests.has(cacheKey)) return groupInfoRequests.get(cacheKey);
 
   const request = (async () => {
     try {
@@ -300,17 +300,17 @@ export async function getGroupInfoData(api, threadId) {
       }
       return processedInfo;
     } catch (error) {
-      if (cachedData) return cachedData.data;
+      if (!forceRefresh && cachedData) return cachedData.data;
       throw error;
     } finally {
-      groupInfoRequests.delete(cacheKey);
+      if (groupInfoRequests.get(cacheKey) === request) groupInfoRequests.delete(cacheKey);
     }
   })();
   groupInfoRequests.set(cacheKey, request);
   // Expired metadata is still good enough for the hot message path. Return it
   // immediately and refresh in the background instead of pausing a command on
   // a Zalo round-trip every TTL interval.
-  if (cachedData) {
+  if (!forceRefresh && cachedData) {
     void request;
     return cachedData.data;
   }

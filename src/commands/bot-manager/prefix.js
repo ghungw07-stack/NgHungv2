@@ -1,14 +1,12 @@
 import { getGlobalPrefix, setGlobalPrefix } from "../../service-ngh/service.js";
 import { commandFilePath } from "../../utils/io-json.js";
 import { readFileSync, writeFileSync } from "../../utils/util.js";
-import { nameServer as globalNameServer } from "../../database/index.js";
-
-function withServerName(api, text) {
-  const serverName = String(
-    api.apiManager?.getDataConfig?.()?.infoOwner?.nameServer || globalNameServer || ""
-  ).trim();
-  return serverName ? `${serverName}\n${text}` : text;
-}
+import {
+  sendMessageComplete,
+  sendMessageFailed,
+  sendMessageInsufficientAuthority,
+  sendMessageWarning,
+} from "../../service-ngh/chat-zalo/chat-style/chat-style.js";
 
 export async function handlePrefixCommand(api, message, threadId, isAdmin) {
   const content = message.data.content.trim();
@@ -22,41 +20,23 @@ export async function handlePrefixCommand(api, message, threadId, isAdmin) {
   const args = content.slice(content.startsWith(currentPrefix) ? currentPrefix.length + 6 : 6).trim();
 
   if (!args) {
-    await api.sendMessage(
-      {
-        msg: withServerName(api, currentPrefix ? `Prefix hiện tại của bot là: ${currentPrefix}` : `Bot hiện tại không có prefix`),
-        quote: message,
-        ttl: 300000,
-      },
-      threadId,
-      message.type
+    await sendMessageComplete(
+      api,
+      message,
+      currentPrefix ? `Prefix hiện tại của bot là: ${currentPrefix}` : "Bot hiện tại không có prefix",
+      false,
+      300000
     );
     return true;
   }
 
   if (!isAdmin) {
-    await api.sendMessage(
-      {
-        msg: withServerName(api, "❌ Bạn không có quyền thay đổi prefix của bot!"),
-        quote: message,
-        ttl: 300000,
-      },
-      threadId,
-      message.type
-    );
+    await sendMessageInsufficientAuthority(api, message, "❌ Bạn không có quyền thay đổi prefix của bot!", false);
     return true;
   }
 
   if (args.includes(" ")) {
-    await api.sendMessage(
-      {
-        msg: withServerName(api, "❌ Prefix không được chứa khoảng trắng!"),
-        quote: message,
-        ttl: 300000,
-      },
-      threadId,
-      message.type
-    );
+    await sendMessageWarning(api, message, "❌ Prefix không được chứa khoảng trắng!", false, 300000);
     return true;
   }
 
@@ -64,26 +44,16 @@ export async function handlePrefixCommand(api, message, threadId, isAdmin) {
     const newPrefix = args === "none" ? "" : args;
     updatePrefix(idBot, newPrefix);
     setGlobalPrefix(idBot, newPrefix);
-    await api.sendMessage(
-      {
-        msg: withServerName(api, `✅ Áp dụng thay đổi thành công!\n${newPrefix ? "Prefix mới là:  " + args : "Không set prefix nào!"}`),
-        quote: message,
-        ttl: 300000,
-      },
-      threadId,
-      message.type
+    await sendMessageComplete(
+      api,
+      message,
+      `✅ Áp dụng thay đổi thành công!\n${newPrefix ? "Prefix mới là:  " + args : "Không set prefix nào!"}`,
+      false,
+      300000
     );
   } catch (error) {
     console.error("Lỗi khi cập nhật prefix:", error);
-    await api.sendMessage(
-      {
-        msg: withServerName(api, "❌ Đã xảy ra lỗi khi thay đổi prefix!"),
-        quote: message,
-        ttl: 300000,
-      },
-      threadId,
-      message.type
-    );
+    await sendMessageFailed(api, message, "❌ Đã xảy ra lỗi khi thay đổi prefix!", false, 300000);
   }
 
   return true;

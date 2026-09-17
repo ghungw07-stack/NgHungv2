@@ -1,6 +1,6 @@
 import { ZaloApiError } from "../index.js";
 import { apiFactory } from "../utils.js";
-// Hà Huy Hoàng - dz
+// Nguyễn Gia Hưng - dz
 export const upgradeGroupToCommunityFactory = apiFactory()((api, appContext, utils) => {
   /**
    * Upgrade group to community | Nâng cấp nhóm thành cộng đồng
@@ -38,4 +38,3 @@ export const upgradeGroupToCommunityFactory = apiFactory()((api, appContext, uti
     return await utils.resolve(response);
   };
 });
-

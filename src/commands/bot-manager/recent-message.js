@@ -2,6 +2,12 @@ import { sendMessageStateQuote } from "../../service-ngh/chat-zalo/chat-style/ch
 import { getGlobalPrefix } from "../../service-ngh/service.js";
 import { removeMention } from "../../utils/format-util.js";
 import { deleteMessageCustomer } from "./utilities.js";
+import {
+  createMessageTarget,
+  getGlobalMessageId,
+  parseRecentGroupMessages,
+  sameMessageIdentity,
+} from "../../utils/zalo-message-target.js";
 
 export async function handleDeleteMessage(api, message, aliasCommand) {
   const content = removeMention(message);
@@ -13,14 +19,16 @@ export async function handleDeleteMessage(api, message, aliasCommand) {
   let countDeleteFail = 0;
 
   if (message.data?.quote) {
-    const cliMsgId = message.data.quote.cliMsgId;
-    const msgId = message.data.quote.globalMsgId;
-    const uidFrom = message.data.quote.ownerId === "0" ? idBot : message.data.quote.ownerId;
+    const quotedMessage = createMessageTarget(message, message.data.quote, idBot);
+    if (quotedMessage && (await deleteMessageCustomer(api, quotedMessage))) {
+      await sendMessageStateQuote(api, message, "Đã xóa tin nhắn thành công", true, 5000);
+      return;
+    }
 
     const msgDel = await findAndDeleteMessage(api, message, {
-      cliMsgId,
-      msgId,
-      uidFrom,
+      ...message.data.quote,
+      msgId: quotedMessage?.data.msgId,
+      cliMsgId: quotedMessage?.data.cliMsgId,
     });
 
     if (msgDel) {
@@ -50,6 +58,7 @@ export async function handleDeleteMessage(api, message, aliasCommand) {
     .filter(
       (msg) =>
         target === "all" ||
+        mentionTarget.length === 0 ||
         mentionTarget.includes(msg.uidFrom) ||
         (mentionTarget.includes(idBot) && msg.uidFrom === "0")
     )
@@ -65,7 +74,11 @@ export async function handleDeleteMessage(api, message, aliasCommand) {
       };
 
       return deleteMessageCustomer(api, msgDel)
-        .then(() => {
+        .then((deleted) => {
+          if (!deleted) {
+            countDeleteFail++;
+            return false;
+          }
           countDelete++;
           return true;
         })
@@ -115,6 +128,7 @@ async function findAndDeleteMessage(api, message, targetMsg) {
   const threadId = message.threadId || message.idTo;
   const globalMsgId = message.data.msgId || message.msgId;
   let currentMsgId = globalMsgId;
+  const seenCursors = new Set();
   const maxAttempts = 100;
   let attempts = 0;
 
@@ -122,28 +136,16 @@ async function findAndDeleteMessage(api, message, targetMsg) {
   const oneDayInMs = 24 * 60 * 60 * 1000;
 
   try {
-    while (attempts < maxAttempts) {
+    while (attempts < maxAttempts && !seenCursors.has(String(currentMsgId))) {
+      seenCursors.add(String(currentMsgId));
       const recentMessage = await api.getRecentMessages(threadId, currentMsgId, 50);
-      const parsedMessage = JSON.parse(recentMessage);
-
-      if (parsedMessage.groupMsgs) {
-        parsedMessage.groupMsgs.sort((a, b) => Number(b.ts) - Number(a.ts));
-      }
-
-      const messages = parsedMessage.groupMsgs;
+      const messages = parseRecentGroupMessages(recentMessage).sort((a, b) => Number(b.ts) - Number(a.ts));
 
       if (!messages || messages.length === 0) {
         break;
       }
 
-      const lastMessageTime = Number(messages[messages.length - 1].ts);
-      if (currentTime - lastMessageTime > oneDayInMs) {
-        break;
-      }
-
-      const foundMsg = messages.find(
-        (msg) => msg.cliMsgId === String(targetMsg.cliMsgId) && msg.msgId === String(targetMsg.msgId)
-      );
+      const foundMsg = messages.find((msg) => sameMessageIdentity(msg, targetMsg));
 
       if (foundMsg) {
         const msgDel = {
@@ -157,15 +159,18 @@ async function findAndDeleteMessage(api, message, targetMsg) {
         };
 
         try {
-          await deleteMessageCustomer(api, msgDel);
-          return true;
+          return await deleteMessageCustomer(api, msgDel);
         } catch (error) {
           console.error("Lỗi khi xóa tin nhắn:", error);
           return false;
         }
       }
 
-      currentMsgId = messages[messages.length - 1].msgId;
+      const lastMessageTime = Number(messages[messages.length - 1].ts);
+      if (currentTime - lastMessageTime > oneDayInMs) break;
+
+      currentMsgId = getGlobalMessageId(messages[messages.length - 1]);
+      if (!currentMsgId) break;
       attempts++;
     }
   } catch (error) {

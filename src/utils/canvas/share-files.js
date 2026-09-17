@@ -2,6 +2,8 @@ import { Canvas } from "skia-canvas";
 import fs from "fs";
 import path from "path";
 import { tempDir } from "../io-json.js";
+import { getActiveCanvasStyle } from "./theme.js";
+import { renderCollectionStyle } from "./collection-style-renderers.js";
 
 const WIDTH = 1080;
 
@@ -41,6 +43,21 @@ function extensionIcon(fileName) {
 }
 
 export async function createShareFileListImage(files = [], prefix = ">") {
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) {
+    return renderCollectionStyle(activeStyle, {
+      kicker: "MYBOT • FILE VAULT",
+      title: "KHO CHIA SẺ CỦA BOT",
+      subtitle: `${files.length} file đang được lưu • Chọn bằng số thứ tự`,
+      footer: `${prefix}share <số> để nhận file • Reply file + ${prefix}share add để thêm mới`,
+      items: files.map((file, index) => ({
+        title: file.name || `File ${index + 1}`,
+        subtitle: extensionIcon(file.name || "file"),
+        meta: formatBytes(file.size),
+        badge: String(index + 1).padStart(2, "0"),
+      })),
+    }, "share_files");
+  }
   const columns = 2;
   const rows = Math.max(1, Math.ceil(files.length / columns));
   const itemHeight = 88;

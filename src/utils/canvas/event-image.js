@@ -4,6 +4,8 @@ import fs from "fs";
 import path from "path";
 import { handleCheckLinkFromImageLocal } from "../local-upload-cache.js";
 import { FONT_MAIN, getFontCanvas } from "../format-util.js";
+import { getActiveCanvasStyle } from "./theme.js";
+import { renderPortraitStyle, renderMemberEventStyle } from "./portrait-style-renderers.js";
 
 const EVENT_FONT = "Manrope";
 FontLibrary.use(EVENT_FONT, [
@@ -435,6 +437,27 @@ function drawKeyIcon(ctx, x, y, size = 20) {
   ctx.restore();
 }
 async function createImage(userInfo, message, fileName, botId) {
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) {
+    let avatar = null;
+    try {
+      const avatarUrl = userInfo?.avatarFull || userInfo?.avatar;
+      if (avatarUrl && isValidUrl(avatarUrl)) avatar = await loadImage(avatarUrl);
+    } catch {}
+    return renderPortraitStyle(activeStyle, {
+      kind: "group-event",
+      kicker: "MYBOT • GROUP EVENT",
+      title: message.title || "THÔNG BÁO NHÓM",
+      names: [message.userName || userInfo?.name || "Thành viên"],
+      avatars: [avatar],
+      primaryLabel: "TRẠNG THÁI",
+      primaryValue: fileName.includes("blocked") || fileName.includes("kicked") ? "ĐÃ CHẶN" : "ĐÃ CẬP NHẬT",
+      secondaryLabel: "NHÓM",
+      secondaryValue: message.author || "Không rõ nhóm",
+      body: [message.subtitle, message.customMessage].filter(Boolean).join(" • "),
+      footer: `${formatDateTime()} • ${message.executedBy || "Executed by"}`,
+    }, path.parse(fileName).name);
+  }
   const width = fileName.includes("update_group_o") 
     ? CANVAS_CONFIG.updateGroupO.width 
     : CANVAS_CONFIG.default.width;
@@ -563,6 +586,31 @@ async function createImage(userInfo, message, fileName, botId) {
   });
 }
 async function createMemberEventImage({ userInfo, groupName, groupType, userActionName, isAdmin, event }) {
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) {
+    let avatar = null;
+    try {
+      const avatarUrl = userInfo?.avatarFull || userInfo?.avatar;
+      if (avatarUrl && isValidUrl(avatarUrl)) avatar = await loadImage(avatarUrl);
+    } catch {}
+    const welcome = event === "welcome";
+    const place = Number(groupType) === 2 ? "cộng đồng" : "nhóm";
+    return renderMemberEventStyle({
+      kind: `member-${event}`,
+      kicker: `MYBOT • ${welcome ? "NEW MEMBER" : "MEMBER EVENT"}`,
+      title: welcome ? "CHÀO MỪNG THÀNH VIÊN MỚI" : "HẸN GẶP LẠI",
+      names: [`${isAdmin ? "Cán bộ " : ""}${userInfo?.name || "Thành viên"}`],
+      avatars: [avatar],
+      primaryLabel: "SỰ KIỆN",
+      primaryValue: welcome ? "WELCOME" : "GOODBYE",
+      secondaryLabel: place.toUpperCase(),
+      secondaryValue: groupName,
+      body: welcome
+        ? (userActionName && userActionName !== userInfo?.name ? `Được duyệt bởi ${userActionName}` : `Chào mừng bạn đến với ${place}`)
+        : `Bạn vừa rời khỏi ${place}. Hẹn gặp lại!`,
+      footer: formatDateTime(),
+    }, event);
+  }
   const width = 1080, height = 330;
   // Dùng cùng engine/loader với ảnh info vì Skia tải ổn định ảnh CDN của Zalo.
   const canvas = new SkiaCanvas(width, height);

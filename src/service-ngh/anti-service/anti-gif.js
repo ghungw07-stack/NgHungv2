@@ -1,6 +1,7 @@
 import { MessageMention, MessageType } from "zlbotngh";
 import { sendMessageStateQuote } from "../chat-zalo/chat-style/chat-style.js";
 import { removeMention } from "../../utils/format-util.js";
+import { applyAntiPunishment } from "./anti-punishment.js";
 
 let gifWarnings = {};
 let gifCooldown = {};
@@ -88,7 +89,7 @@ export async function antiAllEffectGif(
         threadId,
         MessageType.GroupMessage
       );
-      await blockAllUser(api, message, threadId, senderId, senderName);
+      await blockAllUser(api, message, threadId, senderId, senderName, groupSettings);
       return true;
     }
 
@@ -99,7 +100,8 @@ export async function antiAllEffectGif(
       threadId,
       senderId,
       senderName,
-      threshold
+      threshold,
+      groupSettings
     );
   } catch (error) {
     await api.sendMessage(
@@ -137,9 +139,9 @@ export async function handleAntiAllEffectGifCommand(api, message, groupSettings)
   return true;
 }
 
-async function blockAllUser(api, message, threadId, senderId, senderName) {
+async function blockAllUser(api, message, threadId, senderId, senderName, groupSettings) {
   try {
-    await api.blockUsers(threadId, [senderId]);
+    await applyAntiPunishment(api, message, threadId, senderId, senderName, groupSettings);
     await api.sendMessage(
       {
         msg: ``,
@@ -166,7 +168,8 @@ async function updateAllGifWarnings(
   threadId,
   senderId,
   senderName,
-  threshold
+  threshold,
+  groupSettings
 ) {
   const currentTime = Date.now();
   if (!gifWarnings[senderId]) {
@@ -182,7 +185,7 @@ async function updateAllGifWarnings(
 
   if (warnCount >= threshold) {
     try {
-      await blockAllUser(api, message, threadId, senderId, senderName);
+      await blockAllUser(api, message, threadId, senderId, senderName, groupSettings);
       gifWarnings[senderId] = [];
     } catch (error) {
     }

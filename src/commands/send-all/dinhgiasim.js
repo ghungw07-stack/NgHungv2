@@ -337,7 +337,7 @@ export async function handleSimValuationCommand(api, message) {
                   `💰 Giá trị: ${formattedPrice}\n` +
                   `💬 Nhận xét: ${enhancedComment}\n` +
                   `✨ Chúc bạn luôn 8386 ✨\n\n` +
-                  `✨ Định giá bởi Hà Huy Hoàng - Cập nhật mới nhất\n` +
+                  `✨ Định giá bởi Nguyễn Gia Hưng - Cập nhật mới nhất\n` +
                   `⏰ Thời gian: ${new Date().toLocaleString('vi-VN')}`;
 
 

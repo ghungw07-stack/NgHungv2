@@ -2,7 +2,7 @@ import { MessageType } from "zlbotngh";
 import { MuteAction } from "../../api-zalo/apis/setMute.js";
 import * as cv from "../../utils/canvas/index.js";
 import { createListImage } from "../../utils/canvas/list-form-v1.js";
-import { getUserInfoBasic, getUserInfoData, getUsersInfoBasic } from "../../service-ngh/info-service/user-info.js";
+import { getUserInfoBasic, getUserInfoData, getUsersInfoBasic, getCachedGlobalId } from "../../service-ngh/info-service/user-info.js";
 import {
   sendMessageComplete,
   sendMessageCompleteRequest,
@@ -25,6 +25,7 @@ import { tempDir } from "../../utils/io-json.js";
 import { deleteFile } from "../../utils/util.js";
 import { groupSettingsAll } from "../../automations/event-send-msg.js";
 import { managerDataCache } from "./active-bot.js";
+import { isRentalAdmin } from "./thuebot.js";
 import { getGroupInfoData } from "../../service-ngh/info-service/group-info.js";
 import {
   getLowInteractionStats,
@@ -39,6 +40,8 @@ import {
 } from "./target-enforcement.js";
 import { fileURLToPath } from "url";
 import { LRUCache } from "lru-cache";
+import { getActiveCanvasStyle } from "../../utils/canvas/theme.js";
+import { renderCollectionStyle } from "../../utils/canvas/collection-style-renderers.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const TIME_REGEX = /^(\d{1,2}):(\d{2})$/;
@@ -708,11 +711,10 @@ export async function handleKeyCommands(api, message, groupSettings, isAdminLeve
 
   const action = "gold";
 
-  // if (!isAdminLevelHighest) {
-  //   const caption = "Chỉ có quản trị bot cấp cao mới được sử dụng lệnh này!";
-  //   await sendMessageInsufficientAuthority(api, message, caption);
-  //   return false;
-  // }
+  if (!isAdmin(api.getBotId(), senderId)) {
+    await sendMessageInsufficientAuthority(api, message, "Chỉ có quản trị bot cấp cao mới được sử dụng lệnh này!");
+    return false;
+  }
 
   const mentions = message.data.mentions;
 
@@ -731,6 +733,10 @@ export async function handleKeyCommands(api, message, groupSettings, isAdminLeve
 }
 
 async function handleKeyAction(api, message, groupSettings, threadId, targetId, action, targetName) {
+  if (!isAdmin(api.getBotId(), message.data.uidFrom)) {
+    await sendMessageInsufficientAuthority(api, message, "Chỉ quản trị bot cấp cao mới được thay đổi quyền trưởng/phó nhóm!");
+    return;
+  }
   switch (action) {
     case "gold":
       try {
@@ -846,6 +852,7 @@ export async function handleUnblockBot(api, message, groupSettings) {
   const firstArg = args[0];
   const isIndex = firstArg && !isNaN(firstArg) && parseInt(firstArg) > 0;
   const isAll = firstArg && firstArg.toLowerCase() === "all";
+  const canRemoveGlobalBlock = api.apiManager?.isMainBot === true && isBotLeader(botId, message.data.uidFrom);
 
   if (isIndex || isAll) {
     if (mngrData.blockBot.length === 0) {
@@ -865,11 +872,17 @@ export async function handleUnblockBot(api, message, groupSettings) {
     const blockListArray = Object.values(dataBlockList);
 
     if (isAll) {
-      mngrData.blockBot = [];
+      const protectedCount = canRemoveGlobalBlock
+        ? 0
+        : mngrData.blockBot.filter((item) => item?.globalBlock === true).length;
+      mngrData.blockBot = canRemoveGlobalBlock
+        ? []
+        : mngrData.blockBot.filter((item) => item?.globalBlock === true);
       await sendMessageStateQuote(
         api,
         message,
-        `✅ Đã bỏ chặn tất cả ${blockListArray.length} người dùng khỏi danh sách chặn tương tác bot.`,
+        `✅ Đã bỏ ${blockListArray.length - protectedCount} chặn cục bộ.` +
+          (protectedCount ? `\n🔒 Giữ lại ${protectedCount} chặn toàn hệ thống; chỉ Bot Leader trên main bot được gỡ.` : ""),
         false,
         300000,
         false
@@ -893,6 +906,13 @@ export async function handleUnblockBot(api, message, groupSettings) {
 
     const targetId = mngrData.blockBot[index].idUserZalo;
     const targetName = blockListArray[index]?.displayName || mngrData.blockBot[index].senderName || `ID ${targetId}`;
+    if (mngrData.blockBot[index]?.globalBlock === true && !canRemoveGlobalBlock) {
+      await sendMessageInsufficientAuthority(
+        api, message,
+        "Đây là chặn toàn hệ thống. Chỉ Bot Leader trên main bot mới được gỡ!"
+      );
+      return;
+    }
     
     mngrData.blockBot.splice(index, 1);
     await sendMessageStateQuote(
@@ -931,6 +951,10 @@ export async function handleUnblockBot(api, message, groupSettings) {
       const blockedUserIndex = mngrData.blockBot.findIndex((blocked) => blocked.idUserZalo === item.targetId);
 
       if (blockedUserIndex !== -1) {
+        if (mngrData.blockBot[blockedUserIndex]?.globalBlock === true && !canRemoveGlobalBlock) {
+          notBlockedUsers.push(`${item.targetName} (chặn toàn hệ thống, bot con không được gỡ)`);
+          continue;
+        }
         mngrData.blockBot.splice(blockedUserIndex, 1);
         unblockUsers.push(item.targetName);
       } else {
@@ -1006,7 +1030,7 @@ export function isUserBlocked(botId, senderId) {
     const normalizedSenderId = String(senderId ?? "").replace(/_0$/, "");
     if (!normalizedSenderId) return false;
 
-    // 1. Kiểm tra blockBot trên chính bot hiện tại
+    // 1. Kiểm tra blockBot trên chính bot hiện tại (theo UID local)
     const mngrData = managerDataCache.get(botId);
     if (mngrData?.blockBot && Array.isArray(mngrData.blockBot)) {
       const blockedLocally = mngrData.blockBot.some((blocked) => {
@@ -1016,16 +1040,37 @@ export function isUserBlocked(botId, senderId) {
       if (blockedLocally) return true;
     }
 
-    // 2. Kiểm tra blockBot trên bot chính (Main Bot)
+    // 2. Kiểm tra blockBot trên bot chính (Main Bot) theo UID local
     const ownerId = apiManager.apiManagerObject?.[botId]?.ownerId;
-    if (ownerId && String(ownerId) !== String(botId)) {
-      const mainMngrData = managerDataCache.get(ownerId);
+    const mainMngrData = (ownerId && String(ownerId) !== String(botId))
+      ? managerDataCache.get(ownerId)
+      : null;
+    if (mainMngrData?.blockBot && Array.isArray(mainMngrData.blockBot)) {
+      const blockedOnMain = mainMngrData.blockBot.some((blocked) => {
+        const normalizedBlockedId = String(blocked?.idUserZalo ?? "").replace(/_0$/, "");
+        return normalizedBlockedId === normalizedSenderId;
+      });
+      if (blockedOnMain) return true;
+    }
+
+    // 3. Kiểm tra theo globalId (UID toàn cục Zalo — giống nhau trên mọi bot).
+    //    Dùng cache nên không tốn API. Chỉ hoạt động nếu bot đã từng gọi
+    //    getInfoMembers cho sender này (tức sender đã nhắn tin ít nhất 1 lần).
+    const senderGlobalId = getCachedGlobalId(botId, normalizedSenderId);
+    if (senderGlobalId) {
+      // Kiểm tra trên bot hiện tại
+      if (mngrData?.blockBot && Array.isArray(mngrData.blockBot)) {
+        const blockedByGid = mngrData.blockBot.some((blocked) =>
+          blocked?.globalId && String(blocked.globalId) === senderGlobalId
+        );
+        if (blockedByGid) return true;
+      }
+      // Kiểm tra trên main bot
       if (mainMngrData?.blockBot && Array.isArray(mainMngrData.blockBot)) {
-        const blockedOnMain = mainMngrData.blockBot.some((blocked) => {
-          const normalizedBlockedId = String(blocked?.idUserZalo ?? "").replace(/_0$/, "");
-          return normalizedBlockedId === normalizedSenderId;
-        });
-        if (blockedOnMain) return true;
+        const blockedByGidOnMain = mainMngrData.blockBot.some((blocked) =>
+          blocked?.globalId && String(blocked.globalId) === senderGlobalId
+        );
+        if (blockedByGidOnMain) return true;
       }
     }
 
@@ -1034,6 +1079,129 @@ export function isUserBlocked(botId, senderId) {
     console.error("Lỗi khi kiểm tra trạng thái block:", error);
     return false;
   }
+}
+
+function cleanZaloUsername(value) {
+  const username = String(value || "").trim().replace(/^@+/u, "");
+  return username && username.toLowerCase() !== "ẩn" ? username : "";
+}
+
+function findProfileInResponse(value, depth = 0) {
+  if (!value || depth > 5) return null;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findProfileInResponse(item, depth + 1);
+      if (found) return found;
+    }
+    return null;
+  }
+  if (typeof value !== "object") return null;
+  const uid = value.uid || value.userId || value.user_id || value.id;
+  if (uid) return value;
+  for (const child of Object.values(value)) {
+    const found = findProfileInResponse(child, depth + 1);
+    if (found) return found;
+  }
+  return null;
+}
+
+async function resolveLocalUserByUsername(targetApi, username) {
+  if (!targetApi?.findUserByUsername || !username) return null;
+  try {
+    const response = await targetApi.findUserByUsername(username);
+    const profile = findProfileInResponse(response);
+    const uid = profile?.uid || profile?.userId || profile?.user_id || profile?.id;
+    if (!uid) return null;
+    return {
+      uid: String(uid).replace(/_0$/, ""),
+      name: profile.displayName || profile.zaloName || profile.name || username,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Fallback: tìm UID của user trên bot khác bằng cách scan group cache.
+ * Bot chính và bot kia cùng ở trong 1 nhóm → nhóm đó có cả 2 UID.
+ * memVerList của bot kia không chứa username, nhưng chứa id/uid của member.
+ * Ta dùng mainUid (UID từ bot chính) để tìm trong các nhóm bot chính biết,
+ * sau đó lấy threadId đó và tra cứu trong group cache của bot kia.
+ * @param {object} targetApi - API của bot kia
+ * @param {string} mainUid - UID của người cần block theo góc nhìn bot chính
+ * @param {string} mainBotId - botId của bot chính (để tra cache)
+ * @param {string} targetName - tên hiển thị fallback
+ */
+async function resolveLocalUserByGroupScan(targetApi, mainUid, mainBotId, targetName) {
+  try {
+    const targetBotId = targetApi.getBotId?.();
+    if (!targetBotId) return null;
+
+    // Lấy danh sách group mà bot kia đang ở (từ getAllGroups)
+    let targetGroupIds = [];
+    try {
+      const allGroupsResult = await targetApi.getAllGroups();
+      const listData = allGroupsResult?.data || allGroupsResult;
+      const gridVerMap = listData?.gridVerMap || {};
+      const gridInfoMap = listData?.gridInfoMap || {};
+      targetGroupIds = [...new Set([...Object.keys(gridVerMap), ...Object.keys(gridInfoMap)].map(String))];
+    } catch {
+      return null;
+    }
+
+    if (targetGroupIds.length === 0) return null;
+
+    // Tìm nhóm chung: nhóm nào trong group cache của bot chính cũng có mainUid
+    // và bot kia cũng có mặt (tức threadId tồn tại trong targetGroupIds)
+    const { groupInfoCache: _cache } = await import("../../service-ngh/info-service/group-info.js").catch(() => ({}));
+
+    // Dùng getGroupInfo trực tiếp: lấy info nhóm chung theo batch
+    const BATCH = 50;
+    const targetGroupIdSet = new Set(targetGroupIds);
+    const normalizedMainUid = String(mainUid).replace(/_0$/, "");
+
+    for (let i = 0; i < targetGroupIds.length; i += BATCH) {
+      const chunk = targetGroupIds.slice(i, i + BATCH);
+      let gridInfoMap = {};
+      try {
+        const res = await targetApi.getGroupInfo(chunk);
+        gridInfoMap = res?.gridInfoMap || res?.data?.gridInfoMap || {};
+      } catch { continue; }
+
+      for (const [gid, gInfo] of Object.entries(gridInfoMap)) {
+        const members = gInfo?.memVerList || gInfo?.memberList || [];
+        for (const member of members) {
+          const memberId = String(member?.id || member?.uid || member?.uidFrom || "").replace(/_0$/, "");
+          if (memberId && memberId === normalizedMainUid) {
+            // Tìm thấy! UID của người này theo góc nhìn bot kia chính là memberId này
+            return { uid: memberId, name: member?.dName || member?.name || targetName };
+          }
+        }
+      }
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function getGlobalBlockTargets(api, message, { allowAdmin = false } = {}) {
+  const targets = [];
+  for (const mention of message.data?.mentions || []) {
+    const mainUid = String(mention.uid).replace(/_0$/, "");
+    const mentionName = message.data.content
+      .substring(mention.pos, mention.pos + mention.len)
+      .replace(/^@/u, "")
+      .trim();
+    if (!allowAdmin && isAdmin(api.getBotId(), mainUid)) continue;
+    let info = null;
+    try { info = await getUserInfoData(api, mainUid); } catch {}
+    const username = cleanZaloUsername(info?.username || info?.userName);
+    const globalId = info?.globalId ? String(info.globalId) : null;
+    targets.push({ mainUid, username, globalId, targetName: info?.name || mentionName || `ID ${mainUid}` });
+  }
+  return targets;
 }
 
 export async function handleBlockBotAll(api, message, groupSettings) {
@@ -1049,143 +1217,80 @@ export async function handleBlockBotAll(api, message, groupSettings) {
     return;
   }
 
-  let listIdBlock = [];
-
-  // Parse từ mentions
-  const mentions = message.data?.mentions;
-  if (mentions && mentions.length > 0) {
-    for (const mention of mentions) {
-      const targetId = String(mention.uid).replace(/_0$/, "");
-      const targetName = message.data.content
-        .substring(mention.pos, mention.pos + mention.len)
-        .replace("@", "");
-      if (!isAdmin(botId, targetId)) {
-        listIdBlock.push({ targetId, targetName });
-      } else {
-        await sendMessageStateQuote(
-          api, message,
-          `🚨 Không thể block Quản Trị Cấp Cao: ${targetName}`,
-          false, 60000, false
-        );
-      }
-    }
-  }
-
-  // Parse từ UID
-  const content = removeMention(message) || "";
-  // Tách tất cả các từ trong message
-  const words = content.trim().split(/\s+/);
-  for (const word of words) {
-    const cleanWord = word.replace(/_0$/, "").trim();
-    if (/^\d{8,25}$/.test(cleanWord) && !listIdBlock.some((item) => item.targetId === cleanWord)) {
-      if (!isAdmin(botId, cleanWord)) {
-        try {
-          const userInfo = await getUserInfoBasic(api, cleanWord);
-          listIdBlock.push({
-            targetId: cleanWord,
-            targetName: userInfo?.displayName || userInfo?.zaloName || `ID ${cleanWord}`,
-          });
-        } catch {
-          listIdBlock.push({ targetId: cleanWord, targetName: `ID ${cleanWord}` });
-        }
-      } else {
-        await sendMessageStateQuote(
-          api, message,
-          `🚨 Không thể block Quản Trị Cấp Cao: ID ${cleanWord}`,
-          false, 60000, false
-        );
-      }
-    }
-  }
+  const listIdBlock = await getGlobalBlockTargets(api, message);
 
   if (listIdBlock.length === 0) {
     await sendMessageStateQuote(
       api, message,
       `🚨 Vui lòng chỉ định người cần chặn.\n` +
-        `Cú pháp: ${prefix}blockbot all @mention\n` +
-        `Hoặc: ${prefix}blockbot all <UID>`,
+        `Cú pháp: ${prefix}blockbot all @mention`,
       false, 60000, false
     );
     return;
   }
 
-  // Tìm tất cả bot con thuộc về user này để block
-  const botIdSet = new Set();
-  const botLogPaths = new Map();
-  const currentMainId = String(api.apiManager?.idBotMainWithBot || botId);
-  try {
-    const configPaths = [
-      { cp: path.join(process.cwd(), "assets", "data", "manager-bots.json"), logDir: "main" },
-      { cp: path.join(process.cwd(), "shards", "shard2", "assets", "data", "manager-bots.json"), logDir: "shard2" }
-    ];
-    for (const { cp, logDir } of configPaths) {
-      if (fs.existsSync(cp)) {
-        const bots = JSON.parse(fs.readFileSync(cp, "utf8"));
-        for (const [key, bData] of Object.entries(bots)) {
-          if (bData.idBot) {
-            botIdSet.add(bData.idBot);
-            botLogPaths.set(bData.idBot, path.join(process.cwd(), "logs", logDir, bData.idBot, "manager-bot.json"));
-          }
-        }
-      }
+  const managers = Object.values(apiManager.apiManagerObject || {}).filter((manager) => manager?.apiZalo);
+  let totalBots = 0;
+
+  // Lấy globalId cho từng target (từ main bot, vì đang xử lý ở main bot)
+  for (const item of listIdBlock) {
+    if (!item.globalId) {
+      try {
+        const basicInfo = await api.getInfoMembers([item.mainUid]);
+        const profile = basicInfo?.profiles?.[item.mainUid]
+          || basicInfo?.profiles?.[`${item.mainUid}_0`]
+          || Object.values(basicInfo?.profiles || {})[0];
+        const gid = profile?.globalId || profile?.global_id;
+        if (gid) item.globalId = String(gid);
+      } catch {}
     }
-  } catch (e) {
-    console.error("Lỗi đọc danh sách bot:", e);
   }
 
-  let totalBots = 0;
-  for (const mBotId of botIdSet) {
-    let mngrData;
-    let isMemory = false;
-    
-    // Nếu bot nằm trong Shard hiện tại, lấy từ bộ nhớ để update realtime
-    if (apiManager.apiManagerObject && apiManager.apiManagerObject[mBotId]) {
-      mngrData = managerDataCache.get(mBotId);
-      isMemory = true;
-    } else {
-      // Nếu nằm ở Shard khác, đọc trực tiếp từ ổ cứng
-      const filePath = botLogPaths.get(mBotId);
-      if (filePath && fs.existsSync(filePath)) {
-        try {
-          mngrData = JSON.parse(fs.readFileSync(filePath, "utf8"));
-        } catch (e) {}
-      }
-      if (!mngrData) mngrData = {};
-    }
-
+  for (const manager of managers) {
+    const mBotId = String(manager.id || manager.apiZalo.getBotId());
+    const mngrData = managerDataCache.get(mBotId) || manager.getDataManager?.();
+    if (!mngrData) continue;
     if (!mngrData.blockBot) mngrData.blockBot = [];
-
     totalBots++;
+
     for (const item of listIdBlock) {
-      const normalizedTarget = String(item.targetId).replace(/_0$/, "");
-      const isBlocked = mngrData.blockBot.some(
-        (blocked) => String(blocked.idUserZalo).replace(/_0$/, "") === normalizedTarget
-      );
-      if (!isBlocked) {
-        mngrData.blockBot.push({
-          idUserZalo: normalizedTarget,
-          senderName: item.targetName,
-        });
-      }
+      // Kiểm tra đã block chưa (theo UID local, username, hoặc globalId)
+      const alreadyBlocked = mngrData.blockBot.some((blocked) => {
+        if (item.globalId && blocked?.globalId && String(blocked.globalId) === item.globalId) return true;
+        if (item.username && blocked?.username &&
+          cleanZaloUsername(blocked.username).toLowerCase() === item.username.toLowerCase()) return true;
+        // Chỉ check UID local cho bot chính
+        if (String(mBotId) === String(botId)) {
+          const normalizedBlockedId = String(blocked?.idUserZalo ?? "").replace(/_0$/, "");
+          if (normalizedBlockedId === item.mainUid) return true;
+        }
+        return false;
+      });
+      if (alreadyBlocked) continue;
+
+      // Lưu block entry với globalId — mọi bot đều dùng chung globalId này
+      mngrData.blockBot.push({
+        // idUserZalo: UID local chỉ chính xác cho main bot, bot khác sẽ check bằng globalId
+        idUserZalo: String(mBotId) === String(botId) ? item.mainUid : item.globalId || item.mainUid,
+        senderName: item.targetName,
+        username: item.username || "",
+        globalId: item.globalId || null,
+        globalBlock: true,
+        blockedByMainBot: String(botId),
+      });
     }
-    
-    if (isMemory) {
-      managerDataCache.setChanged(mBotId);
-      managerDataCache.save(mBotId);
-    } else {
-      const filePath = botLogPaths.get(mBotId);
-      if (filePath) {
-        fs.mkdirSync(path.dirname(filePath), { recursive: true });
-        fs.writeFileSync(filePath, JSON.stringify(mngrData, null, 2));
-      }
-    }
+
+    managerDataCache.setChanged(mBotId);
+    managerDataCache.save(mBotId);
   }
 
   const targetNames = listIdBlock.map((item) => item.targetName).join(", ");
+  const noGlobalId = listIdBlock.filter((item) => !item.globalId).map((item) => item.targetName);
   await sendMessageStateQuote(
     api, message,
     `✅ Đã chặn toàn hệ thống đối với: ${targetNames}\n` +
-      `📊 Áp dụng trên ${totalBots} bot.`,
+      `📊 Đã áp dụng trên ${totalBots} bot đang chạy.` +
+      (noGlobalId.length ? `\n⚠️ Không lấy được globalId (chặn bằng username): ${noGlobalId.join(", ")}.` : ""),
     true, 300000, false
   );
 }
@@ -1208,80 +1313,39 @@ export async function handleUnblockBotAll(api, message, groupSettings) {
     return;
   }
 
-  let listIdUnblock = [];
-
-  // Parse từ mentions
-  const mentions = message.data?.mentions;
-  if (mentions && mentions.length > 0) {
-    for (const mention of mentions) {
-      const targetId = String(mention.uid).replace(/_0$/, "");
-      const targetName = message.data.content
-        .substring(mention.pos, mention.pos + mention.len)
-        .replace("@", "");
-      listIdUnblock.push({ targetId, targetName });
-    }
-  }
-
-  // Parse từ UID
-  const content = removeMention(message) || "";
-  const words = content.trim().split(/\s+/);
-  for (const word of words) {
-    const cleanWord = word.replace(/_0$/, "").trim();
-    if (/^\d{8,25}$/.test(cleanWord) && !listIdUnblock.some((item) => item.targetId === cleanWord)) {
-      try {
-        const userInfo = await getUserInfoBasic(api, cleanWord);
-        listIdUnblock.push({
-          targetId: cleanWord,
-          targetName: userInfo?.displayName || userInfo?.zaloName || `ID ${cleanWord}`,
-        });
-      } catch {
-        listIdUnblock.push({ targetId: cleanWord, targetName: `ID ${cleanWord}` });
-      }
-    }
-  }
+  const listIdUnblock = await getGlobalBlockTargets(api, message, { allowAdmin: true });
 
   if (listIdUnblock.length === 0) {
     await sendMessageStateQuote(
       api, message,
       `🚨 Vui lòng chỉ định người cần bỏ chặn.\n` +
-        `Cú pháp: ${prefix}unblockbot all @mention\n` +
-        `Hoặc: ${prefix}unblockbot all <UID>`,
+        `Cú pháp: ${prefix}unblockbot all @mention`,
       false, 60000, false
     );
     return;
   }
 
-  // Unblock trên tất cả bot (cả bot đang chạy và bot trong thư mục logs)
-  const botIdSet = new Set(Object.keys(apiManager.apiManagerObject || {}));
-  try {
-    const logsDir = path.join(process.cwd(), "logs");
-    if (fs.existsSync(logsDir)) {
-      for (const entry of fs.readdirSync(logsDir)) {
-        if (/^\d+$/.test(entry)) botIdSet.add(entry);
-      }
-    }
-  } catch (e) {
-    console.error("Lỗi duyệt thư mục logs:", e);
-  }
-
+  const managers = Object.values(apiManager.apiManagerObject || {}).filter((manager) => manager?.apiZalo);
   let totalBots = 0;
   let totalUnblocked = 0;
 
-  for (const mBotId of botIdSet) {
-    const mngrData = managerDataCache.get(mBotId);
+  for (const manager of managers) {
+    const mBotId = String(manager.id || manager.apiZalo.getBotId());
+    const mngrData = managerDataCache.get(mBotId) || manager.getDataManager?.();
     if (!mngrData) continue;
     if (!mngrData.blockBot) mngrData.blockBot = [];
 
     totalBots++;
     for (const item of listIdUnblock) {
-      const normalizedTarget = String(item.targetId).replace(/_0$/, "");
-      const index = mngrData.blockBot.findIndex(
-        (blocked) => String(blocked.idUserZalo).replace(/_0$/, "") === normalizedTarget
-      );
-      if (index !== -1) {
-        mngrData.blockBot.splice(index, 1);
-        totalUnblocked++;
-      }
+      const username = item.username.toLowerCase();
+      const before = mngrData.blockBot.length;
+      mngrData.blockBot = mngrData.blockBot.filter((blocked) => {
+        if (blocked?.globalBlock !== true) return true;
+        if (username && cleanZaloUsername(blocked.username).toLowerCase() === username) return false;
+        return !(String(mBotId) === String(botId) &&
+          String(blocked.idUserZalo).replace(/_0$/, "") === item.mainUid);
+      });
+      totalUnblocked += before - mngrData.blockBot.length;
     }
     managerDataCache.setChanged(mBotId);
     managerDataCache.save(mBotId);
@@ -1579,6 +1643,14 @@ export async function handleBlockListReply(api, message) {
   const match = removeMention(message).trim().match(/^(?:block\s+)?remove\s+(\d+)$/iu);
   if (!match) return false;
 
+  // Kiểm tra lại quyền khi reply: quyền có thể đã bị thu hồi sau khi mở danh sách.
+  const botId = api.getBotId();
+  const senderId = message.data.uidFrom;
+  if (!isAdmin(botId, senderId, message.threadId) && !isRentalAdmin(botId, senderId, message.threadId)) {
+    await sendMessageWarning(api, message, "Bạn không còn quyền admin bot để mở chặn thành viên.", false);
+    return true;
+  }
+
   const index = Number(match[1]) - 1;
   const target = session.blockList[index];
   if (!target) {
@@ -1628,6 +1700,7 @@ export async function handleSettingGroupCommand(api, message, groupInfo, aliasCo
         `\n- lockview: ${groupInfo.setting?.lockViewMember ? "Tắt" : "Mở"} xem thành viên trong ${groupTypeString}` +
         `\n- history: ${groupInfo.setting?.enableMsgHistory ? "Mở" : "Tắt"
         } cho phép thành viên mới đọc tin nhắn gần nhất` +
+        `\n- captcha on/off: Xác minh người mới trong 5 phút, sai 4 lần sẽ bị chặn` +
         `\n- joinappr: ${groupInfo.setting?.joinAppr ? "Mở" : "Tắt"} chế độ phê duyệt thành viên` +
         `\n- showkey: ${groupInfo.setting?.signAdminMsg ? "Mở" : "Tắt"} hiển thị key quản trị` +
         `\n\n[Quản lý Key]:` +
@@ -1661,6 +1734,42 @@ export async function handleSettingGroupCommand(api, message, groupInfo, aliasCo
   const hasTime2 = isTimeFormat(rawSchedule2);
   const isTimeWindow = hasTime1 && hasTime2;
   const delayMsSingle = getDelayFromSchedule(rawSchedule);
+
+  if (settingType === "captcha") {
+    // Không dùng metadata cũ để từ chối bot vừa được phong key.
+    let currentGroup;
+    try {
+      currentGroup = await getGroupInfoData(api, threadId, { forceRefresh: true });
+      if (!currentGroup) throw new Error("Thiếu thông tin nhóm");
+    } catch (error) {
+      await sendMessageStateQuote(api, message, "Không lấy được quyền hiện tại từ Zalo, hãy thử lại lệnh captcha.", false, 60000);
+      return;
+    }
+    const admins = [currentGroup.creatorId, ...(currentGroup.adminIds || [])].filter(Boolean).map(String);
+    if (!isAdmin(api.getBotId(), message.data.uidFrom, threadId, admins)) {
+      await sendMessageStateQuote(api, message, "Chỉ quản trị viên mới được cài đặt captcha.", false, 60000);
+      return;
+    }
+    if (argsList.length !== 1 || !["on", "off", "1", "0"].includes(toggleValue)) {
+      await sendMessageStateQuote(api, message, `Sử dụng: ${prefix}stg captcha on/off`, false, 60000);
+      return;
+    }
+    const enabled = ["on", "1"].includes(toggleValue);
+    if (enabled && !admins.includes(String(api.getBotId()))) {
+      await sendMessageStateQuote(api, message, "Bot cần quyền trưởng/phó nhóm để chặn người không xác minh.", false, 60000);
+      return;
+    }
+    const settings = groupSettingsAll.getByID(api.getBotId());
+    const config = settings[threadId] ||= {};
+    config.captcha = enabled;
+    if (!enabled) config.captchaPending = {};
+    groupSettingsAll.setChanged();
+    await groupSettingsAll.save();
+    await sendMessageStateQuote(api, message, enabled
+      ? "Đã bật captcha"
+      : "Đã tắt captcha và hủy các lượt xác minh đang chờ.", true, 60000);
+    return;
+  }
 
   if (["noactive", "inactive", "lowactive", "ittt"].includes(settingType)) {
     await handleLowInteractionMembers(api, message, groupInfo, argsList, aliasCommand);
@@ -2209,6 +2318,11 @@ async function createKeyListImage(keyUsers, groupInfo) {
   } catch {
     groupTypeString = "Nhóm";
   }
+  const style = getActiveCanvasStyle();
+  if (style !== 1) return renderCollectionStyle(style, {
+    kicker: "MYBOT • GROUP ACCESS", title: "DANH SÁCH QUẢN TRỊ NHÓM", subtitle: `${keyUsers.length} quản trị viên của ${groupTypeString}`, footer: "Key Vàng là chủ nhóm • Key Bạc là quản trị viên",
+    items: keyUsers.map((user, index) => ({ badge: String(index + 1).padStart(2, "0"), title: user.displayName || user.zaloName || "Ẩn danh", subtitle: `UID: ${user.id}`, meta: user.role })),
+  }, "group-key-list");
   const tempCanvas = createCanvas(1, 1);
   const tempCtx = tempCanvas.getContext("2d");
   tempCtx.font = "bold 32px " + FONT_MAIN;

@@ -6,6 +6,8 @@ import { createCanvas, loadImage } from "canvas";
 import * as cv from "../../utils/canvas/index.js";
 import { deleteFile, loadImageBuffer } from '../../utils/util.js';
 import { formatDate } from '../../utils/format-util.js';
+import { getActiveCanvasStyle } from '../../utils/canvas/theme.js';
+import { renderCollectionStyle } from '../../utils/canvas/collection-style-renderers.js';
 
 const TIME_TO_LIVE_MESSAGE = 86400000;
 const TEST_DURATION = 20000;
@@ -114,6 +116,20 @@ function drawIconCircle(ctx, x, y, size, icon, color) {
 }
 
 export async function createSpeedTestImage(result) {
+	const style = getActiveCanvasStyle();
+	if (style !== 1) {
+		const download = (result.download.bandwidth / 125000).toFixed(2);
+		const upload = (result.upload.bandwidth / 125000).toFixed(2);
+		return renderCollectionStyle(style, {
+			kicker: "NETWORK • LIVE DIAGNOSTIC", title: "KẾT QUẢ ĐO TỐC ĐỘ MẠNG", subtitle: result.isp || "Unknown ISP",
+			footer: `${formatDate(new Date())} • VPN: ${result.interface?.isVpn ? "BẬT" : "TẮT"}`,
+			items: [
+				["DOWNLOAD", `${download} Mbps`, evaluateSpeed(Number(download))], ["UPLOAD", `${upload} Mbps`, evaluateSpeed(Number(upload))],
+				["PING", `${Math.round(result.ping.latency)} ms`, "Độ trễ"], ["JITTER", `${Math.round(result.ping.jitter)} ms`, "Dao động độ trễ"],
+				["PACKET LOSS", `${result.packetLoss ? result.packetLoss.toFixed(1) : "0"}%`, "Tỷ lệ mất gói"], ["SERVER", result.server?.location || "N/A", "Máy chủ đo"],
+			].map(([title, meta, subtitle], index) => ({ badge: String(index + 1).padStart(2, "0"), title, subtitle, meta })),
+		}, "speedtest");
+	}
 	const width = 1200, height = 650;
 	const canvas = createCanvas(width, height);
 	const ctx = canvas.getContext("2d");

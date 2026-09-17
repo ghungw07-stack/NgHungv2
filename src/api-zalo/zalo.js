@@ -143,7 +143,7 @@ class Zalo {
     }
     this.appContext.secretKey = loginData.data.zpw_enk;
     this.appContext.uid = loginData.data.uid;
-    this.appContext.idCloud = loginData.data.send2me_id;
+    this.appContext.idCloud = loginData.data.send2me_id || loginData.data.uid;
     this.appContext.settings = serverInfo.setttings || serverInfo.settings;
     this.appContext.phoneNumber = loginData.data.phone_number;
     logger(this.appContext, true).info("Logged in as", loginData.data.uid);

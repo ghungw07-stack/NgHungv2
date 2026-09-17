@@ -151,7 +151,7 @@ export async function handleI4tiktokCommand(api, message, aliasCommand) {
 🔒 Trạng thái: ${user.privateAccount ? 'Riêng tư 🔒' : 'Công khai 🌐'}
 ✔️ Xác minh: ${user.verified ? 'Đã xác minh ✅' : 'Chưa xác minh ❌'}
 
-👤 Founder: Ha Huy Hoang`;
+👤 Founder: Nguyễn Gia Hưng`;
 
     const tmpDir = path.join(os.tmpdir(), 'tiktok-avatar');
     if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });

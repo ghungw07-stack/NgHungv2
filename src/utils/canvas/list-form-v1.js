@@ -4,6 +4,8 @@ import path from "path";
 import * as cv from "./index.js";
 import { tempDir } from "../io-json.js";
 import { randomIDTemp } from "../format-util.js";
+import { getActiveCanvasStyle } from "./theme.js";
+import { renderCollectionStyle } from "./collection-style-renderers.js";
 
 const DEFAULT_OPTIONS = {
   columnCount: 1, // Số cột hiển thị (1 hoặc 2)
@@ -60,6 +62,26 @@ async function createListImage(options = {}, items = [], titleConfig = {}) {
     ...DEFAULT_TITLE_CONFIG,
     ...titleConfig,
   };
+
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) {
+    const images = await Promise.all(items.slice(0, 16).map(async (item) => {
+      try { return item.avatar ? await loadImage(item.avatar) : null; } catch { return null; }
+    }));
+    return renderCollectionStyle(activeStyle, {
+      kicker: "MYBOT • SMART LIST",
+      title: mergedTitleConfig.mainTitle,
+      subtitle: mergedTitleConfig.subTitle,
+      footer: `${items.length} mục trong danh sách`,
+      items: items.slice(0, 16).map((item, index) => ({
+        title: item.name || item.title || "Untitled",
+        subtitle: item.info || "Chưa có thông tin",
+        meta: item.status || item.badge || "",
+        image: images[index],
+        badge: String(index + 1).padStart(2, "0"),
+      })),
+    }, "list");
+  }
 
   // Tính toán kích thước canvas
   const useDoubleColumn = mergedOptions.columnCount === 2 && items.length > 10;

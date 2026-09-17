@@ -1,3 +1,4 @@
+import { buildGamePlayerMessage, gameMentionPlayer, getGameMentionUid } from "../../../utils/game-mentions.js";
 import fs from "fs/promises";
 import path from "path";
 import chalk from "chalk";
@@ -33,6 +34,7 @@ import { getGlobalPrefix } from "../../service.js";
 import Big from "big.js";
 import { checkBeforeJoinGame } from "../index.js";
 import { gameState } from "../game-manager.js";
+import { DEFAULT_JACKPOT, getGameJackpotKey, getGameJackpot, setGameJackpot, addGameJackpot } from "../jackpot-default.js";
 
 let currentSession = null;
 let activeThreads = {};
@@ -45,15 +47,15 @@ const TTL_IMAGE = 10800000;
 
 const WIN_PERCENT = 1000; // x1000
 const NORMAL_PAYOUT_MULTIPLIER = 1.9; // Trả cả gốc, nhà cái giữ lợi thế 5%
-const JACKPOT_CHANCE = 0.07;
-const HOUSE_BIAS_CHANCE = 0.45;
+const JACKPOT_CHANCE = 0.20; // Giảm tỉ lệ nổ hũ xuống 20%
+const HOUSE_BIAS_CHANCE = 0.6;
 
 // Thêm biến lưu lịch sử kết quả (giới hạn 15 kết quả gần nhất)
 const MAX_HISTORY = 20;
 let gameHistory = [];
 
 // Thêm biến lưu trữ hũ
-let jackpot = new Big(1000000); // Khởi tạo hũ với 1 triệu
+let jackpot = new Big(DEFAULT_JACKPOT); // Khởi tạo hũ với 1.000 tỷ
 
 // Thêm hàm lưu dữ liệu
 function saveGameData() {
@@ -91,14 +93,15 @@ export async function initializeGameTaiXiu(api) {
     gameState.data.taixiu.activeThreads = {};
   }
   if (!gameState.data.taixiu.history) gameState.data.taixiu.history = [];
-  if (!gameState.data.taixiu.jackpot) gameState.data.taixiu.jackpot = "1000000";
+  if (!gameState.data.taixiu.jackpots) gameState.data.taixiu.jackpots = {};
+  if (!gameState.data.taixiu.jackpot) gameState.data.taixiu.jackpot = DEFAULT_JACKPOT;
   gameState.data.taixiu.jackpot = new Big(gameState.data.taixiu.jackpot);
 
   activeThreads = gameState.data.taixiu.activeThreads;
 
   // Load history và jackpot từ file
   gameHistory = gameState.data.taixiu.history || [];
-  jackpot = new Big(gameState.data.taixiu.jackpot || "1000000");
+  jackpot = new Big(gameState.data.taixiu.jackpot || DEFAULT_JACKPOT);
 
   currentSession = {
     players: {},
@@ -173,8 +176,12 @@ async function endGame(api) {
   const threadPlayers = {};
 
   let jackpotWinners = [];
-  // Một lần quay cho cả phiên, không phụ thuộc số dư hay số người đặt cược.
-  const jackpotTriggered = Math.random() < JACKPOT_CHANCE;
+  // Chỉ nổ hũ khi ra 3 xúc xắc giống nhau (tam hoa / bão: 1-1-1 đến 6-6-6).
+  // Tuyệt đối không nổ hũ với các kết quả khác như 3-4-5.
+  const isTriple = Array.isArray(result.dice) && result.dice.length === 3 &&
+    result.dice[0] === result.dice[1] && result.dice[1] === result.dice[2];
+  // Tỉ lệ nổ hũ giảm xuống 20% khi xuất hiện 3 xúc xắc giống nhau
+  const jackpotTriggered = isTriple && Math.random() < JACKPOT_CHANCE;
   let totalJackpotBet = new Big(0);
   let totalJackpotPaid = new Big(0); // Thêm biến này
 
@@ -185,6 +192,7 @@ async function endGame(api) {
       const playerChoice = bet.betType === "tai" ? "Tài" : "Xỉu";
       const isJackpot = isWin && jackpotTriggered;
       const betAmount = new Big(bet.amount);
+      const playerServerKey = bet.serverKey || getGameJackpotKey(null, bet.botId);
       const winAmount = isWin
         ? betAmount.mul(NORMAL_PAYOUT_MULTIPLIER - 1).round(0, Big.roundDown)
         : betAmount.neg();
@@ -194,6 +202,7 @@ async function endGame(api) {
           jackpotWinners.push({
             playerId,
             bet: betAmount,
+            serverKey: playerServerKey,
             ...bet,
           });
           totalJackpotBet = totalJackpotBet.plus(betAmount);
@@ -202,13 +211,26 @@ async function endGame(api) {
           bet.username,
           betAmount.mul(NORMAL_PAYOUT_MULTIPLIER).round(0, Big.roundDown).toNumber(),
           isWin,
-          winAmount.toNumber()
+          winAmount.toNumber(),
+          {
+            gameName: "Tài Xỉu",
+            gameKey: "taixiu",
+            choice: playerChoice,
+            betAmount: bet.amount,
+            detail: result.dice ? `Xúc xắc ${result.dice.join("-")} (${result.total})` : "",
+          }
         );
       } else {
-        await setLoserGameByUsername(bet.username, betAmount.neg().toNumber());
+        await setLoserGameByUsername(bet.username, betAmount.neg().toNumber(), {
+          gameName: "Tài Xỉu",
+          gameKey: "taixiu",
+          choice: playerChoice,
+          betAmount: bet.amount,
+          detail: result.dice ? `Xúc xắc ${result.dice.join("-")} (${result.total})` : "",
+        });
         totalLoss = totalLoss.plus(betAmount);
-        // Cộng 20% tiền thua vào hũ
-        jackpot = jackpot.plus(betAmount.mul(0.6));
+        // Cộng 60% tiền thua vào hũ riêng của bot / server riêng này
+        addGameJackpot(gameState, "taixiu", playerServerKey, betAmount.mul(0.6));
       }
       await addGameRankPoints(playerId, { won: isWin, jackpot: isJackpot });
 
@@ -219,7 +241,8 @@ async function endGame(api) {
 
       mentions.push({
         len: bet.playerName.length + 1,
-        uid: playerId,
+        uid: bet.mentionUid || playerId,
+        botId: bet.botId,
         pos: mentionPos,
       });
 
@@ -234,39 +257,57 @@ async function endGame(api) {
       if (!threadPlayers[bet.threadId]) {
         threadPlayers[bet.threadId] = [];
       }
-      threadPlayers[bet.threadId].push(playerId);
+      threadPlayers[bet.threadId].push(bet.mentionUid || playerId);
     }
 
     // Xử lý chia thưởng jackpot nếu có người trúng
     if (jackpotWinners.length > 0) {
       let jackpotMessage = "\n🎉 NỔ HŨ 🎉\n";
 
+      // Phân bổ nổ hũ theo từng server riêng và từng bot riêng
+      const winnersByServerKey = {};
       for (const winner of jackpotWinners) {
-        let maxJackpotWin = winner.bet.mul(WIN_PERCENT);
-        let jackpotShare = jackpot.div(jackpotWinners.length);
-
-        // Giới hạn tiền thưởng không vượt quá 1000% số tiền cược
-        jackpotShare = jackpotShare.gt(maxJackpotWin) ? maxJackpotWin : jackpotShare;
-
-        // Cộng dồn tổng tiền đã trả thưởng
-        totalJackpotPaid = totalJackpotPaid.plus(jackpotShare);
-
-        await updatePlayerBalanceByUsername(winner.username, jackpotShare.toNumber(), true);
-
-        jackpotMessage += `@${winner.playerName}: Nhận ${formatCurrency(jackpotShare)} VNĐ từ hũ\n`;
-        mentions.push({
-          len: winner.playerName.length + 1,
-          uid: winner.playerId,
-          pos: resultText.length + jackpotMessage.indexOf(`@${winner.playerName}`),
-        });
+        const sKey = winner.serverKey || "default";
+        if (!winnersByServerKey[sKey]) winnersByServerKey[sKey] = [];
+        winnersByServerKey[sKey].push(winner);
       }
 
-      // Cập nhật lại số tiền hũ còn lại
-      jackpot = jackpot.minus(totalJackpotPaid);
+      for (const [sKey, winnersOnKey] of Object.entries(winnersByServerKey)) {
+        const currentPot = getGameJackpot(gameState, "taixiu", sKey);
+        let totalPaidOnKey = new Big(0);
 
-      // Nếu hũ nhỏ hơn giá trị mặc định, reset về giá trị mặc định
-      if (jackpot.lt(1000000)) {
-        jackpot = new Big(1000000);
+        for (const winner of winnersOnKey) {
+          let maxJackpotWin = winner.bet.mul(WIN_PERCENT);
+          let jackpotShare = winnersOnKey.length > 0 ? currentPot.div(winnersOnKey.length) : new Big(0);
+
+          jackpotShare = jackpotShare.gt(maxJackpotWin) ? maxJackpotWin : jackpotShare;
+          totalPaidOnKey = totalPaidOnKey.plus(jackpotShare);
+          totalJackpotPaid = totalJackpotPaid.plus(jackpotShare);
+
+          await updatePlayerBalanceByUsername(winner.username, jackpotShare.toNumber(), true, jackpotShare.toNumber(), {
+            gameName: "Tài Xỉu (NỔ HŨ)",
+            gameKey: "taixiu_hu",
+            choice: "Nổ Hũ",
+            betAmount: winner.bet ? winner.bet.toString() : "0",
+            detail: "Trúng hũ Tài Xỉu",
+          });
+
+          mentions.push({
+            len: winner.playerName.length + 1,
+            uid: winner.mentionUid || winner.playerId,
+            botId: winner.botId,
+            pos: resultText.length + jackpotMessage.length,
+          });
+          jackpotMessage += `@${winner.playerName}: Nhận ${formatCurrency(jackpotShare)} VNĐ từ hũ\n`;
+        }
+
+        const remainingPot = currentPot.minus(totalPaidOnKey);
+        setGameJackpot(
+          gameState,
+          "taixiu",
+          sKey,
+          remainingPot.lt(DEFAULT_JACKPOT) ? DEFAULT_JACKPOT : remainingPot
+        );
       }
 
       resultText += jackpotMessage;
@@ -275,11 +316,7 @@ async function endGame(api) {
     resultText += "Không có người chơi trong phiên này.\n";
   }
 
-  // Thêm thông tin hũ vào kết quả
-  resultText += `\nTiền hũ hiện tại: ${formatCurrency(jackpot)} VNĐ 💰`;
-
   gameState.data.taixiu.history = gameHistory;
-  gameState.data.taixiu.jackpot = jackpot.toString();
   saveGameData();
 
   const style = MultiMsgStyle([MessageStyle(0, nameServer.length, COLOR_RED, SIZE_18, IS_BOLD)]);
@@ -299,13 +336,19 @@ async function endGame(api) {
   for (const [key, objThread] of Object.entries(activeThreads)) {
     const apiManager = getApiManager(key);
     if (objThread && apiManager) {
+      const botServerKey = getGameJackpotKey(apiManager.apiZalo, key);
+      const botJackpot = getGameJackpot(gameState, "taixiu", botServerKey);
+      const botResultText = `${resultText}\nTiền hũ hiện tại: ${formatCurrency(botJackpot)} VNĐ 💰`;
+
       for (const threadId of objThread) {
         if (threadPlayers[threadId] && threadPlayers[threadId].length > 0) {
-          const threadMentions = mentions.filter((mention) => threadPlayers[threadId].includes(mention.uid));
+          const threadMentions = mentions
+            .filter((mention) => threadPlayers[threadId].includes(mention.uid) && (mention.botId == null || String(mention.botId) === String(key)))
+            .map(({ botId, ...mention }) => mention);
 
           await apiManager.apiZalo.sendMessage(
             {
-              msg: resultText,
+              msg: botResultText,
               mentions: threadMentions,
               style: style,
               attachments: [resultImagePath],
@@ -338,11 +381,11 @@ async function endGame(api) {
   api.apiInstance.schedule.gameJob = schedule.scheduleJob("* * * * * *", () => runGameLoop(api));
 }
 
-async function sendGameUpdate(api, remainingSeconds) {
+async function sendGameUpdate(api, remainingSeconds, shouldMention = false) {
   const botId = api.getBotId();
   let taiTotal = 0;
   let xiuTotal = 0;
-  let playerInfo = "";
+  const playerInfo = [];
   let activeThreadsWithPlayers = new Set();
 
   for (const [playerId, player] of Object.entries(currentSession.players)) {
@@ -354,7 +397,7 @@ async function sendGameUpdate(api, remainingSeconds) {
     }
 
     const betTypeText = player.betType === "tai" ? "Tài" : "Xỉu";
-    playerInfo += `${player.playerName} [${player.groupName || player.threadId}]: đặt ${betTypeText} ${playerBet.toNumber().toLocaleString("vi-VN")} VNĐ\n`;
+    playerInfo.push({ player: { ...player, mentionUid: player.mentionUid || playerId } }, ` [${player.groupName || player.threadId}]: đặt ${betTypeText} ${playerBet.toNumber().toLocaleString("vi-VN")} VNĐ\n`);
 
     activeThreadsWithPlayers.add(player.threadId);
   }
@@ -371,8 +414,7 @@ async function sendGameUpdate(api, remainingSeconds) {
       "\n💎 Nổ hũ khi > Tài: Ra 3 số 6 - Xỉu: Ra 3 số 1" +
       "\nTổng số người chơi: " +
       Object.keys(currentSession.players).length +
-      "\n\nThông tin đặt cược:\n" +
-      (playerInfo === "" ? "Chưa có ai đặt cược" : playerInfo),
+      "\n\nThông tin đặt cược:\n",
   };
 
   const waitingImagePath = await createWaitingImage(remainingSeconds, taiTotal, xiuTotal);
@@ -385,7 +427,15 @@ async function sendGameUpdate(api, remainingSeconds) {
   for (const threadId of activeThreadsWithPlayers) {
     if (atcThreadofBot.includes(threadId)) {
       try {
-        await sendMessageImageNotQuote(api, result, threadId, waitingImagePath, timelive, true);
+        const text = buildGamePlayerMessage([result.message, playerInfo.length ? playerInfo : "Chưa có ai đặt cược"], { threadId, botId });
+        await sendMessageImageNotQuote(
+          api,
+          { ...result, message: text.msg, mentions: shouldMention ? text.mentions : [] },
+          threadId,
+          waitingImagePath,
+          timelive,
+          true
+        );
       } catch (err) {
         console.log(`[${botId}] Không gửi được tin nhắn cho nhóm: `, threadId);
       }
@@ -488,24 +538,32 @@ async function placeBet(api, message, threadId, senderId, betType, amount, group
     saveGameData();
   }
 
+  const serverKey = getGameJackpotKey(api, botId);
+
   await updatePlayerBalanceByUsername(username, betAmount.neg());
   currentSession.players[senderId] = {
+    ...gameMentionPlayer(api, message),
     betType,
     amount: betAmount.toNumber(),
     playerName,
     groupName,
     threadId,
     username,
+    serverKey,
+    botId,
   };
 
   if (!gameState.data?.taixiu?.players) gameState.data.taixiu.players = {};
   gameState.data.taixiu.players[senderId] = {
+    ...gameMentionPlayer(api, message),
     betType,
     amount: betAmount.toNumber(),
     playerName,
     groupName,
     threadId,
     username,
+    serverKey,
+    botId,
   };
   saveGameData();
   const nameType = betType === "tai" ? "Tài" : "Xỉu";
@@ -515,11 +573,13 @@ async function placeBet(api, message, threadId, senderId, betType, amount, group
     message: `${playerName} đã đặt cược ${betAmount.toNumber().toLocaleString("vi-VN")} VNĐ cho cửa ${nameType}.`,
   };
 
-  await sendMessageFromSQL(api, message, result, true, 30000);
+  // Xác nhận cược không ping. Tài Xỉu chỉ mention khi mở phiên và khi trả kết quả.
+  await sendMessageFromSQL(api, message, result, false, 30000, false);
 
   if (Object.keys(currentSession.players).length === 1) {
     currentSession.interval = DEFAULT_INTERVAL;
     currentSession.endTime = Date.now() + DEFAULT_INTERVAL * 1000;
+    await sendGameUpdate(api, DEFAULT_INTERVAL, true);
   }
 }
 
@@ -546,7 +606,7 @@ async function handleSoiCau(api, message, threadId) {
     {
       success: true,
       message: `${senderName}: Thống kê kết quả ` + gameHistory.length + ` phiên gần nhất!`,
-      mentions: [{ pos: 0, uid: senderId, len: senderName.length }],
+      mentions: [{ pos: 0, uid: getGameMentionUid(message), len: senderName.length }],
     },
     threadId,
     imagePath,
@@ -611,14 +671,19 @@ export async function handleTaiXiuCommand(api, message, groupSettings) {
   }
 }
 
-// Thêm hàm để lấy giá trị hiện tại
-export function getJackpot() {
-  return jackpot;
+// Thêm hàm để lấy giá trị hiện tại theo bot hoặc server riêng
+export function getJackpot(key = "default") {
+  return getGameJackpot(gameState, "taixiu", key);
 }
 
-export function resetJackpot() {
-  jackpot = new Big(1000000);
-  gameState.data.taixiu.jackpot = jackpot.toString();
-  saveGameData();
+export function resetJackpot(key = null) {
+  if (key) {
+    setGameJackpot(gameState, "taixiu", key, DEFAULT_JACKPOT);
+  } else {
+    gameState.data.taixiu.jackpot = DEFAULT_JACKPOT;
+    gameState.data.taixiu.jackpots = {};
+    saveGameData();
+  }
+  jackpot = new Big(DEFAULT_JACKPOT);
   return jackpot;
 }

@@ -6,6 +6,9 @@ import * as cv from "./index.js";
 import { FONT_MAIN, formatCurrency } from "../format-util.js";
 import { loadImageBuffer } from "../util.js";
 import { getNameServer } from "../../service-ngh/chat-zalo/chat-style/chat-style.js";
+import { getActiveCanvasStyle } from "./theme.js";
+import { renderPortraitStyle } from "./portrait-style-renderers.js";
+import { renderCollectionStyle } from "./collection-style-renderers.js";
 
 export function hanldeNameUser(name, maxLength = 16) {
   const words = name.split(" ");
@@ -778,7 +781,48 @@ async function createUserInfoImageDesignB(userInfo) {
  * (dùng Math.random() độc lập mỗi lần có xác suất ra cùng 1 mẫu nhiều lần liên tục).
  */
 export async function createUserInfoImage(userInfo) {
-  const width = 1100, height = 620;
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) {
+    const name = String(userInfo?.name || "Người dùng").slice(0, 26);
+    let avatar;
+    try {
+      const avatarUrl = userInfo?.avatarFull || userInfo?.avatar;
+      if (!cv.isValidUrl(avatarUrl)) throw new Error("invalid avatar");
+      avatar = await Promise.race([
+        loadImage(avatarUrl),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("avatar timeout")), 4000)),
+      ]);
+    } catch {
+      avatar = createCanvas(320, 320);
+      const avatarContext = avatar.getContext("2d");
+      const gradient = avatarContext.createLinearGradient(0, 0, 320, 320);
+      gradient.addColorStop(0, "#8b5cf6");
+      gradient.addColorStop(1, "#06b6d4");
+      avatarContext.fillStyle = gradient;
+      avatarContext.fillRect(0, 0, 320, 320);
+      avatarContext.fillStyle = "#ffffff";
+      avatarContext.font = "800 132px Arial";
+      avatarContext.textAlign = "center";
+      avatarContext.fillText(name.charAt(0).toUpperCase() || "?", 160, 210);
+    }
+    const gender = String(userInfo?.gender || "Không xác định");
+    const birthday = String(userInfo?.birthday || "Ẩn ngày sinh");
+    return renderPortraitStyle(activeStyle, {
+      kind: "user-info",
+      kicker: "MYBOT • ZALO PROFILE",
+      title: userInfo?.title || "THÔNG TIN NGƯỜI DÙNG",
+      names: [name],
+      avatars: [avatar],
+      primaryLabel: "TRẠNG THÁI",
+      primaryValue: userInfo?.isOnline ? "ONLINE" : "OFFLINE",
+      secondaryLabel: "LOẠI TÀI KHOẢN",
+      secondaryValue: userInfo?.businessType || "Cá nhân",
+      body: `${gender} • ${birthday} • ${userInfo?.bio || ""}`,
+      footer: `UID ${userInfo?.uid || "N/A"} • ${userInfo?.lastActive || "Chưa có hoạt động"}`,
+    }, "user_info");
+  }
+
+  const width = 1100, height = 732;
   const canvas = new SkiaCanvas(width, height);
   const ctx = canvas.getContext("2d");
   const clean = (value, fallback = "Ẩn") => {
@@ -807,7 +851,7 @@ export async function createUserInfoImage(userInfo) {
   ctx.fillStyle = "#22d3ee"; ctx.beginPath(); ctx.arc(1040, 580, 260, 0, Math.PI * 2); ctx.fill();
   ctx.globalAlpha = 1;
 
-  rounded(42, 38, 1016, 544, 34, "rgba(17,24,39,0.92)", "rgba(255,255,255,0.16)");
+  rounded(42, 38, 1016, 656, 34, "rgba(17,24,39,0.92)", "rgba(255,255,255,0.16)");
   let avatar = null;
   try {
     const avatarUrl = userInfo.avatarFull || userInfo.avatar;
@@ -853,6 +897,8 @@ export async function createUserInfoImage(userInfo) {
     ["GIỚI TÍNH", clean(userInfo.gender, "Không xác định")],
     ["NGÀY SINH", clean(userInfo.birthday)],
     ["HOẠT ĐỘNG", clean(userInfo.lastActive)],
+    ["LOẠI TÀI KHOẢN", clean(userInfo.businessType, "Cá nhân")],
+    ["NGÀY TẠO", clean(userInfo.createdDate)],
   ];
   fields.forEach(([label, value], index) => {
     const col = index % 2, row = Math.floor(index / 2);
@@ -863,10 +909,10 @@ export async function createUserInfoImage(userInfo) {
     ctx.fillText(shorten(value, 230, "600 20px Arial"), x + 20, y + 59);
   });
 
-  rounded(390, 456, 572, 82, 18, "rgba(34,211,238,0.07)", "rgba(34,211,238,0.18)");
-  ctx.fillStyle = "#67e8f9"; ctx.font = "700 12px Arial"; ctx.fillText("GIỚI THIỆU", 410, 483);
+  rounded(390, 568, 572, 82, 18, "rgba(34,211,238,0.07)", "rgba(34,211,238,0.18)");
+  ctx.fillStyle = "#67e8f9"; ctx.font = "700 12px Arial"; ctx.fillText("GIỚI THIỆU", 410, 595);
   ctx.fillStyle = "#cbd5e1"; ctx.font = "17px Arial";
-  ctx.fillText(shorten(userInfo.bio, 525, "17px Arial"), 410, 515);
+  ctx.fillText(shorten(userInfo.bio, 525, "17px Arial"), 410, 627);
 
   const filePath = path.resolve("./assets/temp/user_info_modern_" + Date.now() + ".png");
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
@@ -1228,6 +1274,25 @@ export async function createManagerBotInfoImage(cardData) {
             : [{ label: "Thông tin", value: cardData.extraText || "Chưa cập nhật" }],
         }]),
   ];
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) {
+    let avatar = null;
+    try {
+      if (cv.isValidUrl(cardData.avatar)) avatar = await loadImage(cardData.avatar);
+    } catch {}
+    return renderCollectionStyle(activeStyle, {
+      kicker: "MYBOT • BOT MANAGER",
+      title: cardData.title || "THÔNG TIN HỆ THỐNG",
+      subtitle: "Trạng thái và thông số chi tiết",
+      footer: cardData.footer || "BOT MANAGER • SYSTEM PROFILE",
+      items: sections.flatMap((section) => (section.fields.length ? section.fields : [{ label: "Thông tin", value: "Chưa cập nhật" }]).map((field, index) => ({
+        title: field.label || section.title,
+        subtitle: section.title,
+        meta: String(field.value ?? "N/A"),
+        image: index === 0 ? avatar : null,
+      }))),
+    }, "manager_bot_info");
+  }
   const rowHeight = 110;
   const sectionHeights = sections.map(({ fields }) =>
     90 + Math.max(1, Math.ceil(Math.max(1, fields.length) / 2)) * rowHeight,
@@ -1949,6 +2014,28 @@ export async function createBotInfoImage(api, botInfo, uptime, botStats) {
     text: `${cpuPercent.toFixed(1)}%`,
     detail: String(botStats?.cpu || "N/A").replace(/\s*-\s*Utilization\s+[\d.]+%/i, ""),
   };
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) {
+    let avatar = null;
+    try {
+      if (botInfo?.avatar && cv.isValidUrl(botInfo.avatar)) avatar = await loadImage(botInfo.avatar);
+    } catch {}
+    const network = botStats?.network || {};
+    return renderCollectionStyle(activeStyle, {
+      kicker: "MYBOT • CONTROL CENTER",
+      title: botName,
+      subtitle: `${serverName} • Uptime ${uptime || "N/A"}`,
+      footer: `Phiên bản ${botStats?.version || "N/A"} • Live system metrics`,
+      items: [
+        { title: "CPU", subtitle: cpu.detail || "Bộ xử lý", meta: cpu.text, image: avatar },
+        { title: "RAM hệ thống", subtitle: botStats?.cpuModel || "Tài nguyên", meta: ram.text },
+        { title: "Ổ đĩa", subtitle: botStats?.os || "Hệ điều hành", meta: disk.text },
+        { title: "Bộ nhớ bot", subtitle: botStats?.processes || "Tiến trình", meta: memory.text },
+        { title: "Mạng gửi", subtitle: network.interface || "Giao diện mạng", meta: traffic.sent || "N/A" },
+        { title: "Mạng nhận", subtitle: network.type || "Loại kết nối", meta: traffic.received || "N/A" },
+      ],
+    }, "bot_info");
+  }
 
   function rounded(x, y, w, h, radius, fill, stroke = COLORS.border, lineWidth = 1) {
     ctx.fillStyle = fill;
@@ -3055,6 +3142,28 @@ export async function createGroupInfoImage(groupInfo, owner, onConfigs = [], off
   const settings = Object.entries(groupInfo?.setting || {})
     .filter(([key]) => settingNames[key])
     .map(([key, value]) => ({ label: settingNames[key][0], value: settingNames[key][1][Number(value)] ?? safe(value) }));
+
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) {
+    const ownerName = safe(typeof owner === "string" ? owner : owner?.name || owner?.displayName, "Chưa xác định");
+    const overview = [
+      { title: "Chủ nhóm", subtitle: ownerName, meta: `ID ${safe(owner?.id || owner?.uid, "N/A")}` },
+      { title: "Thành viên", subtitle: typeName, meta: safe(groupInfo?.totalMember || groupInfo?.memberCount || groupInfo?.totalMembers, "N/A") },
+      { title: "Mô tả", subtitle: safe(groupInfo?.desc, "Không có mô tả"), meta: "THÔNG TIN" },
+    ];
+    const settingItems = settings.map((item) => ({ title: item.label, subtitle: "Cài đặt nhóm", meta: item.value }));
+    const configItems = [
+      ...onConfigs.map((value) => ({ title: String(value), subtitle: "Tính năng đang bật", meta: "BẬT" })),
+      ...offConfigs.map((value) => ({ title: String(value), subtitle: "Tính năng đang tắt", meta: "TẮT" })),
+    ];
+    return renderCollectionStyle(activeStyle, {
+      kicker: `MYBOT • ${typeName.toUpperCase()} INFO`,
+      title: safe(groupInfo?.name, "THÔNG TIN NHÓM"),
+      subtitle: `${overview[1].meta} thành viên • Chủ nhóm ${ownerName}`,
+      footer: `${settings.length} cài đặt • ${onConfigs.length} tính năng đang bật`,
+      items: [...overview, ...settingItems, ...configItems].slice(0, 16),
+    }, "group_info");
+  }
 
   const measureCanvas = createCanvas(W, 200);
   const measureCtx = measureCanvas.getContext("2d");

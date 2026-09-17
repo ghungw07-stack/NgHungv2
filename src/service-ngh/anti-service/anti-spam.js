@@ -10,12 +10,13 @@ import { removeMention } from "../../utils/format-util.js";
 import { deleteFile } from "../../utils/util.js";
 import { getMessageCache } from "../../utils/message-cache.js";
 import { deleteMessageCustomer } from "../../commands/bot-manager/utilities.js";
+import { applyAntiPunishment, shouldSendBlockImage } from "./anti-punishment.js";
 
 const kickedUsers = new Set();
 const userMessageTimestamps = new Map();
 const userWarnings = new Map();
-const MESSAGE_THRESHOLD = 3;
-const TIME_WINDOW = 5000;
+const MESSAGE_THRESHOLD = 10;
+const TIME_WINDOW = 3000;
 const MESSAGE_THRESHOLD_REPEATED = 3;
 const TIME_WINDOW_REPEATED = 15000;
 const WARNING_RESET_TIME = 1800000;
@@ -144,7 +145,7 @@ export async function antiSpam(api, message, groupInfo, isAdminBox, groupSetting
             message.type
           );
         } else {
-          await handleSpamDetected(api, message, spamAnalysis.type);
+          await handleSpamDetected(api, message, spamAnalysis.type, groupSettings);
         }
         return true;
       } catch (error) {
@@ -159,7 +160,7 @@ export async function antiSpam(api, message, groupInfo, isAdminBox, groupSetting
 function analyzeSpamBehavior(messages, recentMessages) {
   if (messages.length >= MESSAGE_THRESHOLD) {
     const timeSpan = messages[messages.length - 1].time - messages[0].time;
-    if (timeSpan < TIME_WINDOW) {
+    if (timeSpan <= TIME_WINDOW) {
       return { isSpam: true, type: SPAM_PATTERNS.RAPID_MESSAGES };
     }
   }
@@ -261,7 +262,7 @@ function levenshteinDistance(str1, str2) {
   return dp[m][n];
 }
 
-async function handleSpamDetected(api, message, spamType) {
+async function handleSpamDetected(api, message, spamType, groupSettings) {
   const idBot = api.getBotId();
   const threadId = message.threadId;
   const senderId = message.data.uidFrom;
@@ -270,14 +271,16 @@ async function handleSpamDetected(api, message, spamType) {
   try {
     if (kickedUsers.has(senderId)) return;
     kickedUsers.add(senderId);
-    await api.blockUsers(threadId, [senderId]);
+    await applyAntiPunishment(api, message, threadId, senderId, senderName, groupSettings);
 
     const groupInfo = await getGroupInfoData(api, threadId);
     const userInfo = await getUserInfoData(api, senderId);
     const botId = api.getBotId();
     const botInfo = await getUserInfoData(api, botId);
     const botName = botInfo?.name || botInfo?.zaloName || api.accountInfo?.name || "Bot";
-    imagePath = await createBlockSpamImage(userInfo, groupInfo.name, groupInfo.groupType, userInfo.gender, botName);
+    imagePath = shouldSendBlockImage(api)
+      ? await createBlockSpamImage(userInfo, groupInfo.name, groupInfo.groupType, userInfo.gender, botName)
+      : null;
 
     await api.sendMessage(
       {
@@ -478,12 +481,14 @@ export async function antiSpamUndoGroup(api, undoEvent, isAdminBox, groupSetting
     if (checkSpamUndo.isSpam) {
       if (kickedUsers.has(senderId)) return;
       kickedUsers.add(senderId);
-      await api.blockUsers(threadId, [senderId]);
+      await applyAntiPunishment(api, undoEvent, threadId, senderId, senderName, groupSettings);
       const userInfo = await getUserInfoData(api, senderId);
       const botId = api.getBotId();
       const botInfo = await getUserInfoData(api, botId);
       const botName = botInfo?.name || botInfo?.zaloName || api.accountInfo?.name || "Bot";
-      const imagePath = await createBlockSpamImage(userInfo, groupInfo.name, groupInfo.groupType, userInfo.gender, botName);
+      const imagePath = shouldSendBlockImage(api)
+        ? await createBlockSpamImage(userInfo, groupInfo.name, groupInfo.groupType, userInfo.gender, botName)
+        : null;
 
       try {
         await api.sendMessage(

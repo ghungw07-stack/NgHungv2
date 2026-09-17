@@ -7,6 +7,9 @@ const WINDOW_MS = 60_000;
 const NOTIFY_COOLDOWN_MS = 5 * 60_000;
 const ENABLE_RUNTIME_ERROR_NOTIFICATIONS = process.env.NGH_CHILD_ERROR_NOTIFICATIONS !== "0";
 const NOTIFIABLE_CHILD_SCOPES = new Set(["child_disconnected"]);
+// WS 1000 là normal closure. Vẫn ghi log để chẩn đoán nhưng không nhắn cảnh
+// báo gây hoang mang cho owner/admin.
+const SILENT_CHILD_NOTIFICATIONS = new Set(["child_disconnected:WS_1000"]);
 let mainApi = null;
 
 setInterval(() => {
@@ -57,7 +60,13 @@ export async function reportRuntimeError(api, scope, error, extra = {}) {
   const detail = `[runtime:${scope}] bot=${botId} code=${info.code} ${info.message}\n${info.stack}`;
   console.error(detail);
 
-  if (!ENABLE_RUNTIME_ERROR_NOTIFICATIONS || isMainBot || !api || !NOTIFIABLE_CHILD_SCOPES.has(scope)) return;
+  if (
+    !ENABLE_RUNTIME_ERROR_NOTIFICATIONS ||
+    isMainBot ||
+    !api ||
+    !NOTIFIABLE_CHILD_SCOPES.has(scope) ||
+    SILENT_CHILD_NOTIFICATIONS.has(`${scope}:${info.code}`)
+  ) return;
   if (now - (notificationCache.get(fingerprint) || 0) < NOTIFY_COOLDOWN_MS) return;
   notificationCache.set(fingerprint, now);
 

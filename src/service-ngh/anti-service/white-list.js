@@ -14,6 +14,8 @@ import fs from "fs";
 import { tempDir } from "../../utils/io-json.js";
 import * as cv from "../../utils/canvas/index.js";
 import { deleteFile } from "../../utils/util.js";
+import { getActiveCanvasStyle } from "../../utils/canvas/theme.js";
+import { renderCollectionStyle } from "../../utils/canvas/collection-style-renderers.js";
 
 export async function handleWhiteList(api, message, groupSettings, groupAdmins) {
   // White-list là cấu hình cấp bot, chỉ admin cấp cao; không dùng quyền admin nhóm.
@@ -150,6 +152,14 @@ export function isInWhiteList(groupSettings, threadId, senderId) {
 }
 
 async function createWhiteListImage(api, whiteListInfo, groupSettings, threadId) {
+  const style = getActiveCanvasStyle();
+  if (style !== 1) {
+    const profiles = Object.values(whiteListInfo.profiles || {});
+    return renderCollectionStyle(style, {
+      kicker: "MYBOT • MODERATION", title: "DANH SÁCH TRẮNG", subtitle: `${profiles.length} thành viên được miễn trừ`, footer: "Danh sách áp dụng cho nhóm hiện tại",
+      items: profiles.map((profile, index) => ({ badge: String(index + 1).padStart(2, "0"), title: profile.zaloName || profile.displayName || "Người dùng", subtitle: "Được miễn trừ vi phạm", meta: "WHITELIST" })),
+    }, "white-list");
+  }
   const tempCanvas = createCanvas(1, 1);
   const tempCtx = tempCanvas.getContext("2d");
   tempCtx.font = "bold 32px " + FONT_MAIN;

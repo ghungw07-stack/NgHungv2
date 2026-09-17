@@ -1,5 +1,5 @@
 import { loadPlayerData, savePlayerData } from "./dataManager.js";
-import config from "./game_config.json" assert { type: "json" };
+import config from "./game_config.json" with { type: "json" };
 
 export function getSkillCard(id) {
   return config.skillCards.find(c => c.id === id);
@@ -98,4 +98,3 @@ export function getSkillCardList(player) {
 
   return `🎴 TÚI THẺ KỸ NĂNG\n\n${cards}\n\n📘 Dùng: \`fishing skill use <số>\` để kích hoạt thẻ theo thứ tự.`;
 }
-

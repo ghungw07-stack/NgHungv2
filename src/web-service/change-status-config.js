@@ -6,6 +6,7 @@ import { getSettingName } from "../service-ngh/info-service/group-info.js";
 export const changeStatusConfig = async ({ api, groupId, groupName, command, isActive }) => {
   const groupSettings = groupSettingsAll.getByID(api.getBotId());
   initGroupSettings(groupSettings, groupId, groupName);
+  const active = isActive === true || isActive === 1 || isActive === "1" || isActive === "true";
 
   switch (command) {
     case "activeBot":
@@ -60,7 +61,8 @@ export const changeStatusConfig = async ({ api, groupId, groupName, command, isA
       groupSettings[groupId].antiUndo = isActive;
       break;
     case "sendTask":
-      groupSettings[groupId].sendTask = isActive;
+      groupSettings[groupId].sendTask = active;
+      groupSettings[groupId].sendTaskExplicitlyEnabled = active;
       break;
     case "updateGroup":
       groupSettings[groupId].updateGroup = isActive;
@@ -99,7 +101,7 @@ export const changeStatusConfig = async ({ api, groupId, groupName, command, isA
       return;
   }
   groupSettingsAll.setChanged();
-  await sendStatusBot(api, groupId, command, isActive);
+  await sendStatusBot(api, groupId, command, command === "sendTask" ? active : isActive);
 };
 
 export async function sendStatusBot(api, threadId, command, newStatus) {

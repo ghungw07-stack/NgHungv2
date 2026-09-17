@@ -1,3 +1,4 @@
+import { processCaptchaTimeouts } from "../anti-service/group-captcha.js";
 import schedule from "node-schedule";
 import { MessageType } from "../../api-zalo/index.js";
 import { handleRandomChartZingMp3 } from "../api-crawl/music-content/zingmp3.js";
@@ -12,6 +13,7 @@ import { getSendtaskOverallWeather } from "../api-crawl/content/weather.js";
 import { deleteFile } from "../../utils/util.js";
 import { getGroupInfoData } from "../info-service/group-info.js";
 import { runLimited as runWithLimit } from "./sendtask-limiter.js";
+import { isSendTaskEnabled } from "./sendtask-state.js";
 
 const LOCK_CHAT_TIME_ZONE = "Asia/Ho_Chi_Minh";
 const CUSTOM_TASK_TYPES = new Set([
@@ -23,6 +25,10 @@ export const SENDTASK_SUPPORTED_TYPES = [...CUSTOM_TASK_TYPES];
 const SENDTASK_FANOUT_CONCURRENCY = Math.max(1, Number.parseInt(process.env.NGH_SENDTASK_CONCURRENCY || "2", 10) || 2);
 
 const runLimited = (items, worker) => runWithLimit(items, worker, SENDTASK_FANOUT_CONCURRENCY);
+
+function getEnabledThreadIds(groupSettings) {
+  return Object.keys(groupSettings).filter((threadId) => isSendTaskEnabled(groupSettings[threadId]));
+}
 
 function getLockChatClock() {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -125,11 +131,12 @@ async function processCustomSendTasks(api) {
   const clock = getLockChatClock();
   const runKey = `${clock.date}:${clock.time}`;
   await runLimited(Object.entries(groupSettings), async ([threadId, settings]) => {
-    if (!settings?.sendTask || !Array.isArray(settings.customSendTasks)) return;
+    if (!isSendTaskEnabled(settings) || !Array.isArray(settings.customSendTasks)) return;
     const dueTasks = settings.customSendTasks.filter((task) =>
       task?.time === clock.time && CUSTOM_TASK_TYPES.has(task.type) && task.lastRunKey !== runKey
     );
     for (const task of dueTasks) {
+      if (!isSendTaskEnabled(settings)) return;
       task.lastRunKey = runKey;
       groupSettingsAll.setChanged();
       try {
@@ -399,8 +406,9 @@ const scheduledTasks = [
 
 async function sendTaskGirlVideo(api, caption, timeToLive, type = "default") {
   const groupSettings = groupSettingsAll.getByID(api.getBotId());
-  const enabledThreadIds = Object.keys(groupSettings).filter((threadId) => groupSettings[threadId].sendTask);
+  const enabledThreadIds = getEnabledThreadIds(groupSettings);
   await runLimited(enabledThreadIds, async (threadId) => {
+    if (!isSendTaskEnabled(groupSettings[threadId])) return;
     const message = {
       threadId: threadId,
       type: MessageType.GroupMessage,
@@ -423,8 +431,9 @@ async function sendTaskVideo(api, caption, timeToLive, query) {
   if (chillListVideo) {
     const groupSettings = groupSettingsAll.getByID(api.getBotId());
     let captionFinal = `${caption}`;
-    const enabledThreadIds = Object.keys(groupSettings).filter((threadId) => groupSettings[threadId].sendTask);
+    const enabledThreadIds = getEnabledThreadIds(groupSettings);
     await runLimited(enabledThreadIds, async (threadId) => {
+      if (!isSendTaskEnabled(groupSettings[threadId])) return;
       const message = {
         threadId: threadId,
         type: MessageType.GroupMessage,
@@ -454,8 +463,9 @@ async function sendTaskVideo(api, caption, timeToLive, query) {
 
 async function sendTaskMusic(api, caption, timeToLive) {
   const groupSettings = groupSettingsAll.getByID(api.getBotId());
-  const enabledThreadIds = Object.keys(groupSettings).filter((threadId) => groupSettings[threadId].sendTask);
+  const enabledThreadIds = getEnabledThreadIds(groupSettings);
   await runLimited(enabledThreadIds, async (threadId) => {
+    if (!isSendTaskEnabled(groupSettings[threadId])) return;
     const message = {
       threadId: threadId,
       type: MessageType.GroupMessage,
@@ -475,8 +485,9 @@ async function sendTaskMusic(api, caption, timeToLive) {
 
 async function sendTaskLunarCalendar(api, caption, timeToLive) {
   const groupSettings = groupSettingsAll.getByID(api.getBotId());
-  const enabledThreadIds = Object.keys(groupSettings).filter((threadId) => groupSettings[threadId].sendTask);
+  const enabledThreadIds = getEnabledThreadIds(groupSettings);
   await runLimited(enabledThreadIds, async (threadId) => {
+    if (!isSendTaskEnabled(groupSettings[threadId])) return;
     const message = {
       threadId,
       type: MessageType.GroupMessage,
@@ -503,8 +514,9 @@ async function sendTaskLunarCalendar(api, caption, timeToLive) {
 
 async function sendTaskOverallWeather(api, caption, timeToLive) {
   const groupSettings = groupSettingsAll.getByID(api.getBotId());
-  const enabledThreadIds = Object.keys(groupSettings).filter((threadId) => groupSettings[threadId].sendTask);
+  const enabledThreadIds = getEnabledThreadIds(groupSettings);
   await runLimited(enabledThreadIds, async (threadId) => {
+    if (!isSendTaskEnabled(groupSettings[threadId])) return;
     const message = {
       threadId,
       type: MessageType.GroupMessage,
@@ -524,7 +536,7 @@ async function sendTaskOverallWeather(api, caption, timeToLive) {
 
 async function sendTaskMarketPrice(api, kind, caption, timeToLive) {
   const groupSettings = groupSettingsAll.getByID(api.getBotId());
-  const enabledThreadIds = Object.keys(groupSettings).filter((threadId) => groupSettings[threadId].sendTask);
+  const enabledThreadIds = getEnabledThreadIds(groupSettings);
   if (!enabledThreadIds.length) return;
 
   let imagePath;
@@ -540,6 +552,7 @@ async function sendTaskMarketPrice(api, kind, caption, timeToLive) {
     }
 
     await runLimited(enabledThreadIds, async (threadId) => {
+      if (!isSendTaskEnabled(groupSettings[threadId])) return;
       const message = { threadId, type: MessageType.GroupMessage };
       try {
         const uploaded = await api.uploadAttachment([imagePath], threadId, MessageType.GroupMessage);
@@ -565,8 +578,9 @@ async function analyzeGroupInteractions(api, caption, timeToLive) {
   const idBot = api.getBotId();
   const groupSettings = groupSettingsAll.getByID(idBot);
 
-  const enabledThreadIds = Object.keys(groupSettings).filter((threadId) => groupSettings[threadId].sendTask);
+  const enabledThreadIds = getEnabledThreadIds(groupSettings);
   await runLimited(enabledThreadIds, async (threadId) => {
+    if (!isSendTaskEnabled(groupSettings[threadId])) return;
     try {
       await analyzeGroupInteractionsByThreadId(api, threadId, caption, timeToLive);
     } catch (error) {
@@ -580,6 +594,11 @@ async function analyzeGroupInteractions(api, caption, timeToLive) {
 }
 
 export async function initializeScheduler(api) {
+  if (!api.apiInstance.schedule.groupCaptcha) {
+    api.apiInstance.schedule.groupCaptcha = schedule.scheduleJob("* * * * * *", () => {
+      processCaptchaTimeouts(api, groupSettingsAll).catch(error => console.error("Lỗi kiểm tra captcha:", error));
+    });
+  }
   scheduledTasks.forEach((taskConfig) => {
     if (api.apiInstance.schedule[taskConfig.cronExpression]) return;
     api.apiInstance.schedule[taskConfig.cronExpression] = schedule.scheduleJob(taskConfig.cronExpression, () => {

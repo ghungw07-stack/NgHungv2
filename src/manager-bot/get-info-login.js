@@ -2,12 +2,10 @@ import schedule from "node-schedule";
 import cryptojs from "crypto-js";
 import crypto from "node:crypto";
 import path from "path";
-import QRCode from "qrcode";
 import {
   sendMessageComplete,
   sendMessageCompleteRequest,
   sendMessageFailed,
-  sendMessageFromSQLImage,
   sendMessageWarning,
 } from "../service-ngh/chat-zalo/chat-style/chat-style.js";
 import * as toughCookie from "tough-cookie";
@@ -17,12 +15,22 @@ import { deleteFile, writeFileSync } from "../utils/util.js";
 import { randomIDTemp } from "../utils/format-util.js";
 import { MessageType } from "../api-zalo/index.js";
 import { getMessageByThreadAndMsgId } from "../utils/message-cache.js";
-import { Canvas, loadImage } from "skia-canvas";
+import { createLoginQRCardBuffer } from "../utils/canvas/login-qr-card.js";
+import { createZaloProxyTransport } from "../api-zalo/proxy.js";
 
 const TIME_TO_LIVE = 1000 * 60 * 30;
 const TIME_LIVE_QRCODE = 100000;
+const QR_EXPIRES_IN_SECONDS = Math.round(TIME_LIVE_QRCODE / 1000);
 const sessionGetLogin = new Map();
-// Ha Huy Hoang dz xoá làm chó
+
+function getLoginQRCaption(purpose) {
+  const action = purpose === "mybot"
+    ? "🤖 Quét QR để đăng nhập bot."
+    : "🔐 Quét QR để lấy Cookie & IMEI.";
+  return `${action}\n⏳ Hết hạn sau ${QR_EXPIRES_IN_SECONDS} giây — không chia sẻ.`;
+}
+
+// Nguyễn Gia Hưng dz xoá làm chó
 schedule.scheduleJob("*/5 * * * *", () => {
   const now = Date.now();
   for (const [key, value] of sessionGetLogin.entries()) {
@@ -314,44 +322,7 @@ async function establishSession(ctx) {
   );
 }
 
-function isInFinderPattern(x, y, moduleCount) {
-  const inTopLeft = x <= 6 && y <= 6;
-  const inTopRight = x >= moduleCount - 7 && y <= 6;
-  const inBottomLeft = x <= 6 && y >= moduleCount - 7;
-  return inTopLeft || inTopRight || inBottomLeft;
-}
-
-async function createQRWithCircularAvatar(qrImageBase64, _avatarPath, outputPath) {
-  const canvasWidth = 600;
-  const canvasHeight = 800;
-  const qrSize = 500;
-  const qrX = (canvasWidth - qrSize) / 2;
-  const qrY = 100;
-
-  const canvas = new Canvas(canvasWidth, canvasHeight);
-  const ctx = canvas.getContext("2d");
-
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
-
-  // Dùng đúng ảnh QR do server Zalo trả về (giữ nguyên nội dung mã hoá gốc),
-  // KHÔNG tự vẽ lại QR từ token vì token thô không đủ để app Zalo nhận diện đúng.
-  const qrBuffer = Buffer.from(qrImageBase64.replace(/^data:image\/png;base64,/, ""), "base64");
-  const qrImage = await loadImage(qrBuffer);
-  ctx.drawImage(qrImage, qrX, qrY, qrSize, qrSize);
-
-  const textContent = "Mở ứng dụng Zalo và quét QR bằng camera";
-  ctx.font = "bold 24px Arial";
-  ctx.fillStyle = "#000000";
-  ctx.textAlign = "center";
-  ctx.fillText(textContent, canvasWidth / 2, qrY + qrSize + 60);
-
-  const buffer = await canvas.toBuffer("png");
-  writeFileSync(outputPath, buffer);
-}
-
-export async function loginQR(api, message, ctx) {
-  const senderId = message.data.uidFrom;
+export async function loginQR(api, message, ctx, options = {}) {
   return new Promise(async (resolve, reject) => {
    try {
     const loginVersion = await loadLoginPage(ctx);
@@ -367,25 +338,26 @@ export async function loginQR(api, message, ctx) {
         error: `Không thể khởi tạo QR Code Login Zalo\nChi Tiết: ${JSON.stringify(qrGenResult, null, 2)}`,
       });
     const qrData = qrGenResult.data;
-    const token = qrData.token;
 
     let msgId = "";
     const qrPath = path.join(tempDir, `qrImg_${randomIDTemp()}.png`);
     try {
-      // writeFileSync(qrPath, Buffer.from(qrData.image.replace(/^data:image\/png;base64,/, ""), "base64"));
-      await createQRWithCircularAvatar(qrData.image, null, qrPath);
+      // Luôn dùng đúng PNG do Zalo trả về; chỉ bọc trong card, không tái tạo từ token.
+      const qrCardBuffer = await createLoginQRCardBuffer(qrData.image, {
+        expiresInSeconds: QR_EXPIRES_IN_SECONDS,
+      });
+      writeFileSync(qrPath, qrCardBuffer);
       msgId = await sendMessageCompleteRequest(
         api,
         message,
         {
-          caption:
-            `Vui lòng quét QR sau để lấy thông tin đăng nhập cho bạn!\n` +
-            `Lưu ý: Nhớ quét qr có @ tag bạn, đừng quét qr có @ tag của người khác = ) ahihi...!`,
+          caption: getLoginQRCaption(options.purpose),
           imagePath: qrPath,
         },
         TIME_LIVE_QRCODE
       );
     } catch (error) {
+      console.error("[Login QR] Không thể tạo hoặc gửi ảnh QR:", error?.message || error);
       return reject({
         error: `Có lỗi khi xử lý dữ liệu QR!`,
       });
@@ -399,7 +371,7 @@ export async function loginQR(api, message, ctx) {
       return reject({
         error: `QR đã hết hạn, kết thúc phiên lấy imei cookie này!`,
       });
-    }, 100000);
+    }, TIME_LIVE_QRCODE);
     const scanResult = await waitingScan(ctx, loginVersion, qrGenResult.data.code, controller.signal);
     if (!scanResult || !scanResult.data)
       return reject({
@@ -460,25 +432,26 @@ export const createContext = (apiType = Zalo.API_TYPE, apiVersion = Zalo.API_VER
   imei: "",
   cookie: new toughCookie.CookieJar(),
   userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0",
-  options: { polyfill: global.fetch },
+  options: { polyfill: global.fetch, ...createZaloProxyTransport() },
   secretKey: null,
 });
 
-export async function handleGetCookieImeiByQR(api, message) {
+export async function handleGetCookieImeiByQR(api, message, options = {}) {
   const senderId = message.data.uidFrom;
+  const sessionKey = `${api.getBotId()}:${senderId}`;
 
-  if (sessionGetLogin.has(senderId)) {
+  if (sessionGetLogin.has(sessionKey)) {
     const caption = `Bạn đã yêu cầu get data login trước đó. vui lòng quét QR đã gửi trước đó để có thể lấy thông tin cookie imei`;
     await sendMessageWarning(api, message, caption, true, TIME_LIVE_QRCODE);
     return;
   }
 
   try {
-    sessionGetLogin.set(senderId, {
+    sessionGetLogin.set(sessionKey, {
       timestamp: Date.now(),
     });
     const ctx = createContext();
-    const loginQRResult = await loginQR(api, message, ctx);
+    const loginQRResult = await loginQR(api, message, ctx, options);
     if (!loginQRResult) {
       await sendMessageFailed(api, message, "Không thể get info login...!", true, TIME_TO_LIVE);
       return;
@@ -512,17 +485,24 @@ export async function handleGetCookieImeiByQR(api, message) {
 
     ctx.imei = generateZaloUUID(ctx.userAgent);
 
-    let caption = ``;
-    if (message.type === MessageType.GroupMessage) {
-      caption += `Get Imei Cookie Thành Công!\nThông tin đã được gửi đến tin nhắn riêng của bạn!`;
-      await sendMessageComplete(api, message, caption, true, TIME_TO_LIVE);
-      message.threadId = senderId;
-      message.type = MessageType.DirectMessage;
+    if (options.purpose === "mybot") {
+      await sendMessageComplete(api, message, "Quét QR đăng nhập thành công. Đang lưu thông tin bot…", true, TIME_TO_LIVE);
+    } else {
+      const caption =
+        `Get cookie imei thành công!\n\n` +
+        `Tài Khoản: ${loginQRResult.data.display_name}\nIMEI: ${ctx.imei}\nCookie: ${cookie}`;
+      if (message.type === MessageType.GroupMessage) {
+        try {
+          await api.sendMessage({ msg: caption, ttl: TIME_TO_LIVE }, senderId, MessageType.DirectMessage);
+        } catch {
+          await sendMessageFailed(api, message, "Không gửi được Cookie/IMEI qua tin nhắn riêng. Hãy kết bạn với bot rồi dùng getlogin lại.", true, TIME_TO_LIVE);
+          return null;
+        }
+        await sendMessageComplete(api, message, "Đã gửi Cookie/IMEI vào tin nhắn riêng của bạn.", true, TIME_TO_LIVE);
+      } else {
+        await sendMessageComplete(api, message, caption, true, TIME_TO_LIVE);
+      }
     }
-    caption =
-      `Get cookie imei thành công!\n\n` +
-      `Tài Khoản: ${loginQRResult.data.display_name}\nIMEI: ${ctx.imei}\nCookie: ${cookie}`;
-    await sendMessageComplete(api, message, caption, true, TIME_TO_LIVE);
     return {
       imei: ctx.imei,
       cookie: cookie,
@@ -538,8 +518,8 @@ export async function handleGetCookieImeiByQR(api, message) {
     );
     return null;
   } finally {
-    if (sessionGetLogin.has(senderId)) {
-      sessionGetLogin.delete(senderId);
+    if (sessionGetLogin.has(sessionKey)) {
+      sessionGetLogin.delete(sessionKey);
     }
   }
 }

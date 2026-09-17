@@ -3,6 +3,7 @@ import schedule from "node-schedule";
 import { sendMessageStateQuote } from "../chat-zalo/chat-style/chat-style.js";
 import { isInWhiteList } from "./white-list.js";
 import { removeMention } from "../../utils/format-util.js";
+import { applyAntiPunishment } from "./anti-punishment.js";
 
 const userWarnings = new Map();
 const kickedUsers = new Set();
@@ -118,7 +119,7 @@ async function handleViolationDetected(api, message, threadId, senderId, senderN
       return;
     }
     kickedUsers.add(senderId);
-    await api.blockUsers(threadId, [senderId]);
+    await applyAntiPunishment(api, message, threadId, senderId, senderName, groupSettings);
     userWarnings.delete(senderId);
   } catch (error) {
   }

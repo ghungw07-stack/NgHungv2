@@ -1,3 +1,7 @@
+import { resolveQuickBet } from "../service-ngh/game-service/shared/quick-bet.js";
+import { allowGameRequest } from "../utils/game-admission.js";
+import { getReplyAdminCommandText } from "../utils/admin-command-text.js";
+import { isGiveawayJoinText } from "../utils/message-routing.js";
 import { handleMuteList, handleMuteUser, handleUnmuteUser } from "../service-ngh/anti-service/mute-user.js";
 import { handleWelcomeBye, handleApprove, handleUpdateGroup, handleKickImageCommand, handleBlockImageCommand, handleSendUserMemberCommand } from "./bot-manager/welcome-bye.js";
 import { handleBlock,
@@ -52,6 +56,10 @@ import { handleGoogleAISearchCommand } from "../service-ngh/api-crawl/google/goo
 import { handleGoogleNewsCommand } from "../service-ngh/api-crawl/google/google-news.js";
 import { handleTvplCommand } from "../service-ngh/api-crawl/content/thuvien-phap-luat.js";
 import { handleHorseRaceCommand } from "../service-ngh/game-service/dua-ngua/dua-ngua.js";
+import { handleCarRaceCommand } from "../service-ngh/game-service/dua-xe/dua-xe.js";
+import { handleMayBay, mayBayContinuation } from "../service-ngh/game-service/may-bay/index.js";
+import { handlePenalty } from "../service-ngh/game-service/penalty/index.js";
+import { handleQuyetChien } from "../service-ngh/game-service/quyet-chien/index.js";
 import { handleChessCommand } from "../service-ngh/game-service/mini-game/chess-game/index.js";
 import { handleXiangqiCommand } from "../service-ngh/game-service/mini-game/xiangqi-game/index.js";
 import { handlePetCommand } from "../service-ngh/game-service/pet-game/index.js";
@@ -82,15 +90,18 @@ import { scoldUser } from "../service-ngh/chat-bot/scold-user/scold-user.js";
 import { handleFakeMessageCommand } from "./fake-message.js";
 import { handleBanThoCommand } from "./send-all/bantho.js";
 import { handleThueBotCommand } from "./bot-manager/thuebot.js";
-import { getBotStyle, setBotStyle } from "../utils/bot-style.js";
 import { botText, getBotLanguage, getBotLanguageName, setBotLanguage } from "../utils/bot-language.js";
 import { getBotDetails } from "../service-ngh/info-service/bot-info.js";
 import {
   handleBanCommand,
   handleBankCommand,
+  handleSavingsBankCommand,
   handleBuffCommand,
   handleSetTierCommand,
   handleClaimDailyReward,
+  handleAutomaticBenefitInfo,
+  handleWeeklyAllowance,
+  handleRescueReward,
   handleMyCard,
   handleTestMyCard,
   handleNapCommand,
@@ -101,7 +112,10 @@ import {
   handleUnbanCommand,
   handleDonateRankCommand,
   handleDonateCommand,
+  handleManualDonateRemove,
   handleGameTierCommand,
+  handleGameHideCommand,
+  handleResetGameBenefitCommand,
   handleResetDailyCommand,
   handleResetJackpotCommand,
   handleResetAllGameDataCommand,
@@ -111,6 +125,7 @@ import { apiManager, canBotUseMainBotCommand, getCommandConfig, getManagerComman
 import {
   sendMessageFromSQL,
   sendMessageInsufficientAuthority,
+  sendMessageCompleteRequest,
   sendMessageFailed,
 } from "../service-ngh/chat-zalo/chat-style/chat-style.js";
 import { handleAdminHighLevelCommands, handleListAdmin } from "./bot-manager/admin-manager.js";
@@ -139,8 +154,8 @@ import {
   handleAddUnreadMarkCommand,
   handleBlockViewFeedCommand,
   handleDisperseGroup,
-  handleNghCommand,
 } from "./bot-manager/utilities.js";
+import { handleNghCommand } from "./bot-manager/ngh-command.js";
 import { handleBauCua } from "../service-ngh/game-service/bau-cua/bau-cua.js";
 import { handleKBBCommand } from "../service-ngh/game-service/keobuabao/keobuabao.js";
 import { handleAntiBadWordCommand } from "../service-ngh/anti-service/anti-badword.js";
@@ -155,6 +170,8 @@ import {
 import { antiNude, handleAntiNudeCommand } from "../service-ngh/anti-service/anti-nude/anti-nude.js";
 import { handleSettingGroupCommand } from "./bot-manager/group-manage.js";
 import { handleVietlott655Command } from "../service-ngh/game-service/vietlott/vietlott655.js";
+import { handleXoSoNhanhCommand } from "../service-ngh/game-service/xoso-nhanh/xoso-nhanh.js";
+import { getCurrentPrivateGameServer, isPrivateGameServerManager } from "../service-ngh/game-service/private-game-server.js";
 import { handleMiniGameCommand } from "../service-ngh/game-service/mini-game/index.js";
 import { handleJoinGroup, handleLeaveGroup, handleShowGroupsList, handleLeaveLockedGroups, handleLeaveAllGroup } from "./bot-manager/remote-action-group.js";
 import { removeMention } from "../utils/format-util.js";
@@ -163,6 +180,20 @@ import { handleAntiUndoCommand } from "../service-ngh/anti-service/anti-undo.js"
 import { handleBankInfoCommand, handleMyBankCommand } from "../service-ngh/info-service/bank-info.js";
 import { sendReactionWaitingCountdown } from "./manager-command/check-countdown.js";
 import { handleBaccaratBet } from "../service-ngh/game-service/baccarat/baccarat.js";
+import { handleXocDiaBet } from "../service-ngh/game-service/xoc-dia/xoc-dia.js";
+import { handleSicBoBet } from "../service-ngh/game-service/sic-bo/sic-bo.js";
+import { handleLongHoBet } from "../service-ngh/game-service/long-ho/long-ho.js";
+import { handleRouletteBet } from "../service-ngh/game-service/roulette/roulette.js";
+import { handleBancaBet } from "../service-ngh/game-service/banca/banca.js";
+import { handleKenoBet } from "../service-ngh/game-service/keno/keno.js";
+import { handleRobberyCommand } from "../service-ngh/game-service/cuop-tien/cuop-tien.js";
+import { handleDaGaBet } from "../service-ngh/game-service/da-ga/da-ga.js";
+import { handleMines, minesContinuation } from "../service-ngh/game-service/mines/mines.js";
+import { handleNuoiRongCommand, nuoiRongContinuation } from "../service-ngh/game-service/nuoi-rong/nuoi-rong.js";
+import { handleTower, towerContinuation } from "../service-ngh/game-service/thap/thap.js";
+import { handleLuckyWheel } from "../service-ngh/game-service/vong-quay/vong-quay.js";
+import { handleNoHu } from "../service-ngh/game-service/nohu/nohu.js";
+import { handleCoPhieuAo } from "../service-ngh/game-service/cophieuao/cophieuao.js";
 import { getPermissionCommandName, handleSetCommandActive, isCommandDisabledInGroup } from "./manager-command/set-command.js";
 import { scanGroupsWithAction } from "./bot-manager/scan-group.js";
 import { handleDeleteMessage } from "./bot-manager/recent-message.js";
@@ -225,6 +256,8 @@ import { handleAntiPhoneNumber } from "../service-ngh/anti-service/anti-phone-nu
 import { handleAntiAdsCommand } from "../service-ngh/anti-service/anti-ads.js";
 import { handleCheckSimPhongThuyCommand } from "./send-all/phong-thuy-sim.js";
 import { handleTruyenSexVLCommand } from "./send-all/truyensex.js";
+import { handleXNhauCommand } from "./send-all/xnhau.js";
+import { handleXhwideCommand } from "./send-all/xhwide.js";
 import { searchImagePexels } from "../service-ngh/api-crawl/image-content/pexels-image.js";
 import { handleLoveCommand } from "./send-all/lovelink.js";
 import { handleQrcodeCommand, handleScanQrcodeCommand } from "./send-all/send-qrcode.js"
@@ -262,9 +295,7 @@ import { handleHeartReactionDeleteCommand } from "../automations/reaction-delete
 import { resolveReactionInput } from "../api-zalo/models/Reaction.js";
 import { MessageType } from "../api-zalo/index.js";
 import { handleEventSendMessage } from "./bot-manager/event-sendmsg.js";
-import { canUseBarePrefix } from "../utils/bare-prefix-cooldown.js";
 import { getCommandCooldownSeconds } from "../utils/command-cooldown.js";
-import { checkUserSpamGuard, isUserSilenced } from "../utils/user-antispam.js";
 
 const lastCommandUsage = {};
 const COMMAND_USAGE_RETENTION_MS = 24 * 60 * 60 * 1000;
@@ -302,7 +333,8 @@ const commandUsageCleanupTimer = setInterval(cleanupLastCommandUsage, 60 * 60 * 
 commandUsageCleanupTimer.unref?.();
 
 function getCommandPayload(message, prefix, aliasCommand) {
-  const content = typeof message.data?.content === "string" ? message.data.content : "";
+  const content = getReplyAdminCommandText(message, prefix)
+    ?? (typeof message.data?.content === "string" ? message.data.content : "");
   const commandText = `${prefix}${aliasCommand}`;
   return content.toLowerCase().startsWith(commandText.toLowerCase())
     ? content.slice(commandText.length).trim()
@@ -311,11 +343,13 @@ function getCommandPayload(message, prefix, aliasCommand) {
 
 function createRoutedCommandMessage(message, content) {
   const originalContent = typeof message.data?.content === "string" ? message.data.content : "";
-  const mentions = (message.data?.mentions || []).map((mention) => {
-    const mentionText = originalContent.substring(mention.pos, mention.pos + mention.len);
-    const nextPos = content.indexOf(mentionText);
-    return { ...mention, pos: nextPos >= 0 ? nextPos : mention.pos };
-  });
+  const mentions = (message.data?.mentions || [])
+    .map((mention) => {
+      const mentionText = originalContent.substring(mention.pos, mention.pos + mention.len);
+      const nextPos = content.indexOf(mentionText);
+      return nextPos >= 0 ? { ...mention, pos: nextPos } : null;
+    })
+    .filter(Boolean);
 
   return {
     ...message,
@@ -432,27 +466,6 @@ const antiCommandAliases = {
   ads: "antiads",
 };
 
-async function handleBotStyleSubcommand(api, message, commandParts, prefix) {
-  if (commandParts[1]?.toLowerCase() !== "style") return false;
-
-  const currentBotId = api.getBotId();
-  const requestedStyle = commandParts[2]?.toLowerCase();
-  if (!requestedStyle) {
-    await sendMessageCompleteRequest(api, message, {
-      caption: `Style bot ${currentBotId}: ${getBotStyle(currentBotId).toUpperCase()}\nV2 là style mặc định duy nhất.`,
-    }, 15000);
-    return true;
-  }
-  if (!(await setBotStyle(currentBotId, requestedStyle))) {
-    await sendMessageFailed(api, message, `Style V1 đã được xoá. Dùng: ${prefix}bot style v2.`, false, 15000);
-    return true;
-  }
-  await sendMessageCompleteRequest(api, message, {
-    caption: `Đã lưu style ${requestedStyle.toUpperCase()} riêng cho bot ${currentBotId}.`,
-  }, 15000);
-  return true;
-}
-
 async function handleBotLanguageSubcommand(api, message, commandParts, prefix) {
   const subcommand = commandParts[1]?.toLowerCase();
   if (subcommand !== "language" && subcommand !== "lang") return false;
@@ -467,6 +480,11 @@ async function handleBotLanguageSubcommand(api, message, commandParts, prefix) {
         en: `Bot ${botId} language: ${getBotLanguageName(current)} (${current})\nUsage: ${prefix}bot lang <vi|en>`,
       }),
     }, 15000);
+    return true;
+  }
+
+  if (!isAdmin(botId, message.data.uidFrom)) {
+    await sendMessageFailed(api, message, "Chỉ quản trị viên cấp cao của bot mới được đổi ngôn ngữ bot!");
     return true;
   }
 
@@ -488,7 +506,6 @@ async function handleBotLanguageSubcommand(api, message, commandParts, prefix) {
 }
 
 async function handleBotSubcommand(api, message, commandParts, prefix) {
-  if (await handleBotStyleSubcommand(api, message, commandParts, prefix)) return true;
   return await handleBotLanguageSubcommand(api, message, commandParts, prefix);
 }
 
@@ -576,6 +593,18 @@ async function handleBlockBotFamily(api, message, aliasCommand, groupSettings) {
       if (hasMentions || hasUidAfterAll) {
         return await handleUnblockBotAll(api, message, groupSettings);
       }
+    }
+  }
+
+  // blockbot remove all @someone → gỡ đúng người đó trên toàn bộ bot.
+  if (alias === "blockbot" && action === "remove") {
+    const words = payload.split(/\s+/).filter(Boolean);
+    if (words[0]?.toLowerCase() === "all" && message.data?.mentions?.length > 0) {
+      const routedMessage = createRoutedCommandMessage(
+        message,
+        `${prefix}unblockbot ${payload}`
+      );
+      return await handleUnblockBotAll(api, routedMessage, groupSettings);
     }
   }
 
@@ -857,10 +886,18 @@ function buildGameSubMessage(message, prefix) {
 // gõ trực tiếp (vd. "!daily"), bỏ qua hoàn toàn để không thả reaction/icon.
 const GAME_COMMANDS_REQUIRING_PREFIX = new Set([
   "daily",
+  "trocap",
+  "cuutro",
+  "hoantra",
+  "hoivien",
+  "lixi",
+  "quy",
   "nap",
   "rut",
   "bank",
+  "nganhang",
   "tier",
+  "hide",
   "rank",
   "mycard",
 ]);
@@ -886,6 +923,9 @@ async function handleCoreGameCommand(api, message, command, groupSettings, alias
     case "bank":
       await handleBankCommand(api, message, groupSettings);
       return true;
+    case "nganhang":
+      await handleSavingsBankCommand(api, message, groupSettings);
+      return true;
     case "saoke":
       await handleStatementCommand(api, message, groupSettings);
       return true;
@@ -898,6 +938,15 @@ async function handleCoreGameCommand(api, message, command, groupSettings, alias
     case "tier":
       await handleGameTierCommand(api, message, groupSettings);
       return true;
+    case "xoatier":
+    case "xoa-tier":
+    case "resettier":
+    case "reset-tier":
+      await handleManualDonateRemove(api, message);
+      return true;
+    case "hide":
+      await handleGameHideCommand(api, message, groupSettings);
+      return true;
     case "mycard":
       await handleMyCard(api, message, groupSettings);
       return true;
@@ -907,8 +956,23 @@ async function handleCoreGameCommand(api, message, command, groupSettings, alias
     case "daily":
       await handleClaimDailyReward(api, message, groupSettings);
       return true;
+    case "trocap":
+      await handleWeeklyAllowance(api, message, groupSettings);
+      return true;
+    case "cuutro":
+      await handleRescueReward(api, message, groupSettings);
+      return true;
+    case "hoantra":
+    case "hoivien":
+    case "lixi":
+    case "quy":
+      await handleAutomaticBenefitInfo(api, message, groupSettings, command);
+      return true;
     case "giveaway":
       await handleGiveawayCommand(api, message);
+      return true;
+    case "reset":
+      await handleResetGameBenefitCommand(api, message);
       return true;
     case "resetdaily":
       await handleResetDailyCommand(api, message);
@@ -931,6 +995,69 @@ async function handleCoreGameCommand(api, message, command, groupSettings, alias
     case "bcr":
       await handleBaccaratBet(api, message, groupSettings);
       return true;
+    case "xocdia":
+    case "xoc-dia":
+    case "xoc":
+      await handleXocDiaBet(api, message, groupSettings);
+      return true;
+    case "sicbo":
+      await handleSicBoBet(api, message, groupSettings);
+      return true;
+    case "longho":
+      await handleLongHoBet(api, message, groupSettings);
+      return true;
+    case "roulette":
+      await handleRouletteBet(api, message, groupSettings);
+      return true;
+    case "banca":
+    case "ban-ca":
+    case "fish":
+    case "bancafish":
+      await handleBancaBet(api, message, groupSettings);
+      return true;
+    case "keno":
+      await handleKenoBet(api, message, groupSettings);
+      return true;
+    case "thap":
+    case "leothap":
+    case "tower":
+      await handleTower(api, message, groupSettings);
+      return true;
+    case "maybay":
+    case "maybaycrash":
+    case "crash":
+      await handleMayBay(api, message, groupSettings);
+      return true;
+    case "sut":
+    case "sút":
+    case "penalty":
+    case "pen":
+      await handlePenalty(api, message, groupSettings);
+      return true;
+    case "quyetchien":
+    case "qchien":
+    case "bandito":
+    case "wildbandito":
+      await handleQuyetChien(api, message, groupSettings);
+      return true;
+    case "mines":
+    case "domin":
+    case "mine":
+      await handleMines(api, message, groupSettings);
+      return true;
+    case "vongquay":
+    case "wheel":
+    case "luckywheel":
+    case "quay":
+    case "vq":
+      await handleLuckyWheel(api, message, groupSettings);
+      return true;
+    case "nohu":
+      await handleNoHu(api, message, groupSettings);
+      return true;
+    case "cophieuao":
+      await handleCoPhieuAo(api, message, groupSettings);
+      return true;
     case "xidach":
       await handleXiDachCommand(api, message, groupSettings);
       return true;
@@ -947,11 +1074,31 @@ async function handleCoreGameCommand(api, message, command, groupSettings, alias
     case "nongtrai":
       await handleNongTraiCommand(api, message, groupSettings);
       return true;
+    case "cuoptien":
+    case "cuop":
+      await handleRobberyCommand(api, message, groupSettings);
+      return true;
+    case "daga":
+    case "da-ga":
+    case "dagacua":
+      await handleDaGaBet(api, message, groupSettings);
+      return true;
+    case "nuoirong":
+      await handleNuoiRongCommand(api, message, groupSettings, aliasCommand);
+      return true;
     case "tutien":
       await handleTuTienCommand(api, message);
       return true;
     case "vietlott655":
       await handleVietlott655Command(api, message, groupSettings, aliasCommand);
+      return true;
+    case "xsn":
+    case "xoso45s":
+    case "xs45s":
+    case "lode45s":
+    case "lode":
+    case "xsmb45s":
+      await handleXoSoNhanhCommand(api, message, groupSettings, aliasCommand);
       return true;
     default:
       return false;
@@ -978,6 +1125,21 @@ export function getCommand(botId, command) {
       cmdFind = commandConfigFinal.find((cmd) => cmd.name === commandCustom);
     }
   }
+  if (!cmdFind && ["maybay", "maybaycrash", "crash"].includes(String(command).toLowerCase())) {
+    return { name: "maybay", alias: ["maybaycrash", "crash"], permission: "all", countdown: 1, type: 5, active: true };
+  }
+  if (!cmdFind && ["duaxe", "car", "racing"].includes(String(command).toLowerCase())) {
+    return { name: "duaxe", alias: ["car", "racing"], permission: "all", countdown: 2, type: 5, active: true };
+  }
+  if (!cmdFind && ["sut", "sút", "penalty", "pen"].includes(String(command).toLowerCase())) {
+    return { name: "sut", alias: ["sút", "penalty", "pen"], permission: "all", countdown: 1, type: 5, active: true };
+  }
+  if (!cmdFind && ["quyetchien", "qchien", "bandito", "wildbandito"].includes(String(command).toLowerCase())) {
+    return { name: "quyetchien", alias: ["qchien", "bandito", "wildbandito"], permission: "all", countdown: 1, type: 5, active: true };
+  }
+  if (!cmdFind && ["nohu", "cophieuao", "mines", "mine", "domin", "vongquay", "pid", "thap", "leothap", "tower", "cuoptien", "cuop", "daga", "da-ga", "dagacua", "xoatier", "xoa-tier", "resettier", "reset-tier"].includes(String(command).toLowerCase())) {
+    return { name: String(command).toLowerCase(), alias: [], permission: "all", countdown: 1, type: 5, active: true };
+  }
   return cmdFind;
 }
 
@@ -993,18 +1155,29 @@ async function checkPermission(api, message, commandName, userPermissionLevel, i
   const botId = api.getBotId();
   const command = getCommand(botId, commandName);
 
-  if (!command) return true;
+  if (!command) {
+    if (!commandName) return true; // Tiền tố trống chỉ mở menu, không chạy lệnh.
+    // Không cho nhánh switch cũ chạy khi lệnh đã mất cấu hình quyền.
+    if (isNotify && commandName) {
+      await checkNotFindCommand(api, message, commandName, getCommandConfig().commands || []);
+    }
+    return false;
+  }
 
   const customerCommand = getManagerCommandCustomConfig(botId, command.name);
 
-  const requiredPermission = permissionLevels[customerCommand.permission || command.permission];
+  const isGroupOpen = message.type === MessageType.GroupMessage
+    && Array.isArray(customerCommand.activegroup)
+    && customerCommand.activegroup.some(id => String(id) === String(message.threadId));
+  const effectivePermission = isGroupOpen ? "all" : customerCommand.permission || command.permission;
+  const requiredPermission = permissionLevels[effectivePermission];
   const userPermission = permissionLevels[userPermissionLevel];
 
   if (userPermission >= requiredPermission) {
     return true;
   }
 
-  const permissionName = getPermissionCommandName(command);
+  const permissionName = getPermissionCommandName({ ...command, permission: effectivePermission });
   if (isNotify) {
     const caption = `Bạn không có đủ quyền để sử dụng lệnh này\nYêu cầu quyền hạn: ${permissionName}`;
     await sendMessageInsufficientAuthority(api, message, caption);
@@ -1037,9 +1210,12 @@ export async function checkCommandCountdown(
   // inviteall co the can chay lien tiep tren nhieu group. Tach cooldown theo
   // thread de mot lan chay o group A khong khoa group B den khi restart bot.
   const threadId = message?.threadId ?? message?.threadID ?? message?.thread_id;
-  const usageOwner = command.name === "inviteall" && threadId != null
-    ? `${userId}:${threadId}`
-    : userId;
+  const isAiCommand = ["gemini", "gpt", "nova", "simsimi"].includes(String(command.name || "").toLowerCase());
+  const usageOwner = isAiCommand
+    ? `ai:${command.name}`
+    : command.name === "inviteall" && threadId != null
+      ? `${userId}:${threadId}`
+      : userId;
   const lastUsage = commandUsage[usageOwner]?.[command.name] || 0;
   const customerCommand = getManagerCommandCustomConfig(botId, command.name);
   const countdown = getCommandCooldownSeconds(command, customerCommand) * 1000;
@@ -1098,6 +1274,7 @@ export function initGroupSettings(groupSettings, threadId, nameGroup) {
     antiNude: false,
     antiUndo: false,
     sendTask: false,
+    sendTaskExplicitlyEnabled: false,
     updateGroup: false,
     antiMediaFile: false,
     autoDownload: false,
@@ -1183,18 +1360,23 @@ export function checkSpecialCommand(content, prefix) {
 export async function handleCommandPrivate(api, message, isAdminLevelHighest, isAdminBot, groupSettings) {
   const threadId = message.threadId;
   const senderId = message.data.uidFrom;
-  let content = removeMention(message);
+  isAdminLevelHighest = isAdmin(api.getBotId(), senderId) || isBotLeader(api.getBotId(), senderId);
+  isAdminBot = isAdmin(api.getBotId(), senderId);
+  let content = getReplyAdminCommandText(message, getGlobalPrefix(api.getBotId())) ?? removeMention(message);
   const botId = api.getBotId();
   const prefix = getGlobalPrefix(botId);
   const managerBot = api.apiManager.getDataManager();
 
   if (isUserBlocked(botId, senderId)) return -1;
 
-  // Ma Sói dùng toàn bộ thao tác bí mật và mã vào phòng qua tin nhắn riêng, không cần prefix.
-  if (await handleWerewolfPrivateAction(api, message)) return 0;
+  // Các thao tác game không prefix vẫn phải tuân theo công tắc game tin riêng.
+  if (managerBot.onGamePrivate) {
+    // Ma Sói dùng toàn bộ thao tác bí mật và mã vào phòng qua tin nhắn riêng, không cần prefix.
+    if (await handleWerewolfPrivateAction(api, message)) return 0;
 
-  // Xì Dách: cho phép người chơi gõ "rút"/"dằn" (không cần prefix) khi đang tới lượt trong ván.
-  if (await handleXiDachPrivateAction(api, message)) return 0;
+    // Xì Dách: cho phép người chơi gõ "rút"/"dằn" (không cần prefix) khi đang tới lượt trong ván.
+    if (await handleXiDachPrivateAction(api, message)) return 0;
+  }
 
   if (typeof content === "string") {
     let command;
@@ -1202,14 +1384,26 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
 
     if (content.trim().startsWith(`${prefix} `)) return 1;
 
-    if (prefix && content.trim() === prefix && !canUseBarePrefix(botId, senderId)) return 1;
-
-
     if (content.startsWith(`${prefix}prefix`) || content.startsWith(`prefix`)) {
       // Cho phép xem prefix trong tin riêng kể cả khi bot tắt chat riêng;
       // handlePrefixCommand vẫn tự chặn thao tác đổi prefix nếu không có quyền.
+      // Prefix là cấu hình toàn bot, chỉ admin cấp cao/Bot Leader mới được đổi.
       return await handlePrefixCommand(api, message, threadId, isAdminLevelHighest);
     }
+
+    const towerText = towerContinuation(api, message, content);
+    if (towerText) { message = createRoutedCommandMessage(message, towerText); content = towerText; }
+    if (isGiveawayJoinText(content, message)) {
+      content = `${prefix}game giveaway`;
+      message = createRoutedCommandMessage(message, content);
+    }
+    const mayBayText = mayBayContinuation(api, message, content);
+    if (mayBayText) { message = createRoutedCommandMessage(message, mayBayText); content = mayBayText; }
+    const minesText = minesContinuation(api, message, content);
+    if (minesText) { message = createRoutedCommandMessage(message, minesText); content = minesText; }
+    const nuoiRongText = await nuoiRongContinuation(api, message, content);
+    if (nuoiRongText) { message = createRoutedCommandMessage(message, nuoiRongText); content = nuoiRongText; }
+
 
     if (!content.startsWith(prefix)) return 1;
 
@@ -1217,11 +1411,6 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
     if (compactContent) {
       message = createRoutedCommandMessage(message, compactContent);
       content = compactContent;
-    }
-
-    const isExempt = isAdminLevelHighest || isBotLeader(botId, senderId);
-    if (!checkUserSpamGuard(senderId, isExempt)) {
-      return 0;
     }
 
     if (checkSpecialCommand(content, prefix)) {
@@ -1233,10 +1422,15 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
     }
     let commandLowerCase = command.toLowerCase();
     if (isBareGameCommand(commandLowerCase)) return 1;
-    if (!managerBot.onBotPrivate && !isAdminLevelHighest) {
+    const isMyBotSelfServiceCommand =
+      command.toLowerCase() === "mybot" &&
+      ["qrlogin", "active", "extend", "approve", "addtime", "subtime", "settime"].includes(
+        String(commandParts[1] || "").trim().toLowerCase()
+      );
+    if (!managerBot.onBotPrivate && !isAdminLevelHighest && !isMyBotSelfServiceCommand) {
       return 0;
     }
-    const fnAfterCountdown = async () => await handleCommandPrivate(api, message, isAdminLevelHighest, isAdminBot);
+    const fnAfterCountdown = async () => await handleCommandPrivate(api, message, isAdminLevelHighest, isAdminBot, groupSettings);
 
     if (
       !isAdminLevelHighest &&
@@ -1258,6 +1452,9 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
     let userPermissionLevel = "all";
     if (isAdminLevelHighest) userPermissionLevel = "adminLevelHigh";
     else if (isAdminBot) userPermissionLevel = "adminBot";
+    if (commandLowerCase === "buff" && (isPrivateGameServerManager(api, senderId) || getCurrentPrivateGameServer()?.ownerIds?.some((id) => String(id) === String(senderId)))) {
+      userPermissionLevel = "adminLevelHigh";
+    }
     if (!(await checkPermission(api, message, commandLowerCase, userPermissionLevel))) return;
 
     const commandConfig = getCommandConfig().commands;
@@ -1265,7 +1462,13 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
     const commandInfo = getCommand(botId, commandLowerCase);
     command = commandInfo?.name || command;
     let numHandleCommand = commandInfo?.type || 99;
-    const activeCommand = commandInfo ? commandInfo.active !== false : true;
+    const customerCommand = getManagerCommandCustomConfig(botId, commandInfo?.name || commandLowerCase);
+    const activeOverride = Object.prototype.hasOwnProperty.call(customerCommand, "active")
+      ? customerCommand.active
+      : undefined;
+    const activeCommand = activeOverride !== undefined
+      ? activeOverride !== false
+      : (commandInfo ? commandInfo.active !== false : true);
     // setcmd off là khóa tuyệt đối với mọi người, kể cả admin cấp cao.
     // Chỉ chính tài khoản mainbot được phép gọi lệnh đã tắt.
     const canBypassDisabledCommand = isMainBotAccount(api, senderId);
@@ -1282,6 +1485,19 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
     const managerData = api.apiManager.getDataManager();
     if (!managerData.listAcceptUseCommandPrivate) managerData.listAcceptUseCommandPrivate = [];
     let isAcceptCommandPrivate = managerData.listAcceptUseCommandPrivate.includes(senderId);
+
+    // Luồng đăng ký/gia hạn bot con phải dùng được trong tin nhắn riêng ngay
+    // cả khi bot đang tắt chế độ trả lời PM. Các nhánh này tự ràng buộc UID
+    // người gửi với bot và yêu cầu thanh toán trước khi cấp runtime.
+    const myBotSelfServiceAction = String(commandParts[1] || "").trim().toLowerCase();
+    if (
+      numHandleCommand === 1 &&
+      command === "mybot" &&
+      ["qrlogin", "active", "extend", "approve", "addtime", "subtime", "settime"].includes(myBotSelfServiceAction)
+    ) {
+      await handleManagerBot(api, message, aliasCommand, isAdminLevelHighest);
+      return 0;
+    }
 
     switch (command) {
       case "test":
@@ -1371,7 +1587,7 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
             await weatherCommand(api, message, aliasCommand);
             return 0;
           case "ptg":
-            await handlePTGCommand(api, message, aliasCommand, commandParts.slice(1));
+            await handlePTGCommand(api, message, aliasCommand, commandParts.slice(1), { isAdminLevelHighest, isAdminBot });
             return 0;
           case "myacc":
             await handleUpdateProfile(api, message, aliasCommand);
@@ -1613,6 +1829,13 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
           case "truyensex":
             await handleTruyenSexVLCommand(api, message, aliasCommand);
             return 0;
+          case "xnhau":
+            await handleXNhauCommand(api, message, aliasCommand, isAdminLevelHighest);
+            return 0;
+          case "xhwide":
+            await handleXhwideCommand(api, message, aliasCommand, isAdminLevelHighest);
+            return 0;
+
           case "cliphot":
             await handleCheckClipphotCommand(api, message, aliasCommand);
             return 0;
@@ -1784,10 +2007,13 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
     }
 
     if (numHandleCommand === 5) {
-      if (managerBot.onGamePrivate || isAdminLevelHighest) {
+      if (managerBot.onGamePrivate) {
         switch (command) {
           case "duangua":
             await handleHorseRaceCommand(api, message, aliasCommand);
+            return 0;
+          case "duaxe":
+            await handleCarRaceCommand(api, message, aliasCommand);
             return 0;
           case "tutien":
             await handleTuTienCommand(api, message);
@@ -1809,12 +2035,49 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
           case "saoke":
           case "donenat":
           case "donate":
+          case "tier":
+          case "xoatier":
+          case "xoa-tier":
+          case "resettier":
+          case "reset-tier":
           case "testmycard":
           case "giveaway":
           case "resetdaily":
           case "resethu":
           case "baucua":
           case "bcr":
+          case "xocdia":
+          case "xoc-dia":
+          case "xoc":
+          case "sicbo":
+          case "longho":
+          case "roulette":
+          case "banca":
+          case "ban-ca":
+          case "fish":
+          case "bancafish":
+          case "keno":
+          case "thap":
+          case "maybay":
+          case "maybaycrash":
+          case "crash":
+          case "sut":
+          case "sút":
+          case "penalty":
+          case "pen":
+          case "quyetchien":
+          case "qchien":
+          case "bandito":
+          case "wildbandito":
+          case "mines":
+          case "domin":
+          case "vongquay":
+          case "wheel":
+          case "luckywheel":
+          case "quay":
+          case "vq":
+          case "nohu":
+          case "cophieuao":
           case "taixiu":
           case "xidach":
           case "baicao":
@@ -1822,7 +2085,19 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
           case "chanle":
           case "keobuabao":
           case "nongtrai":
+          case "cuoptien":
+          case "cuop":
+          case "daga":
+          case "da-ga":
+          case "dagacua":
+          case "nuoirong":
           case "vietlott655":
+          case "xsn":
+          case "xoso45s":
+          case "xs45s":
+          case "lode45s":
+          case "lode":
+          case "xsmb45s":
             await handleCoreGameCommand(api, message, command, undefined, aliasCommand);
             return 0;
         }
@@ -1869,7 +2144,11 @@ export async function handleCommand(
   const threadId = message.threadId;
   const senderId = message.data.uidFrom;
   const botId = api.getBotId();
-  let content = removeMention(message);
+  // Quyền truyền vào có thể đã cũ sau cooldown hoặc đến từ nhóm khác.
+  isAdminLevelHighest = isAdmin(botId, senderId) || isBotLeader(botId, senderId);
+  isAdminBot = isAdmin(botId, senderId, threadId);
+  isAdminBox = isAdmin(botId, senderId, threadId, groupAdmins);
+  let content = getReplyAdminCommandText(message, getGlobalPrefix(api.getBotId())) ?? removeMention(message);
   const prefix = getGlobalPrefix(botId);
   let numHandleCommand = -1;
   if (await checkMenuPageReply(api, message)) return 99;
@@ -1911,10 +2190,6 @@ export async function handleCommand(
 
   if (!naturalNova && content.trim().startsWith(`${prefix} `)) return numHandleCommand;
 
-  if (!naturalNova && prefix && content.trim() === prefix && !canUseBarePrefix(botId, senderId)) {
-    return numHandleCommand;
-  }
-
   // Chặn toàn bộ lệnh nhóm khi bot đang tắt trước cả nhánh prefix. Nếu để
   // sau, `prefix` sẽ được xử lý và trả lời trước khi kiểm tra activeBot.
   // Bot Leader/admin cấp cao và admin bot vẫn được dùng lệnh bật lại bot.
@@ -1930,10 +2205,32 @@ export async function handleCommand(
   if (
     (content.startsWith(`${prefix}prefix`) || content.startsWith(`prefix`))
   ) {
-    // Ai cũng được xem prefix hiện tại; chỉ Bot Leader/admin mới được đổi.
-    // Việc kiểm tra quyền thay đổi nằm bên trong handlePrefixCommand.
-    return await handlePrefixCommand(api, message, threadId, isAdminBot || isAdminLevelHighest);
+    // Ai cũng được xem prefix hiện tại; chỉ admin cấp cao/Bot Leader mới được đổi.
+    // isAdminBot có thể gồm admin cục bộ của nhóm, tuyệt đối không dùng ở đây.
+    return await handlePrefixCommand(api, message, threadId, isAdminLevelHighest);
   }
+
+  const quickBet = !content.startsWith(prefix) && typeof message.data?.content === "string"
+    ? resolveQuickBet(botId, threadId, content)
+    : null;
+  if (quickBet) {
+    content = `${prefix}${quickBet.command} ${quickBet.payload}`;
+    message = { ...createRoutedCommandMessage(message, content), __quickBetGame: quickBet.game };
+  }
+
+  const towerText = towerContinuation(api, message, content);
+  if (towerText) { message = createRoutedCommandMessage(message, towerText); content = towerText; }
+  if (isGiveawayJoinText(content, message)) {
+    content = `${prefix}game giveaway`;
+    message = createRoutedCommandMessage(message, content);
+  }
+  const mayBayText = mayBayContinuation(api, message, content);
+  if (mayBayText) { message = createRoutedCommandMessage(message, mayBayText); content = mayBayText; }
+  const minesText = minesContinuation(api, message, content);
+  if (minesText) { message = createRoutedCommandMessage(message, minesText); content = minesText; }
+  const nuoiRongText = await nuoiRongContinuation(api, message, content);
+  if (nuoiRongText) { message = createRoutedCommandMessage(message, nuoiRongText); content = nuoiRongText; }
+
 
   if (!naturalNova && !content.startsWith(prefix)) return numHandleCommand;
 
@@ -1946,7 +2243,7 @@ export async function handleCommand(
   let commandParts;
   let command;
 
-  if (botMentioned || continuingNova || explicitNovaName) {
+  if ((botMentioned || continuingNova || explicitNovaName) && !content.trim().startsWith(prefix)) {
     commandParts = ["nova", ...content.trim().split(/\s+/u).filter(Boolean)];
     command = "nova";
   } else if (checkSpecialCommand(content, prefix)) {
@@ -1964,11 +2261,6 @@ export async function handleCommand(
   if (isBareGameCommand(commandLowerCase)) return numHandleCommand;
 
   if (isUserBlocked(botId, senderId)) return numHandleCommand;
-
-  const isExempt = isAdminLevelHighest || isBotLeader(botId, senderId) || novaSenderIsCurrentBot || novaSenderIsBotAccount;
-  if (!checkUserSpamGuard(senderId, isExempt)) {
-    return numHandleCommand;
-  }
 
   if (!handleChat) return numHandleCommand;
 
@@ -1998,6 +2290,8 @@ export async function handleCommand(
     const groupCommandInfo = getCommand(botId, commandLowerCase);
     const canonicalGroupCommand = groupCommandInfo?.name || commandLowerCase;
     if (isCommandDisabledInGroup(botId, canonicalGroupCommand, threadId)) return numHandleCommand;
+    // Bỏ im lặng spam game trước cooldown, DB, canvas và request Zalo.
+    if (groupCommandInfo?.type === 5 && !allowGameRequest(botId, threadId, senderId)) return numHandleCommand;
     const fnAfterCountdown = async () =>
       await handleCommand(
         api,
@@ -2037,13 +2331,24 @@ export async function handleCommand(
     if (isAdminLevelHighest) userPermissionLevel = "adminLevelHigh";
     else if (isAdminBot) userPermissionLevel = "adminBot";
     else if (isAdminBox) userPermissionLevel = "adminBox";
+    // Manager của server game riêng được dùng buff trong đúng server đó,
+    // dù không nằm trong danh sách admin toàn cục của bot.
+    if (commandLowerCase === "buff" && (isPrivateGameServerManager(api, senderId) || getCurrentPrivateGameServer()?.ownerIds?.some((id) => String(id) === String(senderId)))) {
+      userPermissionLevel = "adminLevelHigh";
+    }
 
     if (!(await checkPermission(api, message, commandLowerCase, userPermissionLevel, isGroupActiveBot || isAdminBot)))
       return numHandleCommand;
 
     const aliasCommand = command;
     const commandInfo = getCommand(botId, commandLowerCase);
-    const activeCommand = commandInfo ? commandInfo.active !== false : true;
+    const customerCommand = getManagerCommandCustomConfig(botId, commandInfo?.name || commandLowerCase);
+    const activeOverride = Object.prototype.hasOwnProperty.call(customerCommand, "active")
+      ? customerCommand.active
+      : undefined;
+    const activeCommand = activeOverride !== undefined
+      ? activeOverride !== false
+      : (commandInfo ? commandInfo.active !== false : true);
     // setcmd off là khóa tuyệt đối với mọi người, kể cả admin cấp cao.
     // Chỉ chính tài khoản mainbot được phép gọi lệnh đã tắt.
     const canBypassDisabledCommand = isMainBotAccount(api, senderId);
@@ -2060,9 +2365,10 @@ export async function handleCommand(
       return numHandleCommand;
     }
 
-    // Lệnh game chỉ chạy khi bật cả bot lẫn game. Riêng admin cấp cao được phép
-    // kiểm tra/vận hành khi đang tắt; admin bot/admin nhóm không được bỏ qua.
-    if (numHandleCommand === 5 && (!isGroupActiveBot || !isGroupActiveGame) && !isAdminLevelHighest) {
+    // Bot Leader đã xác thực được phép kiểm tra/vận hành game qua bot con dù
+    // nhóm đang tắt activeBot hoặc activeGame. Các tài khoản khác giữ nguyên.
+    const botLeaderBypassesGroupSwitches = isBotLeader(botId, senderId);
+    if (numHandleCommand === 5 && (!isGroupActiveBot || !isGroupActiveGame) && !botLeaderBypassesGroupSwitches) {
       if (isAdminBot) {
         const requiredCommands = [];
         if (!isGroupActiveBot) requiredCommands.push(`${prefix}bot on`);
@@ -2093,7 +2399,7 @@ export async function handleCommand(
 
     // Ma Sói chỉ hoạt động khi Bot đã được bật trong nhóm. Không cho quyền admin
     // vô tình vượt qua trạng thái này vì cả timer và tin nhắn game đều chạy dài hạn.
-    if (command === "masoi" && groupSettings[threadId]?.activeBot !== true) return numHandleCommand;
+    if (command === "masoi" && groupSettings[threadId]?.activeBot !== true && !botLeaderBypassesGroupSwitches) return numHandleCommand;
 
     // Lệnh đã vượt qua kiểm tra quyền và trạng thái ở phía trên thì luôn xác
     // nhận bằng reaction. Trước đây admin chạy lệnh khi bot group đang OFF vẫn
@@ -2281,6 +2587,7 @@ export async function handleCommand(
       case "fakemsg":
         await handleFakeMessageCommand(api, message);
         break;
+
 
       case "reloadconfig": {
         const config = reloadServiceConfig();
@@ -2565,7 +2872,7 @@ export async function handleCommand(
                 break;
 
               case "ptg":
-                await handlePTGCommand(api, message, aliasCommand, commandParts.slice(1));
+                await handlePTGCommand(api, message, aliasCommand, commandParts.slice(1), { isAdminLevelHighest, isAdminBot, isAdminBox });
                 break;
 
               case "myacc":
@@ -2893,6 +3200,12 @@ export async function handleCommand(
               case "truyensex":
                 await handleTruyenSexVLCommand(api, message, aliasCommand);
                 break;
+              case "xnhau":
+                await handleXNhauCommand(api, message, aliasCommand, isAdminLevelHighest);
+                break;
+              case "xhwide":
+                await handleXhwideCommand(api, message, aliasCommand, isAdminLevelHighest);
+                break;
 
               case "cliphot":
                 await handleCheckClipphotCommand(api, message, aliasCommand);
@@ -2981,6 +3294,9 @@ export async function handleCommand(
             case "duangua":
               await handleHorseRaceCommand(api, message, aliasCommand);
               break;
+            case "duaxe":
+              await handleCarRaceCommand(api, message, aliasCommand);
+              break;
             case "game": {
               const subCommand = (commandParts[1] || "").toLowerCase();
               if (!subCommand) {
@@ -2989,6 +3305,10 @@ export async function handleCommand(
               }
               if (subCommand === "help") {
                 await gameInfoCommand(api, message, groupSettings);
+                break;
+              }
+              if (subCommand === "masoi") {
+                await handleWerewolfCommand(api, message, isAdminLevelHighest || isAdminBot || isAdminBox, groupInfo);
                 break;
               }
               const subMessage = buildGameSubMessage(message, prefix) || message;
@@ -3002,9 +3322,53 @@ export async function handleCommand(
             case "resethu":
             case "saoke":
             case "donenat":
+            case "donate":
+            case "tier":
+            case "xoatier":
+            case "xoa-tier":
+            case "resettier":
+            case "reset-tier":
             case "nongtrai":
+            case "cuoptien":
+            case "cuop":
+            case "daga":
+            case "da-ga":
+            case "dagacua":
+            case "nuoirong":
             case "baucua":
             case "bcr":
+            case "xocdia":
+            case "xoc-dia":
+            case "xoc":
+            case "sicbo":
+            case "longho":
+            case "roulette":
+            case "banca":
+            case "ban-ca":
+            case "fish":
+            case "bancafish":
+            case "keno":
+            case "thap":
+            case "maybay":
+            case "maybaycrash":
+            case "crash":
+            case "sut":
+            case "sút":
+            case "penalty":
+            case "pen":
+            case "quyetchien":
+            case "qchien":
+            case "bandito":
+            case "wildbandito":
+            case "mines":
+            case "domin":
+            case "vongquay":
+            case "wheel":
+            case "luckywheel":
+            case "quay":
+            case "vq":
+            case "nohu":
+            case "cophieuao":
             case "taixiu":
             case "xidach":
             case "baicao":
@@ -3067,6 +3431,12 @@ export async function handleCommand(
               break;
 
             case "vietlott655":
+            case "xsn":
+            case "xoso45s":
+            case "xs45s":
+            case "lode45s":
+            case "lode":
+            case "xsmb45s":
               await handleCoreGameCommand(api, message, command, groupSettings, aliasCommand);
               break;
 

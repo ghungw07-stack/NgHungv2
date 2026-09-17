@@ -2,8 +2,8 @@ import { apiManager, getApiManagerWithOwner, getGlobalApi, setupBotListeners } f
 import { getUsersInfoBasic } from "../service-ngh/info-service/user-info.js";
 import { formatMiliseconds } from "../utils/format-util.js";
 import { getCachedFriends, getCachedGroups } from "../web-service/web-server.js";
-import { clearExpiredRetention } from "../utils/bot-expiry-policy.js";
 import { getBotChildrenStore, getDataBotChildren, purgeRemovedBotData, shutdownBotByOwnerId, startBotChildren } from "./index.js";
+import { withoutBotCredentials } from "../security/bot-credential-vault.js";
 
 class ManagerBotSocket {
   constructor() {
@@ -80,7 +80,7 @@ class ManagerBotSocket {
       name: accountInfo.name,
       avatar: accountInfo.avatar,
       ownerData: apiManager.ownerData || null,
-      botData: apiManager.isMainBot ? null : botData,
+      botData: apiManager.isMainBot ? null : withoutBotCredentials(botData),
       timeRemaining: apiManager.isMainBot ? -1 : botData?.timeRemaining || 0,
       timeExpired: apiManager.isMainBot ? Date.now() + 1000 * 60 * 60 : botData?.timeRemaining + Date.now() || 0,
       status: apiManager.isMainBot ? "active" : botData.status,
@@ -96,7 +96,7 @@ class ManagerBotSocket {
     const dataBotStart = this.botChildrenStore.get(ownerId);
     if (!dataBotStart) return { success: false, message: "Bot không tồn tại" };
 
-    if (dataBotStart.status === "pending") return { success: false, message: "Bot chưa được phê duyệt" };
+    if (dataBotStart.status === "pending") return { success: false, message: "Bot chưa thanh toán" };
 
     if (dataBotStart.timeRemaining !== -1 && dataBotStart.timeRemaining <= 1000)
       return { success: false, message: "Bot đã hết hạn, hãy tăng thêm thời gian để khởi chạy bot" };
@@ -158,30 +158,11 @@ class ManagerBotSocket {
     }
   }
 
-  async approveBot(ownerId, value) {
-    try {
-      const apiGlobal = getGlobalApi();
-      const milisecond = value * 1000;
-      const dataBotApprove = this.botChildrenStore.get(ownerId);
-      if (!dataBotApprove) return { success: false, message: "Bot không tồn tại" };
-      dataBotApprove.timeRemaining = milisecond;
-      if (milisecond === -1 || milisecond > 0) clearExpiredRetention(dataBotApprove);
-      dataBotApprove.approvedAt = Date.now();
-      dataBotApprove.approvedBy = apiGlobal.getBotId();
-      dataBotApprove.status = "inactive";
-      delete dataBotApprove.rejectAt;
-      delete dataBotApprove.rejectBy;
-      this.botChildrenStore.markDirty();
-      const nameBot = `${dataBotApprove.createdBy || ownerId} ${
-        dataBotApprove.nameBot ? `- [${dataBotApprove.nameBot}]` : ""
-      }`;
-      return {
-        success: true,
-        message: `Đã phê duyệt bot ${nameBot} thành công, thời hạn sử dụng: ${formatMiliseconds(milisecond)}!`,
-      };
-    } catch (error) {
-      return { success: false, message: "Có lỗi xảy ra khi phê duyệt bot: " + error.message };
-    }
+  async approveBot(_ownerId, _value) {
+    return {
+      success: false,
+      message: "Đã tắt duyệt tay. Bot chỉ được duyệt tự động sau khi thanh toán đúng 70.000đ.",
+    };
   }
 
   async rejectBot(ownerId) {
@@ -208,26 +189,11 @@ class ManagerBotSocket {
     }
   }
 
-  async addTimeBot(ownerId, value) {
-    try {
-      const milisecond = value * 1000;
-      const dataBotAddTime = this.botChildrenStore.get(ownerId);
-      if (!dataBotAddTime) return { success: false, message: "Bot không tồn tại" };
-      dataBotAddTime.timeRemaining += milisecond;
-      if (dataBotAddTime.timeRemaining === -1 || dataBotAddTime.timeRemaining > 0) {
-        clearExpiredRetention(dataBotAddTime);
-      }
-      this.botChildrenStore.markDirty();
-      const nameBot = `${dataBotAddTime.createdBy || ownerId} ${
-        dataBotAddTime.nameBot ? `- [${dataBotAddTime.nameBot}]` : ""
-      }`;
-      return {
-        success: true,
-        message: `Đã thêm ${formatMiliseconds(milisecond)} cho bot ${nameBot} thành công!`,
-      };
-    } catch (error) {
-      return { success: false, message: "Có lỗi xảy ra khi thêm thời gian cho bot: " + error.message };
-    }
+  async addTimeBot(_ownerId, _value) {
+    return {
+      success: false,
+      message: "Đã tắt tăng thời hạn thủ công. Hãy dùng QR thanh toán 70.000đ / 30 ngày.",
+    };
   }
 
   async subTimeBot(ownerId, value) {
@@ -249,26 +215,11 @@ class ManagerBotSocket {
     }
   }
 
-  async setTimeBot(ownerId, value) {
-    try {
-      const milisecond = value !== -1 ? value * 1000 : value;
-      const dataBotSetTime = this.botChildrenStore.get(ownerId);
-      if (!dataBotSetTime) return { success: false, message: "Bot không tồn tại" };
-      dataBotSetTime.timeRemaining = milisecond;
-      if (milisecond === -1 || milisecond > 0) clearExpiredRetention(dataBotSetTime);
-      this.botChildrenStore.markDirty();
-      const nameBot = `${dataBotSetTime.createdBy || ownerId} ${
-        dataBotSetTime.nameBot ? `- [${dataBotSetTime.nameBot}]` : ""
-      }`;
-      return {
-        success: true,
-        message: `Đã set thời gian cho bot ${nameBot} thành công, thời hạn sử dụng: ${
-          value !== -1 ? formatMiliseconds(milisecond) : "vô thời hạn"
-        }!`,
-      };
-    } catch (error) {
-      return { success: false, message: "Có lỗi xảy ra khi set thời gian cho bot: " + error.message };
-    }
+  async setTimeBot(_ownerId, _value) {
+    return {
+      success: false,
+      message: "Đã tắt đặt thời hạn thủ công. Bot chỉ được cộng 30 ngày sau thanh toán tự động.",
+    };
   }
 
   async removeBot(ownerId) {

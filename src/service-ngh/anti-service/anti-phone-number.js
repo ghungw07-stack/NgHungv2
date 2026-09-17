@@ -6,6 +6,7 @@ import { removeMention } from "../../utils/format-util.js";
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
+import { applyAntiPunishment } from "./anti-punishment.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -261,7 +262,7 @@ async function handleViolationDetected(api, message, threadId, senderId, senderN
       return;
     }
     kickedUsers.add(senderId);
-    await api.blockUsers(threadId, [senderId]);
+    await applyAntiPunishment(api, message, threadId, senderId, senderName, groupSettings);
 
 
     delete phoneSendCount[senderId];

@@ -5,6 +5,8 @@ import { createCanvas } from "canvas";
 import { sendMessageStateQuote, sendMessageTag } from "../../service-ngh/chat-zalo/chat-style/chat-style.js";
 import { deleteFile } from "../../utils/util.js";
 import { parseFuelPriceHtml } from "../../utils/market-price-parser.js";
+import { getActiveCanvasStyle } from "../../utils/canvas/theme.js";
+import { renderCollectionStyle } from "../../utils/canvas/collection-style-renderers.js";
 
 const SOURCES = [
   "https://webgia.vn/",
@@ -31,6 +33,14 @@ export async function fetchFuelPrices() {
 }
 
 export async function createFuelPriceImage(prices, source, updatedAt = new Date()) {
+  const style = getActiveCanvasStyle();
+  if (style !== 1) return renderCollectionStyle(style, {
+    kicker: "NĂNG LƯỢNG • VIỆT NAM",
+    title: "BẢNG GIÁ XĂNG DẦU",
+    subtitle: `Cập nhật ${updatedAt.toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })} • ${source}`,
+    footer: "Giá thực tế có thể chênh lệch theo địa bàn và đơn vị bán lẻ",
+    items: prices.slice(0, 16).map((price, index) => ({ badge: String(index + 1).padStart(2, "0"), title: price.name, subtitle: `Vùng 1: ${price.region1}`, meta: `Vùng 2: ${price.region2}` })),
+  }, "fuel");
   const width = 1100;
   const headerHeight = 190;
   const rowHeight = 76;

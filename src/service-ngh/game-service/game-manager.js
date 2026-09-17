@@ -3,8 +3,13 @@ import chalk from "chalk";
 import { initializeGameTaiXiu } from "./tai-xiu/tai-xiu.js";
 import { initializeGameVietlott655 } from "./vietlott/vietlott655.js";
 import { initializeGameXiDach } from "./xi-dach/xi-dach.js";
+import { initializeGameXoSoNhanh } from "./xoso-nhanh/xoso-nhanh.js";
 import { DATA_GAME_FILE_PATH } from "../../utils/io-json.js";
 import { readFilePromise, writeFileSync } from "../../utils/util.js";
+import { DEFAULT_JACKPOT } from "./jackpot-default.js";
+import { initializeGameAutoRewards } from "./game-auto-rewards.js";
+
+export { DEFAULT_JACKPOT } from "./jackpot-default.js";
 
 // Biến quản lý data game toàn cục
 export const gameState = {
@@ -13,20 +18,29 @@ export const gameState = {
       players: {},
       activeThreads: [],
       history: [],
-      jackpot: "1000000",
+      jackpot: DEFAULT_JACKPOT,
+      jackpots: {},
     },
     chanle: {
-      jackpot: "1000000",
+      jackpot: DEFAULT_JACKPOT,
+      jackpots: {},
       history: [],
     },
     baucua: {
-      jackpot: "1000000",
+      jackpot: DEFAULT_JACKPOT,
+      jackpots: {},
       history: [],
     },
     vietlott655: {
       players: {},
       activeThreads: [],
-      jackpot: "1000000",
+      jackpot: DEFAULT_JACKPOT,
+      jackpots: {},
+      history: [],
+    },
+    xoso45s: {
+      players: {},
+      activeThreads: {},
       history: [],
     },
     xidach: {},
@@ -36,6 +50,7 @@ export const gameState = {
     chanle: false,
     baucua: false,
     vietlott655: false,
+    xoso45s: false,
     xidach: false,
   },
 };
@@ -88,6 +103,7 @@ schedule.scheduleJob("*/5 * * * * *", async () => {
 
 // Khởi tạo service
 export async function initializeGameDataManager(api) {
-  await Promise.all([initializeGameTaiXiu(api), initializeGameVietlott655(api), initializeGameXiDach(api)]);
+  initializeGameAutoRewards(api);
+  await Promise.all([initializeGameTaiXiu(api), initializeGameVietlott655(api), initializeGameXiDach(api), initializeGameXoSoNhanh(api)]);
   console.log(chalk.magentaBright("Khởi động service quản lý data game hoàn tất"));
 }

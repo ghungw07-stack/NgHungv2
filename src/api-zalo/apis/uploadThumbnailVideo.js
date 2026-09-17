@@ -59,13 +59,9 @@ export const uploadThumbnailVideoFactory = apiFactory()((api, appContext, utils)
     const encryptedParams = utils.encodeAES(JSON.stringify(params));
     if (!encryptedParams) throw new ZaloApiError("Failed to encrypt message");
 
-    let response = await utils.request(
+    let response = await utils.requestUpload(
       utils.makeURL(directMessageServiceURL + "upthumb?", { params: encryptedParams }, false),
-      {
-        method: "POST",
-        headers: formData.getHeaders(),
-        body: formData.getBuffer(),
-      }
+      formData
     );
     return await utils.resolve(response);
   };

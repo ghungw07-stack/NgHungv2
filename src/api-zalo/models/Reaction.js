@@ -92,7 +92,7 @@ export const ReactionMap = {
   "ĐÙI GÀ": { text: "🍗", rType: 89 },
   HOAHONG: { text: "/-rose", rType: 100 },
   FLAG: { text: "🇻🇳", rType: 201 },
-  CUSTOM: { text: "Hà Huy Hoàng - Bot", rType: 200 },
+  CUSTOM: { text: "Nguyễn Gia Hưng - Bot", rType: 200 },
 };
 
 const ReactionAliases = {
@@ -255,7 +255,10 @@ export const Reactions = Object.keys(ReactionMap).reduce((acc, key) => {
 export class Reaction {
   constructor(data, isGroup, appContext) {
     this.data = data;
-    this.threadId = data.uidFrom == "0" ? data.idTo : data.uidFrom;
+    // Với reaction trong nhóm, uidFrom là người thả cảm xúc còn idTo mới là
+    // groupId. Dùng uidFrom ở đây làm các handler không tìm được lời mời theo
+    // thread và gửi phản hồi nhầm vào tin nhắn riêng của người thả tim.
+    this.threadId = isGroup ? data.idTo : (data.uidFrom == "0" ? data.idTo : data.uidFrom);
     this.isSelf = data.uidFrom == "0";
     this.isGroup = isGroup;
     if (data.idTo == "0") data.idTo = appContext.uid;

@@ -47,7 +47,9 @@ export async function handleI4ImageCommand(api, message, aliasCommand) {
       return;
     }
 
-    const avatarUrl = userInfo.avatar || userInfo.avatarFull || null;
+    const normalizedCoverUrl = normalizeImageUrl(userInfo.cover);
+    const avatarUrl = [userInfo.avatarFull, userInfo.avatar, userInfo.avatarFallback]
+      .find((url) => url && normalizeImageUrl(url) !== normalizedCoverUrl) || null;
     const coverUrl = userInfo.cover || null;
 
     if (!avatarUrl && !coverUrl) {
@@ -150,5 +152,16 @@ export async function handleI4ImageCommand(api, message, aliasCommand) {
         if (fs.existsSync(p)) fs.unlinkSync(p);
       } catch {}
     }
+  }
+}
+
+function normalizeImageUrl(url) {
+  if (!url) return "";
+  try {
+    const parsed = new URL(String(url).trim().replace(/\\\//g, "/").replace(/^\/\//, "https://"));
+    parsed.hash = "";
+    return parsed.toString();
+  } catch {
+    return String(url).trim();
   }
 }

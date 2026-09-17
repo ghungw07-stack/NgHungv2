@@ -1,11 +1,22 @@
 import axios from "axios";
 import path from "path";
 import fs from "fs";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import youtubeDl from "youtube-dl-exec";
-import { deleteFile, execAsync, writeFilePromise } from "../../../../utils/util.js";
+import { deleteFile, execAsync, uploadToNghServer, writeFilePromise } from "../../../../utils/util.js";
 import { tempDir } from "../../../../utils/io-json.js";
 import { randomIDTemp } from "../../../../utils/format-util.js";
 import { registerVoiceTempFile } from "../../../../utils/voice-temp-server.js";
+import { logMediaTiming } from "../../../../utils/media-timing.js";
+import { rememberUploadSize } from "../../../../api-zalo/upload-metadata.js";
+
+const HOST_AUDIO_MAX_BYTES = 90 * 1024 * 1024;
+const execFileAsync = promisify(execFile);
+
+export function shouldDirectTranscodeAudio(url) {
+  return !String(url).includes(".m3u8") && (String(url).includes(".mp3") || String(url).includes("sndcdn"));
+}
 
 /**
  * Chuyển đổi file MP3 sang M4A
@@ -30,14 +41,23 @@ export async function convertToM4A(inputPath) {
  * Chuyển đổi file MP3 sang AAC
  */
 export async function convertToAAC(inputPath, outputPath = inputPath.replace(/\.mp3$/i, ".aac")) {
+  const startedAt = performance.now();
+  let ok = false;
   try {
-    const ffmpegCommand = ["ffmpeg", "-y", "-i", inputPath, "-vn", "-c:a", "aac", "-q:a", "2", outputPath].join(" ");
+    // ponytail: Output stays below shared-host/Cloudflare limits; use object storage for audio beyond this ceiling.
+    const ffmpegCommand = [
+      "ffmpeg", "-y", "-i", inputPath, "-vn", "-c:a", "aac", "-b:a", "64k", "-ar", "44100", "-ac", "1",
+      "-fs", String(HOST_AUDIO_MAX_BYTES), outputPath,
+    ].join(" ");
 
     await execAsync(ffmpegCommand);
+    ok = true;
     return outputPath;
   } catch (error) {
     console.error("Lỗi khi chuyển đổi sang AAC:", error);
     throw error;
+  } finally {
+    logMediaTiming("audio-convert", startedAt, { ok, sourceType: path.extname(inputPath).toLowerCase() });
   }
 }
 
@@ -51,10 +71,17 @@ export async function uploadAudioFile(audioPath, api, message, uploadCloud = fal
   try {
     // A .aac suffix alone is not enough for iOS. Convert every non-AAC source
     // to a real AAC elementary stream (ADTS) before it is served or uploaded.
-    if (path.extname(audioPath).toLowerCase() !== ".aac") {
+    const sourceStat = await fs.promises.stat(audioPath);
+    if (path.extname(audioPath).toLowerCase() !== ".aac" || sourceStat.size > HOST_AUDIO_MAX_BYTES) {
       convertedPath = path.join(tempDir, `voice_${randomIDTemp()}.aac`);
       await convertToAAC(audioPath, convertedPath);
       uploadPath = convertedPath;
+    }
+
+    const hostedUrl = await uploadToNghServer(uploadPath);
+    if (hostedUrl) {
+      if (api?.appContext) rememberUploadSize(api.appContext, hostedUrl, (await fs.promises.stat(uploadPath)).size);
+      return hostedUrl;
     }
 
     // Ưu tiên URL tạm do chính VPS phục vụ; không lộ dqt và không phải upload
@@ -118,7 +145,7 @@ export function ensureVoiceUrlExtension(value, extension = "aac") {
  */
 export async function downloadAndConvertAudio(url, api, message, uploadCloud = false) {
   const isM3u8 = url.includes(".m3u8") || url.includes("playlist.m3u8");
-  const isMp3 = !isM3u8 && (url.includes(".mp3") || url.includes("sndcdn"));
+  const isMp3 = shouldDirectTranscodeAudio(url);
   const ext = isM3u8 ? ".m4a" : (isMp3 ? ".mp3" : ".aac");
   const audioPath = path.join(tempDir, `temp_${randomIDTemp()}${ext}`);
   let convertedAudioPath = null;
@@ -135,6 +162,31 @@ export async function downloadAndConvertAudio(url, api, message, uploadCloud = f
       "Accept": "*/*",
       "Referer": isNhacCuaTuiSource ? "https://www.nhaccuatui.com/" : "https://www.youtube.com/",
     };
+
+    // Progressive audio can be downloaded and encoded by ffmpeg in one request.
+    // This avoids HEAD plus dozens of range requests and preserves long tracks.
+    if (isMp3) {
+      const directAacPath = path.join(tempDir, `voice_${randomIDTemp()}.aac`);
+      const convertStartedAt = performance.now();
+      let converted = false;
+      try {
+        const requestHeaders = Object.entries(headers).map(([name, value]) => `${name}: ${value}`).join("\r\n") + "\r\n";
+        await execFileAsync("ffmpeg", [
+          "-hide_banner", "-loglevel", "error", "-y",
+          "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "5",
+          "-headers", requestHeaders, "-i", url,
+          "-vn", "-c:a", "aac", "-b:a", "64k", "-ar", "44100", "-ac", "1",
+          "-fs", String(HOST_AUDIO_MAX_BYTES), directAacPath,
+        ], { timeout: 10 * 60 * 1000, maxBuffer: 1024 * 1024 });
+        converted = true;
+        return await uploadAudioFile(directAacPath, api, message, uploadCloud);
+      } catch (error) {
+        console.warn(`FFmpeg tải trực tiếp thất bại, fallback tải chunk: ${error.message}`);
+      } finally {
+        logMediaTiming("audio-convert", convertStartedAt, { ok: converted, sourceType: ".mp3-direct" });
+        await deleteFile(directAacPath);
+      }
+    }
     
     // NẾU LÀ HLS M3U8 (Tải cực nhanh & Không cần transcode ffmpeg)
     if (url.includes(".m3u8") || url.includes("playlist.m3u8")) {
@@ -211,7 +263,7 @@ export async function downloadAndConvertAudio(url, api, message, uploadCloud = f
     }
 
     const canRange = /bytes/i.test(String(head.headers["accept-ranges"] || ""));
-    const chunkSize = 2 * 1024 * 1024;
+    const chunkSize = 8 * 1024 * 1024;
     if (totalSize > chunkSize && canRange) {
       const handle = await fs.promises.open(audioPath, "w");
       await handle.truncate(totalSize);
@@ -247,7 +299,7 @@ export async function downloadAndConvertAudio(url, api, message, uploadCloud = f
       };
       
       try {
-        await Promise.all(Array.from({ length: Math.min(50, ranges.length) }, worker));
+        await Promise.all(Array.from({ length: Math.min(8, ranges.length) }, worker));
       } finally {
         await handle.close();
       }

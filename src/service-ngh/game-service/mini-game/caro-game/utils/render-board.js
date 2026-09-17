@@ -4,6 +4,7 @@ import { createCanvas } from "canvas";
 import { tempDir } from "../../../../../utils/io-json.js";
 import { WIN_CONDITION } from "../core/game-manager.js";
 import { capitalizeEachWord } from "../../../../../utils/format-util.js";
+import { getActiveCanvasStyle } from "../../../../../utils/canvas/theme.js";
 
 /**
  * Draw a Caro game board with current state
@@ -30,9 +31,18 @@ export async function drawCaroBoard(
   difficulty = null
 ) {
   // Board configuration
+  const activeStyle = getActiveCanvasStyle();
+  const boardThemes = {
+    1: { cell: 30, padding: 20, bg: "#f5f5f5", board: "#ffffff", grid: "#aaa", ink: "#555", x: "#c0392b", o: "#2980b9", accent: "#f39c12" },
+    2: { cell: 34, padding: 30, bg: "#f1f5f3", board: "#ffffff", grid: "#c4d8cc", ink: "#183b35", x: "#bd4545", o: "#087f68", accent: "#087f68" },
+    3: { cell: 32, padding: 44, bg: "#eadcbc", board: "#faf4e7", grid: "#b89a5e", ink: "#6b5a42", x: "#8c2946", o: "#496b55", accent: "#b78b35" },
+    4: { cell: 36, padding: 24, bg: "#fff1f2", board: "#fff7f8", grid: "#f9a8b8", ink: "#6b7280", x: "#ef476f", o: "#111827", accent: "#f59e0b" },
+    5: { cell: 38, padding: 36, bg: "#1e174d", board: "#263c67", grid: "#6475a5", ink: "#c4b5fd", x: "#f0abfc", o: "#5eead4", accent: "#facc15" },
+  };
+  const boardTheme = boardThemes[activeStyle] || boardThemes[1];
   const BOARD_SIZE = board.length;
-  const CELL_SIZE = 30;
-  const PADDING = 20;
+  const CELL_SIZE = boardTheme.cell;
+  const PADDING = boardTheme.padding;
   const LINE_WIDTH = 1;
   const BORDER_WIDTH = 2;
   const NUMBER_SIZE = 12; // Tăng kích thước số từ 10 lên 12
@@ -48,12 +58,14 @@ export async function drawCaroBoard(
   const ctx = canvas.getContext("2d");
 
   // Fill background
-  ctx.fillStyle = "#f5f5f5";
+  ctx.fillStyle = boardTheme.bg;
   ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+  ctx.fillStyle = boardTheme.board;
+  ctx.fillRect(PADDING, PADDING + 40, boardWidth, boardHeight);
 
   // Draw header with player info
   ctx.font = "bold 14px Arial";
-  ctx.fillStyle = "#1a1a1a";
+  ctx.fillStyle = activeStyle === 1 || activeStyle === 3 || activeStyle === 4 ? "#1a1a1a" : "#f8fafc";
   ctx.textAlign = "center";
   // Hiển thị độ khó nếu có
   if (difficulty) {
@@ -86,13 +98,13 @@ export async function drawCaroBoard(
   // Player X (always on the left)
   ctx.textAlign = "left";
   ctx.font = "bold 12px Arial";
-  ctx.fillStyle = "#c0392b"; // Red for X
+  ctx.fillStyle = boardTheme.x; // Red for X
   const xPlayerText = `X: ${xPlayerName}`;
   ctx.fillText(xPlayerText, PADDING, PADDING + 20);
 
   // Player O (always on the right)
   ctx.textAlign = "right";
-  ctx.fillStyle = "#2980b9"; // Blue for O
+  ctx.fillStyle = boardTheme.o; // Blue for O
   const oPlayerText = `O: ${oPlayerName}`;
   ctx.fillText(oPlayerText, canvasWidth - PADDING, PADDING + 20);
 
@@ -102,7 +114,7 @@ export async function drawCaroBoard(
     const currentPlayerX = currentPlayerId === xPlayerId ? PADDING : canvasWidth - PADDING;
     const currentPlayerAlign = currentPlayerId === xPlayerId ? "left" : "right";
     ctx.textAlign = currentPlayerAlign;
-    ctx.fillStyle = "#f39c12"; // Orange highlight
+    ctx.fillStyle = boardTheme.accent; // Orange highlight
     ctx.fillText("⮕", currentPlayerX - (currentPlayerId === xPlayerId ? 15 : -15), PADDING + 20);
   }
 
@@ -111,13 +123,13 @@ export async function drawCaroBoard(
   ctx.translate(PADDING, PADDING + 40);
 
   // Draw border
-  ctx.strokeStyle = "#333";
+  ctx.strokeStyle = boardTheme.ink;
   ctx.lineWidth = BORDER_WIDTH;
   ctx.strokeRect(0, 0, boardWidth, boardHeight);
 
   // Draw grid lines
   ctx.lineWidth = LINE_WIDTH;
-  ctx.strokeStyle = "#aaa";
+  ctx.strokeStyle = boardTheme.grid;
 
   // Vertical lines
   for (let i = 1; i < BOARD_SIZE; i++) {
@@ -136,7 +148,7 @@ export async function drawCaroBoard(
   }
 
   ctx.font = `bold ${NUMBER_SIZE}px Arial`;
-  ctx.fillStyle = "#555";
+  ctx.fillStyle = boardTheme.ink;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
 
@@ -161,7 +173,7 @@ export async function drawCaroBoard(
       const y = row * CELL_SIZE + CELL_SIZE / 2;
 
       if (cellValue === "X") {
-        ctx.strokeStyle = "#c0392b";
+        ctx.strokeStyle = boardTheme.x;
         ctx.lineWidth = 3;
         const offset = CELL_SIZE * 0.35;
 
@@ -175,7 +187,7 @@ export async function drawCaroBoard(
         ctx.lineTo(x - offset, y + offset);
         ctx.stroke();
       } else if (cellValue === "O") {
-        ctx.strokeStyle = "#2980b9";
+        ctx.strokeStyle = boardTheme.o;
         ctx.lineWidth = 3;
         const radius = CELL_SIZE * 0.35;
 
@@ -194,7 +206,7 @@ export async function drawCaroBoard(
     const x = lastMoveCol * CELL_SIZE + CELL_SIZE / 2;
     const y = lastMoveRow * CELL_SIZE + CELL_SIZE / 2;
 
-    ctx.strokeStyle = "#f39c12";
+    ctx.strokeStyle = boardTheme.accent;
     ctx.lineWidth = 2;
     const radius = CELL_SIZE * 0.45;
 
@@ -223,7 +235,7 @@ export async function drawCaroBoard(
     ctx.moveTo(startX, startY);
     ctx.lineTo(endX, endY);
 
-    ctx.strokeStyle = "#1abc9c";
+    ctx.strokeStyle = activeStyle === 1 ? "#1abc9c" : boardTheme.accent;
     ctx.lineWidth = 5;
     ctx.setLineDash([5, 3]);
     ctx.stroke();
@@ -234,7 +246,7 @@ export async function drawCaroBoard(
   ctx.restore();
 
   ctx.font = "12px Arial";
-  ctx.fillStyle = "#555";
+  ctx.fillStyle = boardTheme.ink;
   ctx.textAlign = "center";
   ctx.fillText(`Nước đi: ${moves.length} / ${BOARD_SIZE * BOARD_SIZE}`, canvasWidth / 2, canvasHeight - PADDING / 2);
 

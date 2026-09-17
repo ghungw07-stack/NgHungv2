@@ -16,20 +16,6 @@ export const deleteMessageFactory = apiFactory()((api, appContext, utils) => {
    */
   return async function deleteMessage(message, onlyMe = true, myGlobalMsgId) {
     if (!message) throw new ZaloApiError("Missing message");
-    // Khi gọi delete từ một tin reply, ID cần xóa nằm trong quote chứ không
-    // nằm ở message.data của chính lệnh reply (đặc biệt khi reply có tag).
-    if (message.data?.quote && !message.data?.msgId) {
-      const quote = message.data.quote;
-      message = {
-        ...message,
-        data: {
-          ...quote,
-          msgId: quote.msgId || quote.globalMsgId,
-          cliMsgId: quote.cliMsgId || quote.clientId,
-          uidFrom: quote.uidFrom || quote.ownerId || message.data.uidFrom,
-        },
-      };
-    }
     const isGroupMessage = message.type === MessageType.GroupMessage;
     // const params = {
     //   toid: !isGroupMessage ? message.threadId : undefined,
@@ -92,13 +78,12 @@ export const deleteMessageFactory = apiFactory()((api, appContext, utils) => {
     const globalMsgId = String(message.data.msgId);
     let result = null;
 
-    // Za-go dùng timestamp mới cho cliMsgId ngoài cùng; hai ID trong `msgs`
-    // vẫn là ID gốc của tin nhắn cần xóa.
-    result = await attemptRequest(cliMsgIdNow, cliMsgId, globalMsgId);
+    // Giống bản bí thuật gốc: ưu tiên client ID của chính tin cần xóa.
+    result = await attemptRequest(cliMsgId, cliMsgId, globalMsgId);
     if (!result.error) return result.data;
 
-    // Fallback cho các phiên Zalo cũ chấp nhận cliMsgId gốc ở ngoài cùng.
-    result = await attemptRequest(cliMsgId, cliMsgId, globalMsgId);
+    // Fallback khi phiên Zalo yêu cầu client ID thời điểm hiện tại ở ngoài cùng.
+    result = await attemptRequest(cliMsgIdNow, cliMsgId, globalMsgId);
     if (!result.error) return result.data;
 
     // Case 3: Sử dụng cliMsgIdNow = Date.now().toString() và globalMsgId

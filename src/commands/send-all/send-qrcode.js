@@ -14,7 +14,7 @@ const TIME_SHOW_SCAN_QR = 600000;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Author : Hà Huy Hoàng
+// Author : Nguyễn Gia Hưng
 // Description: Pexels Image code by H H H BOT
 
 export const COLOR_RED = "db342e";

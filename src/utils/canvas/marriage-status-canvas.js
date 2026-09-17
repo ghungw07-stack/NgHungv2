@@ -3,6 +3,8 @@ import fs from "fs";
 import path from "path";
 import { roundRect } from "./shape.js";
 import { getFontCanvas } from "../format-util.js";
+import { getActiveCanvasStyle } from "./theme.js";
+import { renderPortraitStyle } from "./portrait-style-renderers.js";
 
 function isValidUrl(value) {
   try {
@@ -96,8 +98,6 @@ function drawAvatar(ctx, image, cx, cy, size) {
 
 /** Dùng cho cả lần vừa xác nhận kết hôn và khi xem lại chứng nhận. */
 export async function createMarriageStatusImage(user1Info, user2Info, marriageDateStr) {
-  const width = 1200, height = 760;
-  const canvas = createCanvas(width, height), ctx = canvas.getContext("2d");
   const marriageDate = new Date(`${marriageDateStr}T00:00:00`);
   const days = Math.max(0, Math.floor((Date.now() - marriageDate.getTime()) / 86400000));
   const name1 = String(user1Info?.name || "Người A").slice(0, 26);
@@ -106,6 +106,26 @@ export async function createMarriageStatusImage(user1Info, user2Info, marriageDa
     loadAvatarSafe(user1Info?.avatar, name1[0] || "A"),
     loadAvatarSafe(user2Info?.avatar, name2[0] || "B"),
   ]);
+
+  const style = getActiveCanvasStyle();
+  if (style !== 1) {
+    return renderPortraitStyle(style, {
+      kind: "marriage-certificate",
+      kicker: "MYBOT • CHỨNG NHẬN HẠNH PHÚC",
+      title: "GIẤY CHỨNG NHẬN KẾT HÔN",
+      names: [name1, name2],
+      avatars: [avatar1, avatar2],
+      primaryLabel: "THỜI GIAN ĐỒNG HÀNH",
+      primaryValue: `${days} NGÀY`,
+      secondaryLabel: "NGÀY NÊN DUYÊN",
+      secondaryValue: formatVNDate(marriageDateStr),
+      body: pickQuote(days),
+      footer: "Trăm năm hạnh phúc • Bạc đầu nghĩa phu thê",
+    }, "marriagecard");
+  }
+
+  const width = 1200, height = 760;
+  const canvas = createCanvas(width, height), ctx = canvas.getContext("2d");
 
   const bg = ctx.createLinearGradient(0, 0, width, height);
   bg.addColorStop(0, "#fffdf7");
@@ -196,8 +216,6 @@ export async function createMarriageStatusImage(user1Info, user2Info, marriageDa
 
 /** Card trạng thái dùng cho các lần xem lại sau ngày xác nhận kết hôn. */
 export async function createMarriageCardImage(user1Info, user2Info, marriageDateStr) {
-  const width = 1000, height = 586;
-  const canvas = createCanvas(width, height), ctx = canvas.getContext("2d");
   const date = new Date(`${marriageDateStr}T00:00:00`);
   const days = Math.max(0, Math.floor((Date.now() - date.getTime()) / 86400000));
   const name1 = String(user1Info?.name || "Người A").slice(0, 22);
@@ -206,6 +224,27 @@ export async function createMarriageCardImage(user1Info, user2Info, marriageDate
     loadAvatarSafe(user1Info?.avatar, name1[0] || "A"),
     loadAvatarSafe(user2Info?.avatar, name2[0] || "B"),
   ]);
+
+
+  const style = getActiveCanvasStyle();
+  if (style !== 1) {
+    return renderPortraitStyle(style, {
+      kind: "marriage-status",
+      kicker: "MYBOT • LOVE STATUS",
+      title: "NHỊP ĐẬP HÔN NHÂN",
+      names: [name1, name2],
+      avatars: [avatar1, avatar2],
+      primaryLabel: "ĐÃ ĐỒNG HÀNH",
+      primaryValue: `${days} NGÀY`,
+      secondaryLabel: "NGÀY NÊN DUYÊN",
+      secondaryValue: formatVNDate(marriageDateStr),
+      body: pickQuote(days),
+      footer: "Card trạng thái vui • Không phải giấy tờ pháp lý",
+    }, "marriagestatus");
+  }
+
+  const width = 1000, height = 586;
+  const canvas = createCanvas(width, height), ctx = canvas.getContext("2d");
 
   const bg = ctx.createLinearGradient(0, 0, width, height);
   bg.addColorStop(0, "#111b3a");

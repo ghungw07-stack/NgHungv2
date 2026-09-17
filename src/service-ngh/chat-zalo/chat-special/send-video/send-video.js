@@ -22,10 +22,15 @@ import {
 } from "../../../../utils/util.js";
 import { VIDEOS_RESOURCE_PATH } from "../../../../utils/io-json.js";
 import { getVideoMetadata } from "../../../../api-zalo/utils.js";
-import { getCachedMedia, setCacheData } from "../../../../utils/link-platform-cache.js";
+import {
+  getCachedMedia,
+  invalidateCachedMedia,
+  setCacheData,
+} from "../../../../utils/link-platform-cache.js";
 import { isAdmin } from "../../../../index.js";
 
 const PLATFORM = "VideoTemplate";
+const videoUploadsInFlight = new Map();
 const CONFIG = {
   baseDataPath: path.resolve(
     process.cwd(),
@@ -105,28 +110,51 @@ const KEYWORD_MAPPING = {
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const getDataVideoFromUrl = async (api, message, url) => {
-  let pathDownload;
-  let videoData;
   const botId = api.getBotId();
   const senderId = message?.data?.uidFrom || botId;
   const isAdminLevelHighest = isAdmin(botId, senderId);
 
   try {
-    videoData = await getCachedMedia(PLATFORM, url, "mp4", url);
+    let videoData = await getCachedMedia(PLATFORM, url, "mp4", url);
     if (videoData) {
       return videoData;
     } else {
       if (isAdminLevelHighest) {
-        pathDownload = await downloadAndSaveVideo(url);
-        const uploadResult = await api.uploadAttachment([pathDownload], message.threadId, message.type, { isUseProphylactic: true });
-        const linkUpload = uploadResult[0].fileUrl;
-        const dataVideo = await getVideoMetadata(linkUpload);
-        if (!dataVideo || dataVideo.error) {
-          throw new Error("Link die không thể get data Video Link: " + url);
+        const uploadKey = `${botId}:${url}`;
+        let uploadPromise = videoUploadsInFlight.get(uploadKey);
+        if (!uploadPromise) {
+          uploadPromise = (async () => {
+            let pathDownload;
+            try {
+              pathDownload = await downloadAndSaveVideo(url);
+              const uploadResult = await api.uploadAttachment(
+                [pathDownload],
+                message.threadId,
+                message.type,
+                { isUseProphylactic: true }
+              );
+              const linkUpload = uploadResult?.[0]?.fileUrl || uploadResult?.[0]?.normalUrl;
+              if (!linkUpload) throw new Error("Zalo Cloud không trả về link video");
+
+              const dataVideo = await getVideoMetadata(linkUpload);
+              if (!dataVideo || dataVideo.error) {
+                throw new Error("Link die không thể get data Video Link: " + url);
+              }
+              setCacheData(PLATFORM, url, { fileUrl: linkUpload, title: url, ...dataVideo }, "mp4");
+              return getCachedMedia(PLATFORM, url, "mp4", url);
+            } finally {
+              await deleteFile(pathDownload);
+            }
+          })();
+          videoUploadsInFlight.set(uploadKey, uploadPromise);
         }
-        setCacheData(PLATFORM, url, { fileUrl: linkUpload, title: url, ...dataVideo }, "mp4");
-        videoData = await getCachedMedia(PLATFORM, url, "mp4", linkUpload);
-        return videoData;
+        try {
+          return await uploadPromise;
+        } finally {
+          if (videoUploadsInFlight.get(uploadKey) === uploadPromise) {
+            videoUploadsInFlight.delete(uploadKey);
+          }
+        }
       } else {
         const metaData = await Promise.race([
           getVideoMetadata(url),
@@ -134,7 +162,7 @@ const getDataVideoFromUrl = async (api, message, url) => {
             throw new Error("Timeout khi kiểm tra URL -> Chuyển qua link khác");
           }),
         ]);
-        if (!metaData || dataVideo.error) {
+        if (!metaData || metaData.error) {
           throw new Error("Link die không thể get data Video" + url);
         }
         return {
@@ -145,15 +173,13 @@ const getDataVideoFromUrl = async (api, message, url) => {
     }
   } catch (error) {
     return null;
-  } finally {
-    await deleteFile(pathDownload);
   }
 };
 
 async function handleApiSourceVideo(api, message, config, senderName, senderId) {
   const filePath = path.join(CONFIG.baseDataPath, config.variantConfig.source);
   let videoLinks = readFileSync(filePath, "utf-8");
-  videoLinks = videoLinks.split("\n").filter(Boolean);
+  videoLinks = [...new Set(videoLinks.split(/\r?\n/).map((link) => link.trim()).filter(Boolean))];
   let isDieLink = false;
 
   while (videoLinks.length > 0) {
@@ -312,7 +338,7 @@ export async function sendRandomGirlVideo(api, message, caption, type, ttl = 0) 
   if (type == "chill") nameFile = "vdchill.txt";
   const filePath = path.join(CONFIG.baseDataPath, nameFile);
   let videoLinks = readFileSync(filePath, "utf-8");
-  videoLinks = videoLinks.split("\n").filter(Boolean);
+  videoLinks = [...new Set(videoLinks.split(/\r?\n/).map((link) => link.trim()).filter(Boolean))];
 
   while (videoLinks.length > 0) {
     const randomIndex = Math.floor(Math.random() * videoLinks.length);
@@ -339,7 +365,33 @@ export async function sendRandomGirlVideo(api, message, caption, type, ttl = 0) 
         return true;
       } catch (error) {
         console.error("Lỗi khi gửi video:", error);
-        return false;
+        // Link ZCloud cũ có thể đã hết hạn dù URL vẫn còn trong cache. Xóa nó,
+        // upload lại đúng video nguồn một lần và gửi lại ngay trong lượt này.
+        invalidateCachedMedia(PLATFORM, videoUrl, "mp4", metaData.fileUrl);
+        const refreshedMetaData = await getDataVideoFromUrl(api, message, videoUrl);
+        const refreshedRawDuration = Number(refreshedMetaData?.duration);
+        const refreshedDurationSeconds = refreshedRawDuration > 1000
+          ? refreshedRawDuration / 1000
+          : refreshedRawDuration;
+        if (refreshedMetaData && (!refreshedRawDuration || refreshedDurationSeconds <= 45)) {
+          try {
+            await api.sendVideo({
+              videoUrl: refreshedMetaData.fileUrl,
+              threadId: message.threadId,
+              threadType: message.type,
+              message: { text: caption },
+              ttl,
+              metaData: refreshedMetaData,
+            });
+            return true;
+          } catch (retryError) {
+            invalidateCachedMedia(PLATFORM, videoUrl, "mp4", refreshedMetaData.fileUrl);
+            console.error("Lỗi khi gửi lại video sau khi upload ZCloud:", retryError);
+          }
+        }
+
+        // Nguồn gốc cũng hỏng thì bỏ ứng viên trong lượt chạy và thử video khác.
+        videoLinks.splice(randomIndex, 1);
       }
     } else {
       videoLinks.splice(randomIndex, 1);

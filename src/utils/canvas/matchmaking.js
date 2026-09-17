@@ -3,8 +3,62 @@ import fs from "fs";
 import path from "path";
 import * as cv from "./index.js";
 import { FONT_MAIN, getFontCanvas } from "../format-util.js";
+import { getActiveCanvasStyle } from "./theme.js";
+import { renderPortraitStyle } from "./portrait-style-renderers.js";
+
+async function loadAvatarForStyle(url, letter) {
+  try {
+    if (!url || !cv.isValidUrl(url)) throw new Error("invalid avatar");
+    return await Promise.race([
+      loadImage(url),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("avatar timeout")), 4000)),
+    ]);
+  } catch {
+    const fallback = createCanvas(320, 320);
+    const fallbackContext = fallback.getContext("2d");
+    const gradient = fallbackContext.createLinearGradient(0, 0, 320, 320);
+    gradient.addColorStop(0, "#f472b6");
+    gradient.addColorStop(1, "#6366f1");
+    fallbackContext.fillStyle = gradient;
+    fallbackContext.fillRect(0, 0, 320, 320);
+    fallbackContext.fillStyle = "#ffffff";
+    fallbackContext.font = "800 132px Arial";
+    fallbackContext.textAlign = "center";
+    fallbackContext.textBaseline = "middle";
+    fallbackContext.fillText(String(letter || "?").toUpperCase(), 160, 170);
+    return fallback;
+  }
+}
 
 export async function createMatchmakingImage(user1Info, user2Info, compatibilityPercent, titleText = "💖 TỈ LỆ HỢP ĐÔI 💖", subtitleText = "MỨC ĐỘ PHÙ HỢP") {
+  const style = getActiveCanvasStyle();
+  if (style !== 1) {
+    const name1 = String(user1Info?.name || user1Info?.displayName || user1Info?.zaloName || "Người dùng 1").slice(0, 24);
+    const name2 = String(user2Info?.name || user2Info?.displayName || user2Info?.zaloName || "Người dùng 2").slice(0, 24);
+    const [avatar1, avatar2] = await Promise.all([
+      loadAvatarForStyle(user1Info?.avatar, name1[0]),
+      loadAvatarForStyle(user2Info?.avatar, name2[0]),
+    ]);
+    const message = compatibilityPercent >= 75
+      ? "Hai bạn có một tần số rất đẹp, cứ tự nhiên và chân thành nhé."
+      : compatibilityPercent >= 50
+        ? "Khá hợp nhau; thêm một chút thấu hiểu sẽ tạo nên chuyện hay."
+        : "Khác biệt cũng là gia vị, kết quả này chỉ để vui thôi nhé.";
+    return renderPortraitStyle(style, {
+      kind: "matchmaking",
+      kicker: "MYBOT • MATCH LAB",
+      title: titleText.replace(/💖/gu, "").trim(),
+      names: [name1, name2],
+      avatars: [avatar1, avatar2],
+      primaryLabel: subtitleText,
+      primaryValue: `${compatibilityPercent}%`,
+      secondaryLabel: "KẾT NỐI",
+      secondaryValue: compatibilityPercent >= 75 ? "RẤT ĐỒNG ĐIỆU" : compatibilityPercent >= 50 ? "CÓ TIỀM NĂNG" : "CẦN THÊM THỜI GIAN",
+      body: message,
+      footer: "Kết quả ngẫu nhiên chỉ mang tính giải trí",
+    }, "matchmaking");
+  }
+
   const width = 1400;
   const height = 900;
   const canvas = createCanvas(width, height);

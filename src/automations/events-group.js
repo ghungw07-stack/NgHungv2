@@ -1,6 +1,6 @@
+import { handleCaptchaEvent } from "../service-ngh/anti-service/group-captcha.js";
 import schedule from "node-schedule";
 import { GroupEventType, MessageType, typeToString } from "../api-zalo/models/index.js";
-import { MessageStyle, MultiMsgStyle } from "../api-zalo/models/Message.js";
 import {
   getUserInfoBasic,
   getUserInfoData,
@@ -8,7 +8,7 @@ import {
   getUsersInfoData,
 } from "../service-ngh/info-service/user-info.js";
 import * as cv from "../utils/canvas/index.js";
-import { isAdmin } from "../index.js";
+import { apiManager, isAdmin } from "../index.js";
 import fs from "fs";
 import path from "path";
 import {
@@ -39,6 +39,7 @@ const JOIN_LEAVE_SPAM_LIMIT = 2;
 const JOIN_LEAVE_BLOCK_DURATION = 12 * 60 * 60 * 1000;
 const JOIN_LEAVE_BLOCKS_PATH = path.join(DATA_ROOT, "data", "join-leave-blocks.json");
 const joinLeaveSpamHistory = new Map();
+const joinLeaveLastEvent = new Map();
 const joinLeaveApiByBot = new Map();
 
 function loadJoinLeaveBlocks() {
@@ -68,7 +69,7 @@ function normalizeMemberId(value) {
   return String(value ?? "").replace(/_0$/u, "");
 }
 
-async function sendJoinLeaveBlockNotice(api, threadId, userId, member, reason = "Vào/rời nhóm 3 lần trong vòng 12h") {
+async function sendJoinLeaveBlockNotice(api, threadId, userId, member, reason = "Ra Vào Nhóm 3 Lần Trong 12h") {
   const serverName = getNameServer(api);
   let blockedName = member?.dName || member?.name || member?.zaloName || "Thành viên";
   if (blockedName === "Thành viên") {
@@ -78,20 +79,10 @@ async function sendJoinLeaveBlockNotice(api, threadId, userId, member, reason = 
     } catch {}
   }
 
-  const msg =
-    `╭───────────────⟡\n` +
-    `│ 🤖 ${serverName}\n` +
-    `├───────────────\n` +
-    `│ 🚫 TỰ ĐỘNG CHẶN\n` +
-    `│ 👤 ${blockedName}\n` +
-    `│ 🆔 [ ${userId} ]\n` +
-    `│ 📌 Lý do: ${reason}\n` +
-    `╰───────────────⟡`;
-  const serverLineLength = `│ 🤖 ${serverName}`.length;
+  const msg = `${serverName}\n${blockedName}\nLý Do ${reason}`;
   await api.sendMessage(
     {
       msg,
-      style: MultiMsgStyle([MessageStyle(0, serverLineLength, "db342e", "18", true, false, false, false)]),
       ttl: 300000,
     },
     threadId,
@@ -102,29 +93,45 @@ async function sendJoinLeaveBlockNotice(api, threadId, userId, member, reason = 
 async function enforceJoinLeaveSpam(api, event) {
   const botId = normalizeMemberId(api.getBotId());
   joinLeaveApiByBot.set(botId, api);
-  if (![GroupEventType.JOIN_REQUEST, GroupEventType.JOIN, GroupEventType.LEAVE].includes(event.type)) return;
-  let members = Array.isArray(event.data?.updateMembers) ? event.data.updateMembers : [];
-  // JOIN_REQUEST không có updateMembers; lấy danh sách đang chờ duyệt để
-  // nhận diện người gửi yêu cầu lặp trước khi hệ thống tự duyệt.
-  if (event.type === GroupEventType.JOIN_REQUEST) {
+  const now = Date.now();
+  let removedExpiredBlock = false;
+  for (const [key, record] of Object.entries(joinLeaveBlocks)) {
+    if (String(record?.botId) !== botId || Number(record?.until) > now) continue;
     try {
-      const pending = await api.getGroupPendingMembers(String(event.threadId));
-      members = Array.isArray(pending?.users) ? pending.users : [];
+      if (record.mode !== "kick") {
+        await api.unblockUsers(String(record.threadId), [String(record.userId)]);
+      }
+      delete joinLeaveBlocks[key];
+      removedExpiredBlock = true;
     } catch (error) {
-      console.error(`Không lấy được danh sách yêu cầu tham gia nhóm ${event.threadId}:`, error);
-      return;
+      console.error(`Lỗi gỡ chặn ra/vào đã hết hạn ${record.userId}:`, error);
     }
   }
+  if (removedExpiredBlock) saveJoinLeaveBlocks();
+  // Yêu cầu vào nhóm có bộ đếm riêng phía dưới. Không cộng JOIN_REQUEST vào
+  // chuỗi JOIN/LEAVE vì một lần xin vào rồi được duyệt sẽ bị tính thành hai lần.
+  if (![GroupEventType.JOIN, GroupEventType.LEAVE].includes(event.type)) return;
+  let members = Array.isArray(event.data?.updateMembers) ? event.data.updateMembers : [];
   if (!members.length) return;
 
   const threadId = String(event.threadId);
-  const now = Date.now();
+  const managedBotIds = new Set([botId]);
+  for (const manager of Object.values(apiManager?.apiManagerObject || {})) {
+    for (const value of [manager?.id, manager?.apiZalo?.getBotId?.()]) {
+      const normalized = normalizeMemberId(value);
+      if (normalized) managedBotIds.add(normalized);
+    }
+  }
 
   for (const member of members) {
     const rawUserId = String(member?.id ?? member?.uid ?? member ?? "");
     const normalizedUserId = normalizeMemberId(rawUserId);
-    if (!rawUserId || !normalizedUserId || normalizedUserId === botId) continue;
+    if (!rawUserId || !normalizedUserId || managedBotIds.has(normalizedUserId)) continue;
     const blockKey = `${botId}:${threadId}:${normalizedUserId}`;
+    const eventKey = `${blockKey}:${event.type}`;
+    const previousEventAt = joinLeaveLastEvent.get(eventKey) || 0;
+    if (now - previousEventAt < 5000) continue;
+    joinLeaveLastEvent.set(eventKey, now);
     const activeBlock = joinLeaveBlocks[blockKey];
     if (Number(activeBlock?.until) > now) {
       if (activeBlock.mode === "block") {
@@ -237,6 +244,9 @@ setInterval(async () => {
     if (recent.length) joinLeaveSpamHistory.set(key, recent);
     else joinLeaveSpamHistory.delete(key);
   }
+  for (const [key, timestamp] of joinLeaveLastEvent) {
+    if (now - timestamp > JOIN_LEAVE_SPAM_WINDOW) joinLeaveLastEvent.delete(key);
+  }
 }, 60 * 1000).unref?.();
 
 function getWelcomePMConfig() {
@@ -251,8 +261,8 @@ function getWelcomePMConfig() {
   }
   
   return {
-    defaultMessage: "HA HUY HOANG",
-    defaultCardContent: "HA HUY HOANG",
+    defaultMessage: "NGUYỄN GIA HƯNG",
+    defaultCardContent: "NGUYỄN GIA HƯNG",
     customMessages: {},
     customCards: {}
   };
@@ -318,6 +328,7 @@ export async function gruopEvents(api, event) {
   const threadSettings = groupSettings[threadId] || {};
 
   await enforceJoinLeaveSpam(api, event);
+  await handleCaptchaEvent(api, event, groupSettingsAll);
   
   let welcomePMConfigCache = null;
   const getCachedWelcomePMConfig = () => {

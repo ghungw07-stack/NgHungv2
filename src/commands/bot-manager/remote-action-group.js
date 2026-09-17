@@ -12,6 +12,9 @@ import { removeMention } from "../../utils/format-util.js";
 import { handleCommand } from "../command.js";
 import { MessageType } from "../../api-zalo/index.js";
 import { groupSettingsAll } from "../../automations/event-send-msg.js";
+import { parseGroupReplyAction } from "../../utils/group-reply-action.js";
+import { isAdmin, isBotLeader } from "../../index.js";
+import { isRentalAdmin } from "./thuebot.js";
 
 const requestJoinGroupMap = new Map();
 const waitingActionGroupMap = new Map();
@@ -33,6 +36,10 @@ schedule.scheduleJob("*/5 * * * * *", () => {
 });
 
 export async function handleJoinGroup(api, message) {
+  if (!isAdmin(api.getBotId(), message.data.uidFrom)) {
+    await sendMessageWarningRequest(api, message, { caption: "Chỉ quản trị bot cấp cao mới được cho bot tham gia nhóm!" }, 30000);
+    return false;
+  }
   const prefix = getGlobalPrefix(api.getBotId());
   const content = removeMention(message);
 
@@ -101,6 +108,7 @@ export async function handleJoinGroup(api, message) {
   const msgId = msgResponse.message.msgId.toString();
 
   requestJoinGroupMap.set(msgId, {
+    botId: String(api.getBotId()),
     message,
     timestamp: Date.now(),
     groupInfo,
@@ -109,12 +117,15 @@ export async function handleJoinGroup(api, message) {
 }
 
 export async function handleReactionConfirmJoinGroup(api, reaction) {
-  const msgId = reaction.data?.content?.rMsg[0]?.gMsgID?.toString() || "";
+  const msgId = reaction.data?.content?.rMsg?.[0]?.gMsgID?.toString() || "";
   if (!msgId) return false;
   const data = requestJoinGroupMap.get(msgId);
   if (!data) return false;
   const senderId = reaction.data.uidFrom;
   if (senderId !== data.message.data.uidFrom) return false;
+  if (data.botId !== String(api.getBotId()) || String(reaction.threadId) !== String(data.message.threadId)
+    || Date.now() - data.timestamp > waitingActionJoinGroup
+    || !isAdmin(api.getBotId(), senderId)) return false;
 
   const rType = reaction.data.content.rType;
   if (rType !== 3 && rType !== 5) return false;
@@ -191,6 +202,10 @@ export async function handleLeaveGroup(api, message, groupSettings) {
 }
 
 export async function handleLeaveLockedGroups(api, message) {
+  if (!isAdmin(api.getBotId(), message.data.uidFrom)) {
+    await sendMessageWarningRequest(api, message, { caption: "Chỉ quản trị bot cấp cao mới được cho bot rời nhiều nhóm!" }, 30000);
+    return false;
+  }
   const threadId = message.threadId;
   const isContentString = typeof message.data.content === "string";
   if (!isContentString) return;
@@ -251,48 +266,73 @@ export async function handleLeaveLockedGroups(api, message) {
 }
 
 export async function handleLeaveAllGroup(api, message) {
-  const threadId = message.threadId;
-  const botId = api.getBotId();
-  const senderId = message.data?.uidFrom;
+  if (!isAdmin(api.getBotId(), message.data.uidFrom)) {
+    await sendMessageWarningRequest(api, message, { caption: "Chỉ quản trị bot cấp cao mới được cho bot rời tất cả nhóm!" }, 30000);
+    return false;
+  }
+  const threadId = String(message.threadId);
 
   try {
-    const groups = await getDataAllGroup(api);
+    await withTimeout(
+      safeSend(api, threadId, "⏳ Đang lấy danh sách nhóm để thoát..."),
+      5000,
+      "Gửi trạng thái leaveall quá thời gian"
+    ).catch((error) => console.warn(`[leaveall] ${error.message}`));
+
+    // leaveall chỉ cần ID. Không dùng getDataAllGroup() vì hàm đó còn tải
+    // metadata của từng nhóm theo batch và có thể làm lệnh đứng rất lâu.
+    const allGroupsResult = await withTimeout(
+      api.getAllGroups(),
+      20000,
+      "Lấy danh sách nhóm quá thời gian"
+    );
+    const listData = allGroupsResult?.data || allGroupsResult;
+    const versionMap = listData?.gridVerMap || {};
+    const infoMap = listData?.gridInfoMap || {};
+    const groupMap = Object.keys(versionMap).length > 0 ? versionMap : infoMap;
+    const groupIds = [...new Set(Object.keys(groupMap).map(String).filter(Boolean))];
+
+    if (groupIds.length === 0) {
+      await safeSend(api, threadId, "⚡ Không tìm thấy nhóm nào để thoát.");
+      return;
+    }
+
+    await safeSend(api, threadId, `⏳ Bắt đầu thoát ${groupIds.length} box...`);
+
+    // Rời nhóm đang nhận lệnh sau cùng để còn gửi được tiến độ cho người gọi.
+    const otherGroupIds = groupIds.filter((groupId) => groupId !== threadId);
+    const hasCurrentGroup = groupIds.includes(threadId);
     let success = 0;
+    const failedGroupIds = [];
 
-    for (const g of groups) {
-
-      if (g.groupId === threadId) continue;
-
+    for (const groupId of otherGroupIds) {
       try {
-        const groupInfo = await getGroupInfoData(api, g.groupId);
-        const groupAdmins = await getGroupAdmins(groupInfo);
-        const normalizedAdmins = groupAdmins.map((adminId) => adminId?.toString());
-        const botIdStr = botId?.toString();
-        const senderIdStr = senderId?.toString();
-
-        if (botIdStr && normalizedAdmins.includes(botIdStr)) {
-          continue;
-        }
-
-        if (senderIdStr && normalizedAdmins.includes(senderIdStr)) {
-          continue;
-        }
-
-        await api.leaveGroup(g.groupId);
+        await leaveGroupWithRetry(api, groupId);
         success++;
-
         await sleep(400);
-
       } catch (err) {
-        console.error(`❌ Không thoát được nhóm ${g.groupId}:`, err);
+        failedGroupIds.push(groupId);
+        console.error(`❌ Không thoát được nhóm ${groupId}:`, err);
       }
     }
 
-    await safeSend(
-      api,
-      threadId,
-      `✅ Đã thoát ${success} box.`
-    );
+    if (!hasCurrentGroup) {
+      await safeSend(api, threadId, `✅ Đã thoát ${success}/${groupIds.length} box.${
+        failedGroupIds.length > 0 ? `\n❌ Thất bại: ${failedGroupIds.length} box.` : ""
+      }`);
+      return;
+    }
+
+    await safeSend(api, threadId, `✅ Đã thoát ${success}/${otherGroupIds.length} box khác.${
+      failedGroupIds.length > 0 ? `\n❌ Thất bại: ${failedGroupIds.length} box.` : ""
+    }\n⏳ Đang thoát box hiện tại cuối cùng...`);
+
+    try {
+      await leaveGroupWithRetry(api, threadId);
+    } catch (err) {
+      console.error(`❌ Không thoát được nhóm hiện tại ${threadId}:`, err);
+      await safeSend(api, threadId, `❌ Không thể thoát box hiện tại: ${err.message}`);
+    }
 
   } catch (e) {
     await safeSend(api, threadId, `❌ Lỗi khi xử lý: ${e.message}`);
@@ -301,6 +341,33 @@ export async function handleLeaveAllGroup(api, message) {
 
 async function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function withTimeout(promise, timeoutMs, errorMessage) {
+  let timeoutId;
+  const timeout = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(errorMessage)), timeoutMs);
+    timeoutId.unref?.();
+  });
+
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId));
+}
+
+async function leaveGroupWithRetry(api, groupId, maxAttempts = 2) {
+  let lastError;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const result = await api.leaveGroup(groupId);
+      if (Array.isArray(result?.memberError) && result.memberError.length > 0) {
+        throw new Error(`Zalo từ chối rời nhóm: ${JSON.stringify(result.memberError)}`);
+      }
+      return result;
+    } catch (error) {
+      lastError = error;
+      if (attempt < maxAttempts) await sleep(800);
+    }
+  }
+  throw lastError;
 }
 
 async function safeSend(api, threadId, text) {
@@ -319,17 +386,31 @@ async function safeSend(api, threadId, text) {
 }
 
 export async function handleShowGroupsList(api, message, aliasCommand) {
+  if (!isAdmin(api.getBotId(), message.data.uidFrom)) {
+    await sendMessageWarningRequest(api, message, { caption: "Chỉ quản trị bot cấp cao mới được quản lý danh sách nhóm của bot!" }, 30000);
+    return false;
+  }
   const prefix = getGlobalPrefix(api.getBotId());
   const content = removeMention(message);
 
   const command = content.replace(`${prefix}${aliasCommand}`, "").trim();
   try {
     const groups = await getDataAllGroup(api);
+    const groupById = new Map(groups.map((group) => [String(group.groupId), group]));
+    const activeGroupIds = Array.isArray(groups.activeGroupIds) ? groups.activeGroupIds.map(String) : [];
+    const completeGroups = activeGroupIds.length > 0
+      ? activeGroupIds.map((groupId) => groupById.get(groupId) || {
+          name: `Nhóm ${groupId}`,
+          totalMember: 0,
+          creatorId: "",
+          groupId,
+        })
+      : groups;
     let filteredGroups;
     if (!command) {
-      filteredGroups = groups;
+      filteredGroups = completeGroups;
     } else {
-      filteredGroups = groups.filter((group) => group.name.toUpperCase().includes(command.toUpperCase()));
+      filteredGroups = completeGroups.filter((group) => group.name.toUpperCase().includes(command.toUpperCase()));
     }
     if (!filteredGroups.length) {
       await sendMessageFromSQL(
@@ -337,7 +418,9 @@ export async function handleShowGroupsList(api, message, aliasCommand) {
         message,
         {
           success: false,
-          message: `Không tìm thấy nhóm nào có tên chứa "${command}"!`,
+          message: command
+            ? `Không tìm thấy nhóm nào có tên chứa "${command}"!`
+            : "Không lấy được nhóm nào từ tài khoản Zalo!",
         },
         false,
         30000
@@ -346,7 +429,15 @@ export async function handleShowGroupsList(api, message, aliasCommand) {
     }
 
     const listIds = [...new Set(filteredGroups.map((group) => group.creatorId).filter(Boolean))];
-    const owners = await getUsersInfoBasic(api, listIds);
+    let owners = {};
+    if (listIds.length > 0) {
+      try {
+        owners = await getUsersInfoBasic(api, listIds);
+      } catch (error) {
+        // Lỗi profile trưởng nhóm không được làm hỏng toàn bộ listgroups.
+        console.warn("Không lấy được profile trưởng nhóm trong listgroups:", error?.message || error);
+      }
+    }
 
     const groupItems = filteredGroups.map((group, index) => {
       const actualIndex = index + 1;
@@ -359,7 +450,7 @@ export async function handleShowGroupsList(api, message, aliasCommand) {
     });
 
     const MAX_CHARS = 2100;
-    const footerText = `Reply tin nhắn này với số index và "->" + cú pháp liên quan đến hành động mà bạn muốn tôi thực hiện cho danh sách bên trên!`;
+    const footerText = `Reply tin nhắn này theo cú pháp: <số index> <hành động>. Ví dụ: 1 leave (không cần prefix).`;
 
     const messageChunks = [];
     let currentMessage = `Danh sách nhóm:\n\n`;
@@ -418,6 +509,7 @@ export async function handleShowGroupsList(api, message, aliasCommand) {
         .map((id) => String(id));
       if (messageIds.length > 0) {
         const actionData = {
+          botId: String(api.getBotId()),
           message,
           timestamp: Date.now(),
           groups: filteredGroups,
@@ -429,6 +521,16 @@ export async function handleShowGroupsList(api, message, aliasCommand) {
     }
   } catch (error) {
     console.error(error);
+    await sendMessageFromSQL(
+      api,
+      message,
+      {
+        success: false,
+        message: `Không thể lấy danh sách nhóm: ${error.message}`,
+      },
+      false,
+      30000
+    );
   }
 }
 
@@ -458,21 +560,18 @@ export async function handleActionGroupReply(
     if (!quotedMsgId) return false;
     const dataReply = waitingActionGroupMap.get(quotedMsgId);
     if (dataReply.message.data.uidFrom !== senderId) return false;
+    if (dataReply.botId !== String(botId) || String(dataReply.message.threadId) !== String(message.threadId)
+      || Date.now() - dataReply.timestamp > timeOutWaitingActionGroup) return false;
 
-    const commandParts = content.split("->");
-    if (commandParts.length !== 2) return false;
-    const index = parseInt(commandParts[0]);
-    if (isNaN(index)) {
+    const parsedReply = parseGroupReplyAction(content, prefix);
+    if (!parsedReply) {
       const object = {
-        caption: `Lựa chọn không hợp lệ. Vui lòng chọn một số từ danh sách.`,
+        caption: `Cú pháp không hợp lệ. Ví dụ: 1 leave`,
       };
       await sendMessageWarningRequest(api, message, object, 30000);
       return true;
     }
-    const action = commandParts[1];
-    if (action && !action.startsWith(prefix)) {
-      return false;
-    }
+    const { index, action, inputAction } = parsedReply;
 
     if (index < 1 || index > dataReply.groups.length) {
       await sendMessageFromSQL(
@@ -504,46 +603,38 @@ export async function handleActionGroupReply(
     await api.addReaction("CLOCK", message);
     const group = dataReply.groups[index - 1];
     const threadId = group.groupId;
-    const groupInfoTemp = await getGroupInfoData(api, threadId);
+    const groupInfoTemp = await getGroupInfoData(api, threadId, { forceRefresh: true });
     const groupAdminsTemp = await getGroupAdmins(groupInfoTemp);
     const groupSettingsTemp = groupSettings || groupSettingsAll.getByID(botId);
+    // Quyền ở nhóm nguồn không được dùng để thao tác trên nhóm đích.
+    const targetAdminHigh = isAdmin(botId, senderId) || isBotLeader(botId, senderId)
+      || isRentalAdmin(botId, senderId, threadId);
+    const targetAdminBot = isAdmin(botId, senderId, threadId);
+    const targetAdminBox = isAdmin(botId, senderId, threadId, groupAdminsTemp);
 
     switch (action) {
       default:
-        const idHere = message.threadId;
-        const typeHere = message.type;
-        const idToHere = message.data.idTo;
-        const contentHere = message.data.content;
-        const mentionsHere = message.data.mentions;
-        message.threadId = group.groupId;
-        message.type = MessageType.GroupMessage;
-        message.data.idTo = group.groupId;
-        message.data.content = action;
-        message.data.mentions = [];
-        let numHandleCommand;
-        try {
-          numHandleCommand = await handleCommand(
+        const routedMessage = {
+          ...message,
+          threadId,
+          type: MessageType.GroupMessage,
+          data: { ...message.data, idTo: threadId, content: action, mentions: [], quote: undefined },
+        };
+        const numHandleCommand = await handleCommand(
             api,
-            message,
+            routedMessage,
             groupInfoTemp,
             groupAdminsTemp,
             groupSettingsTemp,
-            isAdminLevelHighest,
-            isAdminBot,
-            isAdminBox,
+            targetAdminHigh,
+            targetAdminBot,
+            targetAdminBox,
             handleChat
           );
-        } finally {
-          message.threadId = idHere;
-          message.type = typeHere;
-          message.data.idTo = idToHere;
-          message.data.content = contentHere;
-          message.data.mentions = mentionsHere;
-        }
         if (numHandleCommand === 1 || numHandleCommand === 2 || numHandleCommand === 3 || numHandleCommand === 5) {
           const result = {
             success: true,
-            message: `Đã thực hiện hành động "${action}" trong nhóm "${group.name}"!`,
+            message: `Đã thực hiện hành động "${inputAction}" trong nhóm "${group.name}"!`,
           };
           await sendMessageFromSQL(api, message, result, true, 60000);
           await api.addReaction("UNDO", message);

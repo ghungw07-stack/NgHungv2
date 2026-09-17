@@ -90,13 +90,43 @@ export async function trimMessageLogs({
   return { scannedFiles: files.length, trimmedFiles, reclaimedBytes };
 }
 
+// Generated downloads and forensic traces are written below logs/ by the bot.
+// Keep recent files for debugging, but prevent old artifacts from filling the
+// disk indefinitely. This deliberately never touches normal user message logs.
+export async function cleanupGeneratedLogArtifacts({
+  directory,
+  now = Date.now(),
+  maxAgeMs = positiveNumber(process.env.NGH_GENERATED_LOG_MAX_AGE_MS, 7 * 24 * HOUR_MS),
+  dryRun = false,
+} = {}) {
+  if (!directory) throw new Error("cleanupGeneratedLogArtifacts requires a directory");
+  const root = path.resolve(directory);
+  const files = await walkRegularFiles(root);
+  let removedFiles = 0;
+  let removedBytes = 0;
+  for (const file of files) {
+    const resolved = path.resolve(file);
+    const relative = path.relative(root, resolved).split(path.sep);
+    const isGeneratedResource = relative.includes("resource") && relative.includes("files");
+    const isForensicTrace = ["ws-forensic.jsonl", "runtime-health.jsonl"].includes(path.basename(resolved));
+    if ((!isGeneratedResource && !isForensicTrace) || !resolved.startsWith(`${root}${path.sep}`)) continue;
+    const stat = await fs.stat(resolved);
+    if (now - stat.mtimeMs < maxAgeMs) continue;
+    if (!dryRun) await fs.unlink(resolved);
+    removedFiles++;
+    removedBytes += stat.size;
+  }
+  return { scannedFiles: files.length, removedFiles, removedBytes };
+}
+
 export function startRuntimeMaintenance({ tempDirectory, logDirectory, onResult, intervalMs } = {}) {
   const run = async () => {
-    const [temp, logs] = await Promise.all([
+    const [temp, logs, generatedArtifacts] = await Promise.all([
       cleanupTempDirectory({ directory: tempDirectory }),
       logDirectory ? trimMessageLogs({ directory: logDirectory }) : Promise.resolve(null),
+      logDirectory ? cleanupGeneratedLogArtifacts({ directory: logDirectory }) : Promise.resolve(null),
     ]);
-    const result = { temp, logs };
+    const result = { temp, logs, generated: generatedArtifacts };
     onResult?.(result);
     return result;
   };

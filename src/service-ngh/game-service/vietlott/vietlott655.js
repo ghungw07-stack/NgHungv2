@@ -1,3 +1,4 @@
+import { gameMentionPlayer } from "../../../utils/game-mentions.js";
 import chalk from "chalk";
 import { MultiMsgStyle, MessageStyle, MessageType } from "../../../api-zalo/index.js";
 import { getApiManager, isAdmin } from "../../../index.js";
@@ -26,6 +27,7 @@ import { clearImagePath } from "../../../utils/canvas/index.js";
 import { formatSeconds } from "../../../utils/format-util.js";
 import { getUsernameByIdZalo } from "../../../database/player.js";
 import { gameState } from "../game-manager.js";
+import { DEFAULT_JACKPOT } from "../jackpot-default.js";
 
 const DEFAULT_INTERVAL = 60; // 60 giây
 const MAX_INTERVAL = 3600; // 1 giờ
@@ -50,7 +52,7 @@ let currentSession = {
 };
 let activeThreads = {};
 let isEndingGame = false;
-let jackpot = new Big(1000000);
+let jackpot = new Big(DEFAULT_JACKPOT);
 let forcedResult = null;
 let gameHistory = [];
 
@@ -126,7 +128,7 @@ function calculatePrize(playerNumbers, winningNumbers, betAmount) {
   if (matches === 6) {
     // Jackpot
     prize = bet.mul(PRIZE_RATIOS.JACKPOT).plus(jackpot);
-    jackpot = new Big(1000000); // Reset jackpot
+    jackpot = new Big(DEFAULT_JACKPOT); // Reset jackpot
   } else if (matches === 5 && hasExtraMatch) {
     // Jackpot 2
     prize = bet.mul(PRIZE_RATIOS.JACKPOT2);
@@ -229,12 +231,28 @@ async function endGame(api) {
 
     if (playerTotalWin.gt(0)) {
       try {
-        await updatePlayerBalanceByUsername(player.username, playerTotalWin.toNumber(), true);
+        const totalBetAmt = playerResults.reduce((s, r) => s + (r.loss || 0), 0);
+        await updatePlayerBalanceByUsername(player.username, playerTotalWin.toNumber(), true, playerTotalWin.toNumber(), {
+          gameName: "Vietlott 6/55",
+          gameKey: "vietlott655",
+          choice: `${playerResults.length} vé`,
+          betAmount: totalBetAmt,
+          detail: `Trúng thưởng ${formatCurrency(playerTotalWin)} VNĐ`,
+        });
         playerText += `\nTổng thắng: +${formatCurrency(playerTotalWin)} VNĐ 🎯\n`;
       } catch (error) {
         console.error("Lỗi khi cập nhật tiền thắng:", error);
         playerText += `\nLỗi cập nhật tiền thắng, vui lòng liên hệ admin!\n`;
       }
+    } else {
+      const totalLossAmt = playerResults.reduce((s, r) => s + (r.loss || 0), 0);
+      await setLoserGameByUsername(player.username, -totalLossAmt, {
+        gameName: "Vietlott 6/55",
+        gameKey: "vietlott655",
+        choice: `${playerResults.length} vé`,
+        betAmount: totalLossAmt,
+        detail: "Không trúng giải",
+      }).catch(() => {});
     }
     await addGameRankPoints(playerId, {
       won: playerTotalWin.gt(0),
@@ -246,7 +264,8 @@ async function endGame(api) {
     // Thêm mention cho người chơi
     mentions.push({
       len: player.playerName.length + 1,
-      uid: playerId,
+      uid: player.mentionUid || playerId,
+      botId: player.botId,
       pos: mentionPos,
     });
     mentionPos = resultText.length;
@@ -255,7 +274,7 @@ async function endGame(api) {
     if (!threadPlayers[player.threadId]) {
       threadPlayers[player.threadId] = [];
     }
-    threadPlayers[player.threadId].push(playerId);
+    threadPlayers[player.threadId].push(player.mentionUid || playerId);
   }
 
   resultText += `\nHũ hiện tại: ${formatCurrency(jackpot)} VNĐ 💰`;
@@ -276,7 +295,9 @@ async function endGame(api) {
     if (objThread && apiManager) {
       for (const threadId of objThread) {
         if (threadPlayers[threadId] && threadPlayers[threadId].length > 0) {
-          const threadMentions = mentions.filter((mention) => threadPlayers[threadId].includes(mention.uid));
+          const threadMentions = mentions
+            .filter((mention) => threadPlayers[threadId].includes(mention.uid) && (mention.botId == null || String(mention.botId) === String(key)))
+            .map(({ botId, ...mention }) => mention);
 
           await apiManager.apiZalo.sendMessage(
             {
@@ -395,6 +416,7 @@ async function placeBet(api, message, threadId, senderId, amount, numbers) {
   // Khởi tạo mảng bets nếu chưa có
   if (!currentSession.players[senderId]) {
     currentSession.players[senderId] = {
+      ...gameMentionPlayer(api, message),
       bets: [],
       playerName: message.data.dName || senderId,
       threadId,
@@ -555,7 +577,8 @@ async function runGameLoop(api) {
 export async function initializeGameVietlott655(api) {
   if (!gameState.data.vietlott655) gameState.data.vietlott655 = {};
   if (!gameState.data.vietlott655.activeThreads) gameState.data.vietlott655.activeThreads = {};
-  if (!gameState.data.vietlott655.jackpot) gameState.data.vietlott655.jackpot = "1000000";
+  if (!gameState.data.vietlott655.jackpots) gameState.data.vietlott655.jackpots = {};
+  if (!gameState.data.vietlott655.jackpot) gameState.data.vietlott655.jackpot = DEFAULT_JACKPOT;
   if (!gameState.data.vietlott655.history) gameState.data.vietlott655.history = [];
   if (!gameState.data.vietlott655.players) gameState.data.vietlott655.players = {};
   gameState.data.vietlott655.jackpot = new Big(gameState.data.vietlott655.jackpot);
@@ -583,7 +606,7 @@ export function getJackpot() {
 }
 
 export function resetJackpot() {
-  jackpot = new Big(1000000);
+  jackpot = new Big(DEFAULT_JACKPOT);
   gameState.data.vietlott655.jackpot = jackpot.toString();
   gameState.changes.vietlott655 = true;
   return jackpot;

@@ -1,5 +1,7 @@
 import path from "path";
 import { createCanvas, loadImage } from "canvas";
+import { getActiveCanvasStyle } from "../../../utils/canvas/theme.js";
+import { renderCollectionStyle } from "../../../utils/canvas/collection-style-renderers.js";
 import { FONT_MAIN, formatCurrency } from "../../../utils/format-util.js";
 import { writeFilePromise } from "../../../utils/util.js";
 
@@ -122,6 +124,24 @@ async function drawDiceRow(ctx, diceResults) {
   }
 }
 
+async function createChanLeCompactV2(diceResults, total, playerChoice, betAmount, isJackpot, winnings, recentResults = []) {
+  const width = 900, height = 414, canvas = createCanvas(width, height), ctx = canvas.getContext("2d");
+  const even = total % 2 === 0, resultText = even ? "CHẴN" : "LẺ", resultKey = even ? "chan" : "le";
+  const playerWin = resultKey === playerChoice, resultColor = even ? "#4de0a7" : "#ff6f91", gold = "#e8c86c";
+  const bg = ctx.createLinearGradient(0, 0, width, height); bg.addColorStop(0, "#25090c"); bg.addColorStop(.52, "#671014"); bg.addColorStop(1, "#17090c"); ctx.fillStyle = bg; ctx.fillRect(0, 0, width, height);
+  roundedRect(ctx, 16, 16, width - 32, height - 32, 24); ctx.strokeStyle = "rgba(232,200,108,.58)"; ctx.lineWidth = 2; ctx.stroke();
+  ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillStyle = gold; ctx.font = `bold 30px ${FONT_MAIN}`; ctx.fillText("KẾT QUẢ CHẴN LẺ", 450, 45);
+  const side = (x, label, color, active, amount, detail) => { roundedRect(ctx, x, 114, 212, 177, 20); ctx.fillStyle = active ? `${color}3d` : "rgba(25,8,13,.58)"; ctx.fill(); ctx.strokeStyle = active ? color : "rgba(255,255,255,.14)"; ctx.lineWidth = active ? 3 : 1; ctx.stroke(); ctx.fillStyle = color; ctx.font = `bold 34px ${FONT_MAIN}`; ctx.fillText(label, x + 106, 151); ctx.fillStyle = active ? "#ffe37c" : "rgba(255,255,255,.58)"; ctx.font = `bold 16px ${FONT_MAIN}`; ctx.fillText(active ? "• THẮNG" : detail, x + 106, 198); ctx.fillStyle = "#fff8ef"; ctx.font = `bold ${fitText(ctx, formatCurrency(amount, 1_000_000_000_000), 170, 24, 16)}px ${FONT_MAIN}`; ctx.fillText(formatCurrency(amount, 1_000_000_000_000), x + 106, 242); };
+  const outcome = isJackpot || playerWin ? winnings?.minus ? winnings.minus(betAmount) : Number(winnings || 0) - Number(betAmount || 0) : betAmount;
+  side(35, "CHẴN", "#4de0a7", even, betAmount, "SỐ CHẴN"); side(653, "LẺ", "#ff6f91", !even, betAmount, "SỐ LẺ");
+  ctx.beginPath(); ctx.arc(450, 194, 108, 0, Math.PI * 2); ctx.fillStyle = "#e9dfc1"; ctx.fill(); ctx.strokeStyle = "#d1bb7c"; ctx.lineWidth = 6; ctx.stroke(); ctx.beginPath(); ctx.arc(450, 194, 96, 0, Math.PI * 2); ctx.strokeStyle = "#b9a878"; ctx.lineWidth = 2; ctx.stroke();
+  const positions = [[-34, -28], [35, -12], [0, 39]];
+  for (let i = 0; i < diceResults.length; i++) { try { const image = await loadImage(path.join(DICE_ASSET_DIR, `dice_${diceResults[i]}.png`)); const [dx, dy] = positions[i] || [0, 0]; ctx.drawImage(image, 420 + dx, 164 + dy, 60, 60); } catch {} }
+  roundedRect(ctx, 35, 320, width - 70, 60, 20); ctx.fillStyle = "rgba(169,39,40,.64)"; ctx.fill(); ctx.strokeStyle = resultColor; ctx.lineWidth = 2; ctx.stroke(); ctx.textAlign = "left"; ctx.fillStyle = resultColor; ctx.font = `bold 29px ${FONT_MAIN}`; ctx.fillText(resultText, 66, 350); ctx.fillStyle = "rgba(255,255,255,.48)"; ctx.font = `bold 26px ${FONT_MAIN}`; ctx.fillText("• TỔNG", 155, 350); ctx.textAlign = "center"; ctx.fillStyle = "#fffdf3"; ctx.font = `bold 48px ${FONT_MAIN}`; ctx.fillText(String(total), 450, 350); ctx.textAlign = "right"; ctx.fillStyle = "rgba(255,255,255,.45)"; ctx.font = `bold 16px ${FONT_MAIN}`; ctx.fillText("XÚC XẮC", 785, 347); ctx.fillStyle = "#fffdf3"; ctx.font = `bold 25px ${FONT_MAIN}`; ctx.fillText(diceResults.join("  "), 836, 350);
+  ctx.textAlign = "center"; ctx.fillStyle = playerWin ? "#ffe37c" : "rgba(255,255,255,.48)"; ctx.font = `bold 14px ${FONT_MAIN}`; ctx.fillText(`${playerWin ? "THẮNG" : "THUA"} • ${formatCurrency(outcome, 1_000_000_000_000)} VNĐ`, 450, 402);
+  const filePath = path.resolve(`./assets/temp/chanle_result_v2_${Date.now()}.png`); await writeFilePromise(filePath, canvas.toBuffer()); return filePath;
+}
+
 function drawInfoRow(ctx, label, value, x, y, width, color = "#ffffff") {
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
@@ -143,6 +163,26 @@ export async function createChanLeResultImage(
   recentResults = [],
   winnings = null
 ) {
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) {
+    const isEvenStyle = total % 2 === 0;
+    const resultKeyStyle = isEvenStyle ? "chan" : "le";
+    const playerWinStyle = resultKeyStyle === playerChoice;
+    const netWinningsStyle = winnings?.minus ? winnings.minus(betAmount) : Number(winnings || 0) - Number(betAmount || 0);
+    const outcomeAmountStyle = isJackpot || playerWinStyle ? netWinningsStyle : betAmount;
+    return createChanLeCompactV2(diceResults, total, playerChoice, betAmount, isJackpot, winnings, recentResults);
+    /* return renderCollectionStyle(activeStyle, {
+      kicker: "MYBOT • CHẴN LẺ LIVE",
+      title: isJackpot ? "JACKPOT • NỔ HŨ" : `KẾT QUẢ ${isEvenStyle ? "CHẴN" : "LẺ"}`,
+      subtitle: `Xúc xắc ${diceResults.join(" • ")} • Tổng ${total}`,
+      footer: `${playerWinStyle || isJackpot ? "Thắng" : "Thua"} ${playerWinStyle || isJackpot ? "+" : "−"}${formatCurrency(outcomeAmountStyle, 1_000_000_000_000)} VNĐ`,
+      items: [
+        { title: "LỰA CHỌN CỦA BẠN", subtitle: playerChoice === "chan" ? "CHẴN" : "LẺ", meta: `${formatCurrency(betAmount, 1_000_000_000_000)} VNĐ`, badge: "BET" },
+        { title: "KẾT QUẢ", subtitle: isEvenStyle ? "CHẴN" : "LẺ", meta: `TỔNG ${total}`, badge: playerWinStyle ? "WIN" : "LOSE" },
+        ...recentResults.slice(-8).reverse().map((entry, index) => ({ title: Number(entry.total) % 2 === 0 ? "CHẴN" : "LẺ", subtitle: (entry.diceResults || entry.dice || []).join(" • "), meta: `TỔNG ${entry.total}`, badge: String(index + 1).padStart(2, "0") })),
+      ],
+    }, "chanle_result"); */
+  }
   const canvas = createCanvas(WIDTH, HEIGHT);
   const ctx = canvas.getContext("2d");
   const isEven = total % 2 === 0;

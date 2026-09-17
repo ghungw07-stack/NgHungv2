@@ -1,6 +1,9 @@
 import { Canvas, loadImage } from "skia-canvas";
 import fs from "fs";
 import path from "path";
+import { getActiveCanvasStyle } from "./theme.js";
+import { renderCollectionStyle } from "./collection-style-renderers.js";
+import { renderPortraitStyle } from "./portrait-style-renderers.js";
 
 const WIDTH = 1080;
 const STORY_CARD_HEIGHT = 276;
@@ -515,6 +518,25 @@ function drawAwesomeFooter(ctx, topText, bottomText, y) {
 }
 
 export async function createWerewolfLobbyImage(room) {
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) {
+    const capacity = Math.max(4, Number(room.capacity) || 12);
+    return renderCollectionStyle(activeStyle, {
+      kicker: "MYBOT • WEREWOLF LOBBY",
+      title: `SẢNH MA SÓI • PHÒNG ${room.code}`,
+      subtitle: `Chủ phòng ${room.hostName || "Chưa rõ"} • ${room.players.length}/${capacity} người`,
+      footer: "Thả tim hoặc dùng lệnh join • Kết bạn với bot để nhận vai",
+      items: Array.from({ length: capacity }, (_, index) => {
+        const player = room.players[index];
+        return {
+          title: player?.name || "CHỖ TRỐNG",
+          subtitle: player && String(player.id) === String(room.hostId) ? "Chủ phòng" : player ? "Đã sẵn sàng" : "Đang chờ người chơi",
+          meta: player ? "READY" : "OPEN",
+          badge: String(index + 1).padStart(2, "0"),
+        };
+      }),
+    }, "masoi_lobby");
+  }
   const avatarImages = await loadPlayerAvatars(room.players);
   room.players.forEach(p => p.avatarImg = avatarImages.get(String(p.id)));
   
@@ -534,6 +556,7 @@ export async function createWerewolfLobbyImage(room) {
 }
 
 export async function createWerewolfLobbyImage_OLD(room) {
+  if (getActiveCanvasStyle() !== 1) return createWerewolfLobbyImage(room);
   const avatarImages = await loadPlayerAvatars(room.players);
   const columns = 2;
   const rows = Math.ceil(room.players.length / columns);
@@ -667,6 +690,21 @@ export async function createWerewolfLobbyImage_OLD(room) {
 }
 
 export async function createWerewolfRoleImage({ playerId, playerName, playerAvatar, roleName, teamName, description, commands, roomCode }) {
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) {
+    return renderPortraitStyle(activeStyle, {
+      kind: "werewolf-role",
+      kicker: `MYBOT • PHÒNG ${roomCode} • TUYỆT MẬT`,
+      title: "VAI TRÒ CỦA BẠN",
+      names: [playerName],
+      primaryLabel: "VAI TRÒ",
+      primaryValue: roleName,
+      secondaryLabel: "PHE",
+      secondaryValue: teamName,
+      body: `${description}${commands ? ` • Lệnh: ${commands}` : ""}`,
+      footer: "Không tiết lộ ảnh này cho người chơi khác",
+    }, "masoi_role");
+  }
   const avatarImages = await loadPlayerAvatars([{ id: playerId || playerName, avatar: playerAvatar }]);
   const teamAccent = teamName === "Sói" ? COLORS.red : teamName === "Dân" ? COLORS.blue : COLORS.violet;
   const { canvas, ctx } = createBase(1050, teamAccent);
@@ -704,6 +742,21 @@ export async function createWerewolfRoleImage({ playerId, playerName, playerAvat
 }
 
 export async function createWerewolfPhaseImage({ title, subtitle, duration, note, accent = COLORS.blue, players = [] }) {
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) {
+    return renderCollectionStyle(activeStyle, {
+      kicker: "MYBOT • WEREWOLF PHASE",
+      title,
+      subtitle: `${subtitle} • Còn ${duration} giây`,
+      footer: note || "Ván Ma Sói đang diễn ra",
+      items: players.map((player, index) => ({
+        title: player.name || `Người chơi ${index + 1}`,
+        subtitle: player.alive === false ? "Đã ngã xuống" : "Còn sống",
+        meta: player.alive === false ? "DEAD" : "ALIVE",
+        badge: String(index + 1).padStart(2, "0"),
+      })),
+    }, "masoi_phase");
+  }
   const avatarImages = await loadPlayerAvatars(players);
   players.forEach(p => p.avatarImg = avatarImages.get(String(p.id)));
   
@@ -723,6 +776,17 @@ export async function createWerewolfPhaseImage({ title, subtitle, duration, note
 }
 
 export async function createWerewolfNightImage({ night, duration, players, story }) {
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) {
+    const deadCount = players.filter((player) => !player.alive).length;
+    return renderCollectionStyle(activeStyle, {
+      kicker: "MYBOT • BIÊN NIÊN SỬ MA SÓI",
+      title: `ĐÊM ${night} BUÔNG XUỐNG`,
+      subtitle: `${duration} giây hành động bí mật • ${players.length - deadCount} người còn sống`,
+      footer: story || "Ngôi làng chìm vào bóng tối",
+      items: players.map((player, index) => ({ title: player.name, subtitle: player.alive ? "Còn sống" : "Đã ngã xuống", meta: player.alive ? "ALIVE" : "DEAD", badge: String(index + 1).padStart(2, "0") })),
+    }, "masoi_night");
+  }
   const avatarImages = await loadPlayerAvatars(players);
   const storyY = storyBoardBottom(players.length) + 12;
   const height = Math.max(980, storyY + 330);
@@ -741,6 +805,17 @@ export async function createWerewolfNightImage({ night, duration, players, story
 }
 
 export async function createWerewolfDeathImage({ heading, deaths, players, story }) {
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) {
+    const roster = players?.length ? players : deaths.map(({ player }) => player);
+    return renderCollectionStyle(activeStyle, {
+      kicker: "MYBOT • CHUYỆN KỂ CỦA NGÔI LÀNG",
+      title: heading,
+      subtitle: deaths.length ? `${deaths.length} người vừa ngã xuống` : "Một chương bình yên • Không ai chết",
+      footer: story || "Vai của người chết đã được hé lộ",
+      items: roster.map((player, index) => ({ title: player.name, subtitle: player.roleName || (player.alive ? "Còn sống" : "Đã ngã xuống"), meta: player.alive ? "ALIVE" : "DEAD", badge: String(index + 1).padStart(2, "0") })),
+    }, "masoi_death");
+  }
   const roster = players?.length ? players : deaths.map(({ player }) => player);
   const avatarImages = await loadPlayerAvatars(roster);
   const storyY = storyBoardBottom(roster.length) + 12;
@@ -760,6 +835,17 @@ export async function createWerewolfDeathImage({ heading, deaths, players, story
 }
 
 export async function createWerewolfEndImage({ winnerTitle, winnerText, winnerNames, winnerIds = [], players, story }) {
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) {
+    const winnerSet = new Set(winnerIds.map(String));
+    return renderCollectionStyle(activeStyle, {
+      kicker: "MYBOT • WEREWOLF FINALE",
+      title: winnerTitle || "KẾT THÚC VÁN MA SÓI",
+      subtitle: `${winnerText} • Người thắng: ${winnerNames.join(", ") || "không có"}`,
+      footer: story || "Hạ màn • Công khai toàn bộ vai",
+      items: players.map((player, index) => ({ title: player.name, subtitle: player.roleName || player.role || "Không rõ vai", meta: winnerSet.has(String(player.id)) ? "WINNER" : "PLAYER", badge: String(index + 1).padStart(2, "0") })),
+    }, "masoi_end");
+  }
   const avatarImages = await loadPlayerAvatars(players);
   const storyY = storyBoardBottom(players.length) + 12;
   const height = Math.max(980, storyY + 330);
@@ -781,6 +867,21 @@ export async function createWerewolfEndImage({ winnerTitle, winnerText, winnerNa
 }
 
 export async function createWerewolfRankImage({ groupName = "Nhóm Ma Sói", players = [] }) {
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) {
+    return renderCollectionStyle(activeStyle, {
+      kicker: "MYBOT • ĐẤU TRƯỜNG MA SÓI",
+      title: "BẢNG XẾP HẠNG",
+      subtitle: `${groupName} • Top ${players.length} người chơi`,
+      footer: "Xếp hạng theo điểm Ma Sói",
+      items: players.map((player, index) => ({
+        title: player.name || "Người chơi",
+        subtitle: `${player.wins || 0} thắng / ${player.games || 0} ván`,
+        meta: `${player.points || 0} điểm • ${player.winRate || 0}%`,
+        badge: String(index + 1).padStart(2, "0"),
+      })),
+    }, "masoi_rank");
+  }
   const rows = Math.max(1, players.length);
   const height = 305 + rows * 92 + 70;
   const { canvas, ctx } = createBase(height, COLORS.gold);

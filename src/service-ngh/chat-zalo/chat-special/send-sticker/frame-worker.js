@@ -5,7 +5,7 @@ import { asyncPool } from "../../../../api-zalo/utils.js";
 
 async function processFrames() {
   const workerData = JSON.parse(process.env.WORKER_DATA);
-  const { downloadedImage, startFrame, endFrame, size, totalFrames, resultPath, FRAME_RATE } = workerData;
+  const { downloadedImage, startFrame, endFrame, size, totalFrames, resultPath, FRAME_RATE, canvasStyle = 1 } = workerData;
 
   try {
     const segmentBuffers = new Array(totalFrames).fill(null);
@@ -116,14 +116,19 @@ async function processFrames() {
     maskCtx.imageSmoothingEnabled = true;
     maskCtx.imageSmoothingQuality = "high";
 
-    const gradient = maskCtx.createRadialGradient(size / 2, size / 2, size / 2 - 2, size / 2, size / 2, size / 2);
-    gradient.addColorStop(0, "white");
-    gradient.addColorStop(0.95, "white");
-    gradient.addColorStop(1, "rgba(255, 255, 255, 0)");
-
+    maskCtx.fillStyle = "white";
     maskCtx.beginPath();
-    maskCtx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2, true);
-    maskCtx.fillStyle = gradient;
+    if (canvasStyle === 3) maskCtx.roundRect(8, 8, size - 16, size - 16, 44);
+    else if (canvasStyle === 4) maskCtx.roundRect(4, 38, size - 8, size - 76, 118);
+    else if (canvasStyle === 5) {
+      const cx = size / 2, cy = size / 2, radius = size / 2 - 4;
+      for (let side = 0; side < 6; side += 1) {
+        const angle = -Math.PI / 2 + side * Math.PI / 3;
+        const x = cx + Math.cos(angle) * radius, y = cy + Math.sin(angle) * radius;
+        if (side === 0) maskCtx.moveTo(x, y); else maskCtx.lineTo(x, y);
+      }
+      maskCtx.closePath();
+    } else maskCtx.arc(size / 2, size / 2, size / 2 - 2, 0, Math.PI * 2, true);
     maskCtx.fill();
 
     const degToRad = Math.PI / 180;
@@ -171,7 +176,7 @@ async function processFrames() {
         finalCtx.drawImage(maskCanvas, 0, 0);
 
         finalCtx.globalCompositeOperation = "source-over";
-        finalCtx.lineWidth = 8;
+        finalCtx.lineWidth = canvasStyle === 3 ? 12 : 8;
 
         let strokeHue;
         if (i <= totalFrames / 2) {
@@ -183,10 +188,26 @@ async function processFrames() {
         }
         const saturation = Math.floor(Math.random() * 5) + 95;
         const lightness = Math.floor(Math.random() * 5) + 80;
-        finalCtx.strokeStyle = `hsl(${strokeHue}, ${saturation}%, ${lightness}%)`;
+        finalCtx.strokeStyle = canvasStyle === 2
+          ? "#22d3ee"
+          : canvasStyle === 3
+            ? "#d6b56c"
+            : canvasStyle === 4
+              ? "#ef476f"
+              : `hsl(${strokeHue}, ${saturation}%, ${lightness}%)`;
 
         finalCtx.beginPath();
-        finalCtx.arc(size / 2, size / 2, size / 2 - 4, 0, Math.PI * 2, true);
+        if (canvasStyle === 3) finalCtx.roundRect(7, 7, size - 14, size - 14, 44);
+        else if (canvasStyle === 4) finalCtx.roundRect(4, 38, size - 8, size - 76, 118);
+        else if (canvasStyle === 5) {
+          const cx = size / 2, cy = size / 2, radius = size / 2 - 7;
+          for (let side = 0; side < 6; side += 1) {
+            const sideAngle = -Math.PI / 2 + side * Math.PI / 3;
+            const x = cx + Math.cos(sideAngle) * radius, y = cy + Math.sin(sideAngle) * radius;
+            if (side === 0) finalCtx.moveTo(x, y); else finalCtx.lineTo(x, y);
+          }
+          finalCtx.closePath();
+        } else finalCtx.arc(size / 2, size / 2, size / 2 - 4, 0, Math.PI * 2, true);
         finalCtx.stroke();
 
         const frameBuffer = await finalCanvas.toBuffer("image/png");

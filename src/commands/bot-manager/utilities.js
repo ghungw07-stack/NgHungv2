@@ -32,6 +32,16 @@ import { createCanvas, loadImage } from "canvas";
 import { tempDir } from "../../utils/io-json.js";
 import { randomIDTemp, FONT_MAIN } from "../../utils/format-util.js";
 import { createAvatarListCanvas } from "../../utils/canvas/avatar-list-canvas.js";
+import { getActiveCanvasStyle } from "../../utils/canvas/theme.js";
+import { renderCollectionStyle } from "../../utils/canvas/collection-style-renderers.js";
+import { isSendTaskEnabled } from "../../service-ngh/scheduler/sendtask-state.js";
+import {
+  createMessageTarget,
+  getClientMessageId,
+  getGlobalMessageId,
+  getRecentGroupMessages,
+  isMessageFromBot,
+} from "../../utils/zalo-message-target.js";
 
 const SENDTASK_SUPPORTED_TYPES = [
   "sendTaskGirlVideo", "sendTaskGirlVideo:anime", "sendTaskGirlVideo:sexy",
@@ -187,117 +197,6 @@ export async function deleteMessageCustomer(api, message, isDeleteMsgAdmin) {
   return false;
 }
 
-// Map: threadId → Worker instance
-const activeNgh = new Map();
-
-export async function handleNghCommand(api, message) {
-  const args = message.data?.content?.split(" ") || [];
-  const threadId = message.threadId;
-
-  const cmdUsed = args[0]?.toLowerCase() || "";
-  if (!cmdUsed.endsWith("ngh...")) {
-    await api.sendMessage({ msg: "Nguyễn Gia Hưng nè", quote: message }, threadId, message.type);
-    return;
-  }
-
-  // Lệnh stop
-  if (args[1]?.toLowerCase() === "stop") {
-    const worker = activeNgh.get(threadId);
-    if (worker) {
-      worker.postMessage("stop");
-      setTimeout(() => worker.terminate(), 500);
-      activeNgh.delete(threadId);
-    }
-    return;
-  }
-
-  const quote = message.data?.quote;
-  if (!quote) {
-    await api.sendMessage({ msg: "Nguyễn Gia Hưng nè", quote: message }, threadId, message.type);
-    return;
-  }
-
-  const msgId = quote.msgId || quote.globalMsgId || quote.id;
-  const cliMsgId = quote.cliMsgId || quote.clientMsgId || quote.clientId;
-  const ownerId = quote.ownerId || quote.uidFrom || quote.fromId || quote.senderId || quote.userId;
-  if (!msgId || !cliMsgId) {
-    await api.sendMessage({ msg: "Nguyễn Gia Hưng nè", quote: message }, threadId, message.type);
-    return;
-  }
-
-  const targetMessage = {
-    type: message.type,
-    threadId: message.threadId,
-    data: {
-      ...quote,
-      msgId: String(msgId),
-      cliMsgId: String(cliMsgId),
-      uidFrom: String(ownerId || message.data.uidFrom),
-    },
-  };
-
-  // Dừng worker cũ nếu có
-  const prevWorker = activeNgh.get(threadId);
-  if (prevWorker) {
-    prevWorker.postMessage("stop");
-    setTimeout(() => prevWorker.terminate(), 500);
-  }
-
-  // Pre-alloc junk buffer 1 lần, tái sử dụng (20KB mỗi lượt)
-  const junkPayload = Buffer.alloc(20 * 1024, "NGH_JUNK_PAYLOAD");
-
-  // Spawn worker thread riêng → loop phát action chạy trong thread riêng
-  const workerPath = path.join(__dirname, "ngh-flood-worker.js");
-  const worker = new Worker(workerPath, { type: "module" });
-
-  // Concurrency limiter: tối đa 250 API call pending cùng lúc
-  let pending = 0;
-  const MAX_PENDING = 250;
-
-  worker.on("message", (msg) => {
-    if (msg.type !== "action") return;
-    if (pending >= MAX_PENDING) return; // bỏ qua nếu đang bận, tránh tích lũy promises
-    pending++;
-    const done = () => { pending = Math.max(0, pending - 1); };
-    const safeCall = (promise) => {
-      if (promise && typeof promise.then === "function") {
-        promise.then(done, done);
-      } else {
-        done();
-      }
-    };
-
-    const sendJunk = () => {
-      if (api.listener?.ws && api.listener.ws.readyState === 1) {
-        try { api.listener.ws.send(junkPayload, () => {}); } catch (_) {}
-      }
-    };
-
-    try {
-      sendJunk();
-      switch (msg.action) {
-        case "reaction_LIKE":   safeCall(api.addReaction("LIKE", targetMessage)); break;
-        case "reaction_HAHA":   safeCall(api.addReaction("HAHA", targetMessage)); break;
-        case "reaction_UNDO":   safeCall(api.addReaction("UNDO", targetMessage)); break;
-        case "delete":          safeCall(api.deleteMessage(targetMessage, false)); break;
-        case "undo":            safeCall(api.undoMessage(message)); break;
-        case "heartbeat":       try { api.listener?.sendHeartbeat?.(); } catch (_) {} done(); break;
-        case "getRecent":       safeCall(api.getRecentMessages(threadId, 10000000000000000, 1)); break;
-        case "getInfo":         safeCall(getGroupInfoData(api, threadId)); break;
-        case "junk":            done(); break;
-        default: done(); break;
-      }
-    } catch (_) {
-      done();
-    }
-  });
-
-  worker.on("error", () => {});
-  worker.on("exit", () => { if (activeNgh.get(threadId) === worker) activeNgh.delete(threadId); });
-
-  activeNgh.set(threadId, worker);
-}
-
 
 export function stopTodo() {
   activeTodo = false;
@@ -332,35 +231,48 @@ export async function handleUndoMessage(api, message) {
     }
 
     if (message.data?.quote) {
-      await api.undoMessage(message);
-      return;
-    }
-
-    const messageCache = await getMessageCache(botId, threadId);
-    if (!messageCache || Object.keys(messageCache).length === 0) {
-      await sendMessageFromSQL(
-        api,
-        message,
-        {
-          success: false,
-          message: `Không tìm thấy tin nhắn nào để thu hồi.`,
+      const quotedMessage = createMessageTarget(message, message.data.quote, botId);
+      if (!quotedMessage) throw new Error("Tin nhắn reply không có đủ ID để thu hồi");
+      await api.undoMessage({
+        ...message,
+        data: {
+          ...message.data,
+          quote: {
+            ...message.data.quote,
+            globalMsgId: quotedMessage.data.msgId,
+            cliMsgId: quotedMessage.data.cliMsgId,
+          },
         },
-        false,
-        30000
-      );
+      });
       return;
     }
 
+    const messageCache = (await getMessageCache(botId, threadId)) || {};
     const messagesInThread = Object.values(messageCache);
+    if (message.type === MessageType.GroupMessage) {
+      try {
+        const scanLimit = Math.min(5000, Math.max(200, count * 10));
+        const recentMessages = await getRecentGroupMessages(
+          api,
+          threadId,
+          scanLimit,
+          (items) => items.filter((item) => isMessageFromBot(item, botId)).length >= count
+        );
+        messagesInThread.push(...recentMessages);
+      } catch (error) {
+        console.error("Lỗi khi lấy lịch sử nhóm để undo:", error);
+      }
+    }
+
+    const seenMessages = new Set();
     const botMessages = messagesInThread
       .filter((msg) => {
-        return (
-          msg.uidFrom === botId &&
-          !msg.isUndo &&
-          msg.msgId &&
-          msg.cliMsgId &&
-          msg.msgType
-        );
+        const msgId = getGlobalMessageId(msg);
+        const cliMsgId = getClientMessageId(msg);
+        const key = msgId || `cli:${cliMsgId}`;
+        if (!isMessageFromBot(msg, botId) || msg.isUndo || !msgId || !cliMsgId || seenMessages.has(key)) return false;
+        seenMessages.add(key);
+        return true;
       })
       .sort((a, b) => {
         const timeA = a.timestamp || a.ts || 0;
@@ -388,13 +300,15 @@ export async function handleUndoMessage(api, message) {
 
     for (const msg of botMessages) {
       try {
+        const msgId = getGlobalMessageId(msg);
+        const cliMsgId = getClientMessageId(msg);
         const messageToUndo = {
           ...message,
           data: {
             ...message.data,
             quote: {
-              globalMsgId: msg.msgId,
-              cliMsgId: msg.cliMsgId,
+              globalMsgId: msgId,
+              cliMsgId,
             },
           },
         };
@@ -402,9 +316,9 @@ export async function handleUndoMessage(api, message) {
         await api.undoMessage(messageToUndo);
         successCount++;
         
-        if (messageCache[msg.msgId]) {
-          messageCache[msg.msgId].isUndo = true;
-          await markMessageUndo(botId, threadId, msg.msgId);
+        if (messageCache[msgId]) {
+          messageCache[msgId].isUndo = true;
+          await markMessageUndo(botId, threadId, msgId);
         }
 
         if (botMessages.length > 1) {
@@ -412,7 +326,7 @@ export async function handleUndoMessage(api, message) {
         }
       } catch (error) {
         failCount++;
-        console.error(`Lỗi khi undo tin nhắn ${msg.msgId}:`, error);
+        console.error(`Lỗi khi undo tin nhắn ${getGlobalMessageId(msg)}:`, error);
       }
     }
 
@@ -1369,14 +1283,16 @@ export async function handleSendTaskCommand(api, message, groupSettings) {
   }
   if (action === "on") {
     groupSettings[threadId].sendTask = true;
+    groupSettings[threadId].sendTaskExplicitlyEnabled = true;
     await sendMessageStateQuote(api, message, "✅ Đã bật sendtask cho nhóm này.", true, 300000);
   } else if (action === "off") {
     groupSettings[threadId].sendTask = false;
+    groupSettings[threadId].sendTaskExplicitlyEnabled = false;
     await sendMessageStateQuote(api, message, "⛔ Đã tắt sendtask cho nhóm này.", false, 300000);
   } else if (action === "show") {
     const tasks = ensureTasks(groupSettings[threadId]);
     const lines = tasks.length ? [...tasks].sort((a, b) => a.time.localeCompare(b.time)).map((t, i) => `${i + 1}. ${t.time} · ${t.type}${t.caption ? ` · “${t.caption}”` : ""}`) : ["Chưa có lịch tùy chỉnh."];
-    await sendMessageStateQuote(api, message, `Sendtask: ${groupSettings[threadId].sendTask ? "BẬT" : "TẮT"}\n\n${lines.join("\n")}`, true, 300000);
+    await sendMessageStateQuote(api, message, `Sendtask: ${isSendTaskEnabled(groupSettings[threadId]) ? "BẬT" : "TẮT"}\n\n${lines.join("\n")}`, true, 300000);
     return false;
   } else if (action === "custom" || action === "customall") {
     const task = parseTask();
@@ -1394,7 +1310,6 @@ export async function handleSendTaskCommand(api, message, groupSettings) {
       const oldIndex = tasks.findIndex((item) => item.time === task.time);
       if (oldIndex >= 0) tasks[oldIndex] = task;
       else tasks.push(task);
-      settings.sendTask = true;
     }
     await sendMessageStateQuote(api, message, `✅ Đã đặt ${task.type} lúc ${task.time}${action === "customall" ? " cho tất cả nhóm" : ""}.`, true, 300000);
   } else if (action === "delete" || action === "deleteall") {
@@ -1417,8 +1332,13 @@ export async function handleSendTaskCommand(api, message, groupSettings) {
     await sendMessageStateQuote(api, message, `✅ Đã xóa ${deleted} lịch lúc ${time}.`, true, 300000);
   } else if (action === "reset") {
     groupSettings[threadId].customSendTasks = [];
-    groupSettings[threadId].sendTask = true;
-    await sendMessageStateQuote(api, message, "✅ Đã xóa lịch tùy chỉnh và dùng lại lịch mặc định.", true, 300000);
+    await sendMessageStateQuote(
+      api,
+      message,
+      `✅ Đã xóa lịch tùy chỉnh.${groupSettings[threadId].sendTaskExplicitlyEnabled === true ? " Đang dùng lịch mặc định." : " Sendtask vẫn tắt; dùng sendtask on để bật lịch mặc định."}`,
+      true,
+      300000
+    );
   } else {
     await sendMessageStateQuote(api, message, help, false, 300000);
     return false;
@@ -2161,7 +2081,7 @@ export async function handleUpdateProfile(api, message, aliasCommand) {
           return;
         }
 
-        const customMessage = argsArray.slice(1).join(" ") || "Chào Bạn, Tớ Là Bot của Hà Huy Hoàng ạ...";
+        const customMessage = argsArray.slice(1).join(" ") || "Chào Bạn, Tớ Là Bot của Nguyễn Gia Hưng ạ...";
         const successfulMentions = [];
         await Promise.all(
           mentions.map(async mention => {
@@ -2546,6 +2466,11 @@ export async function handleUpdateProfile(api, message, aliasCommand) {
     }
 
     async function createFriendRequestListImage(friendRequests, prefix, aliasCommand) {
+      const style = getActiveCanvasStyle();
+      if (style !== 1) return renderCollectionStyle(style, {
+        kicker: "MYBOT • SOCIAL INBOX", title: "LỜI MỜI KẾT BẠN", subtitle: `${friendRequests.length} yêu cầu đang chờ xử lý`, footer: `${prefix}${aliasCommand} accept/reject + số thứ tự`,
+        items: friendRequests.map((request, index) => ({ badge: String(index + 1).padStart(2, "0"), title: request.displayName || request.zaloName || `Người dùng ${index + 1}`, subtitle: `UID: ${request.uid || request.userId || "Không rõ"}`, meta: request.recommTime ? new Date(request.recommTime * 1000).toLocaleDateString("vi-VN") : "PENDING" })),
+      }, "friend-requests");
       const tempCanvas = createCanvas(1, 1);
       const tempCtx = tempCanvas.getContext("2d");
       tempCtx.font = "bold 32px " + FONT_MAIN;

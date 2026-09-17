@@ -22,6 +22,7 @@ const NGH_UPLOAD_MIME_BY_EXTENSION = {
   ".mp4": "video/mp4", ".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".aac": "audio/aac", ".ogg": "audio/ogg",
   ".pdf": "application/pdf", ".zip": "application/zip",
 };
+const NGH_UPLOAD_MAX_BYTES = 95 * 1024 * 1024;
 
 export async function uploadToNghServer(pathLocal) {
   const endpoint = String(process.env.NGH_UPLOAD_URL || "").trim();
@@ -34,6 +35,7 @@ export async function uploadToNghServer(pathLocal) {
 
   try {
     const fileInfo = await fs.promises.stat(pathLocal);
+    if (fileInfo.size > NGH_UPLOAD_MAX_BYTES) return null;
     const response = await axios.post(endpoint, fs.createReadStream(pathLocal), {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -42,7 +44,7 @@ export async function uploadToNghServer(pathLocal) {
         "X-File-Name": fileName,
       },
       timeout: 5 * 60 * 1000,
-      maxBodyLength: 100 * 1024 * 1024,
+      maxBodyLength: NGH_UPLOAD_MAX_BYTES,
       maxContentLength: 1024 * 1024,
     });
     const url = response.data?.url;
@@ -315,12 +317,17 @@ export async function downloadFile(url, filepath) {
 /**
  * Download video từ URL bằng ffmpeg và lưu vào file
  */
-export async function downloadVideoWithFFmpeg(url, filepath) {
+export async function downloadVideoWithFFmpeg(url, filepath, inputHeaders = null) {
   const tempFilePath =
     filepath || path.join(tempDir, `videoDownload_${randomIDTemp()}.${url.split(".").pop().toLowerCase()}`);
 
   return new Promise((resolve, reject) => {
-    ffmpeg(url)
+    const command = ffmpeg(url);
+    if (inputHeaders && typeof inputHeaders === "object") {
+      const headerText = Object.entries(inputHeaders).map(([key, value]) => `${key}: ${value}`).join("\r\n") + "\r\n";
+      command.inputOptions(["-headers", headerText]);
+    }
+    command
       .outputOptions("-c copy") // không re-encode, giữ nguyên chất lượng
       .on("end", () => {
         resolve(tempFilePath);
@@ -664,16 +671,21 @@ export async function loadImageBuffer(source, headers) {
  * @returns {Promise<{width: number, height: number, totalSize: number}>} Thông tin kích thước và dung lượng của ảnh
  */
 export async function getImageInfo(imageUrl) {
-  const maxRetries = 3;
+  // Một số CDN (đặc biệt link ảnh Zalo) chặn HEAD hoặc phản hồi rất chậm.
+  // GET một lần vừa lấy được bytes để đọc metadata vừa tránh thêm một vòng DNS.
+  const maxRetries = 2;
   let attempt = 0;
 
   while (attempt < maxRetries) {
     try {
-      const response = await axios.head(imageUrl);
-      const totalSize = parseInt(response.headers["content-length"] || 0);
-
       const imageResponse = await axios.get(imageUrl, {
         responseType: "arraybuffer",
+        timeout: 10000,
+        maxRedirects: 5,
+        headers: {
+          "User-Agent": "Mozilla/5.0",
+          Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+        },
         validateStatus: function (status) {
           return status < 500; // Chấp nhận status code < 500
         },
@@ -697,13 +709,13 @@ export async function getImageInfo(imageUrl) {
       return {
         width: metadata.width || 500,
         height: metadata.height || 500,
-        totalSize: totalSize || 0,
+        totalSize: parseInt(imageResponse.headers["content-length"] || 0),
       };
     } catch (error) {
       // console.error(`Lần thử ${attempt + 1}/${maxRetries} thất bại:`, error.message);
 
       if (attempt === maxRetries - 1) {
-        console.error("Đã hết 3 lần thử lại, trả về kích thước mặc định của ảnh");
+        console.error("Đã hết lần thử tải ảnh, trả về kích thước mặc định của ảnh");
         return {
           width: 500,
           height: 500,
@@ -711,7 +723,7 @@ export async function getImageInfo(imageUrl) {
         };
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 250));
       attempt++;
     }
   }

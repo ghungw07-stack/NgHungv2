@@ -9,6 +9,7 @@ import { createBlockSpamStickerEffect } from "../../utils/canvas/event-image.js"
 import { clearImagePath } from "../../utils/canvas/index.js";
 import { getGroupInfoData } from "../info-service/group-info.js";
 import { getUserInfoData } from "../info-service/user-info.js";
+import { applyAntiPunishment, shouldSendBlockImage } from "./anti-punishment.js";
 
 let historySendStickerLag = {};
 let timeSendStickerLag = {};
@@ -178,9 +179,9 @@ async function blockUser(api, message, threadId, senderId, senderName, groupSett
   try {
     if (kickedUsers.has(senderId)) return;
     kickedUsers.add(senderId);
-    await api.blockUsers(threadId, [senderId]);
+    await applyAntiPunishment(api, message, threadId, senderId, senderName, groupSettings);
 
-    const isEnableBlockImage = groupSettings?.[threadId]?.enableBlockImage === true;
+    const isEnableBlockImage = groupSettings?.[threadId]?.enableBlockImage === true && shouldSendBlockImage(api);
     
     if (isEnableBlockImage) {
       try {

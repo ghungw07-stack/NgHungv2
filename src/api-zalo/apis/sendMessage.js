@@ -300,7 +300,9 @@ export const sendMessageFactory = apiFactory()((api, appContext, utils) => {
     const clientId = antiDelete
       ? Date.now() * 10 + Math.floor(Math.random() * (1 - 9 + 1)) + 1
       : clientIdCustomer || Date.now();
-    ttl = ttl || appContext.timeMessage || 0;
+    // Khi bot cấu hình TTL native, nó phải thắng TTL cũ do từng command gán
+    // (nhiều command đang hard-code 300000/6000000), nếu không Zalo nhận sai TTL.
+    ttl = appContext.timeMessage || ttl || 0;
     const params = quote
       ? {
           toid: isGroupMessage ? undefined : threadId,
@@ -308,7 +310,7 @@ export const sendMessageFactory = apiFactory()((api, appContext, utils) => {
           message: msg,
           clientId: clientId,
           mentionInfo: isMentionsValid ? JSON.stringify(mentionsFinal) : undefined,
-          qmsgOwner: quoteData.uidFrom,
+          qmsgOwner: quoteData.gameUid || quoteData.uidFrom,
           qmsgId: quoteData.msgId,
           qmsgCliId: quoteData.cliMsgId,
           qmsgType: getClientMessageType(quoteData.msgType),
@@ -347,6 +349,7 @@ export const sendMessageFactory = apiFactory()((api, appContext, utils) => {
     return {
       url: finalServiceUrl.toString(),
       body: new URLSearchParams({ params: encryptedParams }),
+      params: { clientId },
     };
   }
   async function handleAttachment(
@@ -511,6 +514,7 @@ export const sendMessageFactory = apiFactory()((api, appContext, utils) => {
         body: formData.getBuffer(),
         headers: formData.getHeaders(),
         fileType: "gif",
+        clientId: params.clientId,
       });
     }
     let responses = [];
@@ -529,10 +533,33 @@ export const sendMessageFactory = apiFactory()((api, appContext, utils) => {
         headers: data.fileType == "gif" ? data.headers : {},
         // Giữ lại clientId tự tạo để sendMessage() có thể trả cliMsgId cho bên gọi.
         // API Zalo chỉ trả msgId của ảnh; thiếu cặp này thì undoMessage không thu hồi được.
-        clientId: data.params?.clientId,
+        clientId: data.params?.clientId ?? data.clientId,
       });
     }
     return responses;
+  }
+  async function sendRateLimitedImageFallback(error, attachments, msg, mentions, threadId, type, ttl) {
+    if (Number(error?.code) !== 221 || attachments.length !== 1) return null;
+    if (!["jpg", "jpeg", "png", "webp"].includes(getFileExtension(attachments[0]))) return null;
+
+    const gifPath = `${attachments[0]}.fallback-${process.pid}-${Date.now()}.gif`;
+    try {
+      await sharp(attachments[0]).gif().toFile(gifPath);
+      const handledData = await handleAttachment(
+        { msg, mentions, attachments: [gifPath] },
+        threadId,
+        type,
+        ttl
+      );
+      const rawResponses = await send(handledData);
+      console.error(`[upload-fallback] bot=${api.getBotId()} Zalo code=221, gửi ảnh qua luồng GIF`);
+      return rawResponses.map((res, i) => ({
+        ...res,
+        cliMsgId: res?.cliMsgId ?? handledData[i]?.clientId,
+      }));
+    } finally {
+      await fs.promises.unlink(gifPath).catch(() => {});
+    }
   }
   /**
    * Send a message to a thread | Gửi tin nhắn đến một thread
@@ -551,10 +578,10 @@ export const sendMessageFactory = apiFactory()((api, appContext, utils) => {
     if (!threadId) throw new ZaloApiError("Missing threadId");
     if (typeof message == "string") message = { msg: message };
     // Áp style text mặc định cho mọi tin nhắn chưa chỉ định style riêng.
-    // Vì nằm ở lớp gửi chung, các lệnh mới chỉ cần dùng api.sendMessage là tự nhận mybot style.
     message = applyDefaultMessageStyle(api, message);
     let { msg, quote, attachments, mentions, ttl, linkOn = true, isUseProphylactic = false } = message;
-    ttl = ttl || appContext.timeMessage || 0;
+    // Áp cùng quy tắc cho text, reply và attachment gửi qua sendMessage.
+    ttl = appContext.timeMessage || ttl || 0;
     if (!msg && (!attachments || (attachments && attachments.length == 0)))
       throw new ZaloApiError("Missing message content");
     if (attachments && isExceedMaxFile(attachments.length))
@@ -576,22 +603,29 @@ export const sendMessageFactory = apiFactory()((api, appContext, utils) => {
         msg = "";
         mentions = undefined;
       }
-      const handledData = await handleAttachment(
-        { msg, mentions, attachments, quote, isUseProphylactic, antiDelete: message.antiDelete },
-        threadId,
-        type,
-        ttl
-      );
-      const rawAttachmentResponses = await send(handledData);
-      // Server Zalo chỉ trả về msgId cho mỗi tin nhắn đính kèm, KHÔNG trả về cliMsgId.
-      // cliMsgId (cần để sau này thu hồi/undo tin nhắn) thực ra là clientId mà CHÍNH MÌNH
-      // đã tạo lúc gửi (nằm trong handledData[i].params.clientId) — nên phải tự ghép lại
-      // vào đây, nếu không các nơi gọi sendMessage() sẽ không có cách nào lấy được cliMsgId
-      // của tin nhắn đính kèm (ảnh/video/file) vừa gửi.
-      responses.attachment = rawAttachmentResponses.map((res, i) => ({
-        ...res,
-        cliMsgId: res?.cliMsgId ?? handledData[i]?.params?.clientId ?? handledData[i]?.clientId,
-      }));
+      try {
+        const handledData = await handleAttachment(
+          { msg, mentions, attachments, quote, isUseProphylactic, antiDelete: message.antiDelete },
+          threadId,
+          type,
+          ttl
+        );
+        const rawAttachmentResponses = await send(handledData);
+        // Server Zalo chỉ trả về msgId cho mỗi tin nhắn đính kèm, KHÔNG trả về cliMsgId.
+        // cliMsgId (cần để sau này thu hồi/undo tin nhắn) thực ra là clientId mà CHÍNH MÌNH
+        // đã tạo lúc gửi (nằm trong handledData[i].params.clientId) — nên phải tự ghép lại
+        // vào đây, nếu không các nơi gọi sendMessage() sẽ không có cách nào lấy được cliMsgId
+        // của tin nhắn đính kèm (ảnh/video/file) vừa gửi.
+        responses.attachment = rawAttachmentResponses.map((res, i) => ({
+          ...res,
+          cliMsgId: res?.cliMsgId ?? handledData[i]?.params?.clientId ?? handledData[i]?.clientId,
+        }));
+      } catch (error) {
+        console.error(`[sendMessage-attachment-error] bot=${api.getBotId()} code=${error?.code} message=${error?.message}`);
+        const fallback = await sendRateLimitedImageFallback(error, attachments, msg, mentions, threadId, type, ttl);
+        if (!fallback) throw error;
+        responses.attachment = fallback;
+      }
       msg = "";
     }
     if (msg.length > 0) {

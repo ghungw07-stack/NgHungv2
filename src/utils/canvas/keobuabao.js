@@ -2,6 +2,8 @@ import { createCanvas, loadImage } from "canvas";
 import path from "path";
 import { formatBigNumber } from "../format-util.js";
 import { writeFilePromise } from "../util.js";
+import { getActiveCanvasStyle } from "./theme.js";
+import { renderPortraitStyle } from "./portrait-style-renderers.js";
 
 const WIDTH = 1000;
 const HEIGHT = 520;
@@ -10,6 +12,32 @@ const IMAGE_SIZE = 260;
 const IMAGE_PATH = path.resolve(`./assets/resources/game/keobuabao`);
 
 export async function createKBBResultImage(playerChoice, botChoice, betAmount, isWin) {
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) {
+    try {
+      const [playerImage, botImage] = await Promise.all([
+        loadImage(path.resolve(`${IMAGE_PATH}/${playerChoice.key}-left.png`)),
+        loadImage(path.resolve(`${IMAGE_PATH}/${botChoice.key}-right.png`)),
+      ]);
+      const resultLabel = isWin === "win" ? "CHIẾN THẮNG" : isWin === "lose" ? "THẤT BẠI" : "HÒA";
+      const amountPrefix = isWin === "win" ? "+" : isWin === "lose" ? "-" : "";
+      return renderPortraitStyle(activeStyle, {
+        kind: "rock-paper-scissors",
+        kicker: "MYBOT • KÉO BÚA BAO ARENA",
+        title: "PLAYER VS BOT",
+        names: [playerChoice.name || playerChoice.key, botChoice.name || botChoice.key],
+        avatars: [playerImage, botImage],
+        primaryLabel: "KẾT QUẢ VÁN",
+        primaryValue: resultLabel,
+        secondaryLabel: "TIỀN CƯỢC",
+        secondaryValue: `${amountPrefix}${formatBigNumber(betAmount)} VND`,
+        body: `${playerChoice.name || playerChoice.key} đối đầu ${botChoice.name || botChoice.key}`,
+        footer: "Kéo • Búa • Bao",
+      }, "kbb_result");
+    } catch (error) {
+      console.error("Lỗi khi tạo ảnh KBB theo style:", error);
+    }
+  }
   const canvas = createCanvas(WIDTH, HEIGHT);
   const ctx = canvas.getContext("2d");
 
@@ -130,4 +158,4 @@ export async function createKBBResultImage(playerChoice, botChoice, betAmount, i
     console.error("Lỗi khi tạo ảnh kết quả KBB:", error);
     return null;
   }
-} 
+}

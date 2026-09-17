@@ -16,10 +16,11 @@ import {
 import { getGlobalPrefix } from "../../service-ngh/service.js";
 import { removeMention } from "../../utils/format-util.js";
 import { parseTime } from "../../utils/format-util.js";
-import { addOrUpdateMute } from "../../service-ngh/anti-service/mute-user.js";
+import { applyAntiPunishment as applyConfiguredAntiPunishment } from "../../service-ngh/anti-service/anti-punishment.js";
 import { readManagerFile, writeManagerFile, MANAGER_FILE_PATH, logManagerBot } from "../../utils/io-json.js";
 import { loadApiKeysMedia } from "../../utils/api-key-manager.js";
-import { getGlobalApi } from "../../index.js";
+import { getGlobalApi, isAdmin } from "../../index.js";
+import { isRentalAdmin } from "./thuebot.js";
 import { getUsersInfoBasic } from "../../service-ngh/info-service/user-info.js";
 import { createListImage } from "../../utils/canvas/list-form-v1.js";
 import { deleteFile } from "../../utils/util.js";
@@ -91,25 +92,8 @@ export const managerDataCache = new ManagerDataCache();
  * Dùng chung cho tất cả các module anti-service để tránh lặp code.
  */
 export async function applyAntiPunishment(api, message, threadId, senderId, senderName, groupSettings) {
-  const managerData = api.apiManager.getDataManager();
-  const antiAction = managerData.antiAction || { type: "block" };
-  const action = antiAction.type || "block";
-  const duration = antiAction.duration || 3600000; // mặc định 1 giờ nếu là mute
-
   try {
-    if (action === "kick") {
-      await api.removeUserFromGroup(threadId, [senderId]);
-      return;
-    }
-
-    if (action === "mute" && groupSettings?.[threadId]) {
-      if (!groupSettings[threadId].muteList) groupSettings[threadId].muteList = {};
-      await addOrUpdateMute(api, message, senderId, senderName, duration, groupSettings);
-      return;
-    }
-
-    // Mặc định hoặc fallback (mute nhưng không truyền được groupSettings vào scope): block
-    await api.blockUsers(threadId, [senderId]);
+    await applyConfiguredAntiPunishment(api, message, threadId, senderId, senderName, groupSettings);
   } catch (error) {
     console.error(`[applyAntiPunishment] Lỗi khi xử phạt ${senderName}:`, error);
   }
@@ -234,7 +218,21 @@ export async function handleActiveBotUser(api, message, aliasCommand, groupSetti
     return;
   }
 
-  if (botCommand === "on" || botCommand === "off") {
+  const isGroupToggle = botCommand === "on" || botCommand === "off";
+  const canManageBot = isAdmin(idBot, senderId);
+  const canManageGroup = isAdmin(idBot, senderId, threadId) || isRentalAdmin(idBot, senderId, threadId);
+  if (!isGroupToggle && !canManageBot) {
+    await sendMessageFailed(api, message, "Chỉ quản trị viên cấp cao của bot mới được thay đổi cấu hình toàn bot!");
+    return false;
+  }
+
+  if (isGroupToggle) {
+    // Quyền lệnh tùy chỉnh không được cho phép thành viên/admin nhóm bật tắt bot.
+    // Không truyền groupAdmins: chỉ chấp nhận quyền admin bot.
+    if (!canManageGroup) {
+      await sendMessageFailed(api, message, "Chỉ admin bot mới được bật/tắt bot trong nhóm!");
+      return false;
+    }
     if (groupSettings) {
       let newStatus;
       if (!botCommand) {
@@ -823,6 +821,12 @@ export async function handleActiveBotUser(api, message, aliasCommand, groupSetti
 }
 
 export async function handleActiveGameUser(api, message, groupSettings) {
+  const botId = api.getBotId();
+  const senderId = message.data.uidFrom;
+  if (!isAdmin(botId, senderId, message.threadId) && !isRentalAdmin(botId, senderId, message.threadId)) {
+    await sendMessageFailed(api, message, "Chỉ admin bot mới được bật/tắt game trong nhóm!");
+    return false;
+  }
   const content = removeMention(message);
   const threadId = message.threadId;
   const prefix = getGlobalPrefix(api.getBotId());
@@ -854,6 +858,10 @@ export async function handleActiveGameUser(api, message, groupSettings) {
 
 export async function handleActivePrivateBot(api, message, aliasCommand) {
   const botId = api.getBotId();
+  if (!isAdmin(botId, message.data.uidFrom)) {
+    await sendMessageFailed(api, message, "Chỉ quản trị viên cấp cao của bot mới được quản lý quyền dùng tin nhắn riêng!");
+    return false;
+  }
   const isMainBot = api.apiManager.isMainBot;
   const content = removeMention(message);
   const threadId = message.threadId;

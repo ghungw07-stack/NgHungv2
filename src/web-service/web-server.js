@@ -15,12 +15,18 @@ import { changeStatusConfig } from "./change-status-config.js";
 import { getCommandConfig } from "../index.js";
 import { getAllFriends } from "../commands/bot-manager/get-info-account.js";
 import { groupSettingsAll } from "../automations/event-send-msg.js";
-import { portManager, apiManager } from "../index.js";
+import { portManager, apiManager, getGlobalApi } from "../index.js";
 import crypto from "crypto";
+import { verifyWebhookToken } from "../security/webhook-auth.js";
 import { sessionMiddleware, requireAuth, checkAuth, isRateLimited, registerFailedAttempt, clearAttempts } from "./auth.js";
 import { managerBotSocket } from "../manager-bot/manager-socket.js";
-import { connection } from "../database/index.js";
+import { connection, NAME_TABLE_PLAYERS } from "../database/index.js";
 import { getVoiceTempFile, streamVoiceTempFile } from "../utils/voice-temp-server.js";
+import {
+  MYBOT_PAYMENT_PRICE,
+  extractPaymentCode,
+  isExactMyBotPaymentAmount,
+} from "../manager-bot/payment-code.js";
 
 export class PortManager {
   constructor(basePort = 3000) {
@@ -89,6 +95,21 @@ const upload = multer({
 let io = null;
 let connectedClients = new Map();
 
+async function notifyParentGameDonation({ botId, uid, amount, game }) {
+  try {
+    const mainApi = getGlobalApi();
+    const sourceId = String(botId || "");
+    const mainId = String(mainApi?.getBotId?.() || "");
+    if (!mainApi || !mainId || (sourceId && sourceId === mainId)) return;
+    const childName = apiManager.get(sourceId)?.apiZalo?.accountInfo?.name || sourceId || "không xác định";
+    const player = uid ? await connection.collection(NAME_TABLE_PLAYERS || "players_zalo").findOne({ idUserZalo: String(uid) }, { projection: { playerName: 1 } }).catch(() => null) : null;
+    const donorName = player?.playerName || String(uid || "không xác định");
+    await mainApi.sendMessage({ msg: `🔔 DONATE TỪ BOT CON\n🤖 Bot nhận: ${childName} (${sourceId || "N/A"})\n👤 Người donate: ${donorName} (${uid || "N/A"})\n💰 Số tiền: ${Number(amount || 0).toLocaleString("vi-VN")} VNĐ\n🎮 Loại: ${game || "Game"}`, ttl: 300000 }, mainId, 1);
+  } catch (error) {
+    console.warn("[DonateParent] Không báo được donate về bot mẹ:", error?.message || error);
+  }
+}
+
 let cachedFriends = {};
 let lastFriendsFetchTime = {};
 const CACHE_DURATION = 10000;
@@ -131,12 +152,10 @@ export async function startWebServer() {
   // code sẽ bị lộ cho bất kỳ ai có source, và họ có thể tự gọi webhook để
   // tự "duyệt thanh toán" free, không cần chuyển khoản thật).
   // Đặt biến môi trường WEBHOOK_SECRET để đổi giá trị thật khi deploy.
-  const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || "mybot2024secretkey";
-  const WEBHOOK_PRICE = Number(process.env.WEBHOOK_PRICE) || 80000;
-  if (!process.env.WEBHOOK_SECRET) {
+  const WEBHOOK_SECRET = process.env.SEPAY_API_KEY || process.env.WEBHOOK_SECRET;
+  if (!WEBHOOK_SECRET) {
     console.warn(
-      "[Webhook] CẢNH BÁO: đang dùng WEBHOOK_SECRET mặc định (không an toàn). " +
-      "Hãy set biến môi trường WEBHOOK_SECRET với 1 chuỗi random dài, và cấu hình lại trên Sepay."
+      "[Webhook] Chưa cấu hình WEBHOOK_SECRET, webhook sẽ từ chối yêu cầu thanh toán."
     );
   }
 
@@ -163,20 +182,13 @@ export async function startWebServer() {
         return res.status(429).json({ success: false, message: "Too many requests" });
       }
 
-      const { autoApproveByPayment } = await import("../manager-bot/index.js");
-      const body = req.body;
-      
-      console.error("[Webhook] Nhận request từ Sepay:", JSON.stringify(body));
-      console.error("[Webhook] Headers:", req.headers);
+      // Sepay gửi payload trực tiếp; một số relay/proxy bọc thêm trong data.
+      const body = req.body?.data && typeof req.body.data === "object" ? req.body.data : (req.body || {});
 
       // Xác thực API Key từ Sepay (header: Authorization: Apikey <key>) — so sánh constant-time
-      const token = (req.headers["authorization"] || "").replace(/^Apikey\s+/i, "").trim();
-      const tokenBuf = Buffer.from(token);
-      const secretBuf = Buffer.from(WEBHOOK_SECRET);
-      const tokenValid =
-        tokenBuf.length === secretBuf.length && crypto.timingSafeEqual(tokenBuf, secretBuf);
+      const tokenValid = verifyWebhookToken(req.headers["authorization"], WEBHOOK_SECRET);
       if (!tokenValid) {
-        console.error(`[Webhook] Từ chối request vì sai API Key! Nhận được: "${token}", Mong muốn: "${WEBHOOK_SECRET}"`);
+        console.error("[Webhook] Từ chối request vì sai API Key");
         return res.status(401).json({ success: false, message: "Invalid API Key" });
       }
 
@@ -185,6 +197,8 @@ export async function startWebServer() {
         amount,
         content,
         transferContent,
+        transactionContent,
+        addInfo,
         description,
         transferType,
         type,
@@ -195,42 +209,123 @@ export async function startWebServer() {
       if (normalizedTransferType && normalizedTransferType !== "in") return res.json({ success: true });
 
       // Lấy số tiền nhận được
-      const receivedAmount = Number(transferAmount ?? amount) || 0;
+      const rawAmount = transferAmount ?? amount;
+      const receivedAmount = typeof rawAmount === "string"
+        ? Number(rawAmount.replace(/[^0-9-]/g, "")) || 0
+        : Number(rawAmount) || 0;
       if (receivedAmount < 1000) {
         return res.json({ success: true, message: "Số tiền quá nhỏ (dưới 1k)" });
       }
 
-      // Tìm ownerId hoặc donateId trong nội dung CK
-      const paymentContent = [content, transferContent, description]
-        .filter((value) => value != null)
+      // Tìm mã thanh toán ngắn hoặc donateId trong nội dung CK.
+      const webhookText = (value) => {
+        if (value == null) return "";
+        if (typeof value === "object") {
+          return String(value.content ?? value.description ?? value.value ?? value.text ?? "");
+        }
+        return String(value);
+      };
+      const paymentContent = [content, transferContent, transactionContent, addInfo, description]
+        .map(webhookText)
+        .filter(Boolean)
         .join(" ")
         .toUpperCase();
       
-      const matchBotPay = paymentContent.match(/BOTPAY\s*(\d+)/);
-      const matchDonate = paymentContent.match(/DONATE\s*(\d+)/);
+      const myBotPaymentCode = extractPaymentCode(paymentContent);
+      // Cho phép ngân hàng chèn dấu phân cách vào nội dung (DONATE:123, DONATE-123).
+      const matchDonate = paymentContent.match(/DONATE[\s:_-]*(\d+)/);
+      const matchTuTien = paymentContent.match(/TUTIEN[\s:_-]+(\d+)[\s:_-]+(\d+)/);
+      const matchCompactGame = paymentContent.match(/(?:^|\s)D(\d+)(?:\s|$)/);
+      const matchCompactTuTien = paymentContent.match(/(?:^|\s)T(\d+)[_-](\d+)(?:\s|$)/);
+      // Mã donate của game/Tu Tiên là NGH + 6 ký tự. Sepay thường nối thêm
+      // dấu `:`, `-`, `|` hoặc xuống dòng quanh nội dung nên không được bắt
+      // buộc phải có whitespace ở hai đầu.
+      const matchShortDonate = paymentContent.match(/(?:^|[^A-Z0-9])(NGH[A-Z0-9]{6})(?![A-Z0-9])/);
 
-      if (!matchBotPay && !matchDonate) {
-        return res.json({ success: true, message: "Không tìm thấy mã BOTPAY hoặc DONATE" });
+      if (!myBotPaymentCode && !matchDonate && !matchTuTien && !matchCompactGame && !matchCompactTuTien && !matchShortDonate) {
+        return res.json({ success: true, message: "Không tìm thấy mã NGH hoặc DONATE" });
       }
 
       const payRef = body.referenceCode || body.code || String(body.id || "");
+
+      const recordWebhookResult = async (result, metadata = {}) => {
+        try {
+          await connection.collection("payment_webhook_events").updateOne(
+            payRef ? { payRef: String(payRef) } : { _id: crypto.randomUUID() },
+            {
+              $set: {
+                payRef: String(payRef || ""),
+                amount: receivedAmount,
+                paymentContent: paymentContent.slice(0, 500),
+                success: result?.success === true,
+                duplicate: result?.duplicate === true,
+                message: String(result?.message || result?.error || ""),
+                ...metadata,
+                updatedAt: new Date(),
+              },
+              $setOnInsert: { createdAt: new Date() },
+            },
+            { upsert: true },
+          );
+        } catch (auditError) {
+          console.warn("[Webhook] Không lưu được nhật ký thanh toán:", auditError?.message || auditError);
+        }
+        return result;
+      };
 
       // Chống gửi lại cùng 1 giao dịch nhiều lần
       if (payRef && processedPaymentRefs.has(payRef)) {
         return res.json({ success: true, message: "Giao dịch đã được xử lý trước đó" });
       }
 
-      if (matchDonate) {
-        const uid = matchDonate[1];
+      if (matchTuTien || matchCompactTuTien) {
+        const [, botId, uid] = matchTuTien || matchCompactTuTien;
+        const { processTuTienDonatePayment } = await import("../service-ngh/game-service/tu-tien/index.js");
+        const result = await processTuTienDonatePayment(botId, uid, payRef, receivedAmount);
+        if (result?.success) await notifyParentGameDonation({ botId, uid, amount: receivedAmount, game: "Tu Tiên" });
+        if (result?.success && payRef) processedPaymentRefs.add(payRef);
+        return res.json(await recordWebhookResult(result, { type: "tutien", botId, uid }));
+      }
+
+      if (matchShortDonate) {
+        const pending = await connection.collection("donation_codes").findOne({ code: matchShortDonate[1], type: { $in: ["game", "tutien"] } });
+        if (!pending) return res.json(await recordWebhookResult({ success: false, message: "Mã donate đã hết hạn hoặc không tồn tại" }, { type: "unknown", donationCode: matchShortDonate[1] }));
+        if (pending.type === "tutien") {
+          if (pending.amount && Number(pending.amount) !== receivedAmount) {
+            return res.json(await recordWebhookResult({ success: false, error: `Số tiền không khớp mã donate (cần ${Number(pending.amount).toLocaleString("vi-VN")}đ)` }, { type: "tutien", donationCode: pending.code, botId: pending.botId, uid: pending.uid }));
+          }
+          const { processTuTienDonatePayment } = await import("../service-ngh/game-service/tu-tien/index.js");
+          const result = await processTuTienDonatePayment(pending.botId, pending.uid, payRef, receivedAmount);
+          if (result?.success) await notifyParentGameDonation({ botId: pending.botId, uid: pending.uid, amount: receivedAmount, game: "Tu Tiên" });
+          if (result?.success) await connection.collection("donation_codes").deleteOne({ _id: pending._id });
+          return res.json(await recordWebhookResult(result, { type: "tutien", donationCode: pending.code, botId: pending.botId, uid: pending.uid }));
+        }
+        const { processDonatePayment } = await import("../service-ngh/game-service/index.js");
+        const result = await processDonatePayment(pending.uid, payRef, receivedAmount, pending.botId);
+        if (result?.success) await notifyParentGameDonation({ botId: pending.botId, uid: pending.uid, amount: receivedAmount, game: "Game" });
+        if (result?.success) await connection.collection("donation_codes").deleteOne({ _id: pending._id });
+        return res.json(result);
+      }
+
+      if (matchDonate || matchCompactGame) {
+        const uid = (matchDonate || matchCompactGame)[1];
         const { processDonatePayment } = await import("../service-ngh/game-service/index.js");
         const result = await processDonatePayment(uid, payRef, receivedAmount);
         if (result?.success && payRef) processedPaymentRefs.add(payRef);
         return res.json(result);
       }
 
-      const ownerId = matchBotPay[1];
-      // Chuyển số tiền vào hàm để tính toán ngày
-      const result = await autoApproveByPayment(ownerId, payRef, receivedAmount);
+      // Giá kích hoạt/gia hạn bot được cố định tuyệt đối ở 70.000đ.
+      if (!isExactMyBotPaymentAmount(receivedAmount)) {
+        if (payRef) processedPaymentRefs.add(payRef);
+        return res.json({
+          success: true,
+          message: `Không duyệt: số tiền phải đúng ${MYBOT_PAYMENT_PRICE.toLocaleString("vi-VN")}đ`,
+        });
+      }
+
+      const { autoApproveByPaymentCode } = await import("../manager-bot/index.js");
+      const result = await autoApproveByPaymentCode(myBotPaymentCode, payRef, receivedAmount);
       if (result?.success && payRef) processedPaymentRefs.add(payRef);
       return res.json(result);
     } catch (err) {
@@ -376,7 +471,7 @@ export async function startWebServer() {
 
   app.use(express.static(publicDir, { index: false }));
 
-  app.post("/upload", upload.array("files"), (req, res) => {
+  app.post("/upload", requireAuth, upload.array("files"), (req, res) => {
     filePaths = req.files.map((file) => file.path);
     res.json({ message: "Tải lên thành công", filePaths });
   });
@@ -1724,7 +1819,8 @@ export async function startWebServer() {
   });
 
   const PORT = 3000; // Port cố định để Sepay webhook hoạt động ổn định
-  httpServer.listen(PORT, "0.0.0.0", () => {
+  // Bind locally; public access goes through Cloudflare Tunnel only.
+  httpServer.listen(PORT, "127.0.0.1", () => {
   });
 
   return {

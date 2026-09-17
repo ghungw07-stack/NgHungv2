@@ -13,6 +13,13 @@ import {
 } from "../chat-zalo/chat-style/chat-style.js";
 import { enqueueBackgroundTask } from "../../utils/background-work-queue.js";
 import { waitForInteractiveCapacity } from "../../utils/runtime-work-queue.js";
+import {
+  createDefaultAutoRaiLinkConfig,
+  isAutoRaiLinkRunActive,
+  nextAutoRaiLinkRevision,
+  normalizeAutoRaiLinkConfig,
+  resetAutoRaiLinkConfig,
+} from "./auto-rai-link-state.js";
 
 const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(MODULE_DIR, "../../..");
@@ -32,37 +39,11 @@ function getConfigPath(botId) {
 }
 
 function getDefaultConfig() {
-  return {
-    enabled: false,
-    homeGroupId: "",
-    homeGroupLink: "",
-    content: "",
-    replyContent: "✅ Đã chéo thành công! Bạn vào nhóm mình xem nha.",
-    returnContent: "🔁 Link trả từ nhóm {group}:",
-    returnLinkEnabled: true,
-    intervalMinutes: DEFAULT_INTERVAL_MINUTES,
-    whitelist: [],
-    advertisedGroups: [],
-    lastBroadcastAt: 0,
-    lastCrossedAt: {},
-  };
+  return createDefaultAutoRaiLinkConfig(DEFAULT_INTERVAL_MINUTES);
 }
 
 function normalizeConfig(rawConfig = {}) {
-  const config = { ...getDefaultConfig(), ...rawConfig };
-  config.homeGroupId = String(config.homeGroupId || "");
-  config.homeGroupLink = String(config.homeGroupLink || "");
-  config.content = String(config.content || "");
-  config.replyContent = String(config.replyContent || getDefaultConfig().replyContent);
-  config.returnContent = String(config.returnContent || getDefaultConfig().returnContent);
-  config.returnLinkEnabled = config.returnLinkEnabled !== false;
-  config.intervalMinutes = Number(config.intervalMinutes) || DEFAULT_INTERVAL_MINUTES;
-  config.whitelist = [...new Set((config.whitelist || []).map(String))];
-  config.advertisedGroups = [...new Set((config.advertisedGroups || []).map(String))];
-  config.lastCrossedAt = config.lastCrossedAt && typeof config.lastCrossedAt === "object"
-    ? config.lastCrossedAt
-    : {};
-  return config;
+  return normalizeAutoRaiLinkConfig(rawConfig, DEFAULT_INTERVAL_MINUTES);
 }
 
 function readConfig(botId) {
@@ -80,6 +61,13 @@ function writeConfig(botId, config) {
   const filePath = getConfigPath(botId);
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, `${JSON.stringify(normalizeConfig(config), null, 2)}\n`);
+}
+
+function clearPendingCrossConfirmations(botId) {
+  const prefix = `${botId}:`;
+  for (const key of pendingCrossConfirmations.keys()) {
+    if (key.startsWith(prefix)) pendingCrossConfirmations.delete(key);
+  }
 }
 
 async function resolveGroupId(api, input, fallbackGroupId = "") {
@@ -131,14 +119,15 @@ async function getAllGroupIds(api) {
   return Object.keys(result?.gridVerMap || {}).map(String);
 }
 
-export async function broadcastAutoRaiLink(api, { force = false } = {}) {
+export async function broadcastAutoRaiLink(api) {
   const botId = String(api.getBotId());
   if (broadcastLocks.has(botId)) {
     return { skipped: true, reason: "Một lượt rải khác đang chạy." };
   }
 
   const config = readConfig(botId);
-  if (!force && !config.enabled) return { skipped: true, reason: "AutoRaiLink đang tắt." };
+  if (!config.enabled) return { skipped: true, reason: "AutoRaiLink đang tắt." };
+  const runRevision = config.revision;
 
   const notReadyReason = validateReady(config);
   if (notReadyReason) return { skipped: true, reason: notReadyReason };
@@ -157,10 +146,19 @@ export async function broadcastAutoRaiLink(api, { force = false } = {}) {
     const sent = [];
     const failed = [];
     let consecutiveFailures = 0;
+    let stopped = false;
 
     for (const groupId of targetGroupIds) {
+      if (!isAutoRaiLinkRunActive(readConfig(botId), runRevision)) {
+        stopped = true;
+        break;
+      }
       try {
         await waitForInteractiveCapacity();
+        if (!isAutoRaiLinkRunActive(readConfig(botId), runRevision)) {
+          stopped = true;
+          break;
+        }
         await api.sendMessage({ msg: broadcastContent }, groupId, MessageType.GroupMessage);
         sent.push(groupId);
         consecutiveFailures = 0;
@@ -175,11 +173,15 @@ export async function broadcastAutoRaiLink(api, { force = false } = {}) {
       await new Promise((resolve) => setTimeout(resolve, TARGET_DELAY_MS));
     }
 
-    config.advertisedGroups = [...new Set([...config.advertisedGroups, ...sent])];
-    config.lastCrossedAt = {}; // Xoá lịch sử đã trả link để lượt rải mới có thể trả lại
-    config.lastBroadcastAt = Date.now();
-    writeConfig(botId, config);
-    return { skipped: false, sent, failed, totalTargets: targetGroupIds.length };
+    const latestConfig = readConfig(botId);
+    if (isAutoRaiLinkRunActive(latestConfig, runRevision)) {
+      latestConfig.advertisedGroups = [...new Set([...latestConfig.advertisedGroups, ...sent])];
+      latestConfig.lastCrossedAt = {}; // Xoá lịch sử đã trả link để lượt rải mới có thể trả lại
+      latestConfig.lastBroadcastAt = Date.now();
+      if (!latestConfig.homeGroupLink && config.homeGroupLink) latestConfig.homeGroupLink = config.homeGroupLink;
+      writeConfig(botId, latestConfig);
+    }
+    return { skipped: false, stopped, sent, failed, totalTargets: targetGroupIds.length };
   } finally {
     broadcastLocks.delete(botId);
   }
@@ -198,8 +200,8 @@ function getUsage(prefix, aliasCommand) {
     `${command} wl add [ID/link...] - Thêm nhóm không rải\n` +
     `${command} wl remove [ID/link...] - Xóa nhóm khỏi WL\n` +
     `${command} wl list - Xem WL\n` +
-    `${command} send - Rải ngay một lượt\n` +
-    `${command} reset - Xóa danh sách chờ trả link\n` +
+    `${command} send - Rải ngay một lượt (chỉ khi đang bật)\n` +
+    `${command} reset - Xóa trắng toàn bộ cấu hình và tắt ARL\n` +
     `${command} on|off - Bật/tắt tự động rải\n` +
     `${command} status - Xem cấu hình\n\n` +
     "Có thể dùng {name}, {group}, {link}, {home} trong nội dung reply/return."
@@ -388,7 +390,11 @@ export async function handleAutoRaiLinkCommand(api, message, aliasCommand) {
   }
 
   if (["send", "rai", "run"].includes(subCommand)) {
-    const queued = enqueueBackgroundTask(`arl:${botId}`, () => broadcastAutoRaiLink(api, { force: true }));
+    if (!config.enabled) {
+      await sendMessageFailed(api, message, "AutoRaiLink đang tắt. Hãy cấu hình rồi dùng arl on trước.", false, MESSAGE_TTL);
+      return true;
+    }
+    const queued = enqueueBackgroundTask(`arl:${botId}`, () => broadcastAutoRaiLink(api));
     if (!queued.accepted) {
       await sendMessageFailed(api, message, "Một lượt AutoRaiLink đang chạy hoặc đang chờ.", false, MESSAGE_TTL);
       return true;
@@ -396,6 +402,15 @@ export async function handleAutoRaiLinkCommand(api, message, aliasCommand) {
     await sendMessageComplete(api, message, "✅ Đã đưa lượt rải vào hàng đợi nền. Bot vẫn phản hồi các lệnh khác.", true, MESSAGE_TTL);
     void queued.promise.then(async (result) => {
       if (result.skipped) return sendMessageFailed(api, message, result.reason, false, MESSAGE_TTL);
+      if (result.stopped) {
+        return sendMessageWarning(
+          api,
+          message,
+          `⏹️ Lượt rải đã dừng: gửi được ${result.sent.length}/${result.totalTargets} nhóm.`,
+          false,
+          MESSAGE_TTL
+        );
+      }
       return sendMessageComplete(
         api,
         message,
@@ -414,6 +429,7 @@ export async function handleAutoRaiLinkCommand(api, message, aliasCommand) {
       return true;
     }
     config.enabled = true;
+    config.revision = nextAutoRaiLinkRevision(config);
     config.lastBroadcastAt = 0;
     writeConfig(botId, config);
     await sendMessageComplete(api, message, `✅ Đã bật AutoRaiLink, chu kỳ ${config.intervalMinutes} phút.`, true, MESSAGE_TTL);
@@ -422,16 +438,23 @@ export async function handleAutoRaiLinkCommand(api, message, aliasCommand) {
 
   if (["off", "tat"].includes(subCommand)) {
     config.enabled = false;
+    config.revision = nextAutoRaiLinkRevision(config);
     writeConfig(botId, config);
-    await sendMessageWarning(api, message, "❌ Đã tắt AutoRaiLink.", false, MESSAGE_TTL);
+    clearPendingCrossConfirmations(botId);
+    await sendMessageWarning(api, message, "❌ Đã tắt AutoRaiLink và dừng lượt rải đang chạy.", false, MESSAGE_TTL);
     return true;
   }
 
   if (["reset", "clear"].includes(subCommand)) {
-    config.advertisedGroups = [];
-    config.lastCrossedAt = {};
-    writeConfig(botId, config);
-    await sendMessageComplete(api, message, "✅ Đã xóa toàn bộ danh sách chờ trả link.", true, MESSAGE_TTL);
+    writeConfig(botId, resetAutoRaiLinkConfig(config, DEFAULT_INTERVAL_MINUTES));
+    clearPendingCrossConfirmations(botId);
+    await sendMessageComplete(
+      api,
+      message,
+      "✅ Đã reset trắng AutoRaiLink và tắt tính năng. Muốn rải lại phải đặt nhóm/link, nội dung rồi bật lại.",
+      true,
+      MESSAGE_TTL
+    );
     return true;
   }
 
@@ -475,6 +498,7 @@ export async function handleAutoRaiLinkMention(api, message, groupInfo = {}) {
 
   const config = readConfig(botId);
   if (!config.enabled || !config.homeGroupId) return false;
+  const runRevision = config.revision;
   if (threadId === config.homeGroupId || config.whitelist.includes(threadId)) return false;
   if (!config.advertisedGroups.includes(threadId)) return false;
 
@@ -491,6 +515,7 @@ export async function handleAutoRaiLinkMention(api, message, groupInfo = {}) {
   const confirmationKey = `${botId}:${threadId}:${senderId}`;
   const pendingAt = Number(pendingCrossConfirmations.get(confirmationKey) || 0);
   if (!pendingAt || now - pendingAt > CROSS_CONFIRM_TIMEOUT_MS) {
+    if (!isAutoRaiLinkRunActive(readConfig(botId), runRevision)) return true;
     pendingCrossConfirmations.set(confirmationKey, now);
     await api.sendMessage(
       {
@@ -514,6 +539,8 @@ export async function handleAutoRaiLinkMention(api, message, groupInfo = {}) {
       }
     }
 
+    if (!isAutoRaiLinkRunActive(readConfig(botId), runRevision)) return true;
+
     const values = {
       name: senderName,
       group: groupName,
@@ -530,13 +557,17 @@ export async function handleAutoRaiLinkMention(api, message, groupInfo = {}) {
       );
     }
 
-    config.lastCrossedAt[threadId] = now;
-    writeConfig(botId, config);
+    const latestConfig = readConfig(botId);
+    if (!isAutoRaiLinkRunActive(latestConfig, runRevision)) return true;
+    latestConfig.lastCrossedAt[threadId] = now;
+    if (!latestConfig.homeGroupLink && config.homeGroupLink) latestConfig.homeGroupLink = config.homeGroupLink;
+    writeConfig(botId, latestConfig);
 
     const replyText = formatTemplate(config.replyContent, values);
     const replyHomeLink = config.homeGroupLink && !/\{home\}/i.test(config.replyContent)
       ? `\n${config.homeGroupLink}`
       : "";
+    if (!isAutoRaiLinkRunActive(readConfig(botId), runRevision)) return true;
     await api.sendMessage(
       { msg: `${replyText}${replyHomeLink}`.trim(), quote: message },
       threadId,
@@ -545,6 +576,7 @@ export async function handleAutoRaiLinkMention(api, message, groupInfo = {}) {
     return true;
   } catch (error) {
     console.error(`[AutoRaiLink] Không thể chéo link nhóm ${threadId}:`, error);
+    if (!isAutoRaiLinkRunActive(readConfig(botId), runRevision)) return true;
     await api.sendMessage(
       { msg: `⚠️ Chưa lấy được link nhóm này: ${error.message}`, quote: message },
       threadId,

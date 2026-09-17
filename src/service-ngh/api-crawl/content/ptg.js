@@ -26,7 +26,12 @@ if (existsSync(fontPathNoto)) {
 const FONT_FAMILY = 'BeVietnamPro, NotoSansB, "Segoe UI", Arial, sans-serif';
 
 const WS_URL = process.env.NGH_PTG_WS_URL || 'wss://dqt-tempfile.online/ptgfarm/ws?key=guest_ptg_8386';
+// The profile provider is kept separate from the shop WebSocket.  The latter
+// only publishes shop snapshots and cannot answer player lookups.
+const PROFILE_API_URL = process.env.NGH_PTG_PROFILE_API_URL?.trim();
+const PROFILE_API_KEY = process.env.NGH_PTG_PROFILE_API_KEY?.trim();
 const FOLLOW_FILE = join(DATA_ROOT, 'json-data', 'ptg-follows.json');
+const GROUP_SETTINGS_FILE = join(DATA_ROOT, 'json-data', 'ptg-group-settings.json');
 const MAX_RECONNECT_DELAY_MS = 60_000;
 const STYLE_COLORS = { green: '15a85f', red: 'db342e', yellow: 'f7b503' };
 
@@ -64,6 +69,49 @@ function writeFollowStore(entries) {
   const temporaryFile = `${FOLLOW_FILE}.${process.pid}.tmp`;
   writeFileSync(temporaryFile, `${JSON.stringify(entries, null, 2)}\n`, 'utf8');
   renameSync(temporaryFile, FOLLOW_FILE);
+}
+
+function readGroupSettings() {
+  try {
+    const data = JSON.parse(readFileSync(GROUP_SETTINGS_FILE, 'utf8'));
+    return data && typeof data === 'object' && !Array.isArray(data) ? data : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeGroupSettings(settings) {
+  mkdirSync(join(DATA_ROOT, 'json-data'), { recursive: true });
+  const temporaryFile = `${GROUP_SETTINGS_FILE}.${process.pid}.tmp`;
+  writeFileSync(temporaryFile, `${JSON.stringify(settings, null, 2)}\n`, 'utf8');
+  renameSync(temporaryFile, GROUP_SETTINGS_FILE);
+}
+
+const normalizeItemName = (value) => String(value || '').trim().toLocaleLowerCase('vi-VN');
+const splitItemNames = (value) => String(value || '').split(',').map((item) => item.trim()).filter(Boolean);
+
+function normalizeProfiles(payload) {
+  const data = payload?.data ?? payload?.result ?? payload;
+  const candidates = Array.isArray(data)
+    ? data
+    : Array.isArray(data?.players)
+      ? data.players
+      : Array.isArray(data?.results)
+        ? data.results
+        : Array.isArray(data?.friends)
+          ? data.friends
+          : [data?.player ?? data?.profile ?? data];
+
+  return candidates
+    .filter((player) => player && typeof player === 'object')
+    .map((player) => ({
+      ...player,
+      name: player.name || player.nickname || player.playerName || player.displayName || 'Người chơi chưa rõ tên',
+      avatarUrl: player.avatarUrl || player.avatar || player.profileImageUrl || player.imageUrl,
+      online: player.online ?? player.isOnline,
+      level: player.level ?? player.playerLevel,
+      id: player.id || player.playerId || player.pid || player.code,
+    }));
 }
 
 function getVNTime() { return new Date(Date.now() + 7 * 3600_000).toISOString().slice(11, 19); }
@@ -887,6 +935,7 @@ class PTGService extends EventEmitter {
     this.reconnectAttempts = 0;
     this.reconnectTimer = null;
     this.closed = false;
+    this.groupSettings = readGroupSettings();
     this.connect();
     this.followTimer = setInterval(() => this.checkFollows(), 30_000);
     this.followTimer.unref?.();
@@ -915,6 +964,33 @@ class PTGService extends EventEmitter {
     this.apis.set(String(api.getBotId()), api);
   }
 
+  getGroupSetting(botId, threadId) {
+    const key = `${botId}:${threadId}`;
+    const current = this.groupSettings[key] || {};
+    return {
+      key, botId: String(botId), threadId: String(threadId),
+      followTags: current.followTags !== false,
+      notify: current.notify === true,
+      hiddenItems: Array.isArray(current.hiddenItems) ? current.hiddenItems : [],
+    };
+  }
+
+  updateGroupSetting(botId, threadId, changes) {
+    const setting = this.getGroupSetting(botId, threadId);
+    this.groupSettings[setting.key] = { ...setting, ...changes };
+    writeGroupSettings(this.groupSettings);
+    return this.getGroupSetting(botId, threadId);
+  }
+
+  getUserFollows(api, message) {
+    const botId = String(api.getBotId());
+    const threadId = String(message.threadId);
+    const userId = String(message.data.uidFrom);
+    return [...this.followMap.values()].filter((entry) =>
+      entry.botId === botId && entry.threadId === threadId && entry.userId === userId
+    );
+  }
+
   persistFollows() {
     try {
       writeFollowStore([...this.followMap.values()]);
@@ -928,9 +1004,13 @@ class PTGService extends EventEmitter {
       const f = JSON.parse(data);
       if (f.type === 'snapshot' || f.type === 'update') {
         if (f.data?.categories) {
+          const previousCategories = this.cache.categories;
           this.cache.categories = f.data.categories;
           this.cache.lastUpdate = Date.now();
           this.emit('update', this.cache);
+          if (previousCategories.length) this.notifyGroupsOnUpdate(previousCategories).catch((error) => {
+            console.error('[PTG] Failed to notify groups:', error.message);
+          });
         }
       } else if (f.type === 'exhausted') {
         console.warn('lỗi chấm hết');
@@ -946,20 +1026,91 @@ class PTGService extends EventEmitter {
     return this.cache.categories.find((c) => c.key === key) || { items: [] };
   }
 
+  async findPlayers(query) {
+    if (!PROFILE_API_URL) {
+      return { ok: false, reason: 'unconfigured' };
+    }
+
+    try {
+      const url = new URL(PROFILE_API_URL);
+      url.searchParams.set('q', query);
+      const response = await fetch(url, {
+        headers: {
+          accept: 'application/json',
+          ...(PROFILE_API_KEY ? { authorization: `Bearer ${PROFILE_API_KEY}` } : {}),
+        },
+        signal: AbortSignal.timeout(12_000),
+      });
+      if (!response.ok) {
+        console.warn(`[PTG] Profile lookup failed: HTTP ${response.status}`);
+        return { ok: false, reason: 'unavailable' };
+      }
+      return { ok: true, players: normalizeProfiles(await response.json()) };
+    } catch (error) {
+      console.error('[PTG] Profile lookup failed:', error.message);
+      return { ok: false, reason: 'unavailable' };
+    }
+  }
+
   followItem(api, message, itemName) {
-    if (!itemName) return 'Vui lòng nhập tên vật phẩm cần theo dõi.';
-    const entry = {
-      key: `${api.getBotId()}:${message.type}:${message.threadId}:${message.data.uidFrom}:${itemName.toLowerCase()}`,
-      botId: String(api.getBotId()),
-      threadId: String(message.threadId),
-      type: message.type,
-      userId: String(message.data.uidFrom),
-      itemName: itemName.toLowerCase(),
-      createdAt: Date.now(),
-    };
-    this.followMap.set(entry.key, entry);
+    const items = splitItemNames(itemName);
+    if (!items.length) return 'Vui lòng nhập tên vật phẩm cần theo dõi.';
+    for (const item of items) {
+      const normalizedName = normalizeItemName(item);
+      const entry = {
+        key: `${api.getBotId()}:${message.type}:${message.threadId}:${message.data.uidFrom}:${normalizedName}`,
+        botId: String(api.getBotId()), threadId: String(message.threadId), type: message.type,
+        userId: String(message.data.uidFrom), userName: message.data?.dName || 'Người dùng',
+        itemName: normalizedName, createdAt: Date.now(),
+      };
+      this.followMap.set(entry.key, entry);
+    }
     this.persistFollows();
-    return `Đã đăng ký theo dõi "${itemName}" cho bạn.`;
+    return `Đã đăng ký theo dõi: ${items.map((item) => `"${item}"`).join(', ')}.`;
+  }
+
+  removeUserFollows(api, message, itemNames) {
+    const requested = splitItemNames(itemNames).map(normalizeItemName);
+    if (!requested.length) return 'Vui lòng nhập vật phẩm cần bỏ theo dõi.';
+    let removed = 0;
+    for (const entry of this.getUserFollows(api, message)) {
+      if (requested.some((name) => entry.itemName.includes(name) || name.includes(entry.itemName))) {
+        this.followMap.delete(entry.key);
+        removed++;
+      }
+    }
+    if (removed) this.persistFollows();
+    return removed ? `Đã bỏ ${removed} theo dõi.` : 'Không tìm thấy vật phẩm theo dõi phù hợp.';
+  }
+
+  clearUserFollows(api, message) {
+    const follows = this.getUserFollows(api, message);
+    for (const entry of follows) this.followMap.delete(entry.key);
+    if (follows.length) this.persistFollows();
+    return follows.length ? `Đã xoá ${follows.length} theo dõi của bạn.` : 'Bạn chưa theo dõi vật phẩm nào.';
+  }
+
+  async notifyGroupsOnUpdate(previousCategories) {
+    const previous = new Map(previousCategories.map((category) => [category.key, category]));
+    for (const setting of Object.values(this.groupSettings)) {
+      if (!setting?.notify) continue;
+      const api = this.apis.get(String(setting.botId));
+      if (!api) continue;
+      const hidden = new Set((setting.hiddenItems || []).map(normalizeItemName));
+      const updates = [];
+      for (const category of this.cache.categories) {
+        if (!['seeds', 'tools', 'weather'].includes(category.key)) continue;
+        const oldKeys = new Set((previous.get(category.key)?.items || []).map((item) => String(item.id || item.name || item.vi)));
+        const isAvailable = (item) => category.key === 'weather' ? Date.parse(item.endTime || 0) > Date.now() : (item.stock ?? 0) > 0;
+        for (const item of (category.items || []).filter(isAvailable)) {
+          const name = item.vi || item.name;
+          if (!oldKeys.has(String(item.id || item.name || item.vi)) && !hidden.has(normalizeItemName(name))) {
+            updates.push(`• ${category.key === 'weather' ? 'Thời tiết: ' : ''}${name}`);
+          }
+        }
+      }
+      if (updates.length) await api.sendMessage({ msg: `🔔 PTG vừa có cập nhật:\n${updates.slice(0, 12).join('\n')}`, ttl: 300_000 }, setting.threadId, MessageType.GroupMessage);
+    }
   }
 
   checkFollows() {
@@ -1023,13 +1174,31 @@ export function getNameServer(api) {
 
 export const ptgService = new PTGService();
 
-export async function handlePTGCommand(api, message, alias, parts) {
+export async function handlePTGCommand(api, message, alias, parts, permissions = {}) {
   ptgService.registerApi(api);
 
-  const userId = message.data.uidFrom;
-  const threadId = message.threadId;
-  const sub = (parts[0] || '').toLowerCase();
+  let commandParts = [...parts];
+  let sub = (commandParts[0] || '').toLowerCase();
+  if (sub === 'thời' && commandParts[1]?.toLowerCase() === 'tiết') {
+    sub = 'thoitiet';
+    commandParts = ['thoitiet', ...commandParts.slice(2)];
+  }
+  if (['tt', 'thoitiet'].includes(sub)) sub = 'thoitiet';
+  if (sub === 'timban' || sub === 'tb') sub = 'friend';
+  if (sub === 'hoso' || sub === 'profile') sub = 'friend';
+  // Play Together also issues share IDs such as RKHX-VT9L-LMYU, not only
+  // numeric player IDs.
+  if (/^\d{4,}$/.test(sub) || /^[a-z0-9]{3,}(?:-[a-z0-9]{2,})+$/i.test(sub)) {
+    commandParts = ['friend', sub, ...commandParts.slice(1)];
+    sub = 'friend';
+  }
   const prefix = getGlobalPrefix(api.getBotId());
+  const isGroupAdmin = Boolean(permissions.isAdminLevelHighest || permissions.isAdminBot || permissions.isAdminBox);
+  const requireGroupAdmin = () => {
+    if (message.type !== MessageType.GroupMessage) return 'Lệnh này chỉ dùng trong nhóm.';
+    if (!isGroupAdmin) return 'Chỉ quản trị viên nhóm mới dùng được lệnh này.';
+    return null;
+  };
 
   const styleOpts = {
     color: 'green', size: '10', isBold: true,
@@ -1088,15 +1257,66 @@ export async function handlePTGCommand(api, message, alias, parts) {
       }
     case 'friend':
       {
-        return SendMessageStyle(api, message, '⚠️ Chức năng tra cứu người chơi / bạn bè hiện đang bảo trì API!', {
-          ...styleOpts,
-          color: 'red',
-        });
+        const query = commandParts.slice(1).join(' ').trim();
+        if (!query) {
+          return SendMessageStyle(api, message, `Dùng: ${prefix}${alias} <mã người chơi|tên>\nVí dụ: ${prefix}${alias} 123456 hoặc ${prefix}${alias} timban Nguyen`, styleOpts);
+        }
+        const result = await ptgService.findPlayers(query);
+        if (!result.ok) {
+          const text = result.reason === 'unconfigured'
+            ? 'Tra cứu hồ sơ chưa được cấu hình. Quản trị viên cần đặt NGH_PTG_PROFILE_API_URL để kết nối nguồn dữ liệu Play Together.'
+            : 'Không thể kết nối nguồn dữ liệu hồ sơ Play Together. Vui lòng thử lại sau.';
+          return SendMessageStyle(api, message, text, { ...styleOpts, color: 'red' });
+        }
+        const img = await ptgService.buildFriendCanvas(result.players.slice(0, 10), query, ns);
+        return sendCanvas(img, 'Không tìm thấy thông tin người chơi.');
       }
     case 'follow':
       {
-        return SendMessageStyle(api, message, ptgService.followItem(api, message, parts.slice(1).join(' ')), styleOpts);
+        const action = (commandParts[1] || '').toLowerCase();
+        if (action === 'list') {
+          const follows = ptgService.getUserFollows(api, message);
+          const text = follows.length ? `🔔 Bạn đang theo dõi:\n${follows.map((entry, index) => `${index + 1}. ${entry.itemName}`).join('\n')}` : 'Bạn chưa theo dõi vật phẩm nào.';
+          return SendMessageStyle(api, message, text, styleOpts);
+        }
+        if (action === 'clear') return SendMessageStyle(api, message, ptgService.clearUserFollows(api, message), styleOpts);
+        if (action === 'remove' || action === 'rm') return SendMessageStyle(api, message, ptgService.removeUserFollows(api, message, commandParts.slice(2).join(' ')), styleOpts);
+        if (action === 'on' || action === 'off') {
+          const error = requireGroupAdmin();
+          if (error) return SendMessageStyle(api, message, error, { ...styleOpts, color: 'red' });
+          ptgService.updateGroupSetting(api.getBotId(), message.threadId, { followTags: action === 'on' });
+          return SendMessageStyle(api, message, `Đã ${action === 'on' ? 'bật' : 'tắt'} tag người theo dõi trong nhóm.`, styleOpts);
+        }
+        return SendMessageStyle(api, message, ptgService.followItem(api, message, commandParts.slice(1).join(' ')), styleOpts);
       }
+    case 'notify': {
+      const action = (commandParts[1] || '').toLowerCase();
+      const error = requireGroupAdmin();
+      if (error) return SendMessageStyle(api, message, error, { ...styleOpts, color: 'red' });
+      if (!['on', 'off'].includes(action)) return SendMessageStyle(api, message, `Dùng: ${prefix}${alias} notify on hoặc ${prefix}${alias} notify off`, styleOpts);
+      ptgService.updateGroupSetting(api.getBotId(), message.threadId, { notify: action === 'on' });
+      return SendMessageStyle(api, message, `Đã ${action === 'on' ? 'bật' : 'tắt'} báo cập nhật PTG cho nhóm.`, styleOpts);
+    }
+    case 'unfollow': {
+      const error = requireGroupAdmin();
+      if (error) return SendMessageStyle(api, message, error, { ...styleOpts, color: 'red' });
+      const setting = ptgService.getGroupSetting(api.getBotId(), message.threadId);
+      const action = (commandParts[1] || '').toLowerCase();
+      if (action === 'list') {
+        const text = setting.hiddenItems.length ? `🔕 Nhóm đang ẩn:\n${setting.hiddenItems.map((name, index) => `${index + 1}. ${name}`).join('\n')}` : 'Nhóm chưa ẩn vật phẩm nào.';
+        return SendMessageStyle(api, message, text, styleOpts);
+      }
+      if (action === 'rm') {
+        const requested = commandParts.slice(2).join(' ').trim();
+        const hiddenItems = requested.toLowerCase() === 'all' ? [] : setting.hiddenItems.filter((item) => !splitItemNames(requested).map(normalizeItemName).includes(normalizeItemName(item)));
+        ptgService.updateGroupSetting(api.getBotId(), message.threadId, { hiddenItems });
+        return SendMessageStyle(api, message, requested.toLowerCase() === 'all' ? 'Đã bỏ ẩn toàn bộ vật phẩm.' : 'Đã bỏ ẩn vật phẩm đã chọn.', styleOpts);
+      }
+      const items = splitItemNames(commandParts.slice(1).join(' '));
+      if (!items.length) return SendMessageStyle(api, message, `Dùng: ${prefix}${alias} unfollow <tên vật phẩm>`, styleOpts);
+      ptgService.updateGroupSetting(api.getBotId(), message.threadId, { hiddenItems: [...new Set([...setting.hiddenItems, ...items.map(normalizeItemName)])] });
+      return SendMessageStyle(api, message, `Đã ẩn khỏi báo nhóm: ${items.join(', ')}.`, styleOpts);
+    }
     case 'donate':
       {
         const qrUrl = 'https://files.catbox.moe/7ha8rx.jpeg';
@@ -1110,21 +1330,17 @@ export async function handlePTGCommand(api, message, alias, parts) {
         }
       }
     default: {
-      if (sub && !isNaN(sub)) {
-        return SendMessageStyle(api, message, `⚠️ Chức năng tra cứu người chơi ${sub} hiện đang bảo trì API!`, {
-          ...styleOpts,
-          color: 'red',
-        });
-      }
       const helpText =
         `🔍 Hướng dẫn lệnh Play Together:\n\n` +
-        `• ${prefix}${alias} thoitiet - Xem dự báo thời tiết\n` +
-        `• ${prefix}${alias} hatgiong - Xem kho hạt giống\n` +
-        `• ${prefix}${alias} dungcu - Xem kho dụng cụ\n` +
-        `• ${prefix}${alias} noithat - Xem kho nội thất\n` +
-        `• ${prefix}${alias} friend <tên> - Tìm bạn bè\n` +
-        `• ${prefix}${alias} follow <vật phẩm> - Theo dõi hàng về\n` +
-        `• ${prefix}${alias} <playerID> - Tra cứu người chơi`;
+        `• ${prefix}${alias} thoitiet (tt) - Xem thời tiết farm\n` +
+        `• ${prefix}${alias} <mã người chơi|tên> - Tra cứu hồ sơ\n` +
+        `• ${prefix}${alias} timban <tên> - Tìm người chơi\n` +
+        `• ${prefix}${alias} hatgiong · dungcu · noithat - Xem shop\n` +
+        `• ${prefix}${alias} follow <tên 1, tên 2> - Theo dõi hàng về\n` +
+        `• ${prefix}${alias} follow list | remove <tên> | clear\n` +
+        `• ${prefix}${alias} follow on|off - Bật/tắt tag theo dõi (admin)\n` +
+        `• ${prefix}${alias} notify on|off - Bật/tắt báo nhóm (admin)\n` +
+        `• ${prefix}${alias} unfollow <tên> | list | rm <tên|all> (admin)`;
       return SendMessageStyle(api, message, helpText, {
         color: 'red', size: '10', isBold: true,
         reply: true, tagSender: true, hasNameServer: false,
@@ -1139,11 +1355,12 @@ ptgService.on('notify', async (entry, text) => {
   try {
     const fakeMessage = {
       threadId: entry.threadId, type: entry.type,
-      data: { uidFrom: entry.userId, dName: 'Người dùng' },
+      data: { uidFrom: entry.userId, dName: entry.userName || 'Người dùng' },
     };
+    const setting = ptgService.getGroupSetting(entry.botId, entry.threadId);
     await SendMessageStyle(api, fakeMessage, text, {
       color: 'green', size: '10', isBold: true,
-      reply: false, tagSender: false, hasNameServer: true,
+      reply: false, tagSender: setting.followTags && entry.type === MessageType.GroupMessage, hasNameServer: true,
     });
   } catch (e) {
     console.error('Lỗi gửi notify:', e);

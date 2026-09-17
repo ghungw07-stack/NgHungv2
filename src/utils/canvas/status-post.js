@@ -7,8 +7,29 @@ import { getGlobalPrefix } from "../../service-ngh/service.js";
 import { removeMention } from "../format-util.js";
 import { deleteFile, writeFilePromise } from "../util.js";
 import { threadId } from "worker_threads";
+import { getActiveCanvasStyle } from "./theme.js";
+import { renderPortraitStyle } from "./portrait-style-renderers.js";
 
 async function createStatusImage(text, userInfo) {
+	const activeStyle = getActiveCanvasStyle();
+	if (activeStyle !== 1) {
+		let avatar = null;
+		try { if (userInfo?.avatar) avatar = await loadImage(userInfo.avatar); } catch {}
+		const now = new Date().toLocaleString("vi-VN");
+		return renderPortraitStyle(activeStyle, {
+			kind: "status-post",
+			kicker: "MYBOT • SOCIAL POST",
+			title: "TRẠNG THÁI MỚI",
+			names: [userInfo?.name || "Người dùng"],
+			avatars: [avatar],
+			primaryLabel: "BÀI ĐĂNG",
+			primaryValue: "PUBLIC",
+			secondaryLabel: "THỜI GIAN",
+			secondaryValue: now,
+			body: text,
+			footer: "Bài đăng công khai • Tạo bởi MYBOT",
+		}, "status");
+	}
 	const width = 900;
 	const tempCanvas = createCanvas(width, 1);
 	const tempCtx = tempCanvas.getContext("2d");
@@ -231,4 +252,3 @@ export async function handleCommandStatusPost(api, message, aliasCommand) {
 		await deleteFile(imagePath);
 	}
 }
-

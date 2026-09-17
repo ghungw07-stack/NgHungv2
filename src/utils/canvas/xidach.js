@@ -3,6 +3,8 @@ import path from "path";
 import { createCanvas, loadImage } from "canvas";
 import { FONT_MAIN, formatCurrency, randomIDTemp } from "../format-util.js";
 import { tempDir } from "../io-json.js";
+import { getActiveCanvasStyle } from "./theme.js";
+import { renderCollectionStyle } from "./collection-style-renderers.js";
 
 /* ============================================================================
  * Vẽ ảnh cho minigame Xì Dách:
@@ -277,6 +279,25 @@ export async function createXiDachWaitingImage({
   players,
   maxPlayers,
 }) {
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) {
+    const seats = [{ name: dealerName, balance: dealerBalance, isDealer: true }, ...players];
+    return renderCollectionStyle(activeStyle, {
+      kicker: "MYBOT • XÌ DÁCH CASINO",
+      title: `SẢNH CHỜ • BÀN #${tableLabel || "?"}`,
+      subtitle: `${players.length}/${maxPlayers} người chơi • Nhà cái ${dealerName}`,
+      footer: `Cược ${formatCurrency(betAmount)} • Thả tim hoặc gõ vao ${tableLabel || ""}`,
+      items: Array.from({ length: maxPlayers + 1 }, (_, index) => {
+        const seat = seats[index];
+        return {
+          title: seat?.name || "GHẾ TRỐNG",
+          subtitle: seat?.isDealer ? "Nhà cái" : seat ? `Người chơi ${index}` : "Đang chờ người vào",
+          meta: seat ? (seat.balance != null ? `${formatCurrency(seat.balance)} VNĐ` : "SẴN SÀNG") : "TRỐNG",
+          badge: String(index + 1).padStart(2, "0"),
+        };
+      }),
+    }, "xidach_waiting");
+  }
   const totalSeats = maxPlayers + 1; // + nhà cái
   const seatsPerSide = Math.ceil(totalSeats / 2);
 
@@ -432,6 +453,22 @@ export async function createXiDachPlayingImage({
   currentTurnId,
   centerText,
 }) {
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) {
+    const seats = [{ id: dealerId, name: dealerName, isDealer: true }, ...players];
+    return renderCollectionStyle(activeStyle, {
+      kicker: "MYBOT • XÌ DÁCH LIVE",
+      title: `VÁN #${tableLabel || "?"} • ĐANG DIỄN RA`,
+      subtitle: centerText || `Mức cược ${formatCurrency(betAmount)} VNĐ`,
+      footer: "Rút bài đúng lượt • Nhà cái điều khiển ván",
+      items: seats.map((seat, index) => ({
+        title: seat.name || "Người chơi",
+        subtitle: seat.isDealer ? "Nhà cái" : `${seat.cardCount ?? seat.cards?.length ?? 0} lá bài`,
+        meta: seat.id === currentTurnId ? "ĐẾN LƯỢT" : "ĐANG CHƠI",
+        badge: String(index + 1).padStart(2, "0"),
+      })),
+    }, "xidach_playing");
+  }
   const totalSeats = (maxPlayers || players.length) + 1; // + nhà cái
   const seatsPerSide = Math.ceil(totalSeats / 2);
 
@@ -582,6 +619,21 @@ export async function createXiDachPlayingImage({
  * @param {string} [opts.badge] - vd: "Tới lượt bạn, có 30 giây."
  */
 export async function createXiDachHandImage({ playerName, cards, badge }) {
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) {
+    return renderCollectionStyle(activeStyle, {
+      kicker: "MYBOT • PRIVATE HAND",
+      title: `BÀI CỦA ${playerName}`,
+      subtitle: badge || `${cards.length} lá bài trên tay`,
+      footer: "Thông tin riêng • Không chia sẻ bài với người chơi khác",
+      items: cards.map((card, index) => ({
+        title: `${card.rank}${card.suit}`,
+        subtitle: ["♥", "♦"].includes(card.suit) ? "CHẤT ĐỎ" : "CHẤT ĐEN",
+        meta: `LÁ ${index + 1}`,
+        badge: String(index + 1).padStart(2, "0"),
+      })),
+    }, "xidach_hand");
+  }
   const cardW = 168;
   const cardH = 236;
   const gap = 22;
@@ -630,6 +682,25 @@ export async function createXiDachHandImage({ playerName, cards, badge }) {
  * @param {{name:string, cards:{rank:string,suit:string}[], label:string, outcome:string, isWin:boolean, isDraw:boolean}[]} opts.players
  */
 export async function createXiDachResultImage({ dealerName, dealerCards, dealerLabel, players }) {
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) {
+    const rows = [
+      { title: dealerName || "Nhà cái", subtitle: dealerCards.map((card) => `${card.rank}${card.suit}`).join("  "), meta: dealerLabel, badge: "BANK" },
+      ...players.map((player, index) => ({
+        title: player.name || `Người chơi ${index + 1}`,
+        subtitle: player.cards.map((card) => `${card.rank}${card.suit}`).join("  "),
+        meta: `${player.label || ""} • ${player.outcome || ""}`,
+        badge: player.isDraw ? "DRAW" : player.isWin ? "WIN" : "LOSE",
+      })),
+    ];
+    return renderCollectionStyle(activeStyle, {
+      kicker: "MYBOT • XÌ DÁCH RESULT",
+      title: "KẾT QUẢ XÌ DÁCH",
+      subtitle: "Nhà cái đối đầu người chơi",
+      footer: `${players.filter((player) => player.isWin).length} người thắng • ${players.filter((player) => player.isDraw).length} người hòa`,
+      items: rows,
+    }, "xidach_result");
+  }
   const width = 1000;
   const rowH = 118;
   const headerH = 150;

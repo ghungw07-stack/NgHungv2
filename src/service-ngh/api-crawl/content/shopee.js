@@ -3,6 +3,8 @@ import * as cheerio from "cheerio";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { createCanvas } from "canvas";
+import { getActiveCanvasStyle } from "../../../utils/canvas/theme.js";
+import { renderCollectionStyle } from "../../../utils/canvas/collection-style-renderers.js";
 import { getGlobalPrefix } from "../../service.js";
 import { removeMention } from "../../../utils/format-util.js";
 import { sendMessageTag } from "../../chat-zalo/chat-style/chat-style.js";
@@ -101,6 +103,8 @@ async function searchShopee(keyword, limit = 10) {
 }
 
 async function createShopeeProductsImage(items, keyword) {
+  const style = getActiveCanvasStyle();
+  if (style !== 1) return renderCollectionStyle(style, { kicker: "SHOPPING • SEARCH", title: "SẢN PHẨM SHOPEE", subtitle: `Từ khóa: ${keyword}`, footer: "Mở link sản phẩm trong tin nhắn", items: items.slice(0, 16).map((item, index) => ({ badge: String(index + 1).padStart(2, "0"), title: item.name, subtitle: item.displayPrice || "Giá xem trên Shopee", meta: `Đã bán ${(item.historical_sold || 0).toLocaleString("vi-VN")}` })) }, "shopee");
   const width = 1400;
   const rowHeight = 108;
   const canvas = createCanvas(width, 180 + Math.max(1, items.length) * rowHeight);

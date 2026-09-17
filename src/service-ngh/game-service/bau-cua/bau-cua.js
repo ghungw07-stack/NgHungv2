@@ -1,3 +1,4 @@
+import { getGameMentionUid } from "../../../utils/game-mentions.js";
 import { createCanvas, loadImage } from "canvas";
 import path from "path";
 import fs from "fs";
@@ -10,6 +11,9 @@ import { formatCurrency, normalizeSymbolName, parseGameAmount } from "../../../u
 import { getGlobalPrefix } from "../../service.js";
 import { clearImagePath } from "../../../utils/canvas/index.js";
 import { gameState } from "../game-manager.js";
+import { DEFAULT_JACKPOT, getGameJackpotKey, getGameJackpot, setGameJackpot, addGameJackpot } from "../jackpot-default.js";
+import { getActiveCanvasStyle } from "../../../utils/canvas/theme.js";
+import { renderCollectionStyle } from "../../../utils/canvas/collection-style-renderers.js";
 
 const SYMBOLS = {
   BAU: {
@@ -58,14 +62,19 @@ const SYMBOL_ICON_NAME = Object.fromEntries(Object.values(SYMBOLS).map((s) => [s
 
 const MAX_JACKPOT_MULTIPLIER = 1000;
 const JACKPOT_CONTRIBUTION_PERCENT = 0.6;
-const JACKPOT_CHANCE = 0.07;
-const HOUSE_BIAS_CHANCE = 0.45;
+const JACKPOT_CHANCE = 0.20; // Giảm tỉ lệ nổ hũ xuống 20%
+const HOUSE_BIAS_CHANCE = 0.8;
+
+function roundedRect(ctx, x, y, width, height, radius = 18) {
+  ctx.beginPath(); ctx.roundRect(x, y, width, height, radius);
+}
 
 // Thêm hàm khởi tạo dữ liệu
 export async function initializeGameBauCua() {
   try {
     if (!gameState.data.baucua) gameState.data.baucua = {};
-    if (!gameState.data.baucua.jackpot) gameState.data.baucua.jackpot = "1000000";
+    if (!gameState.data.baucua.jackpots) gameState.data.baucua.jackpots = {};
+    if (!gameState.data.baucua.jackpot) gameState.data.baucua.jackpot = DEFAULT_JACKPOT;
     gameState.data.baucua.jackpot = new Big(gameState.data.baucua.jackpot);
     if (!gameState.data.baucua.history) gameState.data.baucua.history = [];
 
@@ -78,12 +87,6 @@ export async function initializeGameBauCua() {
 // Thêm hàm lưu dữ liệu
 async function saveGameData() {
   gameState.changes.baucua = true;
-}
-
-// Sửa hàm kiểm tra nổ hũ
-function checkJackpot(netWinnings) {
-  // Chỉ vé cược đang thắng mới được quay hũ, xác suất cố định và không theo số dư.
-  return new Big(netWinnings).gt(0) && Math.random() < JACKPOT_CHANCE;
 }
 
 // Sửa đổi hàm xử lý lệnh bầu cua
@@ -145,47 +148,63 @@ export async function handleBauCua(api, message, groupSettings) {
   }
   const currentBalance = new Big(requestData.balance);
 
+  const jackpotKey = getGameJackpotKey(api);
+
   const result = rollDice(Object.keys(bets));
   const winnings = calculateWinnings(bets, result);
   let netWinnings = new Big(winnings).minus(totalBet);
   const isWin = netWinnings.gt(0);
 
-  // Sau khi tính netWinnings, thêm xử lý hũ
-  if (netWinnings.lt(0)) {
-    // Góp 50% số tiền thua vào hũ
-    const contribution = netWinnings.abs().mul(JACKPOT_CONTRIBUTION_PERCENT);
-    gameState.data.baucua.jackpot = gameState.data.baucua.jackpot.plus(contribution);
-  }
+  // Điều kiện nổ hũ Bầu Cua:
+  // 1. Kết quả lắc ra 3 linh vật giống nhau (ví dụ: 3 gà, 3 cua, 3 tôm, 3 cá, 3 bầu, 3 nai)
+  const isTriple = Array.isArray(result) && result.length === 3 && result[0] === result[1] && result[1] === result[2];
+  const tripleSymbol = isTriple ? result[0] : null;
 
-  // Kiểm tra nổ hũ với điều kiện mới
+  // 2. Người chơi CÓ cược vào đúng linh vật triple đó mới nổ hũ
+  const betOnTriple = Boolean(tripleSymbol && bets[tripleSymbol] && new Big(bets[tripleSymbol]).gt(0));
+
+  // 3. Ra triple + cược đúng cửa → nổ hũ | Cược sai cửa → không nổ
+  const isJackpot = betOnTriple;
+
   let jackpotAmount = new Big(0);
-  let isJackpot = checkJackpot(netWinnings);
-
   if (isJackpot) {
-    // Giới hạn tiền thắng từ hũ (1000% tiền cược)
-    const maxJackpotWin = totalBet.mul(MAX_JACKPOT_MULTIPLIER);
-    jackpotAmount = gameState.data.baucua.jackpot;
+    const currentPot = getGameJackpot(gameState, "baucua", jackpotKey);
+    const tripleBet = new Big(bets[tripleSymbol]);
+    const maxJackpotWin = tripleBet.mul(MAX_JACKPOT_MULTIPLIER);
 
-    if (jackpotAmount.gt(maxJackpotWin)) {
+    if (currentPot.gt(maxJackpotWin)) {
       jackpotAmount = maxJackpotWin;
-      gameState.data.baucua.jackpot = gameState.data.baucua.jackpot.minus(maxJackpotWin);
+      setGameJackpot(gameState, "baucua", jackpotKey, currentPot.minus(maxJackpotWin));
     } else {
-      // Reset hũ về 1 triệu nếu ăn hết
-      gameState.data.baucua.jackpot = new Big(1000000);
+      jackpotAmount = currentPot.gt(0) ? currentPot : new Big(0);
+      setGameJackpot(gameState, "baucua", jackpotKey, DEFAULT_JACKPOT);
     }
 
-    // Cộng tiền hũ vào tiền thắng
+    // Tiền trúng hũ cộng vào lợi nhuận
     netWinnings = netWinnings.plus(jackpotAmount);
   }
 
+  // Sau khi tính netWinnings, nếu người chơi thua thì góp 60% số tiền thua vào hũ của bot / server riêng này
+  if (netWinnings.lt(0)) {
+    const contribution = netWinnings.abs().mul(JACKPOT_CONTRIBUTION_PERCENT);
+    addGameJackpot(gameState, "baucua", jackpotKey, contribution);
+  }
+
   // Cập nhật số dư người chơi với tổng tiền thắng/thua
-  await updatePlayerBalance(senderId, netWinnings, isWin || isJackpot);
+  await updatePlayerBalance(senderId, netWinnings, isWin || isJackpot, isWin || isJackpot ? netWinnings : 0, {
+    gameName: isJackpot ? "Bầu Cua (NỔ HŨ)" : "Bầu Cua",
+    gameKey: isJackpot ? "baucua_hu" : "baucua",
+    choice: Object.keys(bets).map((symbol) => SYMBOL_NAMES[symbol] || symbol).join(", "),
+    betAmount: totalBet.toNumber(),
+    detail: isJackpot ? `Nổ hũ 3 ${SYMBOL_NAMES[tripleSymbol] || tripleSymbol}` : `Kết quả: ${result.join("-")}`,
+  });
   await addGameRankPoints(senderId, { won: isWin || isJackpot, jackpot: isJackpot });
 
   // Lưu dữ liệu game
   await saveGameData();
 
   const currentBalanceTotal = currentBalance.plus(netWinnings);
+  const currentJackpot = getGameJackpot(gameState, "baucua", jackpotKey);
 
   const resultMessage = formatResultMessage(
     senderName,
@@ -197,7 +216,7 @@ export async function handleBauCua(api, message, groupSettings) {
     currentBalanceTotal,
     isJackpot,
     jackpotAmount,
-    gameState.data.baucua.jackpot
+    currentJackpot
   );
 
   // Tạo hình ảnh kết quả
@@ -207,7 +226,7 @@ export async function handleBauCua(api, message, groupSettings) {
   await api.sendMessage(
     {
       msg: resultMessage,
-      mentions: [{ pos: 2, uid: senderId, len: senderName.length }],
+      mentions: [{ pos: 2, uid: getGameMentionUid(message), len: senderName.length }],
       attachments: [resultImagePath],
       isUseProphylactic: true,
       ttl: TTL_IMAGE,
@@ -289,16 +308,20 @@ async function parseBets(content, currentBalance) {
 
 function rollDice(playerBets) {
   const randomRoll = () => Array.from({ length: 3 }, () => SYMBOL_LIST[Math.floor(Math.random() * SYMBOL_LIST.length)]);
+  const isTripleResult = (r) => r.length === 3 && r[0] === r[1] && r[1] === r[2];
+
   if (Math.random() >= HOUSE_BIAS_CHANCE) return randomRoll();
 
   // Chọn trong nhiều lượt lắc hợp lệ kết quả có nghĩa vụ trả thưởng thấp nhất.
+  // Triple bị loại trừ khỏi house bias — vì khi triple, hũ sẽ trả thay (không thiệt house).
   // Chỉ xét chính vé cược hiện tại, tuyệt đối không đọc số dư người chơi.
   let bestResult = randomRoll();
   let bestPayout = calculateWinnings(playerBets, bestResult);
   for (let attempt = 1; attempt < 24; attempt++) {
     const candidate = randomRoll();
+    if (isTripleResult(candidate)) continue; // Không tránh triple — để jackpot xử lý
     const payout = calculateWinnings(playerBets, candidate);
-    if (payout.lt(bestPayout)) {
+    if (payout.lt(bestPayout) && !isTripleResult(bestResult)) {
       bestResult = candidate;
       bestPayout = payout;
     }
@@ -357,6 +380,29 @@ function formatResultMessage(
 }
 
 async function createResultImage(result) {
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) {
+    return createBauCuaV2Image(result);
+    /* const images = await Promise.all(result.map(async (symbol) => {
+      try {
+        const imagePath = path.join(process.cwd(), "src", "service-ngh", "game-service", "bau-cua", "image", `${SYMBOL_ICON_NAME[symbol].toLowerCase()}.png`);
+        return fs.existsSync(imagePath) ? await loadImage(imagePath) : null;
+      } catch { return null; }
+    }));
+    return renderCollectionStyle(activeStyle, {
+      kicker: "MYBOT • BẦU CUA LIVE",
+      title: "KẾT QUẢ BẦU CUA",
+      subtitle: result.map((symbol) => SYMBOL_NAMES[symbol]).join(" • "),
+      footer: "Ba linh vật của phiên vừa mở",
+      items: result.map((symbol, index) => ({
+        title: SYMBOL_NAMES[symbol] || symbol,
+        subtitle: `Ô kết quả ${index + 1}`,
+        meta: SYMBOL_ICON_NAME[symbol]?.toUpperCase() || "RESULT",
+        image: images[index],
+        badge: String(index + 1).padStart(2, "0"),
+      })),
+    }, "baucua_result"); */
+  }
   const imageWidth = 400;
   const imageHeight = 400;
   const canvasWidth = imageWidth * 3;
@@ -401,7 +447,36 @@ async function createResultImage(result) {
   });
 }
 
-// Thêm hàm để lấy giá trị hũ hiện tại
-export function getJackpot() {
-  return gameState.data.baucua.jackpot;
+async function createBauCuaV2Image(result) {
+  const width = 900, height = 1200, canvas = createCanvas(width, height), ctx = canvas.getContext("2d");
+  const gold = "#e8c86c", bg = ctx.createLinearGradient(0, 0, width, height);
+  bg.addColorStop(0, "#160b08"); bg.addColorStop(.45, "#4a160d"); bg.addColorStop(1, "#090807"); ctx.fillStyle = bg; ctx.fillRect(0, 0, width, height);
+  roundedRect(ctx, 22, 22, width - 44, height - 44, 32); ctx.strokeStyle = "rgba(232,200,108,.72)"; ctx.lineWidth = 3; ctx.stroke();
+  ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillStyle = gold; ctx.font = "bold 38px sans-serif"; ctx.fillText("BẦU CUA TÔM CÁ", 450, 70);
+  ctx.fillStyle = "rgba(255,255,255,.58)"; ctx.font = "bold 16px sans-serif"; ctx.fillText("KẾT QUẢ PHIÊN VỪA MỞ", 450, 103);
+  const iconFor = async (symbol) => { const file = path.join(process.cwd(), "src", "service-ngh", "game-service", "bau-cua", "image", `${SYMBOL_ICON_NAME[symbol]?.toLowerCase()}.png`); try { return await loadImage(file); } catch { return null; } };
+  const allSymbols = Object.values(SYMBOLS), allIcons = await Promise.all(allSymbols.map((s) => iconFor(s.emoji))), resultNames = result.map(symbol => SYMBOL_NAMES[symbol] || symbol);
+  ctx.beginPath(); ctx.arc(450, 255, 154, 0, Math.PI * 2); ctx.fillStyle = "#c84a18"; ctx.fill(); ctx.strokeStyle = gold; ctx.lineWidth = 12; ctx.stroke(); ctx.beginPath(); ctx.arc(450, 255, 130, 0, Math.PI * 2); ctx.fillStyle = "#ffb21c"; ctx.fill(); ctx.strokeStyle = "#ffe6a0"; ctx.lineWidth = 4; ctx.stroke();
+  for (let i = 0; i < result.length; i++) { const icon = await iconFor(result[i]); if (icon) { const p = [[-48, -34], [48, -8], [0, 48]][i] || [0, 0]; ctx.drawImage(icon, 420 + p[0], 225 + p[1], 60, 60); } }
+  ctx.fillStyle = "#fff4bc"; ctx.font = "bold 18px sans-serif"; ctx.fillText(resultNames.join(" • "), 450, 405);
+  const cardW = 260, cardH = 220, gap = 22, left = 48, top = 450;
+  allSymbols.forEach((symbol, index) => { const col = index % 3, row = Math.floor(index / 3), x = left + col * (cardW + gap), y = top + row * (cardH + gap), hit = result.includes(symbol.emoji); roundedRect(ctx, x, y, cardW, cardH, 24); ctx.fillStyle = hit ? "rgba(205,63,35,.82)" : "rgba(22,12,12,.76)"; ctx.fill(); ctx.strokeStyle = hit ? "#ffdd70" : "rgba(232,200,108,.38)"; ctx.lineWidth = hit ? 4 : 2; ctx.stroke(); if (allIcons[index]) ctx.drawImage(allIcons[index], x + 75, y + 25, 110, 110); ctx.fillStyle = hit ? "#fff1a2" : "#e8d8b0"; ctx.font = "bold 25px sans-serif"; ctx.fillText(symbol.name.toUpperCase(), x + cardW / 2, y + 165); ctx.fillStyle = "rgba(255,255,255,.54)"; ctx.font = "bold 15px sans-serif"; ctx.fillText(hit ? "XUẤT HIỆN" : "CỬA CƯỢC", x + cardW / 2, y + 193); });
+  roundedRect(ctx, 48, 970, 804, 112, 22); ctx.fillStyle = "rgba(3,3,3,.66)"; ctx.fill(); ctx.strokeStyle = "rgba(232,200,108,.5)"; ctx.stroke(); ctx.fillStyle = gold; ctx.font = "bold 17px sans-serif"; ctx.fillText("KẾT QUẢ", 450, 1000); ctx.fillStyle = "#fff8df"; ctx.font = "bold 30px sans-serif"; ctx.fillText(resultNames.join("  •  "), 450, 1042);
+  const filePath = path.resolve(`./assets/temp/baucua_result_v2_${Date.now()}.png`); await new Promise((resolve, reject) => { const out = fs.createWriteStream(filePath); canvas.createPNGStream().pipe(out); out.on("finish", resolve); out.on("error", reject); }); return filePath;
+}
+
+// Thêm hàm để lấy giá trị hũ hiện tại theo bot hoặc server riêng
+export function getJackpot(key = "default") {
+  return getGameJackpot(gameState, "baucua", key);
+}
+
+export function resetJackpot(key = null) {
+  if (key) {
+    setGameJackpot(gameState, "baucua", key, DEFAULT_JACKPOT);
+  } else {
+    gameState.data.baucua.jackpot = DEFAULT_JACKPOT;
+    gameState.data.baucua.jackpots = {};
+    saveGameData();
+  }
+  return new Big(DEFAULT_JACKPOT);
 }

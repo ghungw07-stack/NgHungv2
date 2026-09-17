@@ -32,8 +32,11 @@ export const sendReactionMessageFactory = apiFactory()((api, appContext, utils) 
       : ReactionMap[icon] || ReactionMap.NONE;
     const { rType, text } = reaction;
     const rMsg = messageArray.map((msg) => ({
-      gMsgID: parseInt(msg.data.msgId),
-      cMsgID: parseInt(msg.data.cliMsgId),
+      // ID tin nhắn Zalo có thể vượt Number.MAX_SAFE_INTEGER. Ép bằng parseInt
+      // sẽ làm sai ID, khiến server nhận request nhưng không gắn reaction.
+      // Giữ chuỗi nguyên vẹn (cùng cách deleteMessage gửi globalMsgId).
+      gMsgID: String(msg.data.msgId),
+      cMsgID: String(msg.data.cliMsgId),
       msgType: parseInt(msg.type),
     }));
 

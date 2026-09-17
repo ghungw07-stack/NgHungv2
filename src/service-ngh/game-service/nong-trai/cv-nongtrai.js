@@ -2,6 +2,8 @@ import { SOIL_STATUS, CROPS } from "./data-nongtrai.js";
 import { createCanvas, loadImage } from "canvas";
 import fs from "fs";
 import path from "path";
+import { getActiveCanvasStyle } from "../../../utils/canvas/theme.js";
+import { renderCollectionStyle } from "../../../utils/canvas/collection-style-renderers.js";
 
 const PLOT_SIZE = 80; // Giảm kích thước mỗi ô đất xuống
 const GRASS_HEIGHT = 20; // Giảm chiều cao cỏ
@@ -64,6 +66,24 @@ async function getSoilImage() {
 export async function drawFarm(farm) {
   const plots = farm.plots;
   const plotsCount = plots.length;
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) {
+    return renderCollectionStyle(activeStyle, {
+      kicker: "MYBOT • NÔNG TRẠI",
+      title: farm.name || "KHU VƯỜN CỦA BẠN",
+      subtitle: `${plotsCount} ô đất • Theo dõi cây trồng và trạng thái đất`,
+      footer: "Tưới nước • Bón phân • Thu hoạch đúng thời điểm",
+      items: plots.map((plot, index) => {
+        const crop = CROPS[plot.cropType] || CROPS[plot.crop] || null;
+        return {
+          title: crop?.name || (plot.cropType ? String(plot.cropType) : "Ô ĐẤT TRỐNG"),
+          subtitle: plot.stage || plot.status || SOIL_STATUS[plot.soilStatus]?.name || "Sẵn sàng gieo hạt",
+          meta: plot.harvestTime || plot.timeLeft || (plot.cropType ? "ĐANG LỚN" : "TRỐNG"),
+          badge: String(index + 1).padStart(2, "0"),
+        };
+      }),
+    }, "nongtrai");
+  }
 
   // Tính số hàng và số cột
   const cols = Math.min(plotsCount, MAX_PLOTS_PER_ROW);

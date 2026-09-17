@@ -1,9 +1,10 @@
+import { handleCaptchaMessage } from "../service-ngh/anti-service/group-captcha.js";
 import schedule from "node-schedule";
 import { MessageMention, MessageSendType, MessageType } from "zlbotngh";
 import { antiForward } from "../service-ngh/anti-service/anti-forward.js";
 import { handleAutoRaiLinkMention } from "../service-ngh/scheduler/auto-rai-link.js";
 import { handleWerewolfGroupRestriction, handleWerewolfGroupVote } from "../service-ngh/game-service/ma-soi/index.js";
-import { inheritBotLeader, isAdmin, isBotLeader } from "../index.js";
+import { developerAdmins, inheritBotLeader, isAdmin, isBotLeader } from "../index.js";
 import { antiFile } from "../service-ngh/anti-service/anti-file.js";
 import { antiLink } from "../service-ngh/anti-service/anti-link.js";
 import { antiSpam } from "../service-ngh/anti-service/anti-spam.js";
@@ -11,7 +12,7 @@ import { antiBadWord } from "../service-ngh/anti-service/anti-badword.js";
 import { antiNotText } from "../service-ngh/anti-service/anti-not-text.js";
 import { handleMute } from "../service-ngh/anti-service/mute-user.js";
 import { Reactions, ReactionMap } from "../api-zalo/index.js";
-import { getGlobalPrefix, handleOnChatUser, handleOnReplyFromUser } from "../service-ngh/service.js";
+import { getGlobalPrefix, handleOnChatUser, handleOnReplyFromUser, hasPendingMediaSelection } from "../service-ngh/service.js";
 import { chatWithSimsimi } from "../service-ngh/chat-bot/simsimi/simsimi-api.js";
 import { handleChatBot } from "../service-ngh/chat-bot/bot-learning/ngh-bot.js";
 import { autoJoinGroup } from "../service-ngh/anti-service/auto-join.js";
@@ -43,6 +44,7 @@ import { checkAutoPingId } from "../commands/send-all/ping-id.js";
 import { isUserSilenced } from "../utils/user-antispam.js";
 import { checkAutoVoiceTriggers } from "../service-ngh/chat-bot/auto-voice-reply.js";
 import { isInteractiveCommandContent } from "../utils/message-routing.js";
+import { runWithGameServer } from "../service-ngh/game-service/private-game-server.js";
 
 class GroupsSettingsAll {
   constructor() {
@@ -328,6 +330,16 @@ schedule.scheduleJob("*/10 * * * * *", () => {
 });
 
 export async function messagesUser(api, message) {
+  // Server game thuê gắn với owner của bot con, không gắn UID tài khoản Zalo.
+  // Vì vậy đổi account cho cùng một bot vẫn giữ nguyên dữ liệu game riêng.
+  const gameServerOwnerId = api.apiManager?.ownerId
+    || api.apiManager?.idBotWithBotMain
+    || api.apiManager?.idBotMainWithBot
+    || api.getBotId();
+  return runWithGameServer(gameServerOwnerId, () => messagesUserWithGameServer(api, message));
+}
+
+async function messagesUserWithGameServer(api, message) {
   const idBot = api.getBotId();
   // Một số bot con không có accountInfo (đặc biệt tài khoản không tên),
   // nhưng event vẫn phải tiếp tục để command có thể phản hồi.
@@ -335,7 +347,12 @@ export async function messagesUser(api, message) {
 
   // Chặn ngay từ đầu nếu tin nhắn này (cùng cliMsgId) đã được xử lý rồi cho bot này.
   // Trùng 1 lần là bỏ qua luôn, không delay, không trả lời, không ảnh hưởng bot khác.
-  if (isDuplicateCliMsg(idBot, message)) {
+  const contentForSelection = typeof message.data?.content === "string"
+    ? message.data.content.trim()
+    : String(message.data?.content?.title || "").trim();
+  const pendingNumericSelection = !message.data?.quote && /^\d+(?:\s+\S+)?$/u.test(contentForSelection) &&
+    hasPendingMediaSelection(message.data.uidFrom);
+  if (!pendingNumericSelection && isDuplicateCliMsg(idBot, message)) {
     if (process.env.NGH_VERBOSE_MESSAGE_LOG === "1") {
       console.log(`[ ${accountName} ] Bỏ qua tin nhắn trùng cliMsgId (chống flood)`);
     }
@@ -344,6 +361,8 @@ export async function messagesUser(api, message) {
 
   const senderId = message.data.uidFrom;
   const threadId = message.threadId;
+  if (message.type === MessageType.GroupMessage && String(senderId) !== String(idBot)
+    && await handleCaptchaMessage(api, message, groupSettingsAll)) return;
   ensureRentalExpiryJob(api, threadId);
   let content = message.data.content;
   const isPlainText = typeof message.data.content === "string";
@@ -353,8 +372,9 @@ export async function messagesUser(api, message) {
   const prefix = getGlobalPrefix(idBot);
   const shouldResolveLeaderIdentity =
     message.type === MessageType.DirectMessage ||
-    (typeof content === "string" && isInteractiveCommandContent(content, prefix));
+    (typeof content === "string" && isInteractiveCommandContent(content, prefix, message));
   if (shouldResolveLeaderIdentity) {
+    await developerAdmins.resolve(api, senderId);
     // Identity discovery can require one or more Zalo profile requests for a
     // previously unseen user. Give it a small budget for the owner fast-path,
     // then let its internal cache finish warming without delaying every normal
@@ -504,7 +524,10 @@ export async function messagesUser(api, message) {
         zaloName: senderName,
         avatar: message.data?.avatar,
       };
-      groupInfo = await getGroupInfoData(api, threadId).catch((error) => {
+      // Lệnh captcha cần quyền hiện tại, kể cả khi key vừa được cấp.
+      const captchaSettingCommand = isPlainText && content.trim().startsWith(prefix)
+        && /^\S+\s+captcha(?:\s|$)/iu.test(content.trim().slice(prefix.length).trim());
+      groupInfo = await getGroupInfoData(api, threadId, { forceRefresh: captchaSettingCommand }).catch((error) => {
         console.error("Lỗi lấy thông tin nhóm:", error?.message || error);
         return {};
       });
@@ -620,7 +643,11 @@ export async function messagesUser(api, message) {
         }
       }
 
-      if ((handleChat || isAdminBot) && numberHandleCommand === -1 && !isSilenced) {
+      if (
+        (handleChat || isAdminBot || isAdminLevelHighest || pendingNumericSelection) &&
+        (numberHandleCommand === -1 || pendingNumericSelection) &&
+        !isSilenced
+      ) {
         handleChat = await handleOnReplyFromUser(
           api,
           message,
@@ -642,7 +669,10 @@ export async function messagesUser(api, message) {
 
       // Auto PID also supports image messages with a text caption containing
       // a six-digit code; do not gate it on string-only message content.
-      if (!isSelf && !isBlocked && !autoRaiLinkHandled && numberHandleCommand === -1 && !isSilenced) {
+      // Ảnh có caption đôi khi bị bộ phân tích lệnh đánh dấu khác -1;
+      // vẫn phải cho PID OCR chạy khi nhóm đã bật autoPid.
+      const canCheckAutoPid = numberHandleCommand === -1 || !isPlainText;
+      if (!isSelf && !isBlocked && !autoRaiLinkHandled && canCheckAutoPid && !isSilenced) {
         await checkAutoPingId(api, message, groupSettings, groupInfo);
         if (isPlainText) await checkAutoVoiceTriggers(api, message, groupSettings);
       }

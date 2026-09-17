@@ -18,7 +18,6 @@ async function taskSendMessages(options) {
     delayChat,
     api,
     abortSignal,
-    msgOrigin,
   } = options;
 
   for (let i = 0; i < countNumChat; i++) {
@@ -49,21 +48,11 @@ async function taskSendMessages(options) {
         threadId,
         message.type
       );
-    } else if (msgOrigin && clientIdCustomer) {
+    } else {
       await api.sendMessageForward(
         {
           msg: newChatMessage,
           clientId: clientIdCustomer,
-        },
-        threadId,
-        message.type
-      );
-    } else {
-      // Nhóm đích chưa có tin cũ của bot: gửi trực tiếp thay vì dùng clientId
-      // của nhóm nguồn, tránh lỗi khi chạy bithuat từ listgroups.
-      await api.sendMessage(
-        {
-          msg: newChatMessage,
         },
         threadId,
         message.type
@@ -76,10 +65,8 @@ async function taskSendMessages(options) {
 
 async function sendUndoDeleteMessage(options, abortSignal) {
   const { api, msgOrigin } = options;
-  if (!msgOrigin) return;
-
-  const msgDelete = { ...msgOrigin, data: { ...msgOrigin } };
-  const msgUndo = { ...msgDelete, data: { ...msgDelete.data } };
+  msgOrigin.data = { ...msgOrigin };
+  const msgUndo = { ...msgOrigin };
   msgUndo.data.quote = {
     globalMsgId: msgOrigin.msgId,
     cliMsgId: msgOrigin.cliMsgId,
@@ -87,21 +74,13 @@ async function sendUndoDeleteMessage(options, abortSignal) {
 
   const deleteTask = async () => {
     while (!abortSignal.aborted) {
-      try {
-        await api.deleteMessage(msgDelete, false);
-      } catch {
-        break;
-      }
+      await api.deleteMessage(msgOrigin, false);
     }
   };
 
   const undoTask = async () => {
     while (!abortSignal.aborted) {
-      try {
-        await api.undoMessage(msgUndo);
-      } catch {
-        break;
-      }
+      await api.undoMessage(msgUndo);
     }
   };
 
@@ -112,18 +91,9 @@ async function runParallelTasksWithAbort(options) {
   const abortSignal = { aborted: false };
 
   const t1 = taskSendMessages({ ...options, abortSignal });
-  if (!options.msgOrigin) {
-    await t1;
-    return;
-  }
-
   const t2 = sendUndoDeleteMessage(options, abortSignal);
-  try {
-    await Promise.race([t1, t2]);
-  } finally {
-    abortSignal.aborted = true;
-    await Promise.allSettled([t1, t2]);
-  }
+
+  await Promise.race([t1.then(() => (abortSignal.aborted = true)), t2.then(() => (abortSignal.aborted = true))]);
 }
 
 export async function handleChatBiThuatPhaNhom(api, message, aliasCommand, groupInfo) {

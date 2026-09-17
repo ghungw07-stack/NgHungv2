@@ -3,6 +3,8 @@ import path from "path";
 import { getFontCanvas, formatCurrency } from "../../../../utils/format-util.js";
 import { writeFilePromise } from "../../../../utils/util.js";
 import { JSON_DATA_PATH } from "../../../../utils/io-json.js";
+import { getActiveCanvasStyle } from "../../../../utils/canvas/theme.js";
+import { renderCollectionStyle } from "../../../../utils/canvas/collection-style-renderers.js";
 
 // Cấu trúc tiền thưởng cho từng cấp độ
 const MONEY_LEVELS = [
@@ -23,10 +25,36 @@ const MONEY_LEVELS = [
   { level: 15, amount: 150000000, milestone: true }, // Thắng cuộc
 ];
 
+function quizStyleModel(kind, data) {
+  const common = { kicker: "MYBOT • AI LÀ TRIỆU PHÚ", footer: "Ai Là Triệu Phú Bot" };
+  if (kind === "question") {
+    const q = data.game.currentQuestion;
+    const removed = Array.isArray(data.game.removedOptions) ? data.game.removedOptions : [];
+    return { ...common, title: `CÂU ${data.game.currentLevel}/15`, subtitle: q.question, footer: "Trả lời A, B, C hoặc D • Dùng quyền trợ giúp nếu cần", items: ["A", "B", "C", "D"].map((letter) => ({ badge: letter, title: removed.includes(letter) ? "ĐÃ LOẠI" : (q.options?.[letter] ?? q[`case${letter}`] ?? "—"), subtitle: removed.includes(letter) ? "Phương án đã bị loại bởi 50:50" : "Phương án trả lời", meta: removed.includes(letter) ? "LOCKED" : letter })) };
+  }
+  if (kind === "audience") return { ...common, title: "KHÁN GIẢ BÌNH CHỌN", subtitle: `Kết quả cho câu ${data.game.currentLevel}/15`, footer: "Quyết định cuối cùng thuộc về bạn", items: ["A", "B", "C", "D"].map((letter) => ({ badge: letter, title: `Đáp án ${letter}`, subtitle: "Tỷ lệ bình chọn từ khán giả", meta: `${Math.max(0, Math.min(100, Number(data.percentages?.[letter] ?? 0)))}%` })) };
+  if (kind === "phone") return { ...common, title: "CUỘC GỌI TRỢ GIÚP", subtitle: "Bạn bè đã đưa ra lời khuyên", footer: "Cuộc gọi kết thúc • Bạn là người quyết định", items: [{ badge: "☎", title: data.advice?.answer ? `Gợi ý: ${data.advice.answer}` : "Hãy cân nhắc thật kỹ", subtitle: data.advice?.confidence || "Tôi nghĩ đáp án hợp lý nhất là ...", meta: "PHONE A FRIEND" }] };
+  if (kind === "answer") return { ...common, title: data.isCorrect ? "CHÍNH XÁC!" : "SAI RỒI!", subtitle: data.isCorrect ? "Bạn đã trả lời đúng" : `Đáp án đúng là ${data.correctAnswer}`, footer: `Câu ${data.game.currentLevel}/15`, items: [{ badge: data.isCorrect ? "✓" : "×", title: `Bạn chọn: ${data.selectedAnswer}`, subtitle: data.isCorrect ? "Tiếp tục chinh phục câu hỏi kế tiếp" : `Đáp án chính xác: ${data.correctAnswer}`, meta: `${formatCurrency(MONEY_LEVELS[Math.max(0, data.game.currentLevel - 1)].amount)} VNĐ` }] };
+  if (kind === "summary") return { ...common, title: data.isWinner ? "NHÀ VÔ ĐỊCH" : "TỔNG KẾT CUỘC CHƠI", subtitle: data.game.playerName || "Người chơi", footer: "Cảm ơn bạn đã chơi Ai Là Triệu Phú", items: [
+    { badge: "01", title: "Tiền thưởng", subtitle: "Tổng giải thưởng nhận được", meta: `${formatCurrency(data.finalMoney)} VNĐ` },
+    { badge: "02", title: "Câu trả lời đúng", subtitle: "Tiến độ hoàn thành", meta: `${data.totalCorrectAnswers}/15` },
+    { badge: "03", title: "50:50", subtitle: "Quyền trợ giúp", meta: data.game.usedHelps?.fifty50 ? "ĐÃ DÙNG" : "CÒN" },
+    { badge: "04", title: "Khán giả / Gọi điện", subtitle: "Quyền trợ giúp", meta: `${data.game.usedHelps?.audience ? "ĐÃ DÙNG" : "CÒN"} / ${data.game.usedHelps?.phone ? "ĐÃ DÙNG" : "CÒN"}` },
+  ] };
+  return { ...common, title: "BẢNG TIỀN THƯỞNG", subtitle: `Vị trí hiện tại: câu ${data.currentLevel}/15`, footer: "Các mốc 5, 10 và 15 là mốc an toàn", items: MONEY_LEVELS.slice().reverse().map((level) => ({ badge: String(level.level).padStart(2, "0"), title: `${formatCurrency(level.amount)} VNĐ`, subtitle: level.milestone ? "MỐC AN TOÀN" : level.level < data.currentLevel ? "ĐÃ VƯỢT QUA" : "CHƯA MỞ", meta: level.level === data.currentLevel ? "ĐANG CHƠI" : level.level === data.highlightLevel ? "NỔI BẬT" : "" })) };
+}
+
+async function renderQuizStyle(kind, data) {
+  const style = getActiveCanvasStyle();
+  return style === 1 ? null : renderCollectionStyle(style, quizStyleModel(kind, data), `ailatrieuphu_${kind}`);
+}
+
 // Vẽ canvas câu hỏi với thiết kế hiện đại và đẹp mắt
 export async function drawQuestionCanvas(game) {
   const question = game.currentQuestion;
   if (!question) return null;
+  const styled = await renderQuizStyle("question", { game });
+  if (styled) return styled;
 
   const width = 1200;
   const height = 900;
@@ -714,6 +742,8 @@ export function createAudioPlaylist(level, sequence = "question") {
 // Vẽ canvas kết quả Hỏi ý kiến khán giả
 export async function drawAudienceCanvas(game, percentages) {
   try {
+    const styled = await renderQuizStyle("audience", { game, percentages });
+    if (styled) return styled;
     const width = 1000;
     const height = 700;
     const padding = 60;
@@ -843,6 +873,8 @@ export async function drawAudienceCanvas(game, percentages) {
 // Vẽ canvas quyền trợ giúp: Gọi điện
 export async function drawPhoneCanvas(game, advice) {
   try {
+    const styled = await renderQuizStyle("phone", { game, advice });
+    if (styled) return styled;
     const width = 1000;
     const height = 600;
     const canvas = createCanvas(width, height);
@@ -924,6 +956,8 @@ export async function drawPhoneCanvas(game, advice) {
 
 // Vẽ canvas kết quả trả lời (đúng/sai)
 export async function drawAnswerResultCanvas(game, selectedAnswer, isCorrect, correctAnswer) {
+  const styled = await renderQuizStyle("answer", { game, selectedAnswer, isCorrect, correctAnswer });
+  if (styled) return styled;
   const width = 1200;
   const height = 600;
   const canvas = createCanvas(width, height);
@@ -1043,6 +1077,8 @@ export async function drawAnswerResultCanvas(game, selectedAnswer, isCorrect, co
 
 // Vẽ canvas tổng kết game
 export async function drawGameSummaryCanvas(game, finalMoney, totalCorrectAnswers, isWinner = false) {
+  const styled = await renderQuizStyle("summary", { game, finalMoney, totalCorrectAnswers, isWinner });
+  if (styled) return styled;
   const width = 1200;
   const height = 800;
   const canvas = createCanvas(width, height);
@@ -1219,6 +1255,8 @@ export async function drawGameSummaryCanvas(game, finalMoney, totalCorrectAnswer
 
 // Vẽ canvas bảng xếp hạng tiền thưởng
 export async function drawMoneyLadderCanvas(currentLevel, highlightLevel = null) {
+  const styled = await renderQuizStyle("ladder", { currentLevel, highlightLevel });
+  if (styled) return styled;
   const width = 500;
   const height = 800;
   const canvas = createCanvas(width, height);

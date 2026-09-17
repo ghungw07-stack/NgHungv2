@@ -5,6 +5,8 @@ import * as cv from "./index.js";
 import { tempDir } from "../io-json.js";
 import { FONT_MAIN, randomIDTemp } from "../format-util.js";
 import { loadImageWithRetry } from "../util.js";
+import { getActiveCanvasStyle } from "./theme.js";
+import { renderCollectionStyle } from "./collection-style-renderers.js";
 
 const DEFAULT_OPTIONS = {
   avatarSize: 160, 
@@ -48,6 +50,30 @@ export async function createAvatarListCanvas(photos = [], options = {}) {
       ...(options.font || {}),
     },
   };
+
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) {
+    const images = await Promise.all(photos.slice(0, 16).map(async (photo) => {
+      const urls = [photo.url, photo.bkUrl, photo.thumbnail, photo.hdUrl, photo.normalUrl].filter(Boolean);
+      for (const url of urls) {
+        try { return await loadImageWithRetry(url, 1, 2500); } catch {}
+      }
+      return null;
+    }));
+    return renderCollectionStyle(activeStyle, {
+      kicker: "MYBOT • AVATAR ARCHIVE",
+      title: "LỊCH SỬ AVATAR",
+      subtitle: `${photos.length} ảnh đại diện đã tìm thấy`,
+      footer: "Ảnh được sắp theo thứ tự từ mới đến cũ",
+      items: photos.slice(0, 16).map((photo, index) => ({
+        title: `Ảnh đại diện ${index + 1}`,
+        subtitle: photo.createdTime || photo.createTime || "Không rõ thời gian",
+        meta: photo.id || photo.photoId || "AVATAR",
+        image: images[index],
+        badge: String(index + 1).padStart(2, "0"),
+      })),
+    }, "avatar_list");
+  }
 
   const rows = Math.ceil(photos.length / mergedOptions.avatarsPerRow);
   const itemWidth = mergedOptions.avatarSize + mergedOptions.cardPadding * 2 + mergedOptions.gap;
@@ -313,4 +339,3 @@ async function drawAvatarItem(ctx, photo, index, x, y, options) {
     console.error(`Lỗi khi vẽ avatar item ${index}:`, error);
   }
 }
-

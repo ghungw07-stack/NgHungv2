@@ -185,12 +185,24 @@ async function startBaiCao(api, message, table) {
     const score = baiCaoScore(hands[p.id]);
     const cmp = score.tier !== dealerScore.tier ? score.tier - dealerScore.tier : score.points - dealerScore.points;
     const delta = cmp > 0 ? table.bet : cmp < 0 ? table.bet.neg() : new Big(0);
-    await updatePlayerBalance(p.id, delta.toNumber(), delta.gt(0), delta.toNumber());
+    await updatePlayerBalance(p.id, delta.toNumber(), delta.gt(0), delta.toNumber(), {
+      gameName: "Bài Cào",
+      gameKey: "baicao",
+      choice: score.label,
+      betAmount: table.bet?.toNumber?.() || Number(table.bet) || 0,
+      detail: `${score.label}`,
+    });
     await addGameRankPoints(p.id, { won: delta.gt(0) });
     dealerNet = dealerNet.minus(delta);
     lines.push(`${p.name}: ${hands[p.id].map(cardText).join(" ")} · ${score.label} · ${cmp > 0 ? "THẮNG" : cmp < 0 ? "THUA" : "HÒA"} ${delta.eq(0) ? "" : `${delta.gt(0) ? "+" : ""}${formatCurrency(delta)}`}`);
   }
-  await updatePlayerBalance(dealer.id, dealerNet.toNumber(), dealerNet.gt(0), dealerNet.toNumber());
+  await updatePlayerBalance(dealer.id, dealerNet.toNumber(), dealerNet.gt(0), dealerNet.toNumber(), {
+    gameName: "Bài Cào (Cái)",
+    gameKey: "baicao",
+    choice: "Nhà Cái",
+    betAmount: table.bet?.toNumber?.() || Number(table.bet) || 0,
+    detail: `${dealerScore.label}`,
+  });
   await addGameRankPoints(dealer.id, { won: dealerNet.gt(0) });
   removeTable(table);
   return reply(api, message, `KẾT QUẢ BÀI CÀO\n\n${lines.join("\n")}`);

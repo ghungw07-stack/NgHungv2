@@ -3,6 +3,8 @@ import path from "path";
 import { createCanvas } from "canvas";
 import { FONT_MAIN, formatCurrency, randomIDTemp } from "../format-util.js";
 import { tempDir } from "../io-json.js";
+import { getActiveCanvasStyle } from "./theme.js";
+import { renderCollectionStyle } from "./collection-style-renderers.js";
 
 function rounded(ctx, x, y, w, h, r) {
   ctx.beginPath();
@@ -28,6 +30,23 @@ function save(canvas, game) {
 }
 
 export async function createCardTableLobbyImage({ game, ownerName, players, betAmount, maxPlayers = 4 }) {
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) {
+    const isTienLenStyle = game === "tienlen";
+    const seats = Array.from({ length: maxPlayers }, (_, index) => players[index] || null);
+    return renderCollectionStyle(activeStyle, {
+      kicker: "MYBOT • CARD TABLE LOUNGE",
+      title: isTienLenStyle ? "TIẾN LÊN MIỀN NAM" : "BÀI CÀO 3 LÁ",
+      subtitle: `Sảnh chờ ${players.length}/${maxPlayers} người • Chủ bàn ${ownerName}`,
+      footer: `Cược ${formatCurrency(betAmount)} • Thả tim để tham gia • Gõ batdau khi đủ người`,
+      items: seats.map((player, index) => ({
+        title: player?.name || "GHẾ TRỐNG",
+        subtitle: player ? (index === 0 ? "Chủ bàn" : `Người chơi ${index + 1}`) : "Thả tim để ngồi",
+        meta: player ? "SẴN SÀNG" : "ĐANG CHỜ",
+        badge: String(index + 1).padStart(2, "0"),
+      })),
+    }, `${game}_waiting`);
+  }
   const width = 1200;
   const height = 720;
   const canvas = createCanvas(width, height);

@@ -47,8 +47,8 @@ function getWelcomePMConfig() {
   
   if (!welcomePMConfigCache) {
     welcomePMConfigCache = {
-      defaultMessage: "HA HUY HOANG",
-      defaultCardContent: "HA HUY HOANG",
+      defaultMessage: "NGUYỄN GIA HƯNG",
+      defaultCardContent: "NGUYỄN GIA HƯNG",
       customMessages: {},
       customCards: {}
     };
@@ -74,13 +74,15 @@ export async function handleWelcomeBye(api, message, groupSettings) {
   const threadId = message.threadId;
   const prefix = getGlobalPrefix(api.getBotId());
 
-  const [command, option, ...messageParts] = content.trim().split(/\s+/);
+  const trimmedContent = content.trim();
+  const [command, option] = trimmedContent.split(/\s+/);
   const optionNormalized = option?.toLowerCase();
   const isWelcomeCommand = command === `${prefix}welcome`;
   const isByeCommand = command === `${prefix}bye`;
 
   if ((isWelcomeCommand || isByeCommand) && optionNormalized === "set") {
-    const customMessage = messageParts.join(" ").trim();
+    // Giữ nguyên xuống dòng trong nội dung sau `welcome set`/`bye set`.
+    const customMessage = trimmedContent.replace(/^\S+\s+set(?:[ \t]+|\r?\n)?/iu, "").trim();
     if (!customMessage) {
       await sendMessageWarning(
         api,

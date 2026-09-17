@@ -22,6 +22,7 @@ import { isAdmin } from "../../../index.js";
 import { translateWithGemini } from "../content/translate.js";
 import { MessageSendType } from "../../../api-zalo/index.js";
 import { logManagerBot } from "../../../utils/io-json.js";
+import { extractGeminiImageUrls } from "./gemini-image-input.js";
 
 // Gemini 2.0 Flash Experimental Image Generation đã bị gỡ khỏi API.
 // Ưu tiên model ảnh mới, fallback về Nano Banana nếu project/API key chưa có model mới.
@@ -272,37 +273,24 @@ export async function askGeminiDrawImage(api, message, aliasCommand) {
   if (quote) {
     if (quote.cliMsgType === MessageSendType["chat.photo"]) {
       const attach = deepParseJSON(quote.attach);
-      const linkImg = attach.href;
-      const base64Image = await fetchImageAsBase64(linkImg);
-      if (base64Image) {
+      const imageUrls = extractGeminiImageUrls(attach, quote, message.data);
+      const imageParts = [];
+      for (const linkImg of imageUrls) {
+        const base64Image = await fetchImageAsBase64(linkImg);
+        if (!base64Image) continue;
+        const linkLower = String(linkImg).toLowerCase();
         let mimeType = base64Image.contentType;
-        const linkLower = String(linkImg || "").toLowerCase();
-        
-        if (linkLower.includes(".webp")) {
-          mimeType = "image/webp";
-        } else if (mimeType === "image/jpg" || mimeType === "image/JPG") {
-          mimeType = "image/jpeg";
-        } else if (!mimeType || mimeType === "application/octet-stream") {
-          if (linkLower.includes(".jpg") || linkLower.includes(".jpeg")) {
-            mimeType = "image/jpeg";
-          } else if (linkLower.includes(".png")) {
-            mimeType = "image/png";
-          } else if (linkLower.includes(".webp")) {
-            mimeType = "image/webp";
-          } else {
-            mimeType = "image/jpeg";
-          }
-        }
+        if (linkLower.includes(".webp")) mimeType = "image/webp";
+        else if (mimeType === "image/jpg" || mimeType === "image/JPG") mimeType = "image/jpeg";
+        else if (!mimeType || mimeType === "application/octet-stream") mimeType = linkLower.includes(".png") ? "image/png" : "image/jpeg";
+        imageParts.push({ inlineData: { mimeType, data: base64Image.base64String } });
+      }
+      if (imageParts.length) {
         contents = {
           type: "image",
           content: [
-            { text: prompt },
-            {
-              inlineData: {
-                mimeType: mimeType,
-                data: base64Image.base64String,
-              },
-            },
+            { text: imageParts.length > 1 ? `${prompt}\nHãy dùng toàn bộ ${imageParts.length} ảnh đầu vào để ghép/chỉnh theo yêu cầu, không bỏ ảnh nào.` : prompt },
+            ...imageParts,
           ],
         };
       }

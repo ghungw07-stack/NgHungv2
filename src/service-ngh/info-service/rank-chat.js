@@ -5,7 +5,6 @@ import { MessageType } from "zlbotngh";
 import { RANK_LIEN_QUAN_RESOURCE_PATH_GLOBAL, rankInfoJsonPath } from "../../utils/io-json.js";
 import { removeMention } from "../../utils/format-util.js";
 import { getGlobalPrefix } from "../service.js";
-import { getMessageCache } from "../../utils/message-cache.js";
 import { sendMessageFromSQL } from "../chat-zalo/chat-style/chat-style.js";
 import { deleteFile, readFileSync } from "../../utils/util.js";
 import { gameTypeCaro } from "../game-service/mini-game/caro-game/index.js";
@@ -280,7 +279,14 @@ function getRankJournalWriter(idBot) {
   const botKey = String(idBot);
   let writer = rankJournalWriters.get(botKey);
   if (!writer) {
-    writer = { entries: [], timer: null, chain: Promise.resolve(), snapshotting: false };
+    writer = {
+      entries: [],
+      timer: null,
+      chain: Promise.resolve(),
+      snapshotting: false,
+      saveInFlight: null,
+      saveRequested: false,
+    };
     rankJournalWriters.set(botKey, writer);
   }
   return writer;
@@ -293,10 +299,17 @@ function flushRankJournal(idBot) {
     writer.timer = null;
   }
   if (writer.snapshotting || writer.entries.length === 0) return writer.chain;
-  const batch = writer.entries.splice(0, JOURNAL_BATCH_SIZE).join("");
+  // Keep the original events until appendFile acknowledges them.  The old
+  // implementation removed a batch before the write completed, so a full disk
+  // or transient I/O error silently made those chat counts unrecoverable.
+  const batch = writer.entries.splice(0, JOURNAL_BATCH_SIZE);
   writer.chain = writer.chain
-    .then(() => fs.promises.appendFile(getRankJournalPath(idBot), batch))
-    .catch((error) => console.error("Lỗi ghi journal dự phòng topchat:", error));
+    .then(() => fs.promises.appendFile(getRankJournalPath(idBot), batch.map((event) => `${JSON.stringify(event)}\n`).join("")))
+    .catch((error) => {
+      writer.entries.unshift(...batch);
+      console.error("Lỗi ghi journal dự phòng topchat; sẽ thử lại, chưa bỏ dữ liệu:", error);
+      if (!writer.snapshotting) scheduleRankJournalFlush(idBot);
+    });
   if (writer.entries.length > 0) scheduleRankJournalFlush(idBot);
   return writer.chain;
 }
@@ -310,59 +323,123 @@ function scheduleRankJournalFlush(idBot) {
 
 function enqueueRankJournal(idBot, event) {
   const writer = getRankJournalWriter(idBot);
-  writer.entries.push(`${JSON.stringify(event)}\n`);
+  writer.entries.push(event);
   if (writer.entries.length >= JOURNAL_BATCH_SIZE) void flushRankJournal(idBot);
   else scheduleRankJournalFlush(idBot);
 }
 
 async function saveRankInfoCache(idBot) {
-  if (hasChanges[idBot]) {
-    const writer = getRankJournalWriter(idBot);
+  const writer = getRankJournalWriter(idBot);
+  if (writer.saveInFlight) {
+    writer.saveRequested = true;
+    return writer.saveInFlight;
+  }
+  if (!hasChanges[idBot]) return;
+
+  writer.saveInFlight = (async () => {
     writer.snapshotting = true;
     if (writer.timer) {
       clearTimeout(writer.timer);
       writer.timer = null;
     }
-    // Flush everything queued before the checkpoint. New events stay buffered
-    // while the compact snapshot is being committed.
-    writer.snapshotting = false;
-    await flushRankJournal(idBot);
-    writer.snapshotting = true;
-    await writer.chain;
+
+    // A checkpoint is a precise boundary: all state up to checkpointSeq is in
+    // this snapshot. Events arriving after the boundary remain in the journal.
     const rankInfo = getRankInfoCache(idBot);
-    rankInfo._journalSeq = rankJournalSeq.get(String(idBot)) || Number(rankInfo._journalSeq) || 0;
-    if (await writeRankInfo(idBot, rankInfo)) {
+    const checkpointSeq = rankJournalSeq.get(String(idBot)) || Number(rankInfo._journalSeq) || 0;
+    const snapshot = { ...rankInfo, _journalSeq: checkpointSeq };
+    if (await writeRankInfo(idBot, snapshot)) {
       try {
-        await fs.promises.writeFile(getRankJournalPath(idBot), "");
-        hasChanges[idBot] = false;
+        // Wait for an append already in progress, then retain only messages
+        // newer than the snapshot. Atomic replacement means a crash leaves
+        // either the complete old journal or the complete compacted one.
+        await writer.chain;
+        const pendingEvents = writer.entries.filter((event) => Number(event.seq) > checkpointSeq);
+        // Drop already-checkpointed entries from memory too; otherwise a failed
+        // earlier append would be appended again after this successful save.
+        writer.entries = pendingEvents;
+        if (!await writeRankJournal(idBot, pendingEvents)) throw new Error("Không thể ghi journal đã compact");
+        hasChanges[idBot] = writer.entries.length > 0;
       } catch (error) {
-        console.error("Lỗi khi dọn journal topchat:", error);
+        // Snapshot is already durable. Keeping the old journal is safe because
+        // replay ignores sequence numbers included by the snapshot.
+        console.error("Lỗi khi checkpoint journal topchat; giữ journal cũ để tránh mất dữ liệu:", error);
+        hasChanges[idBot] = true;
       }
     }
     writer.snapshotting = false;
     if (writer.entries.length > 0) scheduleRankJournalFlush(idBot);
+  })();
+
+  try {
+    await writer.saveInFlight;
+  } finally {
+    writer.saveInFlight = null;
+    if (writer.saveRequested) {
+      writer.saveRequested = false;
+      void saveRankInfoCache(idBot);
+    }
   }
 }
 
 function readRankInfo(idBot) {
-  try {
-    const data = readFileSync(rankInfoJsonPath(idBot));
-    return JSON.parse(data);
-  } catch (error) {
-    console.error("Lỗi khi đọc file rank-info.json:", error);
-    return { groups: {} };
+  const targetPath = rankInfoJsonPath(idBot);
+  for (const filePath of [targetPath, `${targetPath}.bak`]) {
+    try {
+      const data = readFileSync(filePath);
+      const parsed = JSON.parse(data);
+      if (filePath !== targetPath) console.warn("Khôi phục topchat từ snapshot dự phòng.");
+      return parsed;
+    } catch (error) {
+      if (error?.code !== "ENOENT" || filePath.endsWith(".bak")) {
+        console.error(`Lỗi khi đọc ${path.basename(filePath)}:`, error.message);
+      }
+    }
   }
+  return { groups: {} };
 }
 
 async function writeRankInfo(idBot, data) {
+  const targetPath = rankInfoJsonPath(idBot);
+  return writeAtomicJson(targetPath, data, true);
+}
+
+async function writeRankJournal(idBot, events) {
+  const targetPath = getRankJournalPath(idBot);
+  return writeAtomicFile(targetPath, events.map((event) => `${JSON.stringify(event)}\n`).join(""));
+}
+
+async function writeAtomicJson(targetPath, data, keepBackup = false) {
+  return writeAtomicFile(targetPath, JSON.stringify(data), keepBackup);
+}
+
+async function writeAtomicFile(targetPath, contents, keepBackup = false) {
+  const temporaryPath = `${targetPath}.tmp-${process.pid}`;
   try {
-    const targetPath = rankInfoJsonPath(idBot);
-    const temporaryPath = `${targetPath}.tmp`;
-    await fs.promises.writeFile(temporaryPath, JSON.stringify(data));
+    const handle = await fs.promises.open(temporaryPath, "w", 0o600);
+    try {
+      await handle.writeFile(contents, "utf8");
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
+    if (keepBackup) {
+      try {
+        // The backup must describe the *same* checkpoint as the main file.
+        // Keeping the previous snapshot here would lose the interval between
+        // two checkpoints if the main file later became unreadable after the
+        // journal had already been compacted.
+        await fs.promises.copyFile(temporaryPath, `${targetPath}.bak.tmp-${process.pid}`);
+        await fs.promises.rename(`${targetPath}.bak.tmp-${process.pid}`, `${targetPath}.bak`);
+      } catch (error) {
+        throw error;
+      }
+    }
     await fs.promises.rename(temporaryPath, targetPath);
     return true;
   } catch (error) {
-    console.error("Lỗi khi ghi file rank-info.json:", error);
+    console.error(`Lỗi khi ghi ${path.basename(targetPath)}:`, error);
+    await fs.promises.unlink(temporaryPath).catch(() => {});
     return false;
   }
 }
@@ -480,7 +557,7 @@ function buildRankMessage(topUsers, prefix, isTotal = false) {
   return message;
 }
 
-async function handleRankTextCommand(api, message, period = "today") {
+async function handleRankTextCommand(api, message, period = "today", showAll = false) {
   const { threadId } = message;
   const idBot = api.getBotId();
   let users;
@@ -505,17 +582,43 @@ async function handleRankTextCommand(api, message, period = "today") {
     periodLabel = period === "week" ? "tuần này" : period === "month" ? "tháng này" : "hôm nay";
   }
 
-  const topUsers = getTopUsers(users.filter((user) => user.Rank > 0));
-  if (topUsers.length === 0) return sendNoDataMessage(api, message, threadId);
+  const rankedUsers = getTopUsers(
+    users.filter((user) => user.Rank > 0),
+    showAll ? Number.MAX_SAFE_INTEGER : TOP_USERS_LIMIT
+  );
+  if (rankedUsers.length === 0) return sendNoDataMessage(api, message, threadId);
 
-  let text = `🏆 TOP CHAT ${periodLabel.toUpperCase()}\n\n`;
-  topUsers.forEach((user, index) => {
-    text += `${index + 1}. ${user.UserName}: ${user.Rank.toLocaleString("vi-VN")} tin nhắn\n`;
-  });
   const total = users.reduce((sum, user) => sum + user.Rank, 0);
-  text += `\n📊 Tổng: ${total.toLocaleString("vi-VN")} tin nhắn`;
+  const header = `🏆 TOP CHAT ${periodLabel.toUpperCase()}${showAll ? " (TẤT CẢ)" : ""}\n\n`;
+  const lines = rankedUsers.map(
+    (user, index) => `${index + 1}. ${user.UserName}: ${user.Rank.toLocaleString("vi-VN")} tin nhắn`
+  );
+  lines.push(`\n📊 Tổng: ${total.toLocaleString("vi-VN")} tin nhắn`);
 
-  return api.sendMessage({ msg: text, ttl: 600000, quote: message }, threadId, MessageType.GroupMessage);
+  // Danh sách "all" có thể vượt giới hạn độ dài một tin nhắn của Zalo.
+  // Chia theo từng dòng để không làm đứt tên hoặc số lượng tin nhắn.
+  const maxMessageLength = 1750;
+  const chunks = [];
+  let chunk = header;
+  for (const line of lines) {
+    const next = `${chunk}${line}\n`;
+    if (chunk !== header && next.length > maxMessageLength) {
+      chunks.push(chunk.trimEnd());
+      chunk = `${line}\n`;
+    } else {
+      chunk = next;
+    }
+  }
+  if (chunk.trim()) chunks.push(chunk.trimEnd());
+
+  let result;
+  for (let index = 0; index < chunks.length; index++) {
+    const msg = chunks.length > 1 ? `(Phần ${index + 1}/${chunks.length})\n${chunks[index]}` : chunks[index];
+    const payload = { msg, ttl: 600000 };
+    if (index === 0) payload.quote = message;
+    result = await api.sendMessage(payload, threadId, MessageType.GroupMessage);
+  }
+  return result;
 }
 
 /**
@@ -562,6 +665,9 @@ export async function handleRankCommand(api, message) {
 
 🔹 ${prefix}topchat text
    → Hiện bảng xếp hạng bằng chữ
+
+🔹 ${prefix}topchat text all
+   → Hiện bằng chữ toàn bộ thành viên có tương tác trong kỳ
 
 🔹 ${prefix}topchat all
    → Hiện bảng xếp hạng bằng ảnh
@@ -624,7 +730,7 @@ export async function handleRankCommand(api, message) {
 
   if (args.includes("text")) {
     const period = isTotal ? "total" : isWeek ? "week" : isMonth ? "month" : "today";
-    return handleRankTextCommand(api, message, period);
+    return handleRankTextCommand(api, message, period, args.includes("all"));
   }
 
   // Xử lý bảng xếp hạng
@@ -805,9 +911,10 @@ export async function handleRankTodayCommand(api, message) {
       const userPromises = users.map(async (user) => {
         try {
           const userInfo = await getUserInfoBasic(api, user.id);
-          if (userInfo && userInfo.avatar) {
-            user.avatar = userInfo.avatar;
-            user.name = userInfo.displayName || userInfo.zaloName || user.name;
+          if (userInfo) {
+            if (userInfo.avatar) user.avatar = userInfo.avatar;
+            const displayName = userInfo.displayName || userInfo.display_name || userInfo.zaloName || userInfo.zalo_name || userInfo.name;
+            if (displayName && !/^\d+$/.test(String(displayName))) user.name = String(displayName);
           }
         } catch (error) {
           console.error(`Không thể lấy thông tin user ${user.id}:`, error);
@@ -885,9 +992,10 @@ export async function handleRankTotalCommand(api, message) {
       const userPromises = users.map(async (user) => {
         try {
           const userInfo = await getUserInfoBasic(api, user.id);
-          if (userInfo && userInfo.avatar) {
-            user.avatar = userInfo.avatar;
-            user.name = userInfo.displayName || userInfo.zaloName || user.name;
+          if (userInfo) {
+            if (userInfo.avatar) user.avatar = userInfo.avatar;
+            const displayName = userInfo.displayName || userInfo.display_name || userInfo.zaloName || userInfo.zalo_name || userInfo.name;
+            if (displayName && !/^\d+$/.test(String(displayName))) user.name = String(displayName);
           }
         } catch (error) {
           console.error(`Không thể lấy thông tin user ${user.id}:`, error);
@@ -979,9 +1087,10 @@ export async function handleRankPeriodCommand(api, message, period) {
       const userPromises = users.map(async (user) => {
         try {
           const userInfo = await getUserInfoBasic(api, user.id);
-          if (userInfo && userInfo.avatar) {
-            user.avatar = userInfo.avatar;
-            user.name = userInfo.displayName || userInfo.zaloName || user.name;
+          if (userInfo) {
+            if (userInfo.avatar) user.avatar = userInfo.avatar;
+            const displayName = userInfo.displayName || userInfo.display_name || userInfo.zaloName || userInfo.zalo_name || userInfo.name;
+            if (displayName && !/^\d+$/.test(String(displayName))) user.name = String(displayName);
           }
         } catch (error) {
           console.error(`Không thể lấy thông tin user ${user.id}:`, error);
@@ -1199,52 +1308,22 @@ export async function handleRankMiniGameCommand(api, message, gameType) {
 export async function analyzeGroupInteractionsByThreadId(api, threadId, caption = "", timeToLive = 0) {
   try {
     const idBot = api.getBotId();
-    const messageCache = await getMessageCache(idBot, threadId);
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const startOfDay = today.getTime();
-
-    const interactions = {};
-    let totalMessages = 0;
-
-    if (messageCache) {
-      for (const msgId in messageCache) {
-        const message = messageCache[msgId];
-
-        if (message.timestamp >= startOfDay && message.timestamp <= Date.now()) {
-          const uidFrom = message.uidFrom;
-          const dName = message.dName || "Ẩn Danh";
-
-          if (!interactions[uidFrom]) {
-            interactions[uidFrom] = {
-              name: dName,
-              count: 0,
-              id: uidFrom,
-            };
-          }
-
-          interactions[uidFrom].count++;
-          totalMessages++;
-        }
-      }
-    }
-
-    const sortedInteractions = Object.entries(interactions)
-      .filter(([key, value]) => key !== idBot)
-      .sort((a, b) => b[1].count - a[1].count)
+    // Message cache chỉ lưu ngắn hạn nên gần cuối ngày thường không còn đủ dữ
+    // liệu. Dùng dailyStats theo giờ Việt Nam — nguồn bền vững của topchat.
+    const todayStats = getStatsForDateKeys(idBot, threadId, [getDateKeyVN()]);
+    const sortedInteractions = todayStats
+      .filter((user) => String(user.id) !== String(idBot))
+      .sort((a, b) => b.messageCount - a.messageCount)
       .slice(0, 20);
-
-    const messageBotChatStat = Object.entries(interactions).find(([key, value]) => key === idBot);
-    totalMessages = messageBotChatStat ? totalMessages - messageBotChatStat[1].count : totalMessages;
+    const totalMessages = sortedInteractions.reduce((sum, user) => sum + user.messageCount, 0);
 
     let statsMessage = (caption ? caption + "\n\n" : "") + `📊 Thống kê tương tác của hôm nay:\n`;
     statsMessage += `💬 Tổng số tin nhắn: ${totalMessages}\n\n`;
 
     if (sortedInteractions.length > 0) {
       statsMessage += `🏆 Top tương tác:\n`;
-      sortedInteractions.forEach((item, index) => {
-        statsMessage += `${index + 1}. ${item[1].name}: ${item[1].count} tin nhắn\n`;
+      sortedInteractions.forEach((user, index) => {
+        statsMessage += `${index + 1}. ${user.name || "Ẩn Danh"}: ${user.messageCount} tin nhắn\n`;
       });
     } else {
       statsMessage += `Chưa có ai tương tác trong hôm nay 😢\n`;

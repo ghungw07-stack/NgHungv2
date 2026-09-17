@@ -17,6 +17,7 @@ import { handleNhacCuaTuiReply } from "./api-crawl/music-content/nhaccuatui.js";
 import { handleActionGroupReply } from "../commands/bot-manager/remote-action-group.js";
 import { handleDownloadReply } from "./api-crawl/api-download/aio-downlink.js";
 import { checkReplySelectionsMapData } from "./api-crawl/index.js";
+import { getSelectionsMapData } from "./api-crawl/index.js";
 import { handleCapcutReply } from "./api-crawl/capcut/capcut-service.js";
 import { initializeManagerService, notifyResetCompleteInGroup } from "../commands/bot-manager/active-bot.js";
 import { handleScanGroupsReply } from "../commands/bot-manager/scan-group.js";
@@ -40,6 +41,7 @@ import { handleMusicSpotifyReply } from "./api-crawl/music-content/spotify/spoti
 import { handleTenorStickerReply } from "./api-crawl/image-content/tenor.js";
 import { handleTruyenHentaiReply } from "./api-crawl/image-content/hentai.js";
 import { handleTruyenSexVLReply } from "../commands/send-all/truyensex.js";
+import { handleXNhauReply } from "../commands/send-all/xnhau.js";
 import { checkMenuPageReply } from "../commands/instructions/help.js";
 import { handleAddUserToGroupReply } from "../commands/bot-manager/add-user-to-group.js";
 import { handleAttackReply } from "../commands/bot-manager/attack.js";
@@ -135,6 +137,10 @@ export async function handleOnChatUser(api, message, isCallGame, groupSettings, 
   await handleChatWithGame(api, message, isCallGame, groupSettings, groupInfo);
 }
 
+export function hasPendingMediaSelection(senderId) {
+  return getSelectionsMapData().has(senderId);
+}
+
 export async function handleOnReplyFromUser(
   api,
   message,
@@ -175,6 +181,7 @@ export async function handleOnReplyFromUser(
       handleMusicSpotifyReply(api, message),
       handleTenorStickerReply(api, message),
       handleTruyenSexVLReply(api, message),
+      handleXNhauReply(api, message),
       handleActionGroupReply(
         api,
         message,

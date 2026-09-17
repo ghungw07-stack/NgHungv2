@@ -5,7 +5,11 @@ module.exports = {
       cwd: "/root/NgHung",
       script: "src/index.js",
       interpreter: "/usr/local/bin/node",
-      node_args: ["--env-file=.env", "--env-file=.env.scavio"],
+      node_args: [
+        "--env-file=/root/NgHung/.env",
+        "--env-file=/root/NgHung/.env.credentials",
+        "--env-file=/root/NgHung/.env.scavio",
+      ],
       instances: 1,
       autorestart: true,
       restart_delay: 3000,
@@ -14,7 +18,6 @@ module.exports = {
       env: {
         NODE_ENV: "production",
         FORCE_CONSOLE: "0",
-        VOICE_PUBLIC_BASE_URL: "http://103.95.196.159:3000",
       },
     },
   ],

@@ -5,6 +5,7 @@ import { isInWhiteList } from "./white-list.js";
 import { removeMention } from "../../utils/format-util.js";
 import { getMessageCache } from "../../utils/message-cache.js";
 import { deleteMessageCustomer } from "../../commands/bot-manager/utilities.js";
+import { applyAntiPunishment } from "./anti-punishment.js";
 
 const MESSAGE_THRESHOLD_FORWARD = 3;
 const TIME_WINDOW_FORWARD = 10000;
@@ -89,7 +90,7 @@ export async function antiForward(api, message, isAdminBox, groupSettings, botIs
   if (spamAnalysis.isSpam) {
     const warningResult = await handleWarning(api, message, threadId, senderId, senderName, spamAnalysis.type);
     if (warningResult.shouldBlock) {
-      await handleSpamDetected(api, message, threadId, senderId, senderName);
+      await handleSpamDetected(api, message, threadId, senderId, senderName, groupSettings);
       return true;
     }
     return true;
@@ -318,13 +319,13 @@ async function sendWarningMessage(api, message, senderId, senderName, threadId) 
   }
 }
 
-async function handleSpamDetected(api, message, threadId, senderId, senderName) {
+async function handleSpamDetected(api, message, threadId, senderId, senderName, groupSettings) {
   try {
     if (kickedUsers.has(senderId)) {
       return;
     }
     kickedUsers.add(senderId);
-    await api.blockUsers(threadId, [senderId]);
+    await applyAntiPunishment(api, message, threadId, senderId, senderName, groupSettings);
 
     const idBot = api.getBotId();
     const messageCache = await getMessageCache(idBot, threadId);

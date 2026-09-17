@@ -20,6 +20,8 @@ import { groupSettingsAll } from "../../automations/event-send-msg.js";
 import { getMessageCache } from "../../utils/message-cache.js";
 import { deleteMessageCustomer } from "../../commands/bot-manager/utilities.js";
 import { getUserInfoData } from "../info-service/user-info.js";
+import { getActiveCanvasStyle } from "../../utils/canvas/theme.js";
+import { renderCollectionStyle } from "../../utils/canvas/collection-style-renderers.js";
 
 const PERMANENT_MUTE = -1;
 const MUTE_TIME_UNITS = {
@@ -145,6 +147,14 @@ async function createMuteListImage(api, muteList, currentTime) {
     }));
 
   const totalMutedUsers = mutedUsers.length + (muteList[-1] ? 1 : 0);
+  const style = getActiveCanvasStyle();
+  if (style !== 1) {
+    const allMutedUsers = muteList[-1] ? [{ id: "-1", name: "Tất cả thành viên", timeMute: muteList[-1].timeMute }, ...mutedUsers] : mutedUsers;
+    return renderCollectionStyle(style, {
+      kicker: "MYBOT • MODERATION", title: "DANH SÁCH CẤM CHAT", subtitle: `${allMutedUsers.length} đối tượng đang bị giới hạn`, footer: "Trạng thái mute của nhóm hiện tại",
+      items: allMutedUsers.map((user, index) => ({ badge: String(index + 1).padStart(2, "0"), title: user.name, subtitle: user.id === "-1" ? "Áp dụng toàn nhóm" : `UID: ${user.id}`, meta: user.timeMute === PERMANENT_MUTE ? "VÔ THỜI HẠN" : `Còn ${formatMiliseconds(user.timeMute - currentTime)}` })),
+    }, "mute-list");
+  }
   const useDoubleColumn = totalMutedUsers > 10;
 
   // Tính width tổng

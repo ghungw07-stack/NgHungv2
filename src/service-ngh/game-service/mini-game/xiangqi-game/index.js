@@ -4,6 +4,7 @@ import path from "path";
 import { clearImagePath } from "../../../../utils/canvas/index.js";
 import { getGlobalPrefix } from "../../../service.js";
 import { getRankInfoCache, updateRankMiniGame } from "../../../info-service/rank-chat.js";
+import { getActiveCanvasStyle } from "../../../../utils/canvas/theme.js";
 
 export const gameTypeXiangqi = "cotuong";
 const games = new Map();
@@ -167,22 +168,45 @@ function normalizeColor(s) {
 }
 
 async function render(game) {
+  const style = getActiveCanvasStyle();
+  const themes = {
+    1: { bg: ["#50352a", "#160e0b"], accent: "#f1c676", muted: "#c9aa80", card: "rgba(255,255,255,.07)", cardLine: "rgba(255,255,255,.15)", board: "#deb77c", grid: "#56361f", river: "#79512e", red: "#c72e28", black: "#202020", piece: "#f7dfb0", last: "rgba(255,225,68,.65)", footer: "#cbbba8" },
+    2: { bg: ["#042f3e", "#020617"], accent: "#22d3ee", muted: "#67e8f9", card: "rgba(8,47,73,.82)", cardLine: "rgba(34,211,238,.45)", board: "#071e2c", grid: "#22d3ee", river: "#5eead4", red: "#fb7185", black: "#e2e8f0", piece: "#0c3042", last: "rgba(45,212,191,.42)", footer: "#94a3b8" },
+    3: { bg: ["#fff9e9", "#cbb17a"], accent: "#8b6423", muted: "#66513a", card: "rgba(255,252,242,.82)", cardLine: "#a17b38", board: "#f4e5bd", grid: "#6b4a24", river: "#8c2946", red: "#9f2439", black: "#292524", piece: "#fffaf0", last: "rgba(157,118,48,.28)", footer: "#54483c" },
+    4: { bg: ["#fff7f8", "#ffd7df"], accent: "#ef476f", muted: "#111827", card: "rgba(255,255,255,.9)", cardLine: "#111827", board: "#fffdfd", grid: "#111827", river: "#ef476f", red: "#ef476f", black: "#111827", piece: "#ffffff", last: "rgba(239,71,111,.28)", footer: "#4b5563" },
+    5: { bg: ["#35205f", "#071a2b"], accent: "#5eead4", muted: "#d8b4fe", card: "rgba(255,255,255,.09)", cardLine: "rgba(255,255,255,.28)", board: "rgba(15,23,42,.72)", grid: "rgba(216,180,254,.72)", river: "#99f6e4", red: "#f0abfc", black: "#99f6e4", piece: "rgba(30,41,59,.94)", last: "rgba(94,234,212,.32)", footer: "#cbd5e1" },
+  };
+  const theme = themes[style] || themes[1];
   const W = 920, H = 1140, x0 = 108, y0 = 188, dx = 88, dy = 88;
   const canvas = createCanvas(W, H), ctx = canvas.getContext("2d");
-  const bg = ctx.createRadialGradient(460, 350, 30, 460, 520, 850); bg.addColorStop(0, "#50352a"); bg.addColorStop(1, "#160e0b");
+  const bg = ctx.createRadialGradient(460, 350, 30, 460, 520, 850); bg.addColorStop(0, theme.bg[0]); bg.addColorStop(1, theme.bg[1]);
   ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
-  ctx.textAlign = "center"; ctx.fillStyle = "#f1c676"; ctx.font = "bold 43px 'Xiangqi CJK', sans-serif"; ctx.fillText("帥  CỜ TƯỚNG  將", W / 2, 58);
-  ctx.fillStyle = "#c9aa80"; ctx.font = "16px sans-serif"; ctx.fillText(game.isBot ? "ĐẤU VỚI BOT" : "THÁCH ĐẤU 1 VS 1", W / 2, 88);
+  if (style === 2) {
+    ctx.strokeStyle = "rgba(34,211,238,.09)"; ctx.lineWidth = 1;
+    for (let x = 0; x < W; x += 46) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+    for (let y = 0; y < H; y += 46) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+    ctx.fillStyle = theme.accent; ctx.fillRect(0, 0, W, 7); ctx.fillRect(0, 0, 7, H);
+  } else if (style === 3) {
+    ctx.strokeStyle = theme.accent; ctx.lineWidth = 3; ctx.strokeRect(25, 25, W - 50, H - 50); ctx.lineWidth = 1; ctx.strokeRect(37, 37, W - 74, H - 74);
+  } else if (style === 4) {
+    ctx.fillStyle = "#111827"; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(620, 0); ctx.lineTo(520, 102); ctx.lineTo(0, 102); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = theme.accent; ctx.fillRect(W - 28, 0, 28, H);
+  } else if (style === 5) {
+    const glow = ctx.createRadialGradient(760, 160, 0, 760, 160, 430); glow.addColorStop(0, "rgba(217,70,239,.48)"); glow.addColorStop(1, "rgba(217,70,239,0)"); ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H);
+  }
+  const heading = style === 2 ? "XIANGQI // 戰術盤" : style === 3 ? "帥 · KỲ PHỔ · 將" : style === 4 ? "CỜ TƯỚNG! / 將" : style === 5 ? "帥  AURORA XIANGQI  將" : "帥  CỜ TƯỚNG  將";
+  ctx.textAlign = "center"; ctx.fillStyle = theme.accent; ctx.font = `bold ${style === 4 ? 39 : 43}px 'Xiangqi CJK', sans-serif`; ctx.fillText(heading, W / 2, 58);
+  ctx.fillStyle = theme.muted; ctx.font = "16px sans-serif"; ctx.fillText(game.isBot ? "ĐẤU VỚI BOT" : "THÁCH ĐẤU 1 VS 1", W / 2, 88);
   const topColor = game.viewColor === "r" ? "b" : "r", bottomColor = other(topColor);
   const card = (color, y) => {
-    ctx.beginPath(); ctx.roundRect(108, y, 704, 58, 18); ctx.fillStyle = game.turn === color ? "rgba(241,198,118,.2)" : "rgba(255,255,255,.07)"; ctx.fill();
-    ctx.strokeStyle = game.turn === color ? "#f1c676" : "rgba(255,255,255,.15)"; ctx.lineWidth = game.turn === color ? 2 : 1; ctx.stroke();
-    ctx.textAlign = "left"; ctx.fillStyle = color === "r" ? "#ff766e" : "#e7ddd0"; ctx.font = "bold 23px sans-serif"; ctx.fillText(`${color === "r" ? "🔴" : "⚫"} ${String(game.players[color].name).slice(0, 25)}`, 130, y + 38);
-    if (game.turn === color) { ctx.textAlign = "right"; ctx.fillStyle = "#f1c676"; ctx.font = "bold 15px sans-serif"; ctx.fillText("● ĐANG ĐI", 790, y + 36); }
+    ctx.beginPath(); ctx.roundRect(108, y, 704, 58, style === 2 ? 3 : style === 4 ? 0 : style === 5 ? 25 : 18); ctx.fillStyle = game.turn === color ? `${theme.accent}33` : theme.card; ctx.fill();
+    ctx.strokeStyle = game.turn === color ? theme.accent : theme.cardLine; ctx.lineWidth = game.turn === color ? 2 : 1; ctx.stroke();
+    ctx.textAlign = "left"; ctx.fillStyle = color === "r" ? theme.red : theme.black; ctx.font = "bold 23px sans-serif"; ctx.fillText(`${color === "r" ? "🔴" : "⚫"} ${String(game.players[color].name).slice(0, 25)}`, 130, y + 38);
+    if (game.turn === color) { ctx.textAlign = "right"; ctx.fillStyle = theme.accent; ctx.font = "bold 15px sans-serif"; ctx.fillText(style === 2 ? "LIVE // TURN" : style === 4 ? "TỚI LƯỢT!" : "● ĐANG ĐI", 790, y + 36); }
   };
   card(topColor, 108); card(bottomColor, 1010);
-  ctx.fillStyle = "#deb77c"; ctx.beginPath(); ctx.roundRect(70, 165, 780, 820, 18); ctx.fill();
-  ctx.strokeStyle = "#56361f"; ctx.lineWidth = 3;
+  ctx.fillStyle = theme.board; ctx.beginPath(); ctx.roundRect(70, 165, 780, 820, style === 2 || style === 4 ? 2 : style === 5 ? 32 : 18); ctx.fill();
+  ctx.strokeStyle = theme.grid; ctx.lineWidth = style === 2 ? 2 : style === 4 ? 4 : 3;
   for (let r = 0; r < 10; r++) { ctx.beginPath(); ctx.moveTo(x0, y0 + r * dy); ctx.lineTo(x0 + 8 * dx, y0 + r * dy); ctx.stroke(); }
   for (let c = 0; c < 9; c++) {
     ctx.beginPath(); ctx.moveTo(x0 + c * dx, y0); ctx.lineTo(x0 + c * dx, y0 + 4 * dy); ctx.stroke();
@@ -190,16 +214,21 @@ async function render(game) {
   }
   ctx.beginPath(); ctx.moveTo(x0, y0 + 4 * dy); ctx.lineTo(x0, y0 + 5 * dy); ctx.moveTo(x0 + 8 * dx, y0 + 4 * dy); ctx.lineTo(x0 + 8 * dx, y0 + 5 * dy); ctx.stroke();
   for (const base of [0, 7]) { ctx.beginPath(); ctx.moveTo(x0 + 3 * dx, y0 + base * dy); ctx.lineTo(x0 + 5 * dx, y0 + (base + 2) * dy); ctx.moveTo(x0 + 5 * dx, y0 + base * dy); ctx.lineTo(x0 + 3 * dx, y0 + (base + 2) * dy); ctx.stroke(); }
-  ctx.fillStyle = "#79512e"; ctx.font = "bold 34px 'Xiangqi CJK', sans-serif"; ctx.textAlign = "center"; ctx.fillText("楚  河", 270, y0 + 4.62 * dy); ctx.fillText("漢  界", 650, y0 + 4.62 * dy);
+  ctx.fillStyle = theme.river; ctx.font = `bold ${style === 2 ? 27 : 34}px 'Xiangqi CJK', sans-serif`; ctx.textAlign = "center"; ctx.fillText(style === 2 ? "楚河 // WEST" : "楚  河", 270, y0 + 4.62 * dy); ctx.fillText(style === 2 ? "EAST // 漢界" : "漢  界", 650, y0 + 4.62 * dy);
   const last = game.lastMove ? [posText(game.lastMove.from.r, game.lastMove.from.c), posText(game.lastMove.to.r, game.lastMove.to.c)] : [];
   for (let r = 0; r < 10; r++) for (let c = 0; c < 9; c++) {
     const rr = game.viewColor === "r" ? r : 9 - r, cc = game.viewColor === "r" ? c : 8 - c;
     const x = x0 + cc * dx, y = y0 + rr * dy, square = posText(r, c), p = game.board[r][c];
-    if (last.includes(square)) { ctx.beginPath(); ctx.arc(x, y, 39, 0, Math.PI * 2); ctx.fillStyle = "rgba(255,225,68,.65)"; ctx.fill(); }
+    if (last.includes(square)) { ctx.beginPath(); style === 4 ? ctx.roundRect(x - 39, y - 39, 78, 78, 8) : ctx.arc(x, y, 39, 0, Math.PI * 2); ctx.fillStyle = theme.last; ctx.fill(); }
     if (!p) continue;
-    ctx.shadowColor = "rgba(0,0,0,.45)"; ctx.shadowBlur = 8; ctx.shadowOffsetY = 5; ctx.beginPath(); ctx.arc(x, y, 34, 0, Math.PI * 2); ctx.fillStyle = "#f7dfb0"; ctx.fill();
-    ctx.shadowColor = "transparent"; ctx.lineWidth = 3; ctx.strokeStyle = p[0] === "r" ? "#bd2924" : "#242424"; ctx.stroke();
-    ctx.fillStyle = p[0] === "r" ? "#c72e28" : "#202020"; ctx.font = "bold 36px 'Xiangqi CJK', sans-serif"; ctx.textBaseline = "middle"; ctx.fillText(GLYPH[p], x, y + 1);
+    ctx.shadowColor = "rgba(0,0,0,.45)"; ctx.shadowBlur = 8; ctx.shadowOffsetY = 5; ctx.beginPath();
+    if (style === 2) ctx.roundRect(x - 32, y - 32, 64, 64, 8);
+    else if (style === 4) ctx.roundRect(x - 33, y - 33, 66, 66, 18);
+    else if (style === 5) { for (let i = 0; i < 6; i++) { const a = Math.PI / 3 * i - Math.PI / 6, px = x + Math.cos(a) * 36, py = y + Math.sin(a) * 36; i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); } ctx.closePath(); }
+    else ctx.arc(x, y, 34, 0, Math.PI * 2);
+    ctx.fillStyle = theme.piece; ctx.fill();
+    ctx.shadowColor = "transparent"; ctx.lineWidth = style === 4 ? 4 : 3; ctx.strokeStyle = p[0] === "r" ? theme.red : theme.black; ctx.stroke();
+    ctx.fillStyle = p[0] === "r" ? theme.red : theme.black; ctx.font = "bold 36px 'Xiangqi CJK', sans-serif"; ctx.textBaseline = "middle"; ctx.fillText(GLYPH[p], x, y + 1);
   }
   ctx.textBaseline = "alphabetic"; ctx.fillStyle = "rgba(255,255,255,.7)"; ctx.font = "bold 15px sans-serif";
   for (let c = 0; c < 9; c++) ctx.fillText(String.fromCharCode(97 + (game.viewColor === "r" ? c : 8 - c)), x0 + c * dx, 974);
@@ -208,7 +237,7 @@ async function render(game) {
     ctx.fillText(String(rank), 84, y0 + r * dy + 5);
     ctx.fillText(String(rank), 836, y0 + r * dy + 5);
   }
-  ctx.fillStyle = inCheck(game.board, game.turn) ? "#ff8279" : "#cbbba8"; ctx.font = "bold 16px sans-serif";
+  ctx.fillStyle = inCheck(game.board, game.turn) ? theme.red : theme.footer; ctx.font = "bold 16px sans-serif";
   ctx.fillText(inCheck(game.board, game.turn) ? "⚠ CHIẾU TƯỚNG" : game.lastMove ? `NƯỚC VỪA ĐI  ${posText(game.lastMove.from.r, game.lastMove.from.c).toUpperCase()} → ${posText(game.lastMove.to.r, game.lastMove.to.c).toUpperCase()}` : "GÕ A0A1 ĐỂ DI CHUYỂN", W / 2, 1110);
   const out = path.join("/tmp", `cotuong-${game.threadId}-${Date.now()}.png`); await fs.writeFile(out, canvas.toBuffer("image/png")); return out;
 }

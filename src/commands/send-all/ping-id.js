@@ -1,4 +1,5 @@
 import { MessageMention, MessageStyle, MultiMsgStyle } from "../../api-zalo/index.js";
+import sharp from "sharp";
 import { removeMention } from "../../utils/format-util.js";
 import { getGlobalPrefix } from "../../service-ngh/service.js";
 import { sendMessageFromSQL, sendMessageWarningRequest } from "../../service-ngh/chat-zalo/chat-style/chat-style.js";
@@ -10,6 +11,9 @@ const SIX_DIGIT_REGEX = /(?<!\d)\d{6}(?!\d)/;
 // Cooldown chống spam khi bật auto-detect, tính theo từng nhóm (threadId)
 const lastAutoPidTime = new Map();
 const AUTO_PID_COOLDOWN = 5 * 1000; // 5 giây / nhóm
+const IMAGE_OCR_TIMEOUT = 15_000;
+const IMAGE_OCR_MAX_BYTES = 8 * 1024 * 1024;
+let imageOcrQueue = Promise.resolve();
 
 function getMessageText(message) {
   const content = message?.data?.content ?? message?.content;
@@ -29,6 +33,76 @@ function getQuotedText(message) {
   return "";
 }
 
+function getImageUrl(message) {
+  const data = message?.data || message || {};
+  const msgType = data.msgType || data.cliMsgType || message?.msgType || message?.cliMsgType;
+  if (msgType && !["chat.photo", "chat.image"].includes(String(msgType))) return null;
+  const content = data.content || data.attach || data;
+  if (!content || typeof content !== "object") return null;
+
+  let params = content.params;
+  if (typeof params === "string") {
+    try { params = JSON.parse(params); } catch { params = null; }
+  }
+  const url = content.hdUrl || content.hd_url || content.href || content.url || content.imageUrl || content.oriUrl || content.ori_url || content.normalUrl || content.thumbUrl ||
+    params?.hdUrl || params?.hd_url || params?.href || params?.url || params?.imageUrl || params?.oriUrl || params?.ori_url || params?.normalUrl || params?.thumbUrl;
+  if (!url) return null;
+
+  try {
+    const parsed = new URL(url);
+    // Only fetch the Zalo CDN image attached to this message; do not turn
+    // auto PID into a generic URL fetcher.
+    const host = parsed.hostname.toLowerCase();
+    return parsed.protocol === "https:" && (host.endsWith(".zdn.vn") || host.endsWith(".zaloapp.com") || host.endsWith(".zalo.me")) ? parsed.href : null;
+  } catch {
+    return null;
+  }
+}
+
+async function recognizeIdFromGameImage(imageUrl) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), IMAGE_OCR_TIMEOUT);
+  timeout.unref?.();
+  try {
+    const response = await fetch(imageUrl, { signal: controller.signal });
+    if (!response.ok) return "";
+    const declaredSize = Number(response.headers.get("content-length"));
+    if (Number.isFinite(declaredSize) && declaredSize > IMAGE_OCR_MAX_BYTES) return "";
+    const imageBuffer = Buffer.from(await response.arrayBuffer());
+    if (!imageBuffer.length || imageBuffer.length > IMAGE_OCR_MAX_BYTES) return "";
+
+    const meta = await sharp(imageBuffer).metadata();
+    if (!meta.width || !meta.height) return "";
+    // Game IDs normally appear in the HUD at the top. Enlarging and enhancing
+    // this strip is markedly more reliable than OCRing the whole game screen.
+    const topHeight = Math.max(1, Math.min(meta.height, Math.round(meta.height * 0.24)));
+    const ocrInput = await sharp(imageBuffer)
+      .extract({ left: 0, top: 0, width: meta.width, height: topHeight })
+      .resize({ width: Math.max(meta.width, 2560), withoutEnlargement: false })
+      .grayscale()
+      .normalize()
+      .sharpen()
+      .toBuffer();
+    const { default: Tesseract } = await import("tesseract.js");
+    const { data: { text = "" } } = await Tesseract.recognize(ocrInput, "eng", {
+      tessedit_char_whitelist: "0123456789IDid:",
+      tessedit_pageseg_mode: 11,
+    });
+    return text;
+  } catch (error) {
+    console.error("Không thể OCR ảnh cho auto PID:", error?.message || error);
+    return "";
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function queueImageOcr(imageUrl) {
+  const next = imageOcrQueue.catch(() => {}).then(() => recognizeIdFromGameImage(imageUrl));
+  imageOcrQueue = next.catch(() => {});
+  return next;
+}
+
 /**
  * Hàm dùng chung để build nội dung và gửi tin ping-all kèm mã ID.
  */
@@ -37,7 +111,12 @@ async function buildAndSendPingId(api, message, groupInfo, gameId, fallbackNoteT
   const threadId = message.threadId;
   const senderName = message.data.dName;
 
-  const originalMentions = (message.data.mentions || []).filter((m) => m.uid !== botId);
+  // Payload ảnh đôi khi chứa mention metadata dạng HTML nội bộ của Zalo;
+  // đưa lại metadata đó vào msg sẽ làm iOS hiện nguyên thẻ </a_mention>.
+  // Chỉ giữ mention người dùng khi lệnh xuất phát từ tin nhắn chữ.
+  // PID luôn chỉ tag @ALL; không truyền lại mention metadata của tin nguồn
+  // (đặc biệt quote ảnh) vì Zalo/iOS có thể biến nó thành thẻ HTML thô.
+  const originalMentions = [];
   // A command sent with an image has content as an object. Always normalize
   // it to text so mention offsets and `substr` never break.
   const originalContentRaw = getMessageText(message);
@@ -71,10 +150,9 @@ async function buildAndSendPingId(api, message, groupInfo, gameId, fallbackNoteT
 
   if (!contentSuffix) contentSuffix = "Không có";
 
-  const finalText = bodyBeforeContent + contentSuffix;
-
-  // Zalo's real tag-all payload uses numeric uid -1. Keep this exact shape
-  // so the client renders a blue @ALL and not a literal/raw mention string.
+  // Payload @ALL chuẩn của Zalo dùng UID số -1. Mention rác từ quote ảnh đã
+  // được loại ở trên nên iOS không còn hiện thẻ HTML thô.
+  const finalText = `${bodyBeforeContent}${contentSuffix}`;
   const allMentions = [{ pos: 0, uid: -1, len: line1.length, type: 1 }, ...extraMentions];
 
   const style = MultiMsgStyle([
@@ -245,10 +323,16 @@ export async function checkAutoPingId(api, message, groupSettings, groupInfo) {
       }
     }
 
-    const content = removeMention(message);
-    if (!content) return;
-
-    const match = content.match(SIX_DIGIT_REGEX);
+    const content = getMessageText(message) || removeMention(message) || "";
+    let match = String(content).match(SIX_DIGIT_REGEX);
+    let recognizedFromImage = false;
+    if (!match) {
+      const imageUrl = getImageUrl(message);
+      if (!imageUrl) return;
+      const ocrText = await queueImageOcr(imageUrl);
+      match = ocrText.match(SIX_DIGIT_REGEX);
+      recognizedFromImage = Boolean(match);
+    }
     if (!match) return;
 
     const now = Date.now();
@@ -257,7 +341,8 @@ export async function checkAutoPingId(api, message, groupSettings, groupInfo) {
     lastAutoPidTime.set(threadId, now);
 
     const gameId = match[0];
-    const noteText = content.replace(gameId, "").replace(/\s+/g, " ").trim();
+    const noteText = String(content).replace(gameId, "").replace(/\s+/g, " ").trim()
+      || (recognizedFromImage ? "ID được nhận diện từ ảnh" : "Không có");
 
     await buildAndSendPingId(api, message, groupInfo, gameId, noteText, message);
   } catch (error) {

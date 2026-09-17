@@ -2,6 +2,8 @@ import { createCanvas, loadImage, registerFont } from "canvas";
 import fs from "fs/promises";
 import path from "path";
 import { loadImageBuffer } from "../util.js";
+import { getActiveCanvasStyle } from "./theme.js";
+import { renderCollectionStyle } from "./collection-style-renderers.js";
 
 const fontPath = path.join(process.cwd(), "assets", "fonts");
 try {
@@ -190,6 +192,23 @@ export async function createSearchResultImage(data, botId) {
       return null;
     }
   }));
+
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) {
+    return renderCollectionStyle(activeStyle, {
+      kicker: `MYBOT • ${theme.label}`,
+      title: `CHỌN ${theme.noun.toUpperCase()} ĐỂ ${theme.action.toUpperCase()}`,
+      subtitle: "Danh sách đã sẵn sàng — gửi lại một con số để lựa chọn",
+      footer: botId ? `BOT ID ${String(botId).slice(-8)} • ${items.length} kết quả` : `${items.length} kết quả tìm thấy`,
+      items: items.map((item, index) => ({
+        title: item?.title || "Không có tiêu đề",
+        subtitle: subtitleOf(item),
+        meta: metaOf(item),
+        image: artworks[index],
+        badge: String(index + 1).padStart(2, "0"),
+      })),
+    }, "search_result");
+  }
 
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext("2d");

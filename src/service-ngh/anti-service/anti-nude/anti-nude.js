@@ -24,6 +24,7 @@ import { getVideoMetadata } from "../../../api-zalo/utils.js";
 import { getAntiConfig, updateAntiConfig } from "../index.js";
 import { imageBufferCache } from "../../../utils/image-buffer-cache.js";
 import { deleteMessageCustomer } from "../../../commands/bot-manager/utilities.js";
+import { applyAntiPunishment, shouldSendBlockImage } from "../anti-punishment.js";
 
 const blockedUsers = new Set();
 
@@ -400,7 +401,7 @@ async function handleNudeContent(api, message, threadId, senderId, senderName, g
     }
     
     try {
-      await api.blockUsers(threadId, [senderId]);
+      await applyAntiPunishment(api, message, threadId, senderId, senderName, groupSettings);
       console.log(`Đã block user ${senderName} (${senderId}) khỏi nhóm ${threadId}`);
     } catch (error) {
       console.error(`Lỗi khi block user ${senderName} (${senderId}):`, error);
@@ -408,7 +409,7 @@ async function handleNudeContent(api, message, threadId, senderId, senderName, g
       return;
     }
 
-    const isEnableBlockImage = groupSettings?.[threadId]?.enableBlockImage === true;
+    const isEnableBlockImage = groupSettings?.[threadId]?.enableBlockImage === true && shouldSendBlockImage(api);
     
     if (isEnableBlockImage) {
       try {

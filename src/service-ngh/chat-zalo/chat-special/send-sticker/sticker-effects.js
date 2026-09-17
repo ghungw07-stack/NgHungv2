@@ -6,6 +6,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { tempDir } from "../../../../utils/io-json.js";
 import { randomIDTemp } from "../../../../utils/format-util.js";
+import { getActiveCanvasStyle } from "../../../../utils/canvas/theme.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -245,23 +246,44 @@ export async function createTextStickerBuffer(text) {
   const canvas = createCanvas(size, size);
   const ctx = canvas.getContext("2d");
 
-  // nền gradient random
-  const [colorA, colorB] = BACKGROUND_GRADIENTS[Math.floor(Math.random() * BACKGROUND_GRADIENTS.length)];
-  const gradient = ctx.createLinearGradient(0, 0, size, size);
-  gradient.addColorStop(0, colorA);
-  gradient.addColorStop(1, colorB);
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, size, size);
+  const activeStyle = getActiveCanvasStyle();
+  const styledMaxWidth = activeStyle === 4 ? size - 170 : maxWidth;
+  if (activeStyle === 1) {
+    const [colorA, colorB] = BACKGROUND_GRADIENTS[Math.floor(Math.random() * BACKGROUND_GRADIENTS.length)];
+    const gradient = ctx.createLinearGradient(0, 0, size, size);
+    gradient.addColorStop(0, colorA); gradient.addColorStop(1, colorB);
+    ctx.fillStyle = gradient; ctx.fillRect(0, 0, size, size);
+  } else if (activeStyle === 2) {
+    ctx.fillStyle = "#020617"; ctx.fillRect(0, 0, size, size);
+    ctx.strokeStyle = "rgba(34,211,238,.14)";
+    for (let offset = 0; offset <= size; offset += 40) {
+      ctx.beginPath(); ctx.moveTo(offset, 0); ctx.lineTo(offset, size); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, offset); ctx.lineTo(size, offset); ctx.stroke();
+    }
+    ctx.strokeStyle = "#22d3ee"; ctx.lineWidth = 8; ctx.strokeRect(18, 18, size - 36, size - 36);
+  } else if (activeStyle === 3) {
+    ctx.fillStyle = "#eadcbc"; ctx.fillRect(0, 0, size, size); ctx.fillStyle = "#faf4e7"; ctx.fillRect(20, 20, size - 40, size - 40);
+    ctx.strokeStyle = "#9d7630"; ctx.lineWidth = 5; ctx.strokeRect(32, 32, size - 64, size - 64);
+    ctx.fillStyle = "#292524";
+  } else if (activeStyle === 4) {
+    ctx.fillStyle = "#fff7f8"; ctx.fillRect(0, 0, size, size); ctx.fillStyle = "#ef476f"; ctx.fillRect(0, 0, 92, size);
+    ctx.fillStyle = "#111827"; ctx.beginPath(); ctx.moveTo(92, 0); ctx.lineTo(380, 0); ctx.lineTo(322, 84); ctx.lineTo(92, 84); ctx.closePath(); ctx.fill();
+  } else {
+    const gradient = ctx.createLinearGradient(0, 0, size, size); gradient.addColorStop(0, "#5b21b6"); gradient.addColorStop(.52, "#1d4ed8"); gradient.addColorStop(1, "#0f766e");
+    ctx.fillStyle = gradient; ctx.fillRect(0, 0, size, size);
+    ctx.fillStyle = "rgba(255,255,255,.12)"; ctx.beginPath(); ctx.roundRect(28, 28, size - 56, size - 56, 54); ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,.35)"; ctx.lineWidth = 3; ctx.stroke();
+  }
 
   // Tìm cỡ chữ lớn nhất vừa khung (giảm dần cho tới khi vừa số dòng cho phép)
   let fontSize = 84;
   let lines = [];
-  ctx.textAlign = "center";
+  ctx.textAlign = activeStyle === 4 ? "left" : "center";
   ctx.textBaseline = "middle";
 
   while (fontSize >= 24) {
     ctx.font = `bold ${fontSize}px sans-serif`;
-    lines = wrapCanvasText(ctx, text, maxWidth);
+    lines = wrapCanvasText(ctx, text, styledMaxWidth);
     const totalHeight = lines.length * (fontSize * 1.25);
     if (totalHeight <= size - padding * 2) break;
     fontSize -= 4;
@@ -275,10 +297,10 @@ export async function createTextStickerBuffer(text) {
   ctx.shadowColor = "rgba(0,0,0,0.45)";
   ctx.shadowBlur = 8;
   ctx.shadowOffsetY = 3;
-  ctx.fillStyle = "#FFFFFF";
+  ctx.fillStyle = activeStyle === 3 ? "#292524" : activeStyle === 4 ? "#111827" : "#FFFFFF";
 
   lines.forEach((line, i) => {
-    ctx.fillText(line, size / 2, startY + i * lineHeight);
+    ctx.fillText(line, activeStyle === 4 ? 120 : size / 2, startY + i * lineHeight);
   });
 
   return canvas.toBuffer("image/png");
@@ -299,6 +321,15 @@ export async function createAnimatedTextStickerWebp(text, colorName = "rainbow")
   };
   const frameDir = path.join(tempDir, `sticker_textvd_${randomIDTemp()}`);
   const outputPath = path.join(tempDir, `sticker_textvd_${randomIDTemp()}.webp`);
+  const activeStyle = getActiveCanvasStyle();
+  const animatedThemes = {
+    1: ["#0f172a", "#020617"],
+    2: ["#020617", "#073047"],
+    3: ["#faf4e7", "#d6b56c"],
+    4: ["#fff7f8", "#ef476f"],
+    5: ["#4c1d95", "#0f766e"],
+  };
+  const animatedTheme = animatedThemes[activeStyle] || animatedThemes[1];
   fs.mkdirSync(frameDir, { recursive: true });
   try {
     const frameCount = 24;
@@ -306,8 +337,8 @@ export async function createAnimatedTextStickerWebp(text, colorName = "rainbow")
       const canvas = createCanvas(512, 512);
       const ctx = canvas.getContext("2d");
       const bg = ctx.createLinearGradient(0, 0, 512, 512);
-      bg.addColorStop(0, "#0f172a");
-      bg.addColorStop(1, "#020617");
+      bg.addColorStop(0, animatedTheme[0]);
+      bg.addColorStop(1, animatedTheme[1]);
       ctx.fillStyle = bg;
       ctx.fillRect(0, 0, 512, 512);
       let fontSize = 72;
@@ -318,9 +349,13 @@ export async function createAnimatedTextStickerWebp(text, colorName = "rainbow")
       }
       const textWidth = ctx.measureText(text).width;
       const travel = 512 + textWidth;
-      const x = 512 - (travel * i) / (frameCount - 1);
+      const x = activeStyle === 4
+        ? -textWidth + (travel * i) / (frameCount - 1)
+        : 512 - (travel * i) / (frameCount - 1);
       const hue = Math.round((i / frameCount) * 360);
-      ctx.fillStyle = colorName.toLowerCase() === "rainbow" ? `hsl(${hue}, 90%, 62%)` : (colors[colorName.toLowerCase()] || "#ffffff");
+      ctx.fillStyle = activeStyle === 3
+        ? "#292524"
+        : colorName.toLowerCase() === "rainbow" ? `hsl(${hue}, 90%, 62%)` : (colors[colorName.toLowerCase()] || "#ffffff");
       ctx.shadowColor = ctx.fillStyle;
       ctx.shadowBlur = 18;
       ctx.textBaseline = "middle";

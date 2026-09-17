@@ -10,6 +10,7 @@ import { MessageType } from "zlbotngh";
 import { getGlobalPrefix } from '../../../service.js';
 import { removeMention } from '../../../../utils/format-util.js';
 import { sendMessageStateQuote, sendMessageWarningRequest } from '../../chat-style/chat-style.js';
+import { getActiveCanvasStyle } from "../../../../utils/canvas/theme.js";
 
 const TIME_24H = 60000;
 
@@ -49,6 +50,14 @@ export async function createClockGif() {
     const canvas = createCanvas(width, height);
     const ctx = canvas.getContext('2d');
     const backgroundGradient = cv.getRandomGradient(ctx, width);
+    const activeStyle = getActiveCanvasStyle();
+    const clockThemes = {
+      2: { bg: ["#020617", "#073047"], accent: "#22d3ee", dial: ["#082f49", "#020617"], ink: "#ecfeff" },
+      3: { bg: ["#eadcbc", "#8d713c"], accent: "#d6b56c", dial: ["#fffaf0", "#d8c59d"], ink: "#292524" },
+      4: { bg: ["#fff1f2", "#ef476f"], accent: "#ef476f", dial: ["#fff7f8", "#fecdd3"], ink: "#111827" },
+      5: { bg: ["#29135f", "#0f766e"], accent: "#5eead4", dial: ["#eef2ff", "#a5b4fc"], ink: "#172554" },
+    };
+    const clockTheme = clockThemes[activeStyle] || null;
     const encoder = new GIFEncoder(width, height);
 
     const stream = fs.createWriteStream(gifPath);
@@ -89,7 +98,7 @@ export async function createClockGif() {
 
       const rawHour = currentTime.getHours();
       const accentHue = Math.round(((currentMinute * 60) + currentSecond) / 3600 * 360) % 360;
-      const accentColor = `hsl(${accentHue}, 78%, 55%)`;
+      const accentColor = clockTheme?.accent || `hsl(${accentHue}, 78%, 55%)`;
       const accentGlow = `hsla(${accentHue}, 90%, 65%, 0.35)`;
       const dialRadius = radius - 22;
       const padTime = (value) => value.toString().padStart(2, "0");
@@ -98,7 +107,11 @@ export async function createClockGif() {
       const dateLabel = `${weekDays[currentTime.getDay()]} ${padTime(currentTime.getDate())}/${padTime(currentTime.getMonth() + 1)}`;
 
       // Base gradient background
-      ctx.fillStyle = backgroundGradient || "#111827";
+      if (clockTheme) {
+        const styledBackground = ctx.createLinearGradient(0, 0, width, height);
+        styledBackground.addColorStop(0, clockTheme.bg[0]); styledBackground.addColorStop(1, clockTheme.bg[1]);
+        ctx.fillStyle = styledBackground;
+      } else ctx.fillStyle = backgroundGradient || "#111827";
       ctx.fillRect(0, 0, width, height);
 
       // Subtle dynamic color wash
@@ -150,10 +163,10 @@ export async function createClockGif() {
 
       // Dial base
       const dialGradient = ctx.createRadialGradient(centerX, centerY, dialRadius * 0.1, centerX, centerY, dialRadius);
-      dialGradient.addColorStop(0, "rgba(255, 255, 255, 0.95)");
-      dialGradient.addColorStop(0.45, "rgba(236, 240, 246, 0.92)");
-      dialGradient.addColorStop(0.75, "rgba(210, 214, 226, 0.85)");
-      dialGradient.addColorStop(1, "rgba(170, 178, 192, 0.8)");
+      dialGradient.addColorStop(0, clockTheme?.dial[0] || "rgba(255, 255, 255, 0.95)");
+      dialGradient.addColorStop(0.45, clockTheme?.dial[0] || "rgba(236, 240, 246, 0.92)");
+      dialGradient.addColorStop(0.75, clockTheme?.dial[1] || "rgba(210, 214, 226, 0.85)");
+      dialGradient.addColorStop(1, clockTheme?.dial[1] || "rgba(170, 178, 192, 0.8)");
       ctx.beginPath();
       ctx.arc(centerX, centerY, dialRadius, 0, Math.PI * 2);
       ctx.fillStyle = dialGradient;

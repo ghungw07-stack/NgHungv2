@@ -8,6 +8,8 @@ import path from "path";
 import axios from "axios";
 import ffmpeg from "fluent-ffmpeg";
 import JSONBig from "json-bigint";
+import { PassThrough } from "node:stream";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { GroupEventType } from "./models/GroupEvent.js";
 import { ZaloApiError } from "./Errors/ZaloApiError.js";
 import { isContextHaveSecretKey } from "./context.js";
@@ -180,12 +182,17 @@ function updateCookie(appContext, input) {
 
 const REQUEST_CONCURRENCY = Math.max(2, Number(process.env.NGH_ZALO_REQUEST_CONCURRENCY) || 12);
 const REQUEST_BACKLOG = Math.max(100, Number(process.env.NGH_ZALO_REQUEST_BACKLOG) || 2000);
+const REQUEST_PRIORITY_RESERVE = Math.min(
+  REQUEST_CONCURRENCY - 1,
+  Math.max(1, Number(process.env.NGH_ZALO_REQUEST_PRIORITY_RESERVE) || 2)
+);
 const requestGovernors = new WeakMap();
+const requestPriority = new AsyncLocalStorage();
 
 function getRequestGovernor(appContext) {
   let governor = requestGovernors.get(appContext);
   if (governor) return governor;
-  governor = { active: 0, queue: [], head: 0 };
+  governor = { active: 0, priorityQueue: [], priorityHead: 0, queue: [], head: 0 };
   requestGovernors.set(appContext, governor);
   return governor;
 }
@@ -198,9 +205,20 @@ function compactRequestQueue(governor) {
 }
 
 function drainRequestGovernor(governor) {
-  while (governor.active < REQUEST_CONCURRENCY && governor.head < governor.queue.length) {
-    const item = governor.queue[governor.head++];
-    compactRequestQueue(governor);
+  while (governor.active < REQUEST_CONCURRENCY) {
+    let item;
+    if (governor.priorityHead < governor.priorityQueue.length) {
+      item = governor.priorityQueue[governor.priorityHead++];
+      if (governor.priorityHead > 128 && governor.priorityHead * 2 >= governor.priorityQueue.length) {
+        governor.priorityQueue.splice(0, governor.priorityHead);
+        governor.priorityHead = 0;
+      }
+    } else {
+      if (governor.active >= REQUEST_CONCURRENCY - REQUEST_PRIORITY_RESERVE) break;
+      if (governor.head >= governor.queue.length) break;
+      item = governor.queue[governor.head++];
+      compactRequestQueue(governor);
+    }
     governor.active++;
     Promise.resolve()
       .then(item.task)
@@ -212,41 +230,78 @@ function drainRequestGovernor(governor) {
   }
 }
 
-function scheduleRequest(appContext, task) {
+function scheduleRequest(appContext, task, priority = false) {
   const governor = getRequestGovernor(appContext);
-  const waiting = governor.queue.length - governor.head;
+  const waiting = governor.queue.length - governor.head + governor.priorityQueue.length - governor.priorityHead;
   if (waiting >= REQUEST_BACKLOG) {
     return Promise.reject(new ZaloApiError("Zalo request backlog is full"));
   }
   return new Promise((resolve, reject) => {
-    governor.queue.push({ task, resolve, reject });
+    const queue = priority ? governor.priorityQueue : governor.queue;
+    queue.push({ task, resolve, reject });
     drainRequestGovernor(governor);
   });
 }
 
-export async function request(appContext, url, options) {
-  if (options) options.headers = mergeHeaders(options.headers || {}, getDefaultHeaders(appContext));
-  else options = { headers: getDefaultHeaders(appContext) };
+export function withZaloRequestPriority(task) {
+  return requestPriority.run(true, task);
+}
+
+export function request(appContext, url, options) {
+  // Ordinary API calls retain their account-wide limit. Prepare cookies and
+  // start the transport timeout only when the request actually leaves the queue.
+  return scheduleRequest(appContext, () => requestDirect(appContext, url, options), requestPriority.getStore() === true);
+}
+
+export async function requestDirect(appContext, url, options = {}) {
+  options = {
+    ...options,
+    headers: mergeHeaders(options?.headers || {}, getDefaultHeaders(appContext)),
+  };
   let controller, timeoutId;
   if (options.timeout) {
     controller = new AbortController();
     timeoutId = setTimeout(() => controller.abort(), options.timeout);
-    options.signal = controller.signal;
+    options.signal = options.signal
+      ? AbortSignal.any([options.signal, controller.signal])
+      : controller.signal;
   }
   try {
-    // One account shares a bounded outbound lane. Without this guard, dozens
-    // of concurrent commands multiply their attachment/chunk Promise.all calls
-    // and can exhaust sockets, buffers and Zalo rate limits at once.
-    const response = await scheduleRequest(appContext, () => appContext.options.polyfill(url, options));
+    const response = await appContext.options.polyfill(url, options);
     if (response.headers.has("set-cookie")) {
-      const newCookie = updateCookie(appContext, response.headers.get("set-cookie"));
+      const newCookie = updateCookie(appContext,
+        response.headers.getSetCookie?.() ?? response.headers.raw?.()["set-cookie"] ?? response.headers.get("set-cookie")
+      );
       if (newCookie) appContext.cookie = newCookie;
     }
     return response;
-  } catch (error) {
-    throw error;
   } finally {
     if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
+export async function requestUpload(appContext, url, formData, options = {}) {
+  // Uploads already bound their files/chunks. Send directly so they neither
+  // wait behind ordinary API requests nor consume their request slots.
+  const headers = formData.getHeaders({
+    ...options.headers,
+    "content-length": formData.getLengthSync(),
+  });
+  const body = new PassThrough();
+  formData.on("error", (error) => body.destroy(error));
+  formData.pipe(body);
+  try {
+    return await requestDirect(appContext, url, {
+      timeout: 120_000,
+      ...options,
+      method: "POST",
+      headers,
+      body,
+      duplex: "half",
+    });
+  } finally {
+    body.destroy();
+    formData.destroy();
   }
 }
 export async function resolveResponse(appContext, res, cb) {
@@ -269,6 +324,12 @@ export function apiFactory() {
         },
         request(url, options) {
           return request(appContext, url, options);
+        },
+        requestDirect(url, options) {
+          return requestDirect(appContext, url, options);
+        },
+        requestUpload(url, formData, options) {
+          return requestUpload(appContext, url, formData, options);
         },
         logger: logger(appContext),
         resolve: (res, cb) => resolveResponse(appContext, res, cb),
@@ -517,29 +578,27 @@ export async function decodeEventData(parsed, cipherKey) {
   if (!decodedData) return;
   return JSONBig.parse(decodedData);
 }
-export function getMd5LargeFileObject(filePath, fileSize) {
-  return new Promise(async (resolve, reject) => {
-    let chunkSize = 2097152,
-      chunks = Math.ceil(fileSize / chunkSize),
-      currentChunk = 0,
-      spark = new SparkMD5.ArrayBuffer(),
-      buffer = await fs.promises.readFile(filePath);
-    function loadNext() {
-      let start = currentChunk * chunkSize,
-        end = start + chunkSize >= fileSize ? fileSize : start + chunkSize;
-      spark.append(buffer.subarray(start, end));
-      currentChunk++;
-      if (currentChunk < chunks) {
-        loadNext();
-      } else {
-        resolve({
-          currentChunk,
-          data: spark.end(),
-        });
-      }
+export async function getMd5LargeFileObject(filePath, fileSize) {
+  if (!Number.isSafeInteger(fileSize) || fileSize < 0) {
+    throw new ZaloApiError("Invalid file size for checksum");
+  }
+  const hash = crypto.createHash("md5");
+  if (fileSize === 0) {
+    await fs.promises.access(filePath, fs.constants.R_OK);
+  } else {
+    let bytesRead = 0;
+    const stream = fs.createReadStream(filePath, {
+      highWaterMark: 1024 * 1024,
+      start: 0,
+      end: fileSize - 1,
+    });
+    for await (const chunk of stream) {
+      hash.update(chunk);
+      bytesRead += chunk.length;
     }
-    loadNext();
-  });
+    if (bytesRead !== fileSize) throw new ZaloApiError("File changed while calculating checksum");
+  }
+  return { currentChunk: Math.max(1, Math.ceil(fileSize / 2097152)), data: hash.digest("hex") };
 }
 export async function getMd5LargeFileFromUrl(url, fileSize) {
   return new Promise(async (resolve, reject) => {

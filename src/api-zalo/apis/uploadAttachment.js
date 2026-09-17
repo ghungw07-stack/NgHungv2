@@ -6,9 +6,10 @@ import FormData from "form-data";
 import fs from "fs";
 import path from "path";
 import { ZaloApiError, MessageType } from "../index.js";
-import { asyncPool, encodeAES, getFileSize, getImageMetaData, getMd5LargeFileObject, apiFactory } from "../utils.js";
-import { measureTime } from "../../utils/util.js";
+import { asyncPool, getFileSize, getImageMetaData, getMd5LargeFileObject, apiFactory } from "../utils.js";
 import { readSettingConfig } from "../../utils/io-json.js";
+import { rememberUploadSize } from "../upload-metadata.js";
+import { logMediaTiming } from "../../utils/media-timing.js";
 
 const DEFAULT_CHUNK_SIZE = 100 * 1024 * 1024;
 // Zalo endpoint vẫn áp giới hạn ~512KB cho audio asyncfile, kể cả nhánh file
@@ -21,9 +22,11 @@ const DEFAULT_CONCURRENT_CHUNKS = Math.max(1, Number(process.env.NGH_UPLOAD_CHUN
 const MAX_CONCURRENT_FILES = Math.max(1, Number(process.env.NGH_UPLOAD_FILE_CONCURRENCY) || 2);
 const UPLOAD_CACHE_TTL_MS = 30 * 60 * 1000;
 const MAX_UPLOAD_CACHE_ENTRIES = 1000;
+const UPLOAD_RATE_LIMIT_COOLDOWN_MS = 15 * 1000;
 const uploadSettingConfig = readSettingConfig();
 const uploadResultCache = new Map();
 const uploadsInFlight = new Map();
+const uploadRateLimitedUntil = new Map();
 
 const urlType = {
   image: "photo_original/upload",
@@ -44,6 +47,35 @@ const readChunkFd = (fd, start, size) =>
     });
   });
 
+async function getHelperUploadApi(currentBotId) {
+  try {
+    const { getGlobalApi, apiManager } = await import("../../index.js");
+    const mainApi = getGlobalApi?.();
+    const mainBotId = String(mainApi?.getBotId?.() || "");
+    const currentId = String(currentBotId || "");
+
+    if (mainApi?.uploadAttachment && mainBotId && mainBotId !== currentId) {
+      const blockedUntil = uploadRateLimitedUntil.get(mainBotId) || 0;
+      if (blockedUntil <= Date.now()) {
+        return mainApi;
+      }
+    }
+    for (const manager of Object.values(apiManager?.apiManagerObject || {})) {
+      const helper = manager?.apiZalo;
+      const helperId = String(helper?.getBotId?.() || "");
+      if (helper?.uploadAttachment && helperId && helperId !== currentId) {
+        const blockedUntil = uploadRateLimitedUntil.get(helperId) || 0;
+        if (blockedUntil <= Date.now()) {
+          return helper;
+        }
+      }
+    }
+  } catch (err) {
+    console.error(`[getHelperUploadApi-error]`, err?.message || err);
+  }
+  return null;
+}
+
 export const uploadAttachmentFactory = apiFactory()((api, appContext, utils) => {
   const serviceURL = `${api.zpwServiceMap.file[0]}/api`;
 
@@ -57,6 +89,20 @@ export const uploadAttachmentFactory = apiFactory()((api, appContext, utils) => 
 
     const processFile = async (filePath) => {
       if (!fs.existsSync(filePath)) throw new ZaloApiError("File not found");
+
+      const botId = String(api.getBotId());
+      const blockedUntil = uploadRateLimitedUntil.get(botId) || 0;
+      if (blockedUntil > Date.now()) {
+        if (!configOption.isDelegated) {
+          const helper = await getHelperUploadApi(botId);
+          if (helper) {
+            console.error(`[uploadAttachment-delegate-cooldown] Bot ${botId} đang bị cooldown Zalo 221, chuyển quyền upload qua bot ${helper.getBotId()}`);
+            return helper.uploadAttachment([filePath], threadId, type, { ...configOption, isDelegated: true });
+          }
+        }
+        throw new ZaloApiError("Vượt quá số request cho phép", 221);
+      }
+      if (blockedUntil) uploadRateLimitedUntil.delete(botId);
 
       const stat = await fs.promises.stat(filePath);
       const cacheKey = [
@@ -77,8 +123,12 @@ export const uploadAttachmentFactory = apiFactory()((api, appContext, utils) => 
         return sharedResults.map((item) => ({ ...item }));
       }
 
+      const startedAt = performance.now();
+      const timings = { attempts: 0, chunks: 0, chunkMs: 0, checksumMs: 0, callbackMs: 0 };
+      let ok = false;
       const uploadPromise = (async () => {
       const fileResults = [];
+      let checksumPromise;
 
       const extFile = path.extname(filePath).slice(1);
       const configuredChunkSize = appContext.settings.features.sharefile.chunk_size_file || DEFAULT_CHUNK_SIZE;
@@ -93,25 +143,23 @@ export const uploadAttachmentFactory = apiFactory()((api, appContext, utils) => 
       const chunkSize = isVoiceUpload ? MAX_VOICE_CHUNK : (useRegularFileUpload ? LARGE_AUDIO_CHUNK_SIZE : configuredChunkSize);
 
       const useCloudUpload = isUploadCloud || useRegularFileUpload;
-
-      let fileType_ = type;
-      let threadId_ = threadId;
-      if (useCloudUpload && (!["mp3", "aac"].includes(extFile) || isCloudVoice || useRegularFileUpload)) {
-        fileType_ = MessageType.DirectMessage;
-        threadId_ = appContext.idCloud;
-      }
-
-      const isGroupMessage = fileType_ == MessageType.GroupMessage;
-      const url = `${serviceURL}/${isGroupMessage ? "group" : "message"}/`;
-      const query = {
-        zpw_ver: appContext.options.apiVersion,
-        zpw_type: appContext.options.typeLogin,
-        type: isGroupMessage ? "11" : "2",
-      };
+      const effectiveCloudId = appContext.idCloud || appContext.uid;
+      const canUseCloud = Boolean(useCloudUpload && effectiveCloudId);
+      let fileType_ = canUseCloud && (!["mp3", "aac"].includes(extFile) || isCloudVoice || useRegularFileUpload)
+        ? MessageType.DirectMessage
+        : type;
+      let threadId_ = fileType_ === MessageType.DirectMessage && canUseCloud ? effectiveCloudId : threadId;
 
       const fileName = path.basename(filePath);
 
       const processUpload = async () => {
+        const isGroupMessage = fileType_ == MessageType.GroupMessage;
+        const url = `${serviceURL}/${isGroupMessage ? "group" : "message"}/`;
+        const query = {
+          zpw_ver: appContext.options.apiVersion || 667,
+          zpw_type: 30, // Upload endpoint của Zalo Web CDN yêu cầu zpw_type 30
+          type: isGroupMessage ? "11" : "2",
+        };
         let clientId = Date.now();
         const data = {
           filePath,
@@ -155,10 +203,21 @@ export const uploadAttachmentFactory = apiFactory()((api, appContext, utils) => 
 
         data.params.totalChunk = Math.ceil(totalSize / chunkSize);
         data.params.totalSize = totalSize;
+        timings.chunks = data.params.totalChunk;
 
         const fd = await openFd(filePath);
 
         try {
+          // Calculate once alongside the network upload, including across retries.
+          // Observe errors immediately; awaiting the original promise below still
+          // propagates failures without an unhandled rejection during a slow upload.
+          if (data.fileType !== "image" && !checksumPromise) {
+            const checksumStartedAt = performance.now();
+            checksumPromise = getMd5LargeFileObject(filePath, totalSize).finally(() => {
+              timings.checksumMs = Math.round(performance.now() - checksumStartedAt);
+            });
+            void checksumPromise.catch(() => {});
+          }
           const concurrentChunks = isVoiceUpload
             ? Math.min(
                 data.params.totalChunk,
@@ -195,12 +254,10 @@ export const uploadAttachmentFactory = apiFactory()((api, appContext, utils) => 
             const encryptedParams = utils.encodeAES(JSON.stringify(params));
             if (!encryptedParams) throw new ZaloApiError("Failed to encrypt message");
 
-            const response = await utils.request(
+            const response = await utils.requestUpload(
               utils.makeURL(url + urlType[data.fileType], { ...query, params: encryptedParams }),
+              formData,
               {
-                method: "POST",
-                headers: formData.getHeaders(),
-                body: formData.getBuffer(),
                 timeout: Math.max(
                   Number(settingConfig["TIME_OUT_UPLOAD_CHUNK"]) || 0,
                   30_000 + Math.ceil(size / (1024 * 1024)) * 2_000
@@ -208,16 +265,33 @@ export const uploadAttachmentFactory = apiFactory()((api, appContext, utils) => 
               }
             );
 
-            const resData = await utils.resolve(response);
+            let resData;
+            try {
+              resData = await utils.resolve(response);
+            } catch (err) {
+              console.error(`[uploadAttachment-chunk-err] bot=${botId} url=${url + urlType[data.fileType]} status=${response.status} code=${err?.code} err=${err?.message}`);
+              throw err;
+            }
             return { resData, chunkId: i + 1 };
           });
 
-          const chunkResults = await asyncPool(concurrentChunks, uploadChunks, (fn) => fn());
+          const chunksStartedAt = performance.now();
+          let chunkResults;
+          try {
+            chunkResults = await asyncPool(concurrentChunks, uploadChunks, (fn) => fn());
+          } finally {
+            timings.chunkMs += Math.round(performance.now() - chunksStartedAt);
+          }
 
+          const completedFileIds = new Set();
           for (const { resData } of chunkResults) {
             if (!resData) continue;
             if (resData.fileId && resData.fileId != -1) {
               const callbackKey = String(resData.fileId);
+              // Several chunks can acknowledge the same file. Its completion
+              // event is sent once; waiting for it again stalls until timeout.
+              if (completedFileIds.has(callbackKey)) continue;
+              completedFileIds.add(callbackKey);
               const callbackTimeout = Math.min(
                 30 * 60 * 1000,
                 Math.max(120_000, 60_000 + Math.ceil(totalSize / (1024 * 1024)) * 5_000)
@@ -228,7 +302,7 @@ export const uploadAttachmentFactory = apiFactory()((api, appContext, utils) => 
                   ...resData,
                   ...wsData,
                   fileType: data.fileType,
-                  checksum: (await getMd5LargeFileObject(data.filePath, data.fileData.totalSize)).data,
+                  checksum: (await (checksumPromise ??= getMd5LargeFileObject(filePath, totalSize))).data,
                 });
               };
               const pendingResult = appContext.uploadResults?.get(callbackKey);
@@ -237,22 +311,25 @@ export const uploadAttachmentFactory = apiFactory()((api, appContext, utils) => 
                 await completeUpload(pendingResult);
                 continue;
               }
-              await new Promise((resolve, reject) => {
-                const timeoutId = setTimeout(() => {
-                  appContext.uploadCallbacks.delete(callbackKey);
-                  reject(new ZaloApiError(`Upload callback timeout (${Math.round(callbackTimeout / 1000)}s)`));
-                }, callbackTimeout);
+              const callbackStartedAt = performance.now();
+              let wsData;
+              try {
+                wsData = await new Promise((resolve, reject) => {
+                  const timeoutId = setTimeout(() => {
+                    appContext.uploadCallbacks.delete(callbackKey);
+                    reject(new ZaloApiError(`Upload callback timeout (${Math.round(callbackTimeout / 1000)}s)`));
+                  }, callbackTimeout);
 
-                appContext.uploadCallbacks.set(callbackKey, async (wsData) => {
-                  clearTimeout(timeoutId);
-                  try {
-                    await completeUpload(wsData);
-                    resolve();
-                  } catch (error) {
-                    reject(error);
-                  }
-                }, callbackTimeout + 5_000);
-              });
+                  appContext.uploadCallbacks.set(callbackKey, (wsData) => {
+                    clearTimeout(timeoutId);
+                    appContext.uploadCallbacks.delete(callbackKey);
+                    resolve(wsData);
+                  }, callbackTimeout + 5_000);
+                });
+              } finally {
+                timings.callbackMs += Math.round(performance.now() - callbackStartedAt);
+              }
+              await completeUpload(wsData);
             }
             if (resData.photoId && resData.finished) {
               fileResults.push({
@@ -264,6 +341,9 @@ export const uploadAttachmentFactory = apiFactory()((api, appContext, utils) => 
               });
             }
           }
+          if (data.fileType === "image" && fileResults.length === 0) {
+            throw new ZaloApiError("Upload ảnh không nhận được photoId từ Zalo", 500);
+          }
         } finally {
           await closeFd(fd);
         }
@@ -272,10 +352,38 @@ export const uploadAttachmentFactory = apiFactory()((api, appContext, utils) => 
       let attempts = 0;
       while (attempts < 3) {
         try {
+          timings.attempts++;
+          fileResults.length = 0;
           await processUpload();
           break;
         } catch (error) {
           attempts++;
+          console.error(`[uploadAttachment-attempt-error] bot=${botId} attempt=${attempts} fileType_=${fileType_} threadId_=${threadId_} code=${error?.code} message=${error?.message}`);
+          // Nếu đang upload qua Cloud mà lỗi (hoặc bị rate limit 221), thử fallback sang direct group upload
+          if (fileType_ === MessageType.DirectMessage && (threadId_ === appContext.idCloud || threadId_ === appContext.uid) && type === MessageType.GroupMessage) {
+            fileType_ = type;
+            threadId_ = threadId;
+            continue;
+          }
+          if (Number(error?.code) === 221) {
+            uploadRateLimitedUntil.set(botId, Date.now() + UPLOAD_RATE_LIMIT_COOLDOWN_MS);
+            if (!configOption.isDelegated) {
+              const helper = await getHelperUploadApi(botId);
+              if (helper) {
+                console.error(`[uploadAttachment-delegate-221] Bot ${botId} gặp lỗi Zalo 221, chuyển quyền upload qua bot ${helper.getBotId()}`);
+                try {
+                  const delegated = await helper.uploadAttachment([filePath], threadId, type, { ...configOption, isDelegated: true });
+                  if (delegated?.length) {
+                    fileResults.push(...delegated);
+                    return fileResults;
+                  }
+                } catch (delegateErr) {
+                  console.error(`[uploadAttachment-delegate-failed] Helper bot ${helper.getBotId()} upload lỗi:`, delegateErr?.message || delegateErr);
+                }
+              }
+            }
+            throw error;
+          }
           if (attempts >= 3) throw error;
           await new Promise((resolve) => setTimeout(resolve, attempts * 300));
         }
@@ -286,6 +394,7 @@ export const uploadAttachmentFactory = apiFactory()((api, appContext, utils) => 
       uploadsInFlight.set(cacheKey, uploadPromise);
       try {
         const uploaded = await uploadPromise;
+        ok = true;
         uploadResultCache.set(cacheKey, { timestamp: Date.now(), results: uploaded });
         if (uploadResultCache.size > MAX_UPLOAD_CACHE_ENTRIES) {
           const oldestKey = uploadResultCache.keys().next().value;
@@ -294,10 +403,16 @@ export const uploadAttachmentFactory = apiFactory()((api, appContext, utils) => 
         return uploaded.map((item) => ({ ...item }));
       } finally {
         uploadsInFlight.delete(cacheKey);
+        logMediaTiming("upload", startedAt, { bot: api.getBotId(), ok, bytes: stat.size, ...timings });
       }
     };
 
     const uploadedFiles = await asyncPool(MAX_CONCURRENT_FILES, filePaths, processFile);
-    return uploadedFiles.flat();
+    const results = uploadedFiles.flat();
+    for (const result of results) {
+      rememberUploadSize(appContext, result.fileUrl, result.totalSize);
+      rememberUploadSize(appContext, result.normalUrl, result.totalSize);
+    }
+    return results;
   };
 });

@@ -13,6 +13,8 @@ import { writeFilePromise } from "../../utils/util.js";
 import { tempDir } from "../../utils/io-json.js";
 import { randomIDTemp } from "../../utils/format-util.js";
 import * as cv from "../../utils/canvas/index.js";
+import { getActiveCanvasStyle } from "../../utils/canvas/theme.js";
+import { renderCollectionStyle } from "../../utils/canvas/collection-style-renderers.js";
 
 export async function handleTargetBot(api, message, aliasCommand) {
   const botId = api.getBotId();
@@ -349,6 +351,11 @@ async function checkInfoTargetList(api) {
 }
 
 async function createTargetListImage(userList, userName) {
+  const style = getActiveCanvasStyle();
+  if (style !== 1) return renderCollectionStyle(style, {
+    kicker: "MYBOT • TARGET MONITOR", title: "NGƯỜI DÙNG ĐANG THEO DÕI", subtitle: userName ? `Danh sách của ${userName}` : `${userList.length} mục tiêu`, footer: "Theo dõi trạng thái theo cấu hình của bot hiện tại",
+    items: userList.map((user, index) => ({ badge: String(index + 1).padStart(2, "0"), title: user.displayName || user.zaloName || "Người dùng", subtitle: `UID: ${user.id}`, meta: user.status == null ? "MONITOR" : user.status ? "ONLINE" : "OFFLINE" })),
+  }, "target-users");
   const tempCanvas = createCanvas(1, 1);
   const tempCtx = tempCanvas.getContext("2d");
   tempCtx.font = "bold 32px " + FONT_MAIN;

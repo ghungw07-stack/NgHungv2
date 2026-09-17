@@ -14,6 +14,8 @@ import {
 import { setSelectionsMapData } from "../index.js";
 import { deleteFile, loadImageRetryMultiRequest } from "../../../utils/util.js";
 import { createCanvas, loadImage } from "canvas";
+import { getActiveCanvasStyle } from "../../../utils/canvas/theme.js";
+import { renderPortraitStyle } from "../../../utils/canvas/portrait-style-renderers.js";
 
 import * as cv from "../../../utils/canvas/index.js";
 import { hanldeNameUser } from "../../../utils/canvas/info.js";
@@ -188,6 +190,12 @@ async function getWithRetry(url, retries = 3) {
 }
 
 export async function createHeroInfoCard(dataHero, selectedSkin) {
+  const style = getActiveCanvasStyle();
+  if (style !== 1) {
+    let avatar = null; try { if (selectedSkin.cover) avatar = await loadImageRetryMultiRequest(selectedSkin.cover); } catch { }
+    const skills = (dataHero.skills || []).slice(0, 3).map((skill) => skill.name || skill.description || "Kỹ năng").join(" · ");
+    return renderPortraitStyle(style, { kind: "profile", kicker: "MYBOT • LEAGUE DATABASE", title: selectedSkin.name, names: [dataHero.name || selectedSkin.name], avatars: [avatar], primaryLabel: "VAI TRÒ", primaryValue: dataHero.roles?.join(" / ") || "TƯỚNG", secondaryLabel: "KỸ NĂNG", secondaryValue: skills || "Đang cập nhật", body: selectedSkin.description || dataHero.lore || "Thông tin tướng và trang phục", footer: "Dữ liệu từ kho tướng" }, "hero-lmht");
+  }
   const [nameLine1, nameLine2] = hanldeNameUser(selectedSkin.name, 22);
   const width = 1080;
   const lineHeight = 25;

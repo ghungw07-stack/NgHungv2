@@ -142,6 +142,30 @@ export async function checkReplySelectionsMapData(api, message, isAdminLevelHigh
           if (videoPath) await deleteFile(videoPath);
         }
         return true;
+      case "xnhau": {
+        const { handleSendXNhauVideo } = await import("../../commands/send-all/xnhau.js");
+        try {
+          await handleSendXNhauVideo(api, message, media);
+          await api.addReaction("LIKE", message);
+        } catch (error) {
+          console.error("Lỗi gửi video xnhau:", error?.response?.status || error?.message || error);
+          await api.addReaction("UNDO", message);
+          await sendMessageWarningRequest(api, message, { caption: "Không thể gửi video đã chọn." }, 30000);
+        }
+        return true;
+      }
+      case "xhwide": {
+        const { handleSendXhwideVideo } = await import("../../commands/send-all/xhwide.js");
+        try {
+          await handleSendXhwideVideo(api, message, media);
+          await api.addReaction("LIKE", message);
+        } catch (error) {
+          console.error("Lỗi gửi video xhwide:", error?.stderr || error?.message || error);
+          await api.addReaction("UNDO", message);
+          await sendMessageWarningRequest(api, message, { caption: "Không thể gửi video đã chọn." }, 30_000);
+        }
+        return true;
+      }
       case "capcut":
         return await handleSendTemplateCapcut(api, message, media);
       case "downlink":

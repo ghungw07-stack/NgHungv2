@@ -4,6 +4,8 @@ import fsPromises from "fs/promises";
 import sharp from "sharp";
 import { loadImageBuffer } from "../util.js";
 import { getFontCanvas } from "../format-util.js";
+import { getActiveCanvasStyle } from "./theme.js";
+import { renderPortraitStyle } from "./portrait-style-renderers.js";
 
 const C_BORDER    = "rgba(255,255,255,0.16)";
 const C_TITLE     = "#ffffff";
@@ -144,6 +146,25 @@ export async function createMusicCard(musicInfo, botId) {
           ]);
         }
       } catch {}
+    }
+
+    const activeStyle = getActiveCanvasStyle();
+    if (activeStyle !== 1) {
+      const title = musicInfo.title || "Unknown Title";
+      const artist = String(musicInfo.artists || musicInfo.artist || musicInfo.category || "Không rõ nghệ sĩ");
+      return renderPortraitStyle(activeStyle, {
+        kind: "music-card",
+        kicker: `MYBOT • ${musicInfo.source || "NOW PLAYING"}`,
+        title: "MUSIC PLAYER",
+        names: [title],
+        avatars: thumbnail ? [thumbnail] : [],
+        primaryLabel: "ĐANG PHÁT",
+        primaryValue: musicInfo.durationText || musicInfo.duration || "♪",
+        secondaryLabel: "NGHỆ SĨ",
+        secondaryValue: artist,
+        body: `${title} • ${artist}`,
+        footer: botId ? `BOT ID ${String(botId).slice(-8)}` : "MYBOT MUSIC",
+      }, "music");
     }
 
     // Paint every pixel opaque. Zalo may convert PNG to JPEG; transparent

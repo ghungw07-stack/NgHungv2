@@ -1,4 +1,4 @@
-import { getPlayerBalance, updatePlayerBalanceByUsername, getUsernameByIdZalo } from "../../../database/player.js";
+import { getPlayerBalance, updatePlayerBalanceByUsername, setLoserGameByUsername, getUsernameByIdZalo } from "../../../database/player.js";
 import { sendMessageFromSQL, sendMessageFromSQLImage } from "../../chat-zalo/chat-style/chat-style.js";
 import { getGlobalPrefix } from "../../service.js";
 import { Canvas, Path2D, loadImage } from "skia-canvas";
@@ -8,20 +8,131 @@ import { parseGameAmount, formatCurrency } from "../../../utils/format-util.js";
 import { checkBeforeJoinGame } from "../index.js";
 import { connection } from "../../../database/state.js";
 import { getApiManager } from "../../../index.js";
-import { sendReactionWaitingCountdown } from "../../../commands/manager-command/check-countdown.js";
 import Big from "big.js";
+import { getActiveCanvasStyle } from "../../../utils/canvas/theme.js";
+import { renderCollectionStyle } from "../../../utils/canvas/collection-style-renderers.js";
+import { createBaccaratTableImage } from "./canvas-table.js";
+import { buildGamePlayerMessage, gameMentionPlayer } from "../../../utils/game-mentions.js";
+import { withPlayerBetLock } from "../shared/player-bet-lock.js";
+import { resolveSentMessageTarget } from "../../../utils/zalo-message-target.js";
+import {
+  evaluateBaccaratBet,
+  getBaccaratDoorLabel,
+  getWinningBaccaratDoors,
+  isBaccaratNatural,
+  normalizeBaccaratDoor,
+} from "./rules.js";
 
 const GAME_DURATION = 30000;
 const WARNING_TIME = 10000;
-const BACCARAT_PAYOUT_FEE = new Big("0.95");
 const MAX_HISTORY = 90;
-const HOUSE_BIAS_CHANCE = 0.45;
+const HOUSE_BIAS_CHANCE = 0.6;
 
 // Baccarat dùng một phiên chung cho toàn server (mọi group cùng tham gia).
 const GLOBAL_GAME_KEY = "__global__";
 const activeGames = { [GLOBAL_GAME_KEY]: null };
 const recentResults = new Map();
+const activeReactionCountdowns = new Map();
+const MAX_COUNTDOWN_REACTIONS = 60;
 
+// Lấy thẳng ID do API trả về lúc bot vừa gửi. cliMsgId này là clientId của
+// chính tin Baccarat, không phải cliMsgId của lệnh cược của người chơi.
+async function getBotSentReactionTarget(api, sourceMessage, sent) {
+  if (!sent) {
+    console.warn("[baccarat] getBotSentReactionTarget: sent is", sent);
+    return resolveSentMessageTarget(api, sourceMessage, sent);
+  }
+  const sources = [sent?.message, sent?.message?.data, sent?.data, sent, sent?.attachment?.[0], sent?.attachment?.[0]?.data];
+  let msgId = null;
+  let cliMsgId = null;
+  for (const source of sources) {
+    if (!source || typeof source !== "object") continue;
+    // Một số response giữ `msgId` của tin quote, còn `msgIds[0]` mới là tin
+    // bot vừa gửi. Phải ưu tiên mảng này để CLOCK không bám nhầm tin cũ.
+    msgId ||= source.msgIds?.[0] || source.messageIds?.[0] || source.msgId || source.globalMsgId || source.messageId || null;
+    cliMsgId ||= source.cliMsgId || source.clientId || source.clientMsgId || null;
+  }
+  console.error(`[baccarat] getBotSentReactionTarget: msgId=${msgId} cliMsgId=${cliMsgId}`);
+  if (msgId && cliMsgId) {
+    return {
+      type: sourceMessage.type,
+      threadId: sourceMessage.threadId,
+      data: {
+        msgId: String(msgId),
+        cliMsgId: String(cliMsgId),
+        uidFrom: String(api.getBotId()),
+      },
+    };
+  }
+  // Chỉ dùng đọc lại nhóm khi API không trả identity tin bot.
+  console.warn("[baccarat] Thiếu msgId/cliMsgId từ response, dùng fallback đọc lại nhóm");
+  return resolveSentMessageTarget(api, sourceMessage, sent);
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function stopBaccaratReactionCountdown(api, threadId) {
+  const key = String(threadId || "");
+  const current = activeReactionCountdowns.get(key);
+  if (!current) return;
+  current.cancelled = true;
+  activeReactionCountdowns.delete(key);
+  const target = current.batch?.length ? [...current.batch] : current.message;
+  void api.addReaction("UNDO", target).catch(() => {});
+}
+
+// Zalo hiển thị chữ số trên CLOCK theo số phần tử trùng trong rMsg. Countdown
+// Baccarat giữ batch riêng theo từng group để không bị countdown lệnh khác ghi đè.
+function startBaccaratReactionCountdown(api, message, seconds, endsAt = null) {
+  if (!message || !seconds) return;
+  const key = String(message.threadId || "");
+  stopBaccaratReactionCountdown(api, key);
+  const deadline = endsAt || Date.now() + seconds * 1000;
+  const state = { cancelled: false, message, batch: null };
+  activeReactionCountdowns.set(key, state);
+
+  void (async () => {
+    try {
+      await sleep(300);
+      while (!state.cancelled) {
+        const remaining = Math.ceil((deadline - Date.now()) / 1000);
+        if (remaining <= 0) break;
+        const batch = Array(Math.min(remaining, MAX_COUNTDOWN_REACTIONS)).fill(message);
+        state.batch = batch;
+        try {
+          if (remaining === seconds) {
+            console.error(`[baccarat] CLOCK request msgId=${message.data?.msgId} cliMsgId=${message.data?.cliMsgId} batch=${batch.length}`);
+          }
+          const reactionResult = await Promise.race([
+            api.addReaction("CLOCK", batch),
+            sleep(3_000).then(() => { throw new Error("CLOCK request timed out"); }),
+          ]);
+          if (remaining === seconds) console.error(`[baccarat] CLOCK response=${JSON.stringify(reactionResult)}`);
+        } catch (tickError) {
+          console.warn("[baccarat] CLOCK tick lỗi (tiếp tục):", tickError?.message || tickError);
+        }
+        await sleep(1000);
+        if (state.cancelled) break;
+        try {
+          await api.addReaction("UNDO", batch);
+        } catch (_) { /* bỏ qua lỗi UNDO */ }
+        state.batch = null;
+      }
+    } catch (error) {
+      console.error("[baccarat] Countdown reaction lỗi:", error?.message || error);
+    } finally {
+      if (activeReactionCountdowns.get(key) === state) {
+        activeReactionCountdowns.delete(key);
+        if (state.batch) await api.addReaction("UNDO", state.batch).catch(() => {});
+      }
+    }
+  })();
+}
+
+// sendMessage có thể trả về trực tiếp Message hoặc wrapper { message, ... }.
+// Countdown reaction cần đúng ID của tin vừa gửi, không phải tin lệnh cược.
 function historyKey(api, threadId) {
   return `${api.getBotId()}_global`;
 }
@@ -68,6 +179,23 @@ function getSoiCauStats(history) {
 }
 
 export async function createSoiCauCanvas(history, groupName = "Nhóm Baccarat") {
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) {
+    const stats = getSoiCauStats(history);
+    const recent = history.slice(-16).reverse();
+    return renderCollectionStyle(activeStyle, {
+      kicker: "MYBOT • BACCARAT ANALYTICS",
+      title: "SOI CẦU BACCARAT",
+      subtitle: `${groupName} • ${history.length} ván • ${stats ? `Bệt ${stats.name[stats.latest]} ${stats.streak}` : "Chưa có dữ liệu"}`,
+      footer: stats ? `Con ${stats.counts.con} • Cái ${stats.counts["cái"]} • Hòa ${stats.counts["hòa"]}` : "Dữ liệu chỉ mang tính tham khảo",
+      items: recent.map((item, index) => ({
+        title: stats?.name[item.door] || String(item.door).toUpperCase(),
+        subtitle: item.at ? new Date(item.at).toLocaleString("vi-VN") : "Phiên Baccarat",
+        meta: item.door === "con" ? "PLAYER" : item.door === "cái" ? "BANKER" : "TIE",
+        badge: String(history.length - index).padStart(2, "0"),
+      })),
+    }, "baccarat_soicau");
+  }
   const width = 1026, height = 594;
   const canvas = new Canvas(width, height);
   const ctx = canvas.getContext("2d");
@@ -176,12 +304,21 @@ function getCardValue(rank) {
   return parseInt(rank);
 }
 
-function getRandomCard() {
+function createBaccaratShoe(deckCount = 8) {
   const suits = ['♠', '♣', '♥', '♦'];
   const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
-  const suit = suits[Math.floor(Math.random() * suits.length)];
-  const rank = ranks[Math.floor(Math.random() * ranks.length)];
-  return { suit, rank, value: getCardValue(rank), str: `${rank}${suit}` };
+  const shoe = [];
+  for (let deck = 0; deck < deckCount; deck += 1) {
+    for (const suit of suits) {
+      for (const rank of ranks) shoe.push({ suit, rank, value: getCardValue(rank), str: `${rank}${suit}` });
+    }
+  }
+  return shoe;
+}
+
+function drawRandomCard(shoe) {
+  const index = Math.floor(Math.random() * shoe.length);
+  return shoe.splice(index, 1)[0];
 }
 
 function calculateScore(cards) {
@@ -189,50 +326,70 @@ function calculateScore(cards) {
 }
 
 function dealBaccaratHand() {
-  const player = [getRandomCard(), getRandomCard()];
-  const banker = [getRandomCard(), getRandomCard()];
+  const shoe = createBaccaratShoe();
+  const player = [drawRandomCard(shoe)];
+  const banker = [drawRandomCard(shoe)];
+  player.push(drawRandomCard(shoe));
+  banker.push(drawRandomCard(shoe));
   let pScore = calculateScore(player), bScore = calculateScore(banker), p3 = null;
 
   if (pScore < 8 && bScore < 8) {
     let playerDrew = false;
     if (pScore <= 5) {
-      p3 = getRandomCard(); player.push(p3); pScore = calculateScore(player); playerDrew = true;
+      p3 = drawRandomCard(shoe); player.push(p3); pScore = calculateScore(player); playerDrew = true;
     }
     if (!playerDrew) {
-      if (bScore <= 5) { banker.push(getRandomCard()); bScore = calculateScore(banker); }
+      if (bScore <= 5) { banker.push(drawRandomCard(shoe)); bScore = calculateScore(banker); }
     } else {
       const bDraw = bScore <= 2 ||
         (bScore === 3 && p3.value !== 8) ||
         (bScore === 4 && [2, 3, 4, 5, 6, 7].includes(p3.value)) ||
         (bScore === 5 && [4, 5, 6, 7].includes(p3.value)) ||
         (bScore === 6 && [6, 7].includes(p3.value));
-      if (bDraw) { banker.push(getRandomCard()); bScore = calculateScore(banker); }
+      if (bDraw) { banker.push(drawRandomCard(shoe)); bScore = calculateScore(banker); }
     }
   }
   const resultDoor = pScore > bScore ? "con" : bScore > pScore ? "cái" : "hòa";
   return { player, banker, pScore, bScore, resultDoor };
 }
 
-function dealBaccaratForBets(players) {
-  let deal = dealBaccaratHand();
-  if (Math.random() >= HOUSE_BIAS_CHANCE) return deal;
-  const totals = { con: new Big(0), "cái": new Big(0), "hòa": new Big(0) };
-  for (const bet of Object.values(players || {})) {
-    totals[bet.door] = totals[bet.door].plus(bet.amount);
+function dealBaccaratForBets(players = {}) {
+  let selected = dealBaccaratHand();
+  const bets = Object.values(players || {});
+  if (!bets.length || Math.random() >= HOUSE_BIAS_CHANCE) return selected;
+  let minimum = null;
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    const candidate = attempt ? dealBaccaratHand() : selected;
+    const liability = bets.reduce((sum, bet) => sum.plus(bet.amount.times(evaluateBaccaratBet(bet.door, candidate).totalMultiplier)), new Big(0));
+    if (minimum === null || liability.lt(minimum)) { minimum = liability; selected = candidate; }
   }
-  const liabilities = {
-    con: totals.con.times(1.95),
-    "cái": totals["cái"].times(1.9),
-    "hòa": totals["hòa"].times(8).plus(totals.con).plus(totals["cái"]),
-  };
-  const preferred = Object.keys(liabilities).sort((a, b) => liabilities[a].cmp(liabilities[b]))[0];
-  for (let attempt = 0; attempt < 60 && deal.resultDoor !== preferred; attempt++) deal = dealBaccaratHand();
-  return deal;
+  return selected;
+}
+
+function baccaratHelp(prefix) {
+  return [
+    "👉 Lệnh đặt cửa cược:",
+    `- ${prefix}bcr con <tiền> — Tay con`,
+    `- ${prefix}bcr cái <tiền> — Nhà cái`,
+    `- ${prefix}bcr hòa <tiền> — Hòa`,
+    `- ${prefix}bcr con đôi <tiền> — hai lá đầu Tay con cùng hạng`,
+    `- ${prefix}bcr cái đôi <tiền> — hai lá đầu Nhà cái cùng hạng`,
+    `- ${prefix}bcr long con <tiền> — Long bảo Tay con`,
+    `- ${prefix}bcr long cái <tiền> — Long bảo Nhà cái`,
+    "",
+    "📊 Trả thưởng: Con 1:1 • Cái 1:0.95 • Hòa 1:8",
+    "Đôi 1:11 • Long bảo 1:1 đến 1:30",
+  ].join("\n");
 }
 
 export async function handleBaccaratBet(api, message, groupSettings) {
+  return withPlayerBetLock(message.data.uidFrom, () => placeBaccaratBet(api, message, groupSettings));
+}
+
+async function placeBaccaratBet(api, message, groupSettings) {
   const threadId = message.threadId;
   const senderId = message.data.uidFrom;
+  console.error(`[baccarat] received thread=${threadId} sender=${senderId}`);
   // Chuẩn hóa dấu để cả "cái/hòa" dạng Unicode dựng sẵn và dạng dấu tổ hợp
   // (thường do bàn phím/Zalo gửi lên) đều được nhận như nhau.
   const content = String(message.data.content || "")
@@ -256,12 +413,12 @@ export async function handleBaccaratBet(api, message, groupSettings) {
     }
     return true;
   }
-  const match = content.match(new RegExp(`^${escapedPrefix}(?:bcr|bac|baccarat)\\s+(con|cai|hoa)\\s+([\\d,.]+[kmb]?|allin|all|[\\d,.]+%)$`, "i"));
+  const match = content.match(new RegExp(`^${escapedPrefix}(?:bcr|bac|baccarat)\\s+(.+?)\\s+([\\d,.]+[kmb]?|allin|all|[\\d,.]+%)$`, "i"));
   
   if (!match) {
     // Nếu dùng lệnh sai cú pháp (!bcr) thì trả về false để hiển thị thông báo
     if ([`${prefix}bcr`, `${prefix}bac`, `${prefix}baccarat`].some((command) => content.startsWith(command))) {
-       await sendMessageFromSQL(api, message, { success: false, message: `Lệnh cược không hợp lệ.\nSử dụng: ${prefix}bcr <con/cái/hòa> <số tiền>` }, true, 10000);
+       await sendMessageFromSQL(api, message, { success: false, message: `Lệnh cược không hợp lệ.\nSử dụng: ${prefix}bcr <con/cái/hòa/con đôi/cái đôi/long con/long cái> <số tiền>` }, true, 10000);
        return true;
     }
     return false;
@@ -269,9 +426,18 @@ export async function handleBaccaratBet(api, message, groupSettings) {
 
   if (!(await checkBeforeJoinGame(api, message, groupSettings, true))) return true;
 
-  let betDoor = match[1];
-  if (betDoor === "cai") betDoor = "cái";
-  if (betDoor === "hoa") betDoor = "hòa";
+  const betDoor = normalizeBaccaratDoor(match[1]);
+  if (!betDoor) {
+    await sendMessageFromSQL(api, message, { success: false, message: `Không nhận ra cửa cược "${match[1]}".` }, true, 10000);
+    return true;
+  }
+
+  // Xác nhận riêng cho Baccarat bằng icon :v ("CƯỜI GƯỢNG" của Zalo).
+  // Đây là reaction có sẵn của Zalo; ảnh JPG bên ngoài không thể dùng làm
+  // reaction tùy biến qua API.
+  void api.addReaction("CƯỜI GƯỢNG", [message]).catch((error) => {
+    console.warn("[baccarat] Không thể thả reaction :v:", error?.message || error);
+  });
   
   const amountStr = match[2];
 
@@ -303,111 +469,120 @@ export async function handleBaccaratBet(api, message, groupSettings) {
   }
 
   const playerName = message.data.dName || senderId;
+  const betKey = `${senderId}:${betDoor}`;
   
   // Trừ tiền ngay
-  await updatePlayerBalanceByUsername(username, betAmount.neg());
+  const debit = await updatePlayerBalanceByUsername(username, betAmount.neg());
+  if (!debit?.success) {
+    await sendMessageFromSQL(api, message, { success: false, message: debit?.message || "Không thể trừ tiền cược. Vui lòng thử lại." }, true, 10000);
+    return true;
+  }
 
   const gameKey = GLOBAL_GAME_KEY;
   if (!activeGames[gameKey]) {
+    console.error(`[baccarat] opening round thread=${threadId}`);
     // Bắt đầu game mới
     activeGames[gameKey] = {
       players: {},
       threads: new Set(),
       timeout: null,
       warningTimeout: null,
+      endsAt: Date.now() + GAME_DURATION,
     };
     activeGames[gameKey].threads.add(threadId);
     activeGames[gameKey].threadBots = { [String(threadId)]: api.getBotId() };
     const groupName = groupSettings?.[threadId]?.nameGroup || String(threadId);
-    activeGames[gameKey].players[senderId] = { door: betDoor, amount: betAmount, name: playerName, username, threadId, groupName, botId: api.getBotId() };
+    activeGames[gameKey].players[betKey] = { ...gameMentionPlayer(api, message), uid: senderId, door: betDoor, amount: betAmount, name: playerName, username, threadId, groupName, botId: api.getBotId() };
 
-    const startMsg = `⚜️ ThuHoa Bot Team ⚜️\n🎴 ${playerName} vừa khởi động ván cược Baccarat trong 30s và đặt ${formatCurrency(betAmount)} vào cửa ${betDoor === 'con' ? 'Con (Player)' : betDoor === 'cái' ? 'Cái (Banker)' : 'Hòa (Tie)'}\n\n👉 Lệnh đặt cửa cược:\n- ${prefix}bcr con <tiền>: Cửa Con\n- ${prefix}bcr cái <tiền>: Cửa Cái\n- ${prefix}bcr hòa <tiền>: Cửa Hòa\n\n📊 Tỷ lệ trả thưởng:\n- Con: 1 ăn 0.95\n- Cái: 1 ăn 0.90\n- Hòa: 1 ăn 7`;
+    const startMsg = `⚜️ ThuHoa Bot Team ⚜️\n🎴 ${playerName} mở ván Baccarat 30 giây và đặt ${formatCurrency(betAmount)} vào ${getBaccaratDoorLabel(betDoor)}.\n\n${baccaratHelp(prefix)}`;
     
-    await sendMessageFromSQL(api, message, { success: true, message: startMsg }, false, GAME_DURATION);
+    const sentStart = await sendMessageFromSQL(api, message, { success: true, message: startMsg }, false, GAME_DURATION);
+    console.error(`[baccarat] send table response=${JSON.stringify(sentStart)}`);
+    const startCountdownMessage = await getBotSentReactionTarget(api, message, sentStart);
+    if (startCountdownMessage) {
+      startBaccaratReactionCountdown(api, startCountdownMessage, GAME_DURATION / 1000, activeGames[gameKey].endsAt);
+    } else {
+      console.warn("[baccarat] Tin mở bàn thiếu msgId/cliMsgId, không thể thả CLOCK");
+    }
 
     // Cài đặt cảnh báo 10s
     activeGames[gameKey].warningTimeout = setTimeout(() => {
       if (!activeGames[gameKey]) return;
-      let conStr = [], caiStr = [], hoaStr = [];
-      const currentGroup = activeGames[gameKey].players[message.data.uidFrom]?.groupName;
+      const betsByDoor = new Map();
+      const currentGroup = groupName;
       const otherGroups = new Map();
       for (const p of Object.values(activeGames[gameKey].players)) {
         const line = `${p.name}: ${formatCurrency(p.amount)}`;
         if (p.groupName !== currentGroup) {
           if (!otherGroups.has(p.groupName)) otherGroups.set(p.groupName, []);
-          const door = p.door === 'con' ? 'Con' : p.door === 'cái' ? 'Cái' : 'Hòa';
-          otherGroups.get(p.groupName).push(`- ${line} cửa ${door}`);
+          otherGroups.get(p.groupName).push(`- ${line} cửa ${getBaccaratDoorLabel(p.door)}`);
           continue;
         }
-        if (p.door === 'con') conStr.push(line);
-        if (p.door === 'cái') caiStr.push(line);
-        if (p.door === 'hòa') hoaStr.push(line);
+        if (!betsByDoor.has(p.door)) betsByDoor.set(p.door, []);
+        betsByDoor.get(p.door).push([{ player: p }, `: ${formatCurrency(p.amount)}`]);
       }
       
       const otherSession = [...otherGroups.entries()]
         .map(([groupName, players]) => `\n📌 Phiên khác: ${groupName}\n${players.join("\n")}`)
         .join("");
-      const warnMsg = `⚜️ ThuHoa Bot Team ⚜️\n⏳ BACCARAT còn 10 giây nữa là chốt cược!\nCon (Player): ${conStr.length ? conStr.join(', ') : 'chưa ai đặt'}\nCái (Banker): ${caiStr.length ? caiStr.join(', ') : 'chưa ai đặt'}\nHòa (Tie): ${hoaStr.length ? hoaStr.join(', ') : 'chưa ai đặt'}${otherSession}\n\n👉 Ai chưa đặt thì nhanh tay: ${prefix}bcr con / cái / hòa + tiền cược.`;
+      const betSummary = [...betsByDoor.entries()]
+        .flatMap(([door, names]) => [`${getBaccaratDoorLabel(door)}: `, names.flatMap((name, index) => [index ? ", " : "", name]), "\n"]);
+      const warning = buildGamePlayerMessage([
+        "⚜️ ThuHoa Bot Team ⚜️\n⏳ BACCARAT còn 10 giây nữa là chốt cược!\n",
+        betSummary.length ? betSummary : "Nhóm này chưa có cược.", otherSession,
+        `\n\n${baccaratHelp(prefix)}`,
+      ], { threadId, botId: api.getBotId(), type: message.type });
       
-      api.sendMessage({ msg: warnMsg, ttl: 20000 }, message.threadId, message.type)
-        .then((sentWarning) => {
+      api.sendMessage({ ...warning, ttl: 20000 }, message.threadId, message.type)
+        .then(async (sentWarning) => {
           // sendMessage trả về wrapper { message, attachment, link }. Tạo đúng
           // shape Message mà addReaction cần, nhưng giữ ID của TIN CẢNH BÁO.
-          const sentMessage = sentWarning?.message || sentWarning;
-          const warningMessage = sentMessage?.data
-            ? sentMessage
-            : sentMessage && {
-                data: {
-                  msgId: sentMessage.msgId || sentMessage.messageId || sentMessage.gMsgID,
-                  cliMsgId: sentMessage.cliMsgId || sentMessage.clientId,
-                  uidFrom: api.getBotId(),
-                },
-                threadId: message.threadId,
-                type: message.type,
-              };
+          const warningMessage = await getBotSentReactionTarget(api, message, sentWarning);
 
           if (!warningMessage?.data?.msgId || !warningMessage?.data?.cliMsgId) {
             console.warn("[baccarat] Tin cảnh báo thiếu msgId/cliMsgId, bỏ qua countdown reaction");
             return;
           }
 
-          // CLOCK bật/tắt trong 10 giây ngay trên tin cảnh báo của bot.
-          return sendReactionWaitingCountdown(
-            api,
-            warningMessage,
-            WARNING_TIME / 1000,
-            "baccarat-warning"
-          );
+          startBaccaratReactionCountdown(api, warningMessage, WARNING_TIME / 1000, activeGames[gameKey]?.endsAt || (Date.now() + WARNING_TIME));
         })
         .catch((error) => {
           console.warn("[baccarat] Gửi cảnh báo/countdown reaction lỗi:", error?.message || error);
         });
-    }, GAME_DURATION - WARNING_TIME);
+    }, Math.max(0, activeGames[gameKey].endsAt - Date.now() - WARNING_TIME));
 
     // Cài đặt chốt kết quả
     activeGames[gameKey].timeout = setTimeout(() => {
       endBaccaratGame(api, message);
-    }, GAME_DURATION);
+    }, Math.max(0, activeGames[gameKey].endsAt - Date.now()));
 
   } else {
+    console.error(`[baccarat] joining active round thread=${threadId}`);
     const game = activeGames[gameKey];
-    if (game.players[senderId]) {
+    if (game.players[betKey]) {
       // Hoàn tiền và báo lỗi nếu đã cược
       await updatePlayerBalanceByUsername(username, betAmount);
-      await sendMessageFromSQL(api, message, { success: false, message: "Bạn đã cược trong ván này rồi!" }, true, 10000);
+      await sendMessageFromSQL(api, message, { success: false, message: `Bạn đã cược cửa ${getBaccaratDoorLabel(betDoor)} trong ván này rồi!` }, true, 10000);
       return true;
     }
     
     game.threads.add(threadId);
     game.threadBots[String(threadId)] = api.getBotId();
     const groupName = groupSettings?.[threadId]?.nameGroup || String(threadId);
-    game.players[senderId] = { door: betDoor, amount: betAmount, name: playerName, username, threadId, groupName, botId: api.getBotId() };
+    game.players[betKey] = { ...gameMentionPlayer(api, message), uid: senderId, door: betDoor, amount: betAmount, name: playerName, username, threadId, groupName, botId: api.getBotId() };
     
-    const currentPlayers = Object.values(game.players)
-      .map((p) => `${p.name} [${p.groupName}]`)
-      .join(", ");
-    const joinMsg = `⚜️ ThuHoa Bot Team ⚜️\n✅ Đặt ${formatCurrency(betAmount)} cửa ${betDoor === 'con' ? 'Con (Player)' : betDoor === 'cái' ? 'Cái (Banker)' : 'Hòa (Tie)'}.\n👥 Cùng phiên toàn server: ${currentPlayers}`;
-    await sendMessageFromSQL(api, message, { success: true, message: joinMsg }, true, 15000);
+    const text = buildGamePlayerMessage([
+      `⚜️ ThuHoa Bot Team ⚜️\n✅ Đặt ${formatCurrency(betAmount)} cửa ${getBaccaratDoorLabel(betDoor)}.\n👥 Cùng phiên toàn server: `,
+      Object.values(game.players).flatMap((player, index) => [index ? ", " : "", { player }, ` (${getBaccaratDoorLabel(player.door)}) [${player.groupName}]`]),
+    ], { threadId, botId: api.getBotId(), type: message.type });
+    const sentBet = await sendMessageFromSQL(api, message, { success: true, message: text.msg, mentions: text.mentions }, true, 15000);
+    const betCountdownMessage = await getBotSentReactionTarget(api, message, sentBet);
+    const remaining = Math.max(0, Math.ceil((game.endsAt - Date.now()) / 1000));
+    if (betCountdownMessage && remaining > 0) {
+      // Phiên toàn server có thể đã được mở ở group khác. Bám countdown vào
+      // chính tin xác nhận mới nhất ở group hiện tại để người chơi vẫn thấy.
+      startBaccaratReactionCountdown(api, betCountdownMessage, remaining, game.endsAt);
+    }
   }
 
   return true;
@@ -419,52 +594,140 @@ async function endBaccaratGame(api, message) {
   if (!game) return;
   api.addReaction("UNDO", [message]).catch(() => {});
 
-  // 65% phiên ưu tiên cửa có tổng nghĩa vụ trả thưởng thấp nhất; 35% còn lại
-  // chia bài hoàn toàn ngẫu nhiên theo đúng luật Baccarat.
-  const { player, banker, pScore, bScore, resultDoor } = dealBaccaratForBets(game.players);
+  const deal = dealBaccaratForBets(game.players);
+  const { player, banker, pScore, bScore, resultDoor } = deal;
   await addRecentResult(api, GLOBAL_GAME_KEY, resultDoor).catch((error) => console.error("Lỗi lưu cầu Baccarat:", error));
 
-  const natural = player.length === 2 && banker.length === 2 && (pScore >= 8 || bScore >= 8);
-  const winnerLabel = resultDoor === "con" ? "Con (Player)" : resultDoor === "cái" ? "Cái (Banker)" : "Hòa (Tie)";
+  const natural = isBaccaratNatural(deal);
+  const winningDoors = getWinningBaccaratDoors(deal);
+  const winnerLabel = getBaccaratDoorLabel(resultDoor);
   let resultMsg = `🎴 KẾT QUẢ BACCARAT\n`;
-  resultMsg += `Con: ${pScore} điểm | Cái: ${bScore} điểm\n`;
-  resultMsg += `➡️ ${winnerLabel} ${resultDoor === "hòa" ? "KẾT QUẢ HÒA" : "THẮNG"}${natural ? " (natural)" : ""}\n\n`;
+  resultMsg += `Tay con: ${pScore} điểm | Nhà cái: ${bScore} điểm\n`;
+  resultMsg += `➡️ ${winnerLabel} ${resultDoor === "hòa" ? "KẾT QUẢ HÒA" : "THẮNG"}${natural ? " • thắng tự nhiên" : ""}\n`;
+  const sideWins = winningDoors.filter((door) => !["con", "cái", "hòa"].includes(door));
+  if (sideWins.length) resultMsg += `✨ Cửa phụ trúng: ${sideWins.map(getBaccaratDoorLabel).join(", ")}\n`;
+  resultMsg += "\n";
 
-  let winners = [];
-  let losers = [];
+  const winners = [];
+  const pushes = [];
+  const losers = [];
+  const settlementErrors = [];
 
   for (const p of Object.values(game.players)) {
-    if (p.door === resultDoor) {
-      let winAmount = new Big(0);
-      if (resultDoor === 'con' || resultDoor === 'cái') {
-        // Tỷ lệ thắng 1:1, trả cả gốc rồi trừ phí 5% âm thầm.
-        winAmount = p.amount.times(2).times(BACCARAT_PAYOUT_FEE);
-      } else if (resultDoor === 'hòa') {
-        // Hòa 1 ăn 8, trả cả gốc theo tỷ lệ x8 rồi trừ phí 5%.
-        winAmount = p.amount.times(8).times(BACCARAT_PAYOUT_FEE);
+    const resolution = evaluateBaccaratBet(p.door, deal);
+    const doorLabel = getBaccaratDoorLabel(p.door);
+    if (resolution.outcome === "win") {
+      const payout = p.amount.times(resolution.totalMultiplier);
+      const profit = payout.minus(p.amount);
+      const credit = await updatePlayerBalanceByUsername(p.username, payout, true, profit.toNumber(), {
+        gameName: "Baccarat",
+        gameKey: "bcr",
+        choice: doorLabel,
+        betAmount: p.amount.toNumber(),
+        detail: `P ${pScore} - B ${bScore}`,
+      });
+      if (!credit?.success) {
+        settlementErrors.push([{ player: p }, ` (${doorLabel})`]);
+        console.error(`[baccarat] Trả thưởng lỗi cho ${p.username}: ${credit?.message || "không rõ lỗi"}`);
+        continue;
       }
-      
-      await updatePlayerBalanceByUsername(p.username, winAmount);
-      winners.push(`${p.name} (${p.door === "con" ? "Con (Player)" : p.door === "cái" ? "Cái (Banker)" : "Hòa (Tie)"}): thắng +${formatCurrency(winAmount.minus(p.amount))}`);
-    } else if (resultDoor === 'hòa') {
-      // Nếu kết quả là hòa, những ai cược con hoặc cái sẽ được hoàn tiền
-      await updatePlayerBalanceByUsername(p.username, p.amount);
-      losers.push(`${p.name}: hòa, hoàn ${formatCurrency(p.amount)}`);
+      winners.push([{ player: p }, ` (${doorLabel}): thắng +${formatCurrency(profit)}`]);
+    } else if (resolution.outcome === "push") {
+      const refund = await updatePlayerBalanceByUsername(p.username, p.amount, null, 0, {
+        gameName: "Baccarat",
+        gameKey: "bcr",
+        choice: doorLabel,
+        betAmount: p.amount.toNumber(),
+        detail: `Hòa (P ${pScore} - B ${bScore})`,
+      });
+      if (!refund?.success) {
+        settlementErrors.push([{ player: p }, ` (${doorLabel})`]);
+        console.error(`[baccarat] Hoàn cược lỗi cho ${p.username}: ${refund?.message || "không rõ lỗi"}`);
+        continue;
+      }
+      pushes.push([{ player: p }, ` (${doorLabel}): hoàn ${formatCurrency(p.amount)}`]);
     } else {
-      losers.push(`${p.name} (${p.door === "con" ? "Con (Player)" : p.door === "cái" ? "Cái (Banker)" : "Hòa (Tie)"}): thua -${formatCurrency(p.amount)}`);
+      await setLoserGameByUsername(p.username, p.amount.neg().toNumber(), {
+        gameName: "Baccarat",
+        gameKey: "bcr",
+        choice: doorLabel,
+        betAmount: p.amount.toNumber(),
+        detail: `P ${pScore} - B ${bScore}`,
+      });
+      losers.push([{ player: p }, ` (${doorLabel}): thua -${formatCurrency(p.amount)}`]);
     }
   }
 
-  if (winners.length) resultMsg += `✅ Thắng:\n- ${winners.join('\n- ')}\n`;
-  if (resultDoor === 'hòa') {
-    if (losers.length) resultMsg += `🔄 Hòa (Hoàn Tiền):\n- ${losers.join('\n- ')}\n`;
-  } else {
-    if (losers.length) resultMsg += `❌ Thua:\n- ${losers.join('\n- ')}\n`;
+  const resultParts = [resultMsg];
+  for (const [title, rows] of [["✅ Thắng:", winners], ["🔄 Hòa — hoàn cửa chính:", pushes], ["❌ Thua:", losers], ["⚠️ Chưa thể quyết toán:", settlementErrors]]) {
+    if (rows.length) resultParts.push(`${title}\n`, rows.flatMap((row) => ["- ", row, "\n"]));
   }
   
-  if (!winners.length && !losers.length) resultMsg += `Không có ai tham gia.`;
+  if (!winners.length && !pushes.length && !losers.length) resultParts.push("Không có ai tham gia.");
 
-  // Vẽ Canvas ảnh
+  // Giao diện bàn Baccarat dọc theo phong cách live casino.
+  // Nếu renderer mới gặp lỗi tài nguyên, tiếp tục dùng canvas cũ ở bên dưới.
+  {
+    let modernImagePath = null;
+    try {
+      const history = await getRecentResults(api, GLOBAL_GAME_KEY).catch(() => []);
+      modernImagePath = await createBaccaratTableImage({
+        player,
+        banker,
+        pScore,
+        bScore,
+        resultDoor,
+        natural,
+        winningDoors,
+        history,
+      });
+
+      const groupsByThread = new Map();
+      for (const playerEntry of Object.values(game.players)) {
+        groupsByThread.set(String(playerEntry.threadId), playerEntry.groupName);
+      }
+
+      const messageForThread = (threadId) => {
+        const currentGroup = groupsByThread.get(String(threadId));
+        const otherPlayers = Object.values(game.players).filter(
+          (playerEntry) => playerEntry.groupName && playerEntry.groupName !== currentGroup
+        );
+        if (!otherPlayers.length) return resultParts;
+        const grouped = new Map();
+        for (const playerEntry of otherPlayers) {
+          if (!grouped.has(playerEntry.groupName)) grouped.set(playerEntry.groupName, []);
+          const door = getBaccaratDoorLabel(playerEntry.door);
+          grouped.get(playerEntry.groupName).push(
+            `- ${playerEntry.name}: ${formatCurrency(playerEntry.amount)} cửa ${door}`
+          );
+        }
+        const otherSession = [...grouped.entries()]
+          .map(([groupName, players]) => `📌 Phiên khác: ${groupName}\n${players.join("\n")}`)
+          .join("\n");
+        return [resultParts, "\n", otherSession];
+      };
+
+      for (const targetThreadId of game.threads || [message.threadId]) {
+        const targetApi = getApiManager(game.threadBots?.[String(targetThreadId)])?.apiZalo || api;
+        await targetApi.sendMessage({
+          ...buildGamePlayerMessage(messageForThread(targetThreadId), { threadId: targetThreadId, botId: targetApi.getBotId(), type: message.type }),
+          attachments: [modernImagePath],
+          ttl: 60000,
+          isUseProphylactic: true,
+        }, targetThreadId, message.type).catch((error) => {
+          console.error(`[BACCARAT] Không thể gửi kết quả tới nhóm ${targetThreadId}:`, error);
+        });
+      }
+
+      setTimeout(() => fs.unlink(modernImagePath).catch(() => {}), 60000);
+      return;
+    } catch (error) {
+      if (modernImagePath) await fs.unlink(modernImagePath).catch(() => {});
+      console.warn("[BACCARAT] Canvas live casino lỗi, chuyển sang giao diện dự phòng:", error);
+    }
+  }
+
+  // Canvas dự phòng
   const imagePath = path.resolve(`./assets/temp/baccarat_result_${Date.now()}.png`);
   try {
     const canvas = new Canvas(900, 600);
@@ -666,21 +929,21 @@ async function endBaccaratGame(api, message) {
     const messageForThread = (targetThreadId) => {
       const currentGroup = groupsByThread.get(String(targetThreadId));
       const otherPlayers = Object.values(game.players).filter((player) => player.groupName && player.groupName !== currentGroup);
-      if (!otherPlayers.length) return resultMsg;
+      if (!otherPlayers.length) return resultParts;
       const grouped = new Map();
       for (const player of otherPlayers) {
         if (!grouped.has(player.groupName)) grouped.set(player.groupName, []);
-        const door = player.door === "con" ? "Con" : player.door === "cái" ? "Cái" : "Hòa";
+        const door = getBaccaratDoorLabel(player.door);
         grouped.get(player.groupName).push(`- ${player.name}: ${formatCurrency(player.amount)} cửa ${door}`);
       }
       const otherSession = [...grouped.entries()]
         .map(([groupName, players]) => `📌 Phiên khác: ${groupName}\n${players.join("\n")}`)
         .join("\n");
-      return `${resultMsg}\n${otherSession}`;
+      return [resultParts, "\n", otherSession];
     };
 
     await api.sendMessage(
-      { msg: messageForThread(message.threadId), attachments: [imagePath], ttl: 60000, isUseProphylactic: true },
+      { ...buildGamePlayerMessage(messageForThread(message.threadId), { threadId: message.threadId, botId: api.getBotId(), type: message.type }), attachments: [imagePath], ttl: 60000, isUseProphylactic: true },
       message.threadId,
       message.type
     );
@@ -689,12 +952,13 @@ async function endBaccaratGame(api, message) {
     for (const targetThreadId of game.threads) {
       if (String(targetThreadId) === String(message.threadId)) continue;
       const targetApi = getApiManager(game.threadBots?.[String(targetThreadId)])?.apiZalo || api;
-      await targetApi.sendMessage({ msg: messageForThread(targetThreadId), ttl: 60000 }, targetThreadId, message.type).catch(() => {});
+      await targetApi.sendMessage({ ...buildGamePlayerMessage(messageForThread(targetThreadId), { threadId: targetThreadId, botId: targetApi.getBotId(), type: message.type }), ttl: 60000 }, targetThreadId, message.type).catch(() => {});
     }
     
     setTimeout(() => fs.unlink(imagePath).catch(() => {}), 60000); // Xóa ảnh sau 1p
   } catch (error) {
     console.error("Lỗi vẽ canvas Baccarat:", error);
-    await sendMessageFromSQL(api, message, { success: true, message: resultMsg }, false);
+    const text = buildGamePlayerMessage(resultParts, { threadId: message.threadId, botId: api.getBotId(), type: message.type });
+    await sendMessageFromSQL(api, message, { success: true, message: text.msg, mentions: text.mentions }, false);
   }
 }

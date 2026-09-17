@@ -3,9 +3,31 @@ import path from "path";
 import { writeFile } from "fs/promises";
 import { tempDir } from "../../../../../utils/io-json.js";
 import { FONT_MAIN } from "../../../../../utils/format-util.js";
+import { getActiveCanvasStyle } from "../../../../../utils/canvas/theme.js";
+import { renderCollectionStyle } from "../../../../../utils/canvas/collection-style-renderers.js";
 
 // Hàm vẽ bảng xếp hạng Caro
 export async function renderCaroRankBoard(rankData, currentUserId = null, fullRankList = null) {
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) {
+    const currentUser = currentUserId && fullRankList?.find((user) => user.UID === currentUserId);
+    const userIndex = currentUser ? fullRankList.findIndex((user) => user.UID === currentUserId) : -1;
+    return renderCollectionStyle(activeStyle, {
+      kicker: "MYBOT • CARO ARENA",
+      title: "BẢNG XẾP HẠNG CARO",
+      subtitle: "Top cao thủ theo điểm Rank",
+      footer: currentUser ? `Bạn hạng #${userIndex + 1} • ${currentUser.Rank.toLocaleString()} điểm` : "D:Dễ • T:Thường • K:Khó • TD:Thách đấu • SL:Solo",
+      items: rankData.map((user, index) => {
+        const inventory = user.inventory || {};
+        return {
+          title: user.UserName || "Người chơi",
+          subtitle: `D ${inventory.D || 0}/${inventory.DL || 0} • T ${inventory.T || 0}/${inventory.TL || 0} • K ${inventory.K || 0}/${inventory.KL || 0}`,
+          meta: `${Number(user.Rank || 0).toLocaleString("vi-VN")} điểm`,
+          badge: String(index + 1).padStart(2, "0"),
+        };
+      }),
+    }, "caro_rank");
+  }
   // Kiểm tra xem có cần hiển thị phần tử thứ 11 không
   const needExtraRow = currentUserId && fullRankList && !rankData.find(user => user.UID === currentUserId);
   const canvasHeight = needExtraRow ? 650 : 600; // Tăng chiều cao nếu cần

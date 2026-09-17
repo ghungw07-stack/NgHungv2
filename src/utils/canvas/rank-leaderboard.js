@@ -5,6 +5,9 @@ import sharp from "sharp";
 import * as cv from "./index.js";
 import { tempDir } from "../io-json.js";
 import { FONT_MAIN, randomIDTemp } from "../format-util.js";
+import { getActiveCanvasStyle } from "./theme.js";
+import { renderCollectionStyle } from "./collection-style-renderers.js";
+import { renderPortraitStyle } from "./portrait-style-renderers.js";
 
 // Màu sắc cho các rank
 const RANK_COLORS = {
@@ -19,6 +22,62 @@ const RANK_COLORS = {
 
 // Chuyển đổi số La Mã
 const ROMAN_NUMERALS = ["I", "II", "III", "IV", "V"];
+
+async function loadRankAvatar(user) {
+  try {
+    if (!user?.avatar || !cv.isValidUrl(user.avatar)) throw new Error("invalid avatar");
+    return await Promise.race([
+      loadImage(user.avatar),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("avatar timeout")), 4000)),
+    ]);
+  } catch {
+    const avatar = createCanvas(240, 240), avatarContext = avatar.getContext("2d");
+    const gradient = avatarContext.createLinearGradient(0, 0, 240, 240);
+    gradient.addColorStop(0, user?.rankInfo?.gradient?.[0] || "#7c3aed");
+    gradient.addColorStop(1, user?.rankInfo?.gradient?.[1] || "#0891b2");
+    avatarContext.fillStyle = gradient; avatarContext.fillRect(0, 0, 240, 240);
+    avatarContext.fillStyle = "#ffffff"; avatarContext.font = `800 96px ${FONT_MAIN}`;
+    avatarContext.textAlign = "center"; avatarContext.fillText(String(user?.name || "?").charAt(0).toUpperCase(), 120, 154);
+    return avatar;
+  }
+}
+
+async function renderStyledLeaderboard(style, topUsers, groupName, titleText, periodLabel) {
+  const avatars = await Promise.all(topUsers.map(loadRankAvatar));
+  return renderCollectionStyle(style, {
+    kicker: `MYBOT • TOP CHAT • ${periodLabel}`,
+    title: titleText.replaceAll("🏆", "").trim(),
+    subtitle: groupName,
+    footer: `${topUsers.length} thành viên nổi bật • Xếp theo số tin nhắn`,
+    items: topUsers.map((user, index) => ({
+      title: user.name || "Ẩn danh",
+      subtitle: user.rankInfo?.displayName || "Chưa xếp hạng",
+      meta: `${Number(user.messageCount || 0).toLocaleString("vi-VN")} tin nhắn`,
+      image: avatars[index],
+      badge: index < 3 ? ["01", "02", "03"][index] : String(index + 1).padStart(2, "0"),
+    })),
+  }, "rank_leaderboard");
+}
+
+async function renderStyledPersonalRank(style, user, rankInfo, titleText, total = false) {
+  const avatar = await loadRankAvatar({ ...user, rankInfo });
+  const stars = rankInfo.isCaoThu
+    ? `${rankInfo.stars || 0} sao`
+    : `${rankInfo.stars || 0}/${rankInfo.maxStars || 0} sao`;
+  return renderPortraitStyle(style, {
+    kind: "personal-rank",
+    kicker: total ? "MYBOT • ALL-TIME RANK" : "MYBOT • DAILY RANK",
+    title: titleText,
+    names: [String(user?.name || "Ẩn danh")],
+    avatars: [avatar],
+    primaryLabel: "HẠNG HIỆN TẠI",
+    primaryValue: rankInfo.displayName || rankInfo.rankName || "CHƯA XẾP HẠNG",
+    secondaryLabel: "TIẾN ĐỘ",
+    secondaryValue: stars,
+    body: `${Number(user?.messageCount || 0).toLocaleString("vi-VN")} tin nhắn • Còn ${Number(rankInfo.messagesForNextStar || 0).toLocaleString("vi-VN")} tin để lên bậc`,
+    footer: total ? "Thành tích tương tác toàn thời gian" : "Thành tích tương tác hôm nay",
+  }, "personal_rank");
+}
 
 /**
  * Chuyển level number sang La Mã
@@ -748,6 +807,8 @@ export async function createRankLeaderboard(users, groupName = "Nhóm", rankStar
   const periodLabel = normalizedTitle.includes("tuần")
     ? "TUẦN NÀY"
     : normalizedTitle.includes("tháng") ? "THÁNG NÀY" : "HÔM NAY";
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) return renderStyledLeaderboard(activeStyle, topUsers, groupName, titleText, periodLabel);
   return renderModernLeaderboard(topUsers, groupName, titleText, periodLabel);
 }
 /**
@@ -767,6 +828,8 @@ export async function createRankLeaderboardTotal(users, groupName = "Nhóm", ran
   });
   usersWithRank.sort((a, b) => b.messageCount - a.messageCount);
   const topUsers = usersWithRank.slice(0, 10);
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) return renderStyledLeaderboard(activeStyle, topUsers, groupName, "BXH TƯƠNG TÁC TỔNG", "TOÀN THỜI GIAN");
   return renderModernLeaderboard(topUsers, groupName, "BXH TƯƠNG TÁC TỔNG", "TOÀN THỜI GIAN");
 }
 
@@ -796,6 +859,8 @@ export function getRankText(messageCount, rankStar) {
 export async function createPersonalRankCard(user, rankStar, titleText = "Thành Tích Tương Tác Của Bạn Hôm Nay") {
   // Tính toán rank
   const rankInfo = calculateRank(user.messageCount || 0, rankStar);
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) return renderStyledPersonalRank(activeStyle, user, rankInfo, titleText, false);
 
   // Kích thước card
   const width = 750;
@@ -1125,6 +1190,8 @@ export async function createPersonalRankCardTotal(user, rankStar) {
   // Tính toán rank
   const normalizedCount = Math.floor((user.messageCount || 0) / 1000);
   const rankInfo = calculateRank(normalizedCount, rankStar);
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) return renderStyledPersonalRank(activeStyle, user, rankInfo, "THÀNH TÍCH TƯƠNG TÁC TỔNG", true);
 
   // Kích thước card
   const width = 750;

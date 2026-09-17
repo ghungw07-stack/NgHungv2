@@ -1,25 +1,7 @@
 import { logMessageToFile } from "../../utils/io-json.js";
 
-export const GroupEventType = {
-  JOIN_REQUEST: 0,
-  JOIN: 1,
-  LEAVE: 2,
-  REMOVE_MEMBER: 3,
-  BLOCK_MEMBER: 4,
-  UPDATE_SETTING: 5,
-  UPDATE: 6,
-  NEW_LINK: 7,
-  ADD_ADMIN: 8,
-  REMOVE_ADMIN: 9,
-  NEW_PIN_TOPIC: 10,
-  UPDATE_TOPIC: 11,
-  UPDATE_BOARD: 12,
-  REORDER_PIN_TOPIC: 13,
-  UNPIN_TOPIC: 14,
-  REMOVE_TOPIC: 15,
-  NEW_INVITE_TO_GROUP: 16,
-  REMOVE_GROUP_INVITATION: 17,
-};
+import { GroupEventType } from "./GroupEventType.js";
+export { GroupEventType } from "./GroupEventType.js";
 
 let TEMP_NOTIFICATION = "";
 

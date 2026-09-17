@@ -1,3 +1,4 @@
+import { getGameMentionUid } from "../../../utils/game-mentions.js";
 import chalk from "chalk";
 import Big from "big.js";
 import { updatePlayerBalance, getPlayerBalance, addGameRankPoints } from "../../../database/player.js";
@@ -8,6 +9,7 @@ import { getGlobalPrefix } from "../../service.js";
 import { createChanLeResultImage } from "./cv-chan-le.js";
 import { clearImagePath } from "../../../utils/canvas/index.js";
 import { gameState } from "../game-manager.js";
+import { DEFAULT_JACKPOT, getGameJackpotKey, getGameJackpot, setGameJackpot, addGameJackpot } from "../jackpot-default.js";
 
 const CHOICES = {
   CHAN: {
@@ -36,9 +38,10 @@ function rollDice() {
 export async function initializeGameChanLe() {
   try {
     if (!gameState.data.chanle) gameState.data.chanle = {};
-    if (!gameState.data.chanle.jackpot) gameState.data.chanle.jackpot = "1000000";
-    if (!gameState.data.chanle.history) gameState.data.chanle.history = [];
+    if (!gameState.data.chanle.jackpots) gameState.data.chanle.jackpots = {};
+    if (!gameState.data.chanle.jackpot) gameState.data.chanle.jackpot = DEFAULT_JACKPOT;
     gameState.data.chanle.jackpot = new Big(gameState.data.chanle.jackpot);
+    if (!gameState.data.chanle.history) gameState.data.chanle.history = [];
     console.log(chalk.magentaBright("Khởi động và nạp dữ liệu minigame chẵn lẻ hoàn tất"));
   } catch (error) {
     console.error("Lỗi khi khởi tạo dữ liệu chẵn lẻ:", error);
@@ -50,9 +53,20 @@ function saveGameData() {
   gameState.changes.chanle = true;
 }
 
-// Thêm hàm lấy giá trị hũ hiện tại
-export function getJackpot() {
-  return gameState.data.chanle.jackpot;
+// Thêm hàm lấy giá trị hũ hiện tại theo bot hoặc server riêng
+export function getJackpot(key = "default") {
+  return getGameJackpot(gameState, "chanle", key);
+}
+
+export function resetJackpot(key = null) {
+  if (key) {
+    setGameJackpot(gameState, "chanle", key, DEFAULT_JACKPOT);
+  } else {
+    gameState.data.chanle.jackpot = DEFAULT_JACKPOT;
+    gameState.data.chanle.jackpots = {};
+    saveGameData();
+  }
+  return new Big(DEFAULT_JACKPOT);
 }
 
 // Thêm biến lưu lịch sử
@@ -61,7 +75,7 @@ const MAX_HISTORY = 20; // Giữ tối đa 20 kết quả gần nhất
 const WINNING_MULTIPLIER = 1.9; // Tỷ lệ tiền thắng cược
 const MIN_JACKPOT_PERCENT = 0.0001; // 0.01% của hũ
 const MAX_JACKPOT_MULTIPLIER = 1000; // Giới hạn 1000% tiền cược (x10 thành x1000)
-const HOUSE_BIAS_CHANCE = 0.45;
+const PLAYER_LOSS_RATE = 0.8;
 const TTL_IMAGE = 10800000;
 
 function getRandomJackpotContribution() {
@@ -140,42 +154,34 @@ export async function handleChanLe(api, message, groupSettings) {
     return;
   }
 
-  let dice1 = rollDice();
-  let dice2 = rollDice();
+  const expectedKey = Math.random() < PLAYER_LOSS_RATE ? (playerChoice.key === "chan" ? "le" : "chan") : playerChoice.key;
+  const dice1 = rollDice(), dice2 = rollDice();
   let dice3 = rollDice();
-  if (Math.random() < HOUSE_BIAS_CHANCE) {
-    for (let attempt = 0; attempt < 50; attempt++) {
-      const candidate = [rollDice(), rollDice(), rollDice()];
-      const candidateKey = candidate.reduce((sum, value) => sum + value, 0) % 2 === 0 ? "chan" : "le";
-      if (candidateKey !== playerChoice.key) {
-        [dice1, dice2, dice3] = candidate;
-        break;
-      }
-    }
-  }
+  const rolledKey = (dice1 + dice2 + dice3) % 2 === 0 ? "chan" : "le";
+  if (rolledKey !== expectedKey) dice3 = dice3 === DICE_FACES ? dice3 - 1 : dice3 + 1;
   const total = dice1 + dice2 + dice3;
-
   const result = total % 2 === 0 ? CHOICES.CHAN : CHOICES.LE;
   const isWin = result.key === playerChoice.key;
+  const jackpotKey = getGameJackpotKey(api);
 
-  // Ba mặt xúc xắc giống nhau là jackpot (1-1-1 đến 6-6-6).
+  // Ba mặt xúc xắc giống nhau là jackpot (1-1-1 đến 6-6-6), tỉ lệ nổ hũ 20%.
   const isTriple = dice1 === dice2 && dice2 === dice3;
-  let isJackpot = isTriple && isWin;
+  let isJackpot = isTriple && isWin && Math.random() < 0.20;
   let isMissedJackpot = false;
 
   let winnings;
   let jackpotAmount = new Big(0);
 
   if (isJackpot) {
-    jackpotAmount = gameState.data.chanle.jackpot;
-
+    const currentPot = getGameJackpot(gameState, "chanle", jackpotKey);
     const maxJackpotWin = betAmount.mul(MAX_JACKPOT_MULTIPLIER);
 
-    if (jackpotAmount.gt(maxJackpotWin)) {
+    if (currentPot.gt(maxJackpotWin)) {
       jackpotAmount = maxJackpotWin;
-      gameState.data.chanle.jackpot = gameState.data.chanle.jackpot.minus(maxJackpotWin);
+      setGameJackpot(gameState, "chanle", jackpotKey, currentPot.minus(maxJackpotWin));
     } else {
-      gameState.data.chanle.jackpot = new Big(1000000);
+      jackpotAmount = currentPot.gt(0) ? currentPot : new Big(0);
+      setGameJackpot(gameState, "chanle", jackpotKey, DEFAULT_JACKPOT);
     }
 
     winnings = betAmount.mul(WINNING_MULTIPLIER).plus(jackpotAmount).round(0, Big.roundDown);
@@ -186,19 +192,28 @@ export async function handleChanLe(api, message, groupSettings) {
       const contributionRate = getRandomJackpotContribution();
       let contribution = betAmount.mul(contributionRate);
 
-      const minContribution = gameState.data.chanle.jackpot.mul(MIN_JACKPOT_PERCENT);
+      const pot = getGameJackpot(gameState, "chanle", jackpotKey);
+      const minContribution = pot.mul(MIN_JACKPOT_PERCENT);
       if (contribution.lt(minContribution)) {
         contribution = minContribution;
       }
 
-      gameState.data.chanle.jackpot = gameState.data.chanle.jackpot.plus(contribution);
+      addGameJackpot(gameState, "chanle", jackpotKey, contribution);
     }
   }
 
   const netWinnings = winnings.minus(betAmount).round(0, Big.roundDown);
 
-  await updatePlayerBalance(senderId, netWinnings, isWin || isJackpot);
+  await updatePlayerBalance(senderId, netWinnings, isWin || isJackpot, isWin ? netWinnings : 0, {
+    gameName: isJackpot ? "Chẵn Lẻ (NỔ HŨ)" : "Chẵn Lẻ",
+    gameKey: isJackpot ? "chanle_hu" : "chanle",
+    choice: playerChoice,
+    betAmount: betAmount.toNumber(),
+    detail: isJackpot ? `Nổ hũ 3 xúc xắc ${dice1}` : `Xúc xắc: ${dice1}-${dice2}-${dice3} (${total})`,
+  });
   await addGameRankPoints(senderId, { won: isWin || isJackpot, jackpot: isJackpot });
+
+  const currentJackpot = getGameJackpot(gameState, "chanle", jackpotKey);
 
   const resultMessage = formatResultMessage(
     senderName,
@@ -214,7 +229,7 @@ export async function handleChanLe(api, message, groupSettings) {
     isJackpot,
     isMissedJackpot,
     jackpotAmount,
-    gameState.data.chanle.jackpot
+    currentJackpot
   );
 
   gameState.data.chanle.history.push({
@@ -245,7 +260,7 @@ export async function handleChanLe(api, message, groupSettings) {
     await api.sendMessage(
       {
         msg: resultMessage,
-        mentions: [{ pos: 2, uid: senderId, len: senderName.length }],
+        mentions: [{ pos: 2, uid: getGameMentionUid(message), len: senderName.length }],
         attachments: [imagePath],
         isUseProphylactic: true,
         ttl: TTL_IMAGE,
@@ -255,6 +270,15 @@ export async function handleChanLe(api, message, groupSettings) {
     );
   } catch (error) {
     console.error("Lỗi khi tạo và gửi ảnh kết quả:", error);
+    await api.sendMessage(
+      {
+        msg: resultMessage,
+        mentions: [{ pos: 2, uid: getGameMentionUid(message), len: senderName.length }],
+        ttl: TTL_IMAGE,
+      },
+      threadId,
+      message.type
+    ).catch(() => {});
   } finally {
     await clearImagePath(imagePath);
   }

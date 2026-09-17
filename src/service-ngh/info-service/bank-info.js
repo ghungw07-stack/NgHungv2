@@ -9,6 +9,8 @@ import { deleteFile } from "../../utils/util.js";
 import { MessageMention } from "../../api-zalo/index.js";
 import { getUserInfoBasic } from "./user-info.js";
 import { readFilePromise, writeFilePromise } from "../../utils/util.js";
+import { getActiveCanvasStyle } from "../../utils/canvas/theme.js";
+import { renderQrStyle } from "../../utils/canvas/qr-style-renderers.js";
 
 const BANK_CODES = {
     "vcb": { bin: "970436", name: "VIETCOMBANK" },
@@ -254,6 +256,18 @@ async function createBankCardImage(bankInfo, accountNumber, accountName, amount,
         ctx.fillRect(0, 0, width, height);
 
         const qrImage = await loadImageWithRetry(qrCodeUrl);
+        const style = getActiveCanvasStyle();
+        if (style !== 1) {
+            const styledCanvas = renderQrStyle(style, {
+                qrImage, kicker: "MYBOT • BANK TRANSFER", title: "THÔNG TIN CHUYỂN KHOẢN", subtitle: bankInfo.name,
+                label: "SỐ TÀI KHOẢN", value: accountNumber, secondaryLabel: "CHỦ TÀI KHOẢN", secondaryValue: accountName,
+                footer: amount ? `${amount.toLocaleString("vi-VN")} VNĐ • ${description || "Không có nội dung"}` : (description || "Quét mã bằng ứng dụng ngân hàng"),
+            });
+            const styledPath = path.resolve(`./assets/temp/bank_card_style${style}_${Date.now()}.png`);
+            await fs.promises.mkdir(path.dirname(styledPath), { recursive: true });
+            await fs.promises.writeFile(styledPath, styledCanvas.toBuffer("image/png"));
+            return styledPath;
+        }
 
         const qrSize = 300;
         const qrPadding = 50;

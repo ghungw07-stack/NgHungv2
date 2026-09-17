@@ -1,3 +1,5 @@
+import { getReplyAdminCommandText } from "../../utils/admin-command-text.js";
+import { canManageDevelopers } from "../../security/developer-admin.js";
 import { readAdmins, tempDir, writeAdmins } from "../../utils/io-json.js";
 import path from "path";
 import {
@@ -14,8 +16,10 @@ import * as cv from "../../utils/canvas/index.js";
 import fs from "fs";
 import { deleteFile } from "../../utils/util.js";
 import { groupSettingsAll } from "../../automations/event-send-msg.js";
-import { updateListAdminByIDBot } from "../../index.js";
+import { apiManager as allBotManagers, developerAdmins, isAdmin, updateListAdminByIDBot } from "../../index.js";
 import { getUserInfoBasic } from "../../service-ngh/info-service/user-info.js";
+import { getActiveCanvasStyle } from "../../utils/canvas/theme.js";
+import { renderCollectionStyle } from "../../utils/canvas/collection-style-renderers.js";
 
 export async function handleAdminHighLevelCommands(api, message, groupAdmins, groupSettings, isAdminLevelHighest) {
   const prefix = getGlobalPrefix(api.getBotId());
@@ -49,19 +53,73 @@ export async function handleAdminHighLevelCommands(api, message, groupAdmins, gr
 
 export async function handleListAdmin(api, message, groupSettings) {
   const threadId = message.threadId;
+  const mainManager = api.apiManager?.isMainBot ? api.apiManager
+    : Object.values(allBotManagers.apiManagerObject || {}).find(manager => manager.isMainBot);
+  const mainApi = api.apiManager?.isMainBot ? api : mainManager?.apiZalo;
+  const mainId = mainApi?.getBotId?.();
+  const hiddenIds = new Set([mainId, api.apiManager?.idBotMainWithBot]
+    .filter(value => value != null).map(String));
+  let mainGlobalId;
+  if (mainApi && mainId != null) {
+    try {
+      const profile = await getUserInfoBasic(mainApi, String(mainId));
+      const value = profile?.globalId || profile?.global_id;
+      if (value && String(value) !== "0") mainGlobalId = String(value);
+    } catch {}
+  }
+  const visibleDevelopers = Object.entries(developerAdmins.records).filter(([globalId, record]) =>
+    globalId !== mainGlobalId
+    && !(mainId != null && record.aliases?.[String(mainId)] === String(mainId))
+    && !hiddenIds.has(String(record.aliases?.[String(api.getBotId())]))
+  ).map(([, record]) => record);
+  const rawGroupSetting = groupSettings?.[threadId] || {};
+  const allAdminIds = [...new Set([...(api.apiManager.getListAdmin() || []), ...Object.keys(rawGroupSetting.adminList || {})].map(String))];
+  if (mainGlobalId) {
+    await Promise.all(allAdminIds.filter(id => !hiddenIds.has(id)).map(async id => {
+      try {
+        const profile = await getUserInfoBasic(api, id);
+        if (String(profile?.globalId || profile?.global_id) === mainGlobalId) hiddenIds.add(id);
+      } catch {}
+    }));
+  }
+  if (/(?:^|\s)-d(?=\s|$)/iu.test(String(message.data?.content || ""))) {
+    const records = visibleDevelopers;
+    await sendMessageComplete(api, message, records.length
+      ? `Developer:\n${records.map((record, i) => `${i + 1}. ${record.name}`).join("\n")}`
+      : "Chưa có developer nào.");
+    return;
+  }
   let imagePath = null;
-  let groupSetting = groupSettings ? groupSettings[threadId] : {};
-  if (!groupSetting.adminList) groupSetting.adminList = [];
+  const groupSetting = { ...rawGroupSetting, adminList: Object.fromEntries(
+    Object.entries(rawGroupSetting.adminList || {}).filter(([id]) => !hiddenIds.has(String(id)))
+  ) };
 
-  const highLevelAdmins = api.apiManager.getListAdmin();
-  const totalAdmin = highLevelAdmins.length + Object.keys(groupSetting.adminList).length;
+  const highLevelAdmins = (api.apiManager.getListAdmin() || []).filter(id => !hiddenIds.has(String(id)));
+  const developers = await Promise.all(visibleDevelopers.map(async record => {
+    // UID thuộc bot nào phải tra hồ sơ qua đúng bot đó.
+    const sources = [api, ...Object.values(allBotManagers.apiManagerObject || {}).map(manager => manager.apiZalo)]
+      .filter(Boolean);
+    for (const source of new Set(sources)) {
+      const localId = record.aliases?.[String(source.getBotId())];
+      if (!localId) continue;
+      try {
+        const profile = await getUserInfoBasic(source, localId);
+        if (profile?.avatar || profile?.avt) return {
+          ...record, avatar: profile.avatar || profile.avt,
+          name: profile.displayName || profile.zaloName || profile.dName || record.name,
+        };
+      } catch {}
+    }
+    return record;
+  }));
+  const totalAdmin = highLevelAdmins.length + Object.keys(groupSetting.adminList).length + developers.length;
   if (totalAdmin > 0) {
     let highLevelAdminInfo = { profiles: {} };
     if (highLevelAdmins.length > 0) {
       highLevelAdminInfo = await api.getInfoMembers(highLevelAdmins);
     }
     try {
-      imagePath = await createAdminListImage(api, highLevelAdminInfo, groupSetting);
+      imagePath = await createAdminListImage(api, highLevelAdminInfo, groupSetting, developers);
 
       await sendMessageCompleteRequest(
         api,
@@ -89,7 +147,19 @@ export async function handleListAdmin(api, message, groupSettings) {
   }
 }
 
-async function createAdminListImage(api, highLevelAdminInfo, groupSettings) {
+async function createAdminListImage(api, highLevelAdminInfo, groupSettings, developers = []) {
+  const style = getActiveCanvasStyle();
+  if (style !== 1) {
+    const highProfiles = Object.values(highLevelAdminInfo.profiles || {});
+    const groupIds = Object.keys(groupSettings.adminList || {}).map((id) => `${id}_0`);
+    const groupInfo = groupIds.length ? await api.getInfoMembers(groupIds) : { profiles: {} };
+    const items = [
+      ...developers.map(record => ({ title: record.name || "Developer", avatar: record.avatar, subtitle: "Developer", meta: "DEVELOPER" })),
+      ...highProfiles.map((profile) => ({ title: profile.zaloName || profile.displayName || "Quản trị", subtitle: "Quản trị cấp cao", meta: "HIGH ADMIN" })),
+      ...Object.values(groupInfo.profiles || {}).map((profile) => ({ title: profile.zaloName || profile.displayName || "Quản trị", subtitle: "Quản trị viên bot", meta: "GROUP ADMIN" })),
+    ].map((item, index) => ({ ...item, badge: String(index + 1).padStart(2, "0") }));
+    return renderCollectionStyle(style, { kicker: "MYBOT • ACCESS CONTROL", title: "DANH SÁCH QUẢN TRỊ BOT", subtitle: `${items.length} tài khoản có quyền quản trị`, footer: "Developer có quyền trên mainbot và tất cả bot con", items }, "admin-list");
+  }
   // Tạo canvas tạm để tính toán độ dài text
   const tempCanvas = createCanvas(1, 1);
   const tempCtx = tempCanvas.getContext("2d");
@@ -108,13 +178,14 @@ async function createAdminListImage(api, highLevelAdminInfo, groupSettings) {
   // Tính tổng số admin
   const totalHighLevelAdmins = Object.keys(highLevelAdminInfo.profiles || {}).length;
   const totalGroupAdmins = Object.keys(groupSettings.adminList || {}).length;
-  const totalAdmins = totalHighLevelAdmins + totalGroupAdmins;
+  const totalAdmins = totalHighLevelAdmins + totalGroupAdmins + developers.length;
 
   // Tính chiều cao
   const headerHeight = totalHighLevelAdmins > 0 ? 180 : 90; // Chiều cao cho phần header
   const itemHeight = 120; // Chiều cao cho mỗi admin
   const sectionPadding = 40; // Padding giữa các section
-  const height = headerHeight + totalAdmins * itemHeight + (totalGroupAdmins > 0 ? sectionPadding + 40 : 0);
+  const height = headerHeight + totalAdmins * itemHeight + (totalGroupAdmins > 0 ? sectionPadding + 40 : 0)
+    + (developers.length > 0 ? sectionPadding + 80 : 0);
 
   // Tạo canvas chính
   const canvas = createCanvas(width, height);
@@ -139,6 +210,7 @@ async function createAdminListImage(api, highLevelAdminInfo, groupSettings) {
     yPos += 80;
     ctx.font = "bold 36px " + FONT_MAIN;
     ctx.fillStyle = "#FFD700";
+    ctx.textAlign = "center";
     ctx.fillText("Quản Trị Cấp Cao", width / 2, yPos);
     yPos += 40;
 
@@ -149,6 +221,19 @@ async function createAdminListImage(api, highLevelAdminInfo, groupSettings) {
     }
   } else {
     yPos += 30;
+  }
+
+  if (developers.length > 0) {
+    yPos += sectionPadding;
+    ctx.font = "bold 36px " + FONT_MAIN;
+    ctx.fillStyle = "#FFD700";
+    ctx.textAlign = "center";
+    ctx.fillText("Developer", width / 2, yPos);
+    yPos += 40;
+    let developerIndex = 1;
+    for (const record of developers) {
+      yPos = await drawAdminItem(ctx, { zaloName: record.name || "Developer", avatar: record.avatar }, yPos, developerIndex++, "developer", padding);
+    }
   }
 
   if (Object.keys(groupSettings.adminList).length > 0) {
@@ -206,8 +291,8 @@ async function drawAdminItem(ctx, profile, yPos, index, level, padding) {
       ctx.beginPath();
       ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2 + 3, 0, Math.PI * 2);
       const borderGradient = ctx.createLinearGradient(avatarX, avatarY, avatarX + avatarSize, avatarY + avatarSize);
-      borderGradient.addColorStop(0, level === "high" ? "#FFD700" : "#C0C0C0");
-      borderGradient.addColorStop(1, level === "high" ? "#FFA500" : "#A0A0A0");
+      borderGradient.addColorStop(0, ["high", "developer"].includes(level) ? "#FFD700" : "#C0C0C0");
+      borderGradient.addColorStop(1, ["high", "developer"].includes(level) ? "#FFA500" : "#A0A0A0");
       ctx.fillStyle = borderGradient;
       ctx.fill();
 
@@ -234,8 +319,8 @@ async function drawAdminItem(ctx, profile, yPos, index, level, padding) {
     ctx.fillText(`${index}. ${profile.zaloName}`, textX, textY + 25);
 
     ctx.font = "28px " + FONT_MAIN;
-    ctx.fillStyle = level === "high" ? "#FFD700" : "#C0C0C0";
-    ctx.fillText(level === "high" ? "Quản Trị Cấp Cao" : "Quản Trị Viên", textX, textY + 65);
+    ctx.fillStyle = ["high", "developer"].includes(level) ? "#FFD700" : "#C0C0C0";
+    ctx.fillText(level === "developer" ? "Developer" : level === "high" ? "Quản Trị Cấp Cao" : "Quản Trị Viên", textX, textY + 65);
 
     return yPos + itemHeight;
   } catch (error) {
@@ -247,15 +332,46 @@ async function drawAdminItem(ctx, profile, yPos, index, level, padding) {
 async function handleAddRemoveAdmin(api, message, groupSettings, action, isAdminLevelHighest = false) {
   const mentions = message.data.mentions;
   const threadId = message.threadId;
-  const content = removeMention(message);
+  const content = getReplyAdminCommandText(message, getGlobalPrefix(api.getBotId())) ?? removeMention(message);
   const botId = api.getBotId();
   const senderId = message.data.uidFrom;
   const apiManager = api.apiManager;
-  let isPermission = botId === senderId || senderId === apiManager.idBotMainWithBot || isAdminLevelHighest;
+  const isPermission = isAdmin(botId, senderId);
   const originalContent = String(message.data?.__originalContent || message.data?.content || "").toLowerCase();
   // Khi command family định tuyến `>add admin ...`, nội dung trung gian có
   // thể mất chữ "admin"; giữ lại scope global từ câu lệnh gốc.
-  const isGlobalAdmin = content.toLowerCase().includes("admin") || /(?:^|\s)(?:add|remove)\s+admin(?:\s|$)/iu.test(originalContent);
+  const escapedPrefix = getGlobalPrefix(botId).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const isGlobalAdmin = content.toLowerCase().includes("admin")
+    || new RegExp(`(?:^|\\s)${escapedPrefix}(?:add|remove)\\s+admin(?:\\s|$)`, "iu").test(originalContent);
+
+  if (/(?:^|\s)-d(?=\s|$)/iu.test(`${content} ${originalContent}`)) {
+    if (!canManageDevelopers(api, senderId)) {
+      await sendMessageWarning(api, message, "Chỉ chính tài khoản mainbot được cấp hoặc thu hồi quyền developer.");
+      return;
+    }
+    const targets = (mentions || []).map(item => String(item.uid)).filter(id => id !== String(botId));
+    if (!targets.length) {
+      targets.push(...content.split(/\s+/).filter(arg => /^\d+$/.test(arg)));
+    }
+    const quote = message.data?.quote || {};
+    const replyId = quote.uidFrom || quote.ownerId || quote.fromUid || quote.senderId || quote.uid;
+    if (!targets.length && replyId && String(replyId) !== "0") targets.push(String(replyId));
+    if (!targets.length) {
+      await sendMessageWarning(api, message, `Dùng: ${getGlobalPrefix(botId)}${action} admin -d @người_dùng (hoặc UID/reply).`);
+      return;
+    }
+    for (const target of new Set(targets)) {
+      try {
+        const name = await developerAdmins.change(api, senderId, target, action);
+        await sendMessageComplete(api, message, action === "add"
+          ? `Đã cấp quyền developer cho ${name}.`
+          : `Đã thu hồi quyền developer của ${name}.`, true, 180000, name);
+      } catch (error) {
+        await sendMessageWarning(api, message, error.message);
+      }
+    }
+    return;
+  }
 
   if (isGlobalAdmin && !isPermission) {
     await sendMessageWarning(api, message, `Quyền hạn chỉnh sửa admin cấp cao chỉ dành cho quản trị bot cấp cao hoặc chính tài khoản này`);
@@ -264,8 +380,7 @@ async function handleAddRemoveAdmin(api, message, groupSettings, action, isAdmin
 
   if (action === "remove" && content.toLowerCase().includes("all")) {
     if (isGlobalAdmin) {
-      const listAdmin = api.apiManager.getListAdmin();
-      if (!listAdmin) listAdmin = [];
+      const listAdmin = api.apiManager.getListAdmin() || [];
       const totalCount = listAdmin.length;
       if (totalCount > 0) {
         listAdmin.length = 0;
@@ -292,14 +407,13 @@ async function handleAddRemoveAdmin(api, message, groupSettings, action, isAdmin
     if (indexMatch) {
       const index = parseInt(indexMatch[0]) - 1;
       if (isGlobalAdmin) {
-        const listAdmin = api.apiManager.getListAdmin();
-        if (!listAdmin) listAdmin = [];
+        const listAdmin = api.apiManager.getListAdmin() || [];
 
         if (index >= 0 && index < listAdmin.length) {
           const removedAdmin = listAdmin.splice(index, 1)[0];
           updateListAdminByIDBot(botId, listAdmin);
           const userInfo = await getUserInfoBasic(api, removedAdmin);
-          await sendMessageComplete(api, message, `Đã xóa quyền admin cấp cao của tài khoản: ${userInfo.displayName}`);
+          await sendMessageComplete(api, message, `Đã xóa quyền admin cấp cao của tài khoản: ${userInfo.displayName}`, true, 180000, userInfo.displayName);
         } else {
           await sendMessageWarning(
             api,
@@ -313,7 +427,7 @@ async function handleAddRemoveAdmin(api, message, groupSettings, action, isAdmin
         if (index >= 0 && index < adminList.length) {
           const [targetId, targetName] = adminList[index];
           delete groupSettings[threadId]["adminList"][targetId];
-          await sendMessageComplete(api, message, `Đã xóa ${targetName} khỏi danh sách quản trị bot của nhóm này.`);
+          await sendMessageComplete(api, message, `Đã xóa ${targetName} khỏi danh sách quản trị bot của nhóm này.`, true, 180000, targetName);
         } else {
           await sendMessageWarning(
             api,
@@ -373,35 +487,35 @@ async function handleAddRemoveAdmin(api, message, groupSettings, action, isAdmin
           if (action === "add") {
             if (!listAdmin.includes(uid)) {
               listAdmin.push(uid);
-              await sendMessageComplete(api, message, `Đã thêm ${targetName} vào danh sách admin cấp cao của bot.`);
+              await sendMessageComplete(api, message, `Đã thêm ${targetName} vào danh sách admin cấp cao của bot.`, true, 180000, targetName);
               needUpdate = true;
             } else {
-              await sendMessageWarning(api, message, `${targetName} đã là admin cấp cao của bot.`);
+              await sendMessageWarning(api, message, `${targetName} đã là admin cấp cao của bot.`, true, 180000, targetName);
             }
           } else if (action === "remove") {
             const index = listAdmin.indexOf(uid);
             if (index !== -1) {
               listAdmin.splice(index, 1);
-              await sendMessageComplete(api, message, `Đã xóa ${targetName} khỏi danh sách admin cấp cao của bot.`);
+              await sendMessageComplete(api, message, `Đã xóa ${targetName} khỏi danh sách admin cấp cao của bot.`, true, 180000, targetName);
               needUpdate = true;
             } else {
-              await sendMessageWarning(api, message, `${targetName} không phải là admin cấp cao của bot.`);
+              await sendMessageWarning(api, message, `${targetName} không phải là admin cấp cao của bot.`, true, 180000, targetName);
             }
           }
         } else {
           if (action === "add") {
             if (!groupSettings[threadId]["adminList"][uid]) {
               groupSettings[threadId]["adminList"][uid] = targetName;
-              await sendMessageComplete(api, message, `Đã thêm ${targetName} vào danh sách quản trị bot của nhóm này.`);
+              await sendMessageComplete(api, message, `Đã thêm ${targetName} vào danh sách quản trị bot của nhóm này.`, true, 180000, targetName);
             } else {
-              await sendMessageWarning(api, message, `${targetName} đã có trong danh sách quản trị bot của nhóm này.`);
+              await sendMessageWarning(api, message, `${targetName} đã có trong danh sách quản trị bot của nhóm này.`, true, 180000, targetName);
             }
           } else if (action === "remove") {
             if (groupSettings[threadId]["adminList"][uid]) {
               delete groupSettings[threadId]["adminList"][uid];
-              await sendMessageComplete(api, message, `Đã xóa ${targetName} khỏi danh sách quản trị bot của nhóm này.`);
+              await sendMessageComplete(api, message, `Đã xóa ${targetName} khỏi danh sách quản trị bot của nhóm này.`, true, 180000, targetName);
             } else {
-              await sendMessageWarning(api, message, `${targetName} không có trong danh sách quản trị bot của nhóm này.`);
+              await sendMessageWarning(api, message, `${targetName} không có trong danh sách quản trị bot của nhóm này.`, true, 180000, targetName);
             }
           }
         }
@@ -449,19 +563,19 @@ async function handleAddRemoveAdmin(api, message, groupSettings, action, isAdmin
       if (action === "add") {
         if (!listAdmin.includes(targetId)) {
           listAdmin.push(targetId);
-          await sendMessageComplete(api, message, `Đã thêm ${targetName} vào danh sách admin cấp cao của bot.`);
+          await sendMessageComplete(api, message, `Đã thêm ${targetName} vào danh sách admin cấp cao của bot.`, true, 180000, targetName);
           needUpdate = true;
         } else {
-          await sendMessageWarning(api, message, `${targetName} đã là admin cấp cao của bot.`);
+          await sendMessageWarning(api, message, `${targetName} đã là admin cấp cao của bot.`, true, 180000, targetName);
         }
       } else if (action === "remove") {
         const index = listAdmin.indexOf(targetId);
         if (index !== -1) {
           listAdmin.splice(index, 1);
-          await sendMessageComplete(api, message, `Đã xóa ${targetName} khỏi danh sách admin cấp cao của bot.`);
+          await sendMessageComplete(api, message, `Đã xóa ${targetName} khỏi danh sách admin cấp cao của bot.`, true, 180000, targetName);
           needUpdate = true;
         } else {
-          await sendMessageWarning(api, message, `${targetName} không phải là admin cấp cao của bot.`);
+          await sendMessageWarning(api, message, `${targetName} không phải là admin cấp cao của bot.`, true, 180000, targetName);
         }
       }
     } else {
@@ -469,17 +583,17 @@ async function handleAddRemoveAdmin(api, message, groupSettings, action, isAdmin
         case "add":
           if (!groupSettings[threadId]["adminList"][targetId]) {
             groupSettings[threadId]["adminList"][targetId] = targetName;
-            await sendMessageComplete(api, message, `Đã thêm ${targetName} vào danh sách quản trị bot của nhóm này.`);
+            await sendMessageComplete(api, message, `Đã thêm ${targetName} vào danh sách quản trị bot của nhóm này.`, true, 180000, targetName);
           } else {
-            await sendMessageWarning(api, message, `${targetName} đã có trong danh sách quản trị bot của nhóm này.`);
+            await sendMessageWarning(api, message, `${targetName} đã có trong danh sách quản trị bot của nhóm này.`, true, 180000, targetName);
           }
           break;
         case "remove":
           if (groupSettings[threadId]["adminList"][targetId]) {
             delete groupSettings[threadId]["adminList"][targetId];
-            await sendMessageComplete(api, message, `Đã xóa ${targetName} khỏi danh sách quản trị bot của nhóm này.`);
+            await sendMessageComplete(api, message, `Đã xóa ${targetName} khỏi danh sách quản trị bot của nhóm này.`, true, 180000, targetName);
           } else {
-            await sendMessageWarning(api, message, `${targetName} không có trong danh sách quản trị bot của nhóm này.`);
+            await sendMessageWarning(api, message, `${targetName} không có trong danh sách quản trị bot của nhóm này.`, true, 180000, targetName);
           }
           break;
       }

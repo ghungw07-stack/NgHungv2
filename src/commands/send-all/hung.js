@@ -89,7 +89,7 @@ async function isAdminSafe(botId, uid) {
 
 const TRAIT_GROUPS = {
   "Tính cách": {
-    iq: "IQ", ngu: "Ngu", cute: "Cute", ngao: "Ngáo", luoi: "Lười",
+    iq: "IQ", ngu: "Ngu", cute: "Cute", ngao: "Ngáo", khung: "Khùng", luoi: "Lười",
     cham: "Chăm", ngoan: "Ngoan", hu: "Hư", hai: "Hài", toxic: "Toxic",
   },
   "Tình cảm": {
@@ -134,6 +134,11 @@ const TRAIT_COMMENTS = {
     "Ngáo đời cực mạnh, lời nói và hành động luôn khiến người xung quanh phải ngơ ngác hỏi lại 🤪",
     "Có chút ngơ ngác đáng yêu, đôi lúc trả lời trớt quớt nhưng vui tính 😵",
     "Tỉnh táo, không ngáo, suy nghĩ khá logic và chắc chắn 🧊",
+  ],
+  khung: [
+    "Độ khùng chạm nóc, nói chuyện đổi mood nhanh hơn lật bánh tráng, cả nhóm không đoán nổi nước đi tiếp theo 🤪",
+    "Khùng vừa đủ vui, lâu lâu tung một câu hoặc làm một pha khiến cả nhóm đứng hình rồi cười bò 😂",
+    "Khá tỉnh táo và điềm đạm, ít khi quậy quá đà hay làm chuyện khiến mọi người bất ngờ 😌",
   ],
   luoi: [
     "Lười xuất sắc, deadline nhìn thấy còn phải né qua chỗ khác vì sợ 🦥",
@@ -239,7 +244,7 @@ const ADMIN_GOOD_TRAITS = new Set([
   "deptrai", "depgai", "namtinh", "nutinh", "giau",
 ]);
 const ADMIN_BAD_TRAITS = new Set([
-  "ngu", "ngao", "luoi", "hu", "toxic", "simp",
+  "ngu", "ngao", "khung", "luoi", "hu", "toxic", "simp",
   "langnhang", "dam", "xau", "ngheo", "gay", "les",
 ]);
 
@@ -398,20 +403,41 @@ async function handleInfoCommand(api, message) {
   const userInfo = await resolveUserInfo(api, targetUid, mentions.length === 0 ? "Bạn" : "Người này");
   const isTargetAdmin = await isAdminSafe(api.getBotId(), targetUid);
 
-  let lines = [`📋 TỔNG QUAN — ${userInfo.name}\n`];
-  for (const [group, traits] of Object.entries(TRAIT_GROUPS)) {
-    const keys = Object.keys(traits);
-    const randomKey = keys[randomPercent(0, keys.length - 1)];
+  // Social info phải cho thấy từng "độ" cụ thể; không gom thành các nhóm chung chung.
+  const profileTraits = [
+    ["dam", "😈 Độ dâm"],
+    ["khung", "🤪 Độ khùng"],
+    ["hai", "🤣 Độ hài"],
+    ["toxic", "🐍 Độ toxic"],
+    ["simp", "🥺 Độ simp"],
+    ["hu", "😏 Độ hư"],
+    ["luoi", "🦥 Độ lười"],
+    ["cute", "🥰 Độ cute"],
+    ["chungtinh", "💍 Độ chung tình"],
+    ["langnhang", "🦋 Độ lăng nhăng"],
+  ];
+  const results = [];
+  for (const [traitKey, label] of profileTraits) {
     let percent;
-    if (isTargetAdmin && ADMIN_GOOD_TRAITS.has(randomKey)) {
+    if (isTargetAdmin && ADMIN_GOOD_TRAITS.has(traitKey)) {
       percent = 100;
-    } else if (isTargetAdmin && ADMIN_BAD_TRAITS.has(randomKey)) {
+    } else if (isTargetAdmin && ADMIN_BAD_TRAITS.has(traitKey)) {
       percent = 0;
     } else {
       percent = randomPercent(0, 100);
     }
-    lines.push(`• ${group}: ${traits[randomKey]} — ${percent}%`);
+    results.push({ traitKey, label, percent });
   }
+
+  const highlights = [...results]
+    .sort((a, b) => b.percent - a.percent)
+    .slice(0, 2)
+    .map(({ label }) => label.replace(/^\S+\s+/u, "").toLowerCase());
+  const lines = [
+    `📊 HỒ SƠ SOCIAL — ${userInfo.name}\n`,
+    ...results.map(({ label, percent }) => `• ${label}: ${percent}%`),
+    `\n🔥 Nổi bật nhất: ${highlights.join(" và ")}.`,
+  ];
   lines.push(`\n✏️ Kết quả chỉ mang tính vui, không phán xét người thật.`);
 
   return sendMessageStateQuote(api, message, lines.join("\n"), false, 60000, false);
@@ -689,7 +715,7 @@ function buildHelpMessage(prefix) {
     `  • Không tag → phân tích chính bạn\n` +
     `  • Có tag → phân tích người được tag\n\n` +
     `🎯 TRAIT (1 user, ra ảnh), vài ví dụ:\n` +
-    `  iq, ngu, cute, ngao, luoi, cham, ngoan, hu, hai, toxic,\n` +
+    `  iq, ngu, cute, ngao, khung, luoi, cham, ngoan, hu, hai, toxic,\n` +
     `  simp, chungtinh, langnhang, dam,\n` +
     `  deptrai, depgai, xau, namtinh, nutinh,\n` +
     `  giau, ngheo, gay, les\n` +

@@ -9,6 +9,7 @@ import { removeMention } from "../../utils/format-util.js";
 import { getAntiConfig, updateAntiConfig } from "./index.js";
 import { scanQRCode } from "../utilities/qr-scan.js";
 import { deleteMessageCustomer } from "../../commands/bot-manager/utilities.js";
+import { applyAntiPunishment, shouldSendBlockImage } from "./anti-punishment.js";
 
 function loadLinkRegex(botId) {
   try {
@@ -232,9 +233,9 @@ async function blockUser(api, message, threadId, senderId, senderName, groupSett
   try {
     if (kickedUsers.has(senderId)) return;
     kickedUsers.add(senderId);
-    await api.blockUsers(threadId, [senderId]);
+    await applyAntiPunishment(api, message, threadId, senderId, senderName, groupSettings);
 
-    const isEnableBlockImage = groupSettings?.[threadId]?.enableBlockImage === true;
+    const isEnableBlockImage = groupSettings?.[threadId]?.enableBlockImage === true && shouldSendBlockImage(api);
     
     if (isEnableBlockImage) {
       try {

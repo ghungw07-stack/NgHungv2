@@ -308,8 +308,12 @@ function parseGameAmount(amount, currentBalance) {
         if (!found) break;
       }
 
-      // Xử lý số
-      const number = parseFloat(normalized);
+      // Dấu chấm/phẩy theo nhóm hàng nghìn phải được bỏ trước khi parse.
+      // Ví dụ: 2.437.500.000.000 = 2437500000000 (không phải 2.437).
+      const numberText = /^(?:\d{1,3})(?:[.,]\d{3})+$/.test(normalized)
+        ? normalized.replace(/[.,]/g, "")
+        : normalized.replace(",", ".");
+      const number = parseFloat(numberText);
       if (isNaN(number)) {
         throw new Error("Số tiền không hợp lệ");
       }

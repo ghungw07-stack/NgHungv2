@@ -5,6 +5,7 @@ import path from "path";
 import { getGlobalPrefix } from "../../../service.js";
 import { clearImagePath } from "../../../../utils/canvas/index.js";
 import { getRankInfoCache, updateRankMiniGame } from "../../../info-service/rank-chat.js";
+import { getActiveCanvasStyle } from "../../../../utils/canvas/theme.js";
 
 export const gameTypeChess = "covua";
 
@@ -107,6 +108,15 @@ function chooseBotMove(game) {
 }
 
 async function renderBoard(game) {
+  const activeStyle = getActiveCanvasStyle();
+  const themes = {
+    1: { bg: ["#29455a", "#142735", "#08131c"], title: "#f7d58a", border: "#5f422b", light: "#f0d9b5", dark: "#8a5b3d" },
+    2: { bg: ["#f1f5f3", "#f1f5f3", "#f1f5f3"], title: "#183b35", border: "#087f68", light: "#ffffff", dark: "#92b8a6" },
+    3: { bg: ["#6f5527", "#382c1e", "#1c1917"], title: "#d6b56c", border: "#b78b35", light: "#faf4e7", dark: "#9d7630" },
+    4: { bg: ["#ef476f", "#7f1d3b", "#111827"], title: "#fecdd3", border: "#111827", light: "#fff1f2", dark: "#fb7185" },
+    5: { bg: ["#5b21b6", "#1e3a5f", "#0f766e"], title: "#5eead4", border: "#c4b5fd", light: "#c4b5fd", dark: "#334e83" },
+  };
+  const theme = themes[activeStyle] || themes[1];
   const width = 920, height = 1120, boardX = 76, boardY = 174, cell = 96, boardSize = cell * 8;
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext("2d");
@@ -117,13 +127,13 @@ async function renderBoard(game) {
   const orientation = game.viewColor || "w";
 
   const bg = ctx.createRadialGradient(width / 2, 330, 40, width / 2, 480, 850);
-  bg.addColorStop(0, "#29455a"); bg.addColorStop(0.55, "#142735"); bg.addColorStop(1, "#08131c");
+  bg.addColorStop(0, theme.bg[0]); bg.addColorStop(0.55, theme.bg[1]); bg.addColorStop(1, theme.bg[2]);
   ctx.fillStyle = bg; ctx.fillRect(0, 0, width, height);
   ctx.globalAlpha = 0.06; ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1;
   for (let x = -height; x < width; x += 34) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x + height, height); ctx.stroke(); }
   ctx.globalAlpha = 1;
 
-  ctx.textAlign = "center"; ctx.fillStyle = "#f7d58a"; ctx.font = "700 42px sans-serif";
+  ctx.textAlign = "center"; ctx.fillStyle = theme.title; ctx.font = "700 42px sans-serif";
   ctx.fillText("♔  CỜ VUA", width / 2, 58);
   ctx.fillStyle = "#9eb3c1"; ctx.font = "17px sans-serif";
   ctx.fillText(game.isBot ? "ĐẤU VỚI BOT" : "THÁCH ĐẤU 1 VS 1", width / 2, 88);
@@ -142,7 +152,7 @@ async function renderBoard(game) {
 
   ctx.shadowColor = "rgba(0,0,0,.55)"; ctx.shadowBlur = 26; ctx.shadowOffsetY = 12;
   rounded(boardX - 10, boardY - 10, boardSize + 20, boardSize + 20, 12);
-  ctx.fillStyle = "#5f422b"; ctx.fill();
+  ctx.fillStyle = theme.border; ctx.fill();
   ctx.shadowColor = "transparent"; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
   const board = game.chess.board();
   const last = game.lastMove ? [game.lastMove.from, game.lastMove.to] : [];
@@ -158,7 +168,7 @@ async function renderBoard(game) {
     const rank = orientation === "w" ? 8 - vr : vr + 1;
     const square = `${String.fromCharCode(97 + fileIndex)}${rank}`;
     const x = boardX + vc * cell, y = boardY + vr * cell;
-    ctx.fillStyle = (fileIndex + rank) % 2 ? "#f0d9b5" : "#8a5b3d";
+    ctx.fillStyle = (fileIndex + rank) % 2 ? theme.light : theme.dark;
     ctx.fillRect(x, y, cell, cell);
     const tileGlow = ctx.createLinearGradient(x, y, x + cell, y + cell);
     if (last.includes(square)) { tileGlow.addColorStop(0, "rgba(255,226,72,.72)"); tileGlow.addColorStop(1, "rgba(230,169,29,.55)"); ctx.fillStyle = tileGlow; ctx.fillRect(x, y, cell, cell); }

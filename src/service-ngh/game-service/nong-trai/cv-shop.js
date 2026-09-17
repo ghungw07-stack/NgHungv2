@@ -3,6 +3,8 @@ import path from "path";
 import fs from "fs";
 import { SHOP_ITEMS, CROPS } from "./data-nongtrai.js";
 import { formatCurrency } from "../../../utils/format-util.js";
+import { getActiveCanvasStyle } from "../../../utils/canvas/theme.js";
+import { renderCollectionStyle } from "../../../utils/canvas/collection-style-renderers.js";
 
 const ITEMS_PER_ROW = 4;
 const ITEM_WIDTH = 280;
@@ -67,6 +69,25 @@ function drawSectionHeader(ctx, text, x, y, width) {
 export async function drawShopCanvas(landPrice) {
   const tools = Object.entries(SHOP_ITEMS);
   const seeds = Object.entries(CROPS);
+  const activeStyle = getActiveCanvasStyle();
+  if (activeStyle !== 1) {
+    const entries = [
+      ...tools.map(([code, item]) => ({ code, item, type: "DỤNG CỤ" })),
+      ...seeds.map(([code, item]) => ({ code, item, type: "HẠT GIỐNG" })),
+    ];
+    return renderCollectionStyle(activeStyle, {
+      kicker: "MYBOT • FARM MARKET",
+      title: "CỬA HÀNG NÔNG TRẠI",
+      subtitle: "Dụng cụ, vật phẩm và hạt giống",
+      footer: `Giá mở rộng đất hiện tại ${formatCurrency(landPrice)} VNĐ`,
+      items: entries.slice(0, 16).map(({ code, item, type }, index) => ({
+        title: item.name || code,
+        subtitle: `${type} • Mã ${code}`,
+        meta: `${formatCurrency(item.price || (code === "land" ? landPrice : 0))} VNĐ`,
+        badge: String(index + 1).padStart(2, "0"),
+      })),
+    }, "farm_shop");
+  }
 
   // Tính toán kích thước cho mỗi section
   const toolRows = Math.ceil(tools.length / ITEMS_PER_ROW);
@@ -235,4 +256,4 @@ async function drawItem(ctx, [key, item], x, y, landPrice) {
     }
     ctx.fillText(line, x + ITEM_WIDTH/2, yPos);
   }
-} 
+}

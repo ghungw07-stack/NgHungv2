@@ -8,6 +8,7 @@ import { checkBeforeJoinGame } from "../index.js";
 import { clearImagePath } from "../../canvas/index.js";
 import { convertSVGtoPNG } from "./svg-converter.js";
 import { getUserInfoBasic } from "../../info-service/user-info.js";
+import { getActiveCanvasStyle } from "../../../utils/canvas/theme.js";
 
 // Lưu trạng thái các ván cờ đang diễn ra
 const activeGames = new Map();
@@ -259,7 +260,8 @@ async function handleChallenge(api, message, parts) {
   const balance = await getPlayerBalance(senderId);
   let betAmount;
   try {
-    betAmount = parseGameAmount(parts[2], balance.balance);
+    const parsedAmount = parseGameAmount(parts[2], balance.balance);
+    betAmount = parsedAmount === "allin" ? new Big(balance.balance) : parsedAmount;
     if (betAmount.lt(1000)) {
       await api.sendMessage({ msg: `${nameServer}: Số tiền cược tối thiểu là 1,000 VNĐ`, quote: message }, threadId, type);
       return;
@@ -484,16 +486,26 @@ async function endGame(api, game, winner) {
 }
 
 async function drawBoard(game) {
+  const style = getActiveCanvasStyle();
+  const theme = {
+    1: { bg: "#f0d9b5", grid: "#000000", accent: "#f0d9b5" },
+    2: { bg: "#f1f5f3", grid: "#647971", accent: "#e0f0e9" },
+    3: { bg: "#f5e8c5", grid: "#6b4a24", accent: "#fff9e9" },
+    4: { bg: "#fff7f8", grid: "#111827", accent: "#ffe0e6" },
+    5: { bg: "#101a38", grid: "#99f6e4", accent: "#25315e" },
+  }[style] || { bg: "#f0d9b5", grid: "#000000", accent: "#f0d9b5" };
   const canvas = createCanvas(800, 900);
   const ctx = canvas.getContext("2d");
 
   // Vẽ background
-  ctx.fillStyle = "#f0d9b5";
+  ctx.fillStyle = theme.bg;
   ctx.fillRect(0, 0, 800, 900);
 
   // Vẽ lưới bàn cờ
-  ctx.strokeStyle = "#000000";
+  ctx.strokeStyle = theme.grid;
   ctx.lineWidth = 2;
+  ctx.fillStyle = theme.accent;
+  ctx.fillRect(55, 55, 690, 25);
 
   // Vẽ các đường ngang và dọc
   for (let i = 0; i < 10; i++) {

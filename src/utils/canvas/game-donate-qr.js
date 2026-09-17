@@ -3,111 +3,203 @@ import path from "path";
 import nodeFetch from "node-fetch";
 import { FONT_MAIN } from "../format-util.js";
 import { writeFilePromise } from "../util.js";
+import { getActiveCanvasStyle } from "./theme.js";
+import { renderQrStyle } from "./qr-style-renderers.js";
 
 // Helper for rounded rect
 function roundedRect(ctx, x, y, width, height, radius) {
+  const r = Math.min(radius, width / 2, height / 2);
   ctx.beginPath();
-  ctx.moveTo(x + radius, y);
-  ctx.lineTo(x + width - radius, y);
-  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
-  ctx.lineTo(x + width, y + height - radius);
-  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
-  ctx.lineTo(x + radius, y + height);
-  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
-  ctx.lineTo(x, y + radius);
-  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + width, y, x + width, y + height, r);
+  ctx.arcTo(x + width, y + height, x, y + height, r);
+  ctx.arcTo(x, y + height, x, y, r);
+  ctx.arcTo(x, y, x + width, y, r);
   ctx.closePath();
 }
 
-export async function createDonateQR(uid) {
-  const width = 1000;
-  const height = 750;
+function drawGlassCard(ctx, x, y, w, h, radius = 16, borderColor = "rgba(255, 255, 255, 0.12)", bgColor = "rgba(255, 255, 255, 0.04)") {
+  ctx.save();
+  roundedRect(ctx, x, y, w, h, radius);
+  ctx.fillStyle = bgColor;
+  ctx.fill();
+  ctx.strokeStyle = borderColor;
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+  ctx.restore();
+}
+
+export async function createDonateQR(uid, options = {}) {
+  const activeStyle = getActiveCanvasStyle();
+  const transferContent = String(options.transferContent || `DONATE ${uid}`);
+  const amount = Math.max(0, Math.floor(Number(options.amount) || 0));
+  const title = String(options.title || "ỦNG HỘ CHỦ BOT");
+  const subtitle = String(options.subtitle || "Cảm ơn bạn đã đồng hành");
+  const footer = String(options.footer || "Mỗi đóng góp giúp bot duy trì VPS, upload và AI hằng tháng");
+  const bankBin = "970448";
+  const bankAccount = "SEPNGH66300";
+  const amountQuery = amount ? `&amount=${amount}` : "";
+  const qrUrl = `https://img.vietqr.io/image/${bankBin}-${bankAccount}-qr_only.png?addInfo=${encodeURIComponent(transferContent)}&accountName=THUE%20BOT${amountQuery}`;
+
+  if (activeStyle !== 1) {
+    try {
+      const qrRes = await nodeFetch(qrUrl);
+      const qrBuffer = await qrRes.arrayBuffer();
+      const qrImage = await loadImage(Buffer.from(qrBuffer));
+      const styledCanvas = renderQrStyle(activeStyle, {
+        qrImage,
+        kicker: "MYBOT • DONATION GATEWAY",
+        title,
+        subtitle,
+        label: "NỘI DUNG CHUYỂN KHOẢN",
+        value: transferContent,
+        secondaryLabel: "OCB • SỐ TÀI KHOẢN",
+        secondaryValue: bankAccount,
+        footer,
+      });
+      const outPath = path.join(process.cwd(), `game_donate_qr_${uid}.png`);
+      await writeFilePromise(outPath, styledCanvas.toBuffer("image/png"));
+      return outPath;
+    } catch (error) {
+      console.error("Error fetching styled QR image", error);
+    }
+  }
+
+  // Clean, Minimalist Modern Theme
+  const width = 920;
+  const height = 520;
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext("2d");
 
-  // Background
-  ctx.fillStyle = "#fdfbf2"; // Very light warm color
+  // 1. Sleek Dark Slate Background
+  const bgGrad = ctx.createLinearGradient(0, 0, width, height);
+  bgGrad.addColorStop(0, "#0f172a");
+  bgGrad.addColorStop(1, "#090d16");
+  ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, width, height);
-  
-  // Header background
+
+  // Subtle ambient glow
+  const glow = ctx.createRadialGradient(width * 0.8, 80, 10, width * 0.8, 80, 300);
+  glow.addColorStop(0, "rgba(56, 189, 248, 0.08)");
+  glow.addColorStop(1, "rgba(56, 189, 248, 0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, width, height);
+
+  // Card Outer Border
   ctx.save();
-  const grad = ctx.createLinearGradient(0, 0, width, 0);
-  grad.addColorStop(0, "#48a4c1");
-  grad.addColorStop(1, "#206db2");
-  
-  // Shadow
-  ctx.shadowColor = "rgba(0,0,0,0.15)";
-  ctx.shadowBlur = 15;
-  ctx.shadowOffsetY = 10;
-  
-  roundedRect(ctx, 40, 40, width - 80, 160, 20);
-  ctx.fillStyle = grad;
-  ctx.fill();
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
+  ctx.lineWidth = 1.5;
+  roundedRect(ctx, 1, 1, width - 2, height - 2, 20);
+  ctx.stroke();
   ctx.restore();
 
-  // Header Texts
-  ctx.fillStyle = "#ffffff";
-  ctx.font = `24px "${FONT_MAIN}"`;
-  ctx.fillText("CẢM ƠN BẠN ĐÃ ĐỒNG HÀNH", 220, 95);
+  // 2. Left Side: Clean QR Container
+  const qrBoxX = 36;
+  const qrBoxY = 36;
+  const qrBoxSize = 448;
 
-  ctx.font = `55px "bold ${FONT_MAIN}"`;
-  ctx.fillText("ỦNG HỘ CHỦ BOT", 220, 160);
-
-  // Main Card
   ctx.save();
-  ctx.shadowColor = "rgba(0,0,0,0.08)";
-  ctx.shadowBlur = 25;
-  ctx.shadowOffsetY = 10;
-  roundedRect(ctx, 40, 240, width - 80, 400, 20);
+  ctx.shadowColor = "rgba(0, 0, 0, 0.4)";
+  ctx.shadowBlur = 20;
+  ctx.shadowOffsetY = 8;
+  roundedRect(ctx, qrBoxX, qrBoxY, qrBoxSize, qrBoxSize, 20);
   ctx.fillStyle = "#ffffff";
   ctx.fill();
   ctx.restore();
 
-  // Draw QR
-  const transferContent = `DONATE ${uid}`;
-  const bankBin = "970448"; // OCB
-  const bankAccount = "SEPNGH66300";
-  const qrUrl = `https://img.vietqr.io/image/${bankBin}-${bankAccount}-qr_only.png?addInfo=${encodeURIComponent(transferContent)}&accountName=THUE%20BOT`;
-  
+  // Draw QR image
+  const qrSize = 390;
+  const qrX = qrBoxX + (qrBoxSize - qrSize) / 2;
+  const qrY = qrBoxY + (qrBoxSize - qrSize) / 2;
+
   try {
     const qrRes = await nodeFetch(qrUrl);
     const qrBuffer = await qrRes.arrayBuffer();
     const qrImage = await loadImage(Buffer.from(qrBuffer));
-    // Draw QR on left side
-    ctx.drawImage(qrImage, 80, 270, 340, 340);
+    ctx.drawImage(qrImage, qrX, qrY, qrSize, qrSize);
   } catch (e) {
     console.error("Error fetching QR image", e);
   }
 
-  // Right side info
-  ctx.fillStyle = "#2773b7";
-  ctx.font = `32px "bold ${FONT_MAIN}"`;
-  ctx.fillText("CHUYỂN KHOẢN TỚI", 480, 310);
+  // 3. Right Side: Clean Payment Info
+  const rightX = 520;
+  const rightW = width - rightX - 40;
 
-  // Helper for pill
-  function drawPill(y, title, content) {
-    ctx.fillStyle = "#f3f8fd";
-    roundedRect(ctx, 480, y, 420, 80, 15);
-    ctx.fill();
-    ctx.fillStyle = "#698197";
-    ctx.font = `20px "${FONT_MAIN}"`;
-    ctx.fillText(title, 520, y + 35);
-    ctx.fillStyle = "#1e2e3e";
-    ctx.font = `30px "bold ${FONT_MAIN}"`;
-    ctx.fillText(content, 520, y + 65);
-  }
+  // Header
+  ctx.fillStyle = "#38bdf8";
+  ctx.font = "bold 13px Poppins, BeVietnamPro, sans-serif";
+  ctx.fillText("ỦNG HỘ HỆ THỐNG", rightX, 68);
 
-  drawPill(340, "Ngân hàng", "OCB (Ngân hàng Phương Đông)");
-  drawPill(435, "Số tài khoản", bankAccount);
-  drawPill(530, "Nội dung CK (Bắt buộc ghi đúng)", transferContent);
+  ctx.fillStyle = "#f8fafc";
+  ctx.font = "bold 28px BeVietnamPro, sans-serif";
+  ctx.fillText(title, rightX, 104);
 
-  // Footer text
-  ctx.textAlign = "center";
-  ctx.fillStyle = "#6b7a8a";
-  ctx.font = `22px "bold ${FONT_MAIN}"`;
-  ctx.fillText("Mỗi đóng góp giúp bot gánh chi phí VPS, Host Upload và AI hằng tháng", width / 2, 690);
-  ctx.font = `18px "${FONT_MAIN}"`;
-  ctx.fillText("Thu Hoa Bot Team", width / 2, 720);
+  ctx.fillStyle = "#94a3b8";
+  ctx.font = "14px BeVietnamPro, sans-serif";
+  ctx.fillText(subtitle, rightX, 130);
+
+  // Subtle divider
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.1)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(rightX, 150);
+  ctx.lineTo(rightX + rightW, 150);
+  ctx.stroke();
+
+  // Row 1: Ngân hàng
+  const r1Y = 175;
+  ctx.fillStyle = "#64748b";
+  ctx.font = "12px BeVietnamPro, sans-serif";
+  ctx.fillText("NGÂN HÀNG THỤ HƯỞNG", rightX, r1Y);
+
+  ctx.fillStyle = "#f1f5f9";
+  ctx.font = "bold 18px BeVietnamPro, sans-serif";
+  ctx.fillText("OCB (Ngân hàng Phương Đông)", rightX, r1Y + 24);
+
+  // Row 2: Số tài khoản
+  const r2Y = 238;
+  ctx.fillStyle = "#64748b";
+  ctx.font = "12px BeVietnamPro, sans-serif";
+  ctx.fillText("SỐ TÀI KHOẢN (CHỦ TK: THUÊ BOT)", rightX, r2Y);
+
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 26px Poppins, BeVietnamPro, sans-serif";
+  ctx.fillText(bankAccount, rightX, r2Y + 28);
+
+  // Row 3: Nội dung chuyển khoản (Clean Box)
+  const r3Y = 308;
+  ctx.fillStyle = "#f59e0b";
+  ctx.font = "bold 12px BeVietnamPro, sans-serif";
+  ctx.fillText("NỘI DUNG CHUYỂN KHOẢN (GHI CHÍNH XÁC)", rightX, r3Y);
+
+  const memoBoxY = r3Y + 12;
+  const memoBoxH = 50;
+  roundedRect(ctx, rightX, memoBoxY, rightW, memoBoxH, 10);
+  ctx.fillStyle = "rgba(245, 158, 11, 0.1)";
+  ctx.fill();
+  ctx.strokeStyle = "rgba(245, 158, 11, 0.35)";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  ctx.fillStyle = "#fbbf24";
+  ctx.font = "bold 22px Poppins, BeVietnamPro, sans-serif";
+  ctx.fillText(transferContent, rightX + 16, memoBoxY + 32);
+
+  // Divider
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(rightX, 420);
+  ctx.lineTo(rightX + rightW, 420);
+  ctx.stroke();
+
+  // Footer note
+  ctx.fillStyle = "#64748b";
+  ctx.font = "13px BeVietnamPro, sans-serif";
+  ctx.fillText("Hệ thống tự động nhận diện và xử lý sau 30s – 1 phút.", rightX, 448);
+  ctx.fillStyle = "#475569";
+  ctx.font = "12px BeVietnamPro, sans-serif";
+  ctx.fillText("Cảm ơn bạn đã đồng hành & duy trì máy chủ bot!", rightX, 468);
 
   const outPath = path.join(process.cwd(), `game_donate_qr_${uid}.png`);
   await writeFilePromise(outPath, canvas.toBuffer("image/png"));
