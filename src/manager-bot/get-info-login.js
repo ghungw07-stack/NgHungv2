@@ -118,7 +118,7 @@ async function loadLoginPage(ctx) {
 }
 async function getLoginInfo(ctx, version) {
   const form = new URLSearchParams();
-  form.append("continue", "https://chat.zalo.me/");
+  form.append("continue", "https://zalo.me/pc");
   form.append("v", version);
   return await request(ctx, "https://id.zalo.me/account/logininfo", {
     headers: {
@@ -133,7 +133,7 @@ async function getLoginInfo(ctx, version) {
       "sec-fetch-dest": "empty",
       "sec-fetch-mode": "cors",
       "sec-fetch-site": "same-origin",
-      Referer: "https://id.zalo.me/account?continue=https%3A%2F%2Fchat.zalo.me%2F",
+      Referer: "https://id.zalo.me/account?continue=https%3A%2F%2Fzalo.me%2Fpc",
       "Referrer-Policy": "strict-origin-when-cross-origin",
     },
     body: form,
@@ -145,7 +145,7 @@ async function getLoginInfo(ctx, version) {
 async function verifyClient(ctx, version) {
   const form = new URLSearchParams();
   form.append("type", "device");
-  form.append("continue", "https://chat.zalo.me/");
+  form.append("continue", "https://zalo.me/pc");
   form.append("v", version);
   return await request(ctx, "https://id.zalo.me/account/verify-client", {
     headers: {
@@ -160,7 +160,7 @@ async function verifyClient(ctx, version) {
       "sec-fetch-dest": "empty",
       "sec-fetch-mode": "cors",
       "sec-fetch-site": "same-origin",
-      Referer: "https://id.zalo.me/account?continue=https%3A%2F%2Fchat.zalo.me%2F",
+      Referer: "https://id.zalo.me/account?continue=https%3A%2F%2Fzalo.me%2Fpc",
       "Referrer-Policy": "strict-origin-when-cross-origin",
     },
     body: form,
@@ -171,7 +171,7 @@ async function verifyClient(ctx, version) {
 }
 async function generate(ctx, version) {
   const form = new URLSearchParams();
-  form.append("continue", "https://chat.zalo.me/");
+  form.append("continue", "https://zalo.me/pc");
   form.append("v", version);
   return await request(ctx, "https://id.zalo.me/account/authen/qr/generate", {
     headers: {
@@ -186,7 +186,7 @@ async function generate(ctx, version) {
       "sec-fetch-dest": "empty",
       "sec-fetch-mode": "cors",
       "sec-fetch-site": "same-origin",
-      Referer: "https://id.zalo.me/account?continue=https%3A%2F%2Fchat.zalo.me%2F",
+      Referer: "https://id.zalo.me/account?continue=https%3A%2F%2Fzalo.me%2Fpc",
       "Referrer-Policy": "strict-origin-when-cross-origin",
     },
     body: form,
@@ -331,6 +331,27 @@ async function checkSession(ctx) {
   ).catch(console.error);
 }
 
+async function getUserInfo(ctx) {
+  return await request(ctx, "https://jr.chat.zalo.me/jr/userinfo", {
+    headers: {
+      accept: "*/*",
+      "accept-language": "vi-VN,vi;q=0.9,fr-FR;q=0.8,fr;q=0.7,en-US;q=0.6,en;q=0.5",
+      priority: "u=1, i",
+      "sec-ch-ua": '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"',
+      "sec-ch-ua-mobile": "?0",
+      "sec-ch-ua-platform": '"Windows"',
+      "sec-fetch-dest": "empty",
+      "sec-fetch-mode": "cors",
+      "sec-fetch-site": "same-site",
+      Referer: "https://chat.zalo.me/",
+      "Referrer-Policy": "strict-origin-when-cross-origin",
+    },
+    method: "GET",
+  })
+    .then((res) => res.json())
+    .catch(console.error);
+}
+
 async function establishSession(ctx) {
   return await request(
     ctx,
@@ -370,11 +391,9 @@ export async function loginQR(api, message, ctx, options = {}) {
     let msgId = "";
     const qrPath = path.join(tempDir, `qrImg_${randomIDTemp()}.png`);
     try {
-      // Luôn dùng đúng PNG do Zalo trả về; chỉ bọc trong card, không tái tạo từ token.
-      const qrCardBuffer = await createLoginQRCardBuffer(qrData.image, {
-        expiresInSeconds: QR_EXPIRES_IN_SECONDS,
-      });
-      writeFileSync(qrPath, qrCardBuffer);
+      // Dùng ảnh PNG gốc chuẩn của Zalo không chỉnh sửa màu/kích thước để giữ 100% chi tiết và tránh kích hoạt OCR/chống lừa đảo của Zalo App
+      const base64Data = qrData.image.replace(/^data:image\/png;base64,/, "");
+      writeFileSync(qrPath, Buffer.from(base64Data, "base64"));
       msgId = await sendMessageCompleteRequest(
         api,
         message,
@@ -444,7 +463,7 @@ export async function loginQR(api, message, ctx, options = {}) {
         error: "Không thể kiểm tra phiên truy cập của mã QR này!",
       });
 
-    // Establish session to get fresh cookies from chat.zalo.me
+    await getUserInfo(ctx);
     await establishSession(ctx);
 
     clearTimeout(timeout);
