@@ -42,7 +42,9 @@ export async function initializeDatabase() {
       retryReads: true,
       retryWrites: true,
     });
-        const db = mongoClient.db(databaseName);
+        await mongoClient.connect();
+    const db = mongoClient.db(databaseName);
+    await initializeBotCredentialVault(db);
         const databaseConnection = new MongoConnection(db, playersTable, accountTable);
     configureDatabaseState({
       serverName: config.nameServer,
