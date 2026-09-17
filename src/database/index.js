@@ -13,6 +13,7 @@ import { initializeBotCredentialVault } from "../security/bot-credential-vault.j
 const DEFAULT_SHARED_DATABASE = "bot-zalo-ngh";
 const DEFAULT_SHARED_URI = "mongodb://127.0.0.1:27017";
 
+import { preloadPlayerAliases } from "./player.js";
 export * from "./player.js";
 export * from "./jdbc.js";
 export { connection, NAME_TABLE_PLAYERS, NAME_TABLE_ACCOUNT, nameServer, DAILY_REWARD, pingDatabase } from "./state.js";
@@ -222,6 +223,7 @@ export async function initializeDatabase() {
     });
 
     await initializeBotLanguages(db);
+    await preloadPlayerAliases().catch(console.error);
 
     await Promise.all([
       db.collection(playersTable).createIndex({ username: 1 }, { unique: true }),

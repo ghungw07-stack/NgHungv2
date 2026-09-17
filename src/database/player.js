@@ -136,6 +136,19 @@ export async function setGamePrivacy(idUserZalo, changes = {}) {
   }
 }
 
+export async function preloadPlayerAliases() {
+  try {
+    const docs = await connection.collection("player_identity").find({ aliasId: { $exists: true }, playerId: { $exists: true } }).toArray();
+    for (const doc of docs) {
+      if (doc.aliasId && doc.playerId) {
+        rememberPlayerAlias(doc.aliasId, doc.playerId);
+      }
+    }
+  } catch (err) {
+    console.error("Lỗi khi tải cache player aliases:", err);
+  }
+}
+
 async function persistPlayerAlias(alias, playerId) {
   rememberPlayerAlias(alias, playerId);
   try {
@@ -174,7 +187,7 @@ export async function ensurePlayerAccount(idUserZalo, senderName, botId, api = n
         if (!isPrivateServer && info?.globalId) {
           resolvedKey = info.globalId;
           identityKey = "GLOBAL:" + info.globalId;
-        } else if (info?.username) {
+        } else if (info?.username && info.username !== "Ẩn") {
           resolvedKey = info.username;
           identityKey = "USERNAME:" + info.username;
         } else {
@@ -198,6 +211,7 @@ export async function ensurePlayerAccount(idUserZalo, senderName, botId, api = n
         const [linked] = await connection.execute(`SELECT username FROM ${NAME_TABLE_PLAYERS} WHERE idUserZalo = ?`, [identityDoc.playerId]);
         if (linked.length) {
           await persistPlayerAlias(originalZaloId, identityDoc.playerId);
+          await persistPlayerAlias(rawZaloId, identityDoc.playerId);
           return { success: true, isNew: false, playerId: identityDoc.playerId };
         }
       }
@@ -222,6 +236,9 @@ export async function ensurePlayerAccount(idUserZalo, senderName, botId, api = n
       if (originalZaloId !== idUserZalo) {
         await persistPlayerAlias(originalZaloId, idUserZalo);
       }
+      if (rawZaloId !== idUserZalo) {
+        await persistPlayerAlias(rawZaloId, idUserZalo);
+      }
       await persistPlayerAlias(idUserZalo, idUserZalo);
       return { success: true, isNew: false, playerId: idUserZalo };
     }
@@ -234,6 +251,9 @@ export async function ensurePlayerAccount(idUserZalo, senderName, botId, api = n
     if (identityKey && !isPrivateServer) await connection.collection("player_identity").updateOne({ identityKey }, { $set: { identityKey, playerId: idUserZalo, updatedAt: new Date() } }, { upsert: true });
     if (originalZaloId !== idUserZalo) {
       await persistPlayerAlias(originalZaloId, idUserZalo);
+    }
+    if (rawZaloId !== idUserZalo) {
+      await persistPlayerAlias(rawZaloId, idUserZalo);
     }
     await persistPlayerAlias(idUserZalo, idUserZalo);
     return { success: true, isNew: true, playerId: idUserZalo };

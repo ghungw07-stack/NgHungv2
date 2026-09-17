@@ -411,15 +411,14 @@ export async function handleMyCard(api, message, groupSettings) {
     return;
   }
   let targetId = mention?.uid || senderId;
-  if (mention) {
-    const targetName = String(message.data.content?.title || message.data.content || "")
-      .substring(mention.pos, mention.pos + mention.len)
-      .replace("@", "");
-    const targetAccount = await ensurePlayerAccount(targetId, targetName || targetId, api.getBotId(), api);
-    if (targetAccount?.playerId) {
-      // UID của bot đang tag chỉ là alias; hồ sơ game luôn dùng globalId.
-      targetId = targetAccount.playerId;
-    }
+  const targetName = mention
+    ? String(message.data.content?.title || message.data.content || "")
+        .substring(mention.pos, mention.pos + mention.len)
+        .replace("@", "")
+    : (message.data.dName || senderId);
+  const targetAccount = await ensurePlayerAccount(targetId, targetName || targetId, api.getBotId(), api);
+  if (targetAccount?.playerId) {
+    targetId = targetAccount.playerId;
   }
   const result = await getMyCard(api, targetId);
   if (result.success) {
