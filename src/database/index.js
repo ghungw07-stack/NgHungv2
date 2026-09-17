@@ -22,11 +22,12 @@ async function loadConfig() {
 
 
 export * from "./player.js";
+import { preloadPlayerAliases } from "./player.js";
 export * from "./jdbc.js";
 export { connection, NAME_TABLE_PLAYERS, NAME_TABLE_ACCOUNT, nameServer, DAILY_REWARD, pingDatabase } from "./state.js";
 
 export async function initializeDatabase() {
-  while (true) {
+    while (true) {
     try {
     const config = await loadConfig();
     const playersTable = config.tablePlayerZalo || "players_zalo";
@@ -41,10 +42,8 @@ export async function initializeDatabase() {
       retryReads: true,
       retryWrites: true,
     });
-    await mongoClient.connect();
-    const db = mongoClient.db(databaseName);
-    await initializeBotCredentialVault(db);
-    const databaseConnection = new MongoConnection(db, playersTable, accountTable);
+        const db = mongoClient.db(databaseName);
+        const databaseConnection = new MongoConnection(db, playersTable, accountTable);
     configureDatabaseState({
       serverName: config.nameServer,
       playersTable,
@@ -54,12 +53,7 @@ export async function initializeDatabase() {
     });
 
     await initializeBotLanguages(db);
-    try {
-      const { preloadPlayerAliases } = await import("./player.js");
-      await preloadPlayerAliases();
-    } catch (aliasErr) {
-      console.error("Lỗi khi nạp cache player aliases:", aliasErr?.message || aliasErr);
-    }
+    try { await preloadPlayerAliases(); } catch (e) { console.error(e); }
 
     await Promise.all([
       db.collection(playersTable).createIndex({ username: 1 }, { unique: true }),
@@ -83,8 +77,7 @@ export async function initializeDatabase() {
       db.collection("game_history").createIndex({ username: 1, createdAt: -1 }),
       db.collection("game_history").createIndex({ createdAt: -1 }),
     ]);
-    console.log(chalk.green(`✓ Khởi tạo MongoDB thành công (${databaseName})`));
-      return;
+          return;
     } catch (error) {
       console.error(chalk.red("Lỗi khi khởi tạo MongoDB, thử lại sau 5 giây: "), error?.message || error);
       await new Promise((resolve) => setTimeout(resolve, 5000));
