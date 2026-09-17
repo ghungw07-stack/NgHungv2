@@ -37,7 +37,7 @@ import {
 import { getUserInfoAcrossBots } from "../info-service/user-info.js";
 import { sendMessageFromSQL, sendMessageCompleteRequest, getNameServer } from "../../service-ngh/chat-zalo/chat-style/chat-style.js";
 import * as cv from "../../utils/canvas/index.js";
-import { apiManager, isAdmin, isBotLeader, isDeveloper, getBotLeaderAliases, inheritBotLeader, getApiManager } from "../../index.js";
+import { apiManager, isAdmin, isBotLeader, isDeveloper, getBotLeaderAliases, inheritBotLeader, getApiManager, getManagerCommandConfig } from "../../index.js";
 import { getGlobalPrefix } from "../service.js";
 import { formatBigNumber, formatCurrency, parseGameAmount, removeMention } from "../../utils/format-util.js";
 import { getGameTier, getGameTiers, getGameTierByName } from "../../utils/canvas/game-finance.js";
@@ -1876,7 +1876,22 @@ export async function handleDonateCommand(api, message, groupSettings) {
 
 /** Cộng donate thủ công sau khi Bot Leader đã đối soát giao dịch bên ngoài. */
 async function handleManualDonateAdd(api, message, rawAmount) {
-  const prefix = getGlobalPrefix(api.getBotId());
+  const botId = api.getBotId();
+  const managerCommand = getManagerCommandConfig(botId);
+  if (
+    managerCommand.notAllowedCommand?.includes("donateadd") ||
+    managerCommand.notAllowedCommand?.includes("donate-add") ||
+    managerCommand.notAllowedCommand?.includes("donate_add") ||
+    managerCommand.notAllowedCommand?.includes("donate add")
+  ) {
+    await sendMessageFromSQL(api, message, {
+      success: false,
+      message: "Lệnh cộng donate thủ công đã bị chặn trên bot này.",
+    }, true, 30000);
+    return;
+  }
+
+  const prefix = getGlobalPrefix(botId);
   const senderId = message.data.uidFrom;
   const isHighAdmin = (await isUserBotLeader(api, senderId, message.data?.dName)) || isAdmin(api.getBotId(), senderId) || isBotLeader(api.getBotId(), senderId);
   if (!isHighAdmin) {
@@ -1984,7 +1999,21 @@ async function handleManualDonateAdd(api, message, rawAmount) {
 
 /** Xoá toàn bộ tier hoặc trừ điểm donate thủ công sau khi Bot Leader hoặc quản trị cấp cao kiểm tra. */
 export async function handleManualDonateRemove(api, message, rawAmount) {
-  const prefix = getGlobalPrefix(api.getBotId());
+  const botId = api.getBotId();
+  const managerCommand = getManagerCommandConfig(botId);
+  if (
+    managerCommand.notAllowedCommand?.includes("donateadd") ||
+    managerCommand.notAllowedCommand?.includes("donatexoa") ||
+    managerCommand.notAllowedCommand?.includes("donate-add")
+  ) {
+    await sendMessageFromSQL(api, message, {
+      success: false,
+      message: "Lệnh chỉnh sửa donate thủ công đã bị chặn trên bot này.",
+    }, true, 30000);
+    return;
+  }
+
+  const prefix = getGlobalPrefix(botId);
   const senderId = message.data.uidFrom;
   const isHighAdmin = (await isUserBotLeader(api, senderId, message.data?.dName)) || isAdmin(api.getBotId(), senderId) || isBotLeader(api.getBotId(), senderId);
   if (!isHighAdmin) {
