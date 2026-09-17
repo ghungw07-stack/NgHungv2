@@ -19,52 +19,6 @@ async function loadConfig() {
   return JSON.parse(configFile);
 }
 
-      const result = await col.updateOne(filter, { $set: { winRate } });
-      return { affectedRows: result.matchedCount };
-    }
-    if (/CASE WHEN \? > 0/i.test(sql)) {
-      const field = /WHERE idUserZalo = \?/i.test(sql) ? "idUserZalo" : "username";
-      const filter = { [field]: value(params[params.length - 1]) };
-      const player = await col.findOne(filter);
-      if (!player) return { affectedRows: 0 };
-      const totalWinnings = new Big(player.totalWinnings || 0).plus(params[2] || 0).toString();
-      const totalLosses = new Big(player.totalLosses || 0).minus(params[4] || 0).toString();
-      const result = await col.updateOne(filter, { $set: {
-        balance: value(params[0]), totalWinnings, totalLosses,
-        totalGames: Number(player.totalGames || 0) + 1,
-        totalWinGames: Number(player.totalWinGames || 0) + Number(params[5] || 0),
-      } });
-      return { affectedRows: result.matchedCount };
-    }
-    const setText = sql.match(/ SET (.*?) WHERE /i)?.[1];
-    if (!setText) throw new Error(`Mongo compatibility: invalid UPDATE: ${sql}`);
-    const assignments = setText.split(",").map((x) => x.trim());
-    const $set = {}, $inc = {};
-    let used = 0;
-    for (const assignment of assignments) {
-      let m;
-      if ((m = assignment.match(/^([\w]+)\s*=\s*\?$/))) $set[m[1]] = value(params[used++]);
-      else if ((m = assignment.match(/^([\w]+)\s*=\s*([\w]+)\s*\+\s*\?$/))) $inc[m[1]] = params[used++];
-      else if ((m = assignment.match(/^([\w]+)\s*=\s*(-?\d+)$/))) $set[m[1]] = Number(m[2]);
-      else throw new Error(`Mongo compatibility: unsupported SET: ${assignment}`);
-    }
-    const whereSql = ` WHERE ${sql.match(/ WHERE (.*)$/i)[1]}`;
-    const { filter } = this.#where(whereSql, params.slice(used));
-    if (Object.keys($inc).length) {
-      const current = await col.findOne(filter);
-      if (!current) return { affectedRows: 0, changedRows: 0 };
-      for (const [field, amount] of Object.entries($inc)) {
-        $set[field] = typeof current[field] === "string"
-          ? new Big(current[field] || 0).plus(amount).toString()
-          : Number(current[field] || 0) + Number(amount);
-      }
-    }
-    const update = {};
-    if (Object.keys($set).length) update.$set = $set;
-    const result = await col.updateMany(filter, update);
-    return { affectedRows: result.modifiedCount, changedRows: result.modifiedCount };
-  }
-}
 
 export * from "./player.js";
 export * from "./jdbc.js";
