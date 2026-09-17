@@ -9,6 +9,7 @@ assets/temp-v2/
 assets/menu_*.png
 assets/config.json
 assets/data/*.sqlite*
+assets/data/backup_*.json
 assets/data/manager-bots.json
 assets/data/bot_leader.json
 assets/json-data/api-key.json

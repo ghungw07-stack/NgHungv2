@@ -1,0 +1,11 @@
+{
+  "childBotsRunMode": "separate-windows",
+  "timeMessage": 60000,
+  "infoOwner": {
+    "name": "Bot Owner",
+    "description": "",
+    "botInfo": "",
+    "nameServer": "NGH-Bot",
+    "typePlatform": "pc"
+  }
+}

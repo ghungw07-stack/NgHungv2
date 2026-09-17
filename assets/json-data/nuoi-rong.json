@@ -1,0 +1,76 @@
+{
+  "players": {
+    "2638616552802285873": {
+      "name": "Nguyễn Gia Hưng",
+      "createdAt": 1789048593965,
+      "level": 1,
+      "xp": 0,
+      "gold": 4664,
+      "fish": 5000,
+      "gem": 20,
+      "stone": 30,
+      "amber": 0,
+      "hpTinh": 0,
+      "vikings": 5,
+      "season": 0,
+      "stage": 1,
+      "hall": 1,
+      "buildings": {
+        "chuong": 1,
+        "aoca": 1,
+        "loap": 1
+      },
+      "incubator": [
+        {
+          "pool": "starter",
+          "startAt": 1789048593966,
+          "hatchMs": 300000
+        }
+      ],
+      "eggStorage": [],
+      "dragons": [
+        {
+          "code": "zujb",
+          "species": "deadly",
+          "rarity": "thuong",
+          "level": 1,
+          "bondXp": 0,
+          "bondLevel": 0,
+          "evolves": 0,
+          "restUntil": 0,
+          "lastPet": 0,
+          "hatchedAt": 1789048593965
+        }
+      ],
+      "tickets": {
+        "low": 0,
+        "mid": 0,
+        "high": 0
+      },
+      "trust": {},
+      "buffs": {
+        "idleUntil": 0
+      },
+      "lastCollect": 1789408400504,
+      "daily": {
+        "date": "2026-09-15",
+        "progress": {},
+        "claimed": [],
+        "freeSpinUsed": false,
+        "gauntletUsed": 0
+      },
+      "checkin": {
+        "last": null,
+        "streak": 0,
+        "monthDays": {},
+        "milestonesClaimed": {}
+      },
+      "stats": {
+        "fights": 0,
+        "wins": 0,
+        "hatches": 0
+      }
+    }
+  },
+  "sessions": {}
+}

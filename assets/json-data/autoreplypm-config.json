@@ -1,0 +1,12 @@
+{
+  "defaultMessage": "Xin chào! Tôi là bot tự động. Bạn cần giúp gì?",
+  "defaultCardContent": "Bot Auto Reply",
+  "customMessages": {},
+  "customCards": {},
+  "enabled": {
+    "2081483958519587131": false,
+    "629688945818965679": false,
+    "620314145036581295": false,
+    "356656685950305571": false
+  }
+}
