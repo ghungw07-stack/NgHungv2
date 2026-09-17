@@ -108,7 +108,11 @@ async function flush() {
     await ensureLogTable(connection);
 
     const rows = batch.map((item) => [item.level, item.botId, item.message, item.createdAt]);
-    await connection.query(`INSERT INTO ${LOG_TABLE} (level, botId, message, createdAt) VALUES ?`, [rows]);
+    if (typeof connection.batchInsertBotLogs === "function") {
+      await connection.batchInsertBotLogs(`INSERT INTO ${LOG_TABLE} (level, botId, message, createdAt) VALUES ?`, [rows]);
+    } else {
+      await connection.query(`INSERT INTO ${LOG_TABLE} (level, botId, message, createdAt) VALUES ?`, [rows]);
+    }
   } catch (error) {
     // Ghi MongoDB thất bại -> đẩy batch trở lại đầu hàng đợi để thử lại lượt sau
     queue = batch.concat(queue);
