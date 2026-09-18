@@ -1818,7 +1818,7 @@ export async function startWebServer() {
     });
   });
 
-  const PORT = 3000; // Port cố định để Sepay webhook hoạt động ổn định
+  const PORT = Number(process.env.PORT) || 3000; // Port cố định để Sepay webhook hoạt động ổn định (có thể override khi test)
   // Bind locally; public access goes through Cloudflare Tunnel only.
   httpServer.listen(PORT, "127.0.0.1", () => {
   });
