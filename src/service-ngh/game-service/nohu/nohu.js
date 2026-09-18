@@ -18,7 +18,7 @@ async function spin(api, message, username, amount) {
   const key = keyFor(api), slots = rollNoHuSlots();
   const jackpot = connection.collection("game_slot_jackpots");
   const state = await jackpot.findOneAndUpdate({ _id: key }, { $setOnInsert: { amount: DEFAULT_JACKPOT, amountNumber: Number(DEFAULT_JACKPOT) }, $inc: { amountNumber: Number(amount.times(0.02)) } }, { upsert: true, returnDocument: "after" });
-  const pot = new Big(state?.amount || DEFAULT_JACKPOT);
+  const pot = new Big(state?.amountNumber != null ? state.amountNumber : (state?.amount || DEFAULT_JACKPOT));
   let gross = new Big(0), label = "Không trúng";
   if (slots.every((s) => s.key === GOLD)) { gross = amount.gte("5000000000") ? pot : amount.times(10); label = "💥 NỔ HŨ"; if (amount.gte("5000000000")) await jackpot.updateOne({ _id: key }, { $set: { amount: DEFAULT_JACKPOT, amountNumber: Number(DEFAULT_JACKPOT) } }); }
   else if (slots[0].key === slots[1].key && slots[1].key === slots[2].key) { gross = amount.times(slots[0].mult); label = `Ba ${slots[0].label}`; }
