@@ -258,10 +258,11 @@ export async function requestDirect(appContext, url, options = {}) {
     ...options,
     headers: mergeHeaders(options?.headers || {}, getDefaultHeaders(appContext)),
   };
+  const timeoutMs = options.timeout ?? 15_000;
   let controller, timeoutId;
-  if (options.timeout) {
+  if (timeoutMs > 0) {
     controller = new AbortController();
-    timeoutId = setTimeout(() => controller.abort(), options.timeout);
+    timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     options.signal = options.signal
       ? AbortSignal.any([options.signal, controller.signal])
       : controller.signal;

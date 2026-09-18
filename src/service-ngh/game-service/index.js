@@ -401,47 +401,72 @@ export async function handleGameHideCommand(api, message, groupSettings) {
 }
 
 export async function handleMyCard(api, message, groupSettings) {
-  if (!(await checkBeforeJoinGame(api, message, groupSettings, true))) return;
+  let imagePath = null;
+  try {
+    if (!(await checkBeforeJoinGame(api, message, groupSettings, true))) return;
 
-  const senderId = message.data.uidFrom;
-  const threadId = message.threadId;
-  const mention = message.data.mentions?.[0];
-  if (mention && !isAdmin(api.getBotId(), senderId)) {
-    await sendMessageFromSQL(api, message, { success: false, message: "Chỉ admin cấp cao bot mới xem được mycard của người khác." }, true, 30000);
-    return;
-  }
-  let targetId = mention?.uid || senderId;
-  const targetName = mention
-    ? String(message.data.content?.title || message.data.content || "")
-        .substring(mention.pos, mention.pos + mention.len)
-        .replace("@", "")
-    : (message.data.dName || senderId);
-  const targetAccount = await ensurePlayerAccount(targetId, targetName || targetId, api.getBotId(), api);
-  if (targetAccount?.playerId) {
-    targetId = targetAccount.playerId;
-  }
-  const result = await getMyCard(api, targetId);
-  if (result.success) {
-    const playerInfo = result.data;
-    // Tên hiển thị lấy từ người đang gọi lệnh để không bị ảnh hưởng bởi hồ sơ cũ nhiễm alias.
-    if (!mention) playerInfo.playerName = message.data.dName || playerInfo.playerName;
-    playerInfo.title = "Thông Tin Người Chơi";
-    let msg = `🎴 Thông tin của bạn 🎴\n\n`;
-    msg += `👤 Tên: ${playerInfo.playerName}\n`;
-    msg += `💰 Số dư: ${formatCurrency(playerInfo.balance)} VNĐ\n`;
-    msg += `🏆 Tổng Thắng: ${formatCurrency(playerInfo.totalWinnings)} VNĐ\n`;
-    msg += `💸 Tổng Thua: ${formatCurrency(playerInfo.totalLosses)} VNĐ\n`;
-    msg += `💹 Lợi Nhuận Ròng: ${formatCurrency(playerInfo.netProfit)} VNĐ\n`;
-    msg += `🎮 Tổng Số Lượt Chơi: ${playerInfo.totalGames}\n`;
-    msg += `📊 Tỉ Lệ Thắng: ${playerInfo.winRate}%\n`;
-    msg += `📅 Ngày Tham Gia: ${playerInfo.registrationTime}\n`;
-    msg += `🎁 Nhận Quà Mỗi Ngày: ${playerInfo.lastDailyReward}`;
+    const senderId = message.data.uidFrom;
+    const threadId = message.threadId;
+    const mention = message.data.mentions?.[0];
+    if (mention && !isAdmin(api.getBotId(), senderId)) {
+      await sendMessageFromSQL(api, message, { success: false, message: "Chỉ admin cấp cao bot mới xem được mycard của người khác." }, true, 30000);
+      return;
+    }
+    let targetId = mention?.uid || senderId;
+    const targetName = mention
+      ? String(message.data.content?.title || message.data.content || "")
+          .substring(mention.pos, mention.pos + mention.len)
+          .replace("@", "")
+      : (message.data.dName || senderId);
+    const targetAccount = await ensurePlayerAccount(targetId, targetName || targetId, api.getBotId(), api);
+    if (targetAccount?.playerId) {
+      targetId = targetAccount.playerId;
+    }
+    const result = await getMyCard(api, targetId);
+    if (result.success && result.data) {
+      const playerInfo = result.data;
+      // Tên hiển thị lấy từ người đang gọi lệnh để không bị ảnh hưởng bởi hồ sơ cũ nhiễm alias.
+      if (!mention) playerInfo.playerName = message.data.dName || playerInfo.playerName;
+      playerInfo.title = "Thông Tin Người Chơi";
+      let msg = `🎴 Thông tin người chơi 🎴\n\n`;
+      msg += `👤 Tên: ${playerInfo.playerName}\n`;
+      msg += `💰 Số dư: ${formatCurrency(playerInfo.balance)} VNĐ\n`;
+      msg += `🏆 Tổng Thắng: ${formatCurrency(playerInfo.totalWinnings)} VNĐ\n`;
+      msg += `💸 Tổng Thua: ${formatCurrency(playerInfo.totalLosses)} VNĐ\n`;
+      msg += `💹 Lợi Nhuận Ròng: ${formatCurrency(playerInfo.netProfit)} VNĐ\n`;
+      msg += `🎮 Tổng Số Lượt Chơi: ${playerInfo.totalGames}\n`;
+      msg += `📊 Tỉ Lệ Thắng: ${playerInfo.winRate}%\n`;
+      msg += `📅 Ngày Tham Gia: ${playerInfo.registrationTime}\n`;
+      msg += `🎁 Nhận Quà Mỗi Ngày: ${playerInfo.lastDailyReward}`;
 
-    const imagePath = await cv.createUserCardGame(playerInfo);
-    await api.sendMessage({ msg: "", attachments: imagePath ? [imagePath] : [] }, threadId, message.type);
-    await cv.clearImagePath(imagePath);
-  } else {
-    await sendMessageFromSQL(api, message, result, true, 30000);
+      try {
+        imagePath = await Promise.race([
+          cv.createUserCardGame(playerInfo),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout render card")), 5000)),
+        ]);
+      } catch (cardErr) {
+        console.error("[mycard] Lỗi render card:", cardErr?.message || cardErr);
+        imagePath = null;
+      }
+
+      const quoteMsg = message.__originalQuoteMessage || message;
+      if (imagePath) {
+        try {
+          await api.sendMessage({ msg: "", attachments: [imagePath], quote: quoteMsg, ttl: 300000 }, threadId, message.type);
+        } catch (sendErr) {
+          console.error("[mycard] Gửi ảnh thất bại, fallback sang text:", sendErr?.message);
+          await api.sendMessage({ msg, quote: quoteMsg, ttl: 300000 }, threadId, message.type).catch(() => {});
+        }
+      } else {
+        await api.sendMessage({ msg, quote: quoteMsg, ttl: 300000 }, threadId, message.type).catch(() => {});
+      }
+    } else {
+      await sendMessageFromSQL(api, message, result, true, 30000);
+    }
+  } catch (error) {
+    console.error("[mycard] Lỗi xử lý mycard:", error?.message || error);
+  } finally {
+    if (imagePath) await cv.clearImagePath(imagePath).catch(() => {});
   }
 }
 

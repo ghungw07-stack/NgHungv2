@@ -6,8 +6,10 @@ import { apiManager } from "../../index.js";
 import { handleI4BgImgCommand } from "./i4bgimg.js";
 import { handleI4ImageCommand } from "./i4image.js";
 
-const basicUserCache = new Map();
-const basicUserRequests = new Map();
+globalThis.__basicUserCache ||= new Map();
+globalThis.__basicUserRequests ||= new Map();
+var basicUserCache = globalThis.__basicUserCache;
+var basicUserRequests = globalThis.__basicUserRequests;
 const BASIC_USER_TTL_MS = Math.max(30000, Number(process.env.NGH_USER_CACHE_TTL_MS) || 5 * 60 * 1000);
 const BASIC_USER_CACHE_SIZE = Math.max(1000, Number(process.env.NGH_USER_CACHE_SIZE) || 50000);
 
@@ -205,12 +207,22 @@ export async function getUserInfoData(api, userId) {
 export async function getUserInfoAcrossBots(api, userId) {
   userId = String(userId || "").replace(/^private:[^:]+:/, "").replace(/_0$/, "");
   if (!userId || !/^\d+$/.test(userId)) return null;
+
+  const withTimeout = (promise, ms = 2000) =>
+    Promise.race([
+      promise,
+      new Promise((resolve) => {
+        const timer = setTimeout(() => resolve(null), ms);
+        timer?.unref?.();
+      }),
+    ]).catch(() => null);
+
   try {
-    const direct = await getUserInfoData(api, userId);
+    const direct = await withTimeout(getUserInfoData(api, userId), 2000);
     if (direct) return direct;
   } catch {}
   try {
-    const response = await api.getInfoMembers([userId]);
+    const response = await withTimeout(api.getInfoMembers([userId]), 2000);
     const profile = response?.profiles?.[userId] || Object.values(response?.profiles || {})[0];
     if (profile) return getAllInfoUser(profile);
   } catch {}
@@ -218,12 +230,13 @@ export async function getUserInfoAcrossBots(api, userId) {
   for (const manager of managers) {
     const otherApi = manager?.apiZalo;
     if (!otherApi || otherApi === api) continue;
+    if (!otherApi.cookie || !otherApi.secretKey) continue;
     try {
-      const info = await getUserInfoData(otherApi, userId);
+      const info = await withTimeout(getUserInfoData(otherApi, userId), 1500);
       if (info) return info;
     } catch {}
     try {
-      const response = await otherApi.getInfoMembers([userId]);
+      const response = await withTimeout(otherApi.getInfoMembers([userId]), 1500);
       const profile = response?.profiles?.[userId] || Object.values(response?.profiles || {})[0];
       if (profile) return getAllInfoUser(profile);
     } catch {}
@@ -402,14 +415,16 @@ async function sendErrorMessage(api, message, threadId, errorMsg) {
 export function getCachedGlobalId(botId, userId) {
   const normalizedId = String(userId || "").replace(/_0$/, "");
   const cacheKey = `${botId}:${normalizedId}`;
-  const cached = basicUserCache.get(cacheKey)?.data;
+  const cache = globalThis.__basicUserCache || basicUserCache;
+  if (!cache) return null;
+  const cached = cache.get(cacheKey)?.data;
   if (cached) {
     const gid = cached.globalId || cached.global_id;
     return gid ? String(gid) : null;
   }
   // Thử cả key với _0 suffix
   const cacheKeyWithSuffix = `${botId}:${normalizedId}_0`;
-  const cachedWithSuffix = basicUserCache.get(cacheKeyWithSuffix)?.data;
+  const cachedWithSuffix = cache.get(cacheKeyWithSuffix)?.data;
   if (cachedWithSuffix) {
     const gid = cachedWithSuffix.globalId || cachedWithSuffix.global_id;
     return gid ? String(gid) : null;

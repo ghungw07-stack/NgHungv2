@@ -177,6 +177,33 @@ export async function ensurePlayerAccount(idUserZalo, senderName, botId, api = n
     let resolvedDisplayName = String(senderName || "").trim();
     let resolvedKey = null;
 
+    // Kiểm tra nhanh trong DB: nếu đã có bản ghi theo originalZaloId hoặc rawZaloId thì không cần gọi mạng
+    if (!isPrivateServer) {
+      const [fastRows] = await connection.execute(
+        `SELECT id, playerName, idUserZalo FROM ${NAME_TABLE_PLAYERS} WHERE idUserZalo = ? OR idUserZalo = ? OR username = ? OR username = ?`,
+        [idUserZalo, rawZaloId, idUserZalo, rawZaloId]
+      );
+      if (fastRows.length > 0) {
+        const found = fastRows[0];
+        const currentName = String(found.playerName || "").trim();
+        const shouldRefreshName = resolvedDisplayName &&
+          (currentName !== resolvedDisplayName || currentName === String(found.idUserZalo));
+        if (shouldRefreshName) {
+          await connection.execute(`UPDATE ${NAME_TABLE_PLAYERS} SET playerName = ? WHERE idUserZalo = ?`, [
+            resolvedDisplayName,
+            found.idUserZalo,
+          ]);
+        }
+        if (originalZaloId !== found.idUserZalo) {
+          await persistPlayerAlias(originalZaloId, found.idUserZalo);
+        }
+        if (rawZaloId !== found.idUserZalo) {
+          await persistPlayerAlias(rawZaloId, found.idUserZalo);
+        }
+        return { success: true, isNew: false, playerId: found.idUserZalo };
+      }
+    }
+
     if (api) {
       try {
         const info = await getUserInfoAcrossBots(api, rawZaloId);
@@ -243,10 +270,21 @@ export async function ensurePlayerAccount(idUserZalo, senderName, botId, api = n
       return { success: true, isNew: false, playerId: idUserZalo };
     }
 
-    await connection.execute(
-      `INSERT INTO ${NAME_TABLE_PLAYERS} (username, idUserZalo, playerName, serverId, avatar, registrationTime) VALUES (?, ?, ?, ?, ?, NOW())`,
-      [idUserZalo, idUserZalo, resolvedDisplayName || originalZaloId, botId, avatarUrl]
-    );
+    try {
+      await connection.execute(
+        `INSERT INTO ${NAME_TABLE_PLAYERS} (username, idUserZalo, playerName, serverId, avatar, registrationTime) VALUES (?, ?, ?, ?, ?, NOW())`,
+        [idUserZalo, idUserZalo, resolvedDisplayName || originalZaloId, botId, avatarUrl]
+      );
+    } catch (insertError) {
+      const [existing] = await connection.execute(
+        `SELECT id, playerName, idUserZalo FROM ${NAME_TABLE_PLAYERS} WHERE idUserZalo = ? OR username = ?`,
+        [idUserZalo, idUserZalo]
+      );
+      if (existing.length > 0) {
+        return { success: true, isNew: false, playerId: existing[0].idUserZalo };
+      }
+      throw insertError;
+    }
 
     if (identityKey && !isPrivateServer) await connection.collection("player_identity").updateOne({ identityKey }, { $set: { identityKey, playerId: idUserZalo, updatedAt: new Date() } }, { upsert: true });
     if (originalZaloId !== idUserZalo) {
