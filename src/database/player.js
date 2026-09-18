@@ -179,12 +179,15 @@ export async function ensurePlayerAccount(idUserZalo, senderName, botId, api = n
 
     // Kiểm tra nhanh trong DB: nếu đã có bản ghi theo originalZaloId hoặc rawZaloId thì không cần gọi mạng
     if (!isPrivateServer) {
-      const [fastRows] = await connection.execute(
-        `SELECT id, playerName, idUserZalo FROM ${NAME_TABLE_PLAYERS} WHERE idUserZalo = ? OR idUserZalo = ? OR username = ? OR username = ?`,
-        [idUserZalo, rawZaloId, idUserZalo, rawZaloId]
-      );
-      if (fastRows.length > 0) {
-        const found = fastRows[0];
+      const col = connection.collection(NAME_TABLE_PLAYERS);
+      const targetIds = Array.from(new Set([idUserZalo, rawZaloId].filter(Boolean)));
+      const found = await col.findOne({
+        $or: [
+          { idUserZalo: { $in: targetIds } },
+          { username: { $in: targetIds } }
+        ]
+      });
+      if (found) {
         const currentName = String(found.playerName || "").trim();
         const shouldRefreshName = resolvedDisplayName &&
           (currentName !== resolvedDisplayName || currentName === String(found.idUserZalo));
@@ -276,12 +279,12 @@ export async function ensurePlayerAccount(idUserZalo, senderName, botId, api = n
         [idUserZalo, idUserZalo, resolvedDisplayName || originalZaloId, botId, avatarUrl]
       );
     } catch (insertError) {
-      const [existing] = await connection.execute(
-        `SELECT id, playerName, idUserZalo FROM ${NAME_TABLE_PLAYERS} WHERE idUserZalo = ? OR username = ?`,
-        [idUserZalo, idUserZalo]
-      );
-      if (existing.length > 0) {
-        return { success: true, isNew: false, playerId: existing[0].idUserZalo };
+      const col = connection.collection(NAME_TABLE_PLAYERS);
+      const existing = await col.findOne({
+        $or: [{ idUserZalo }, { username: idUserZalo }]
+      });
+      if (existing) {
+        return { success: true, isNew: false, playerId: existing.idUserZalo };
       }
       throw insertError;
     }
