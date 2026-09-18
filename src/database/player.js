@@ -8,9 +8,8 @@ import { getCurrentPrivateGameServer, getPrivateGameBotIds } from "../service-ng
 import { applyGameRewardPolicy } from "../service-ngh/game-service/game-reward-policy.js";
 import { addToLuckyEnvelopeFund } from "../service-ngh/game-service/game-auto-rewards.js";
 
-// UID Zalo có thể khác nhau tùy bot. Cache alias giúp các hàm số dư (vốn là
-// synchronous ở bước chuẩn hóa đầu vào) luôn dùng cùng một hồ sơ chính.
-const playerAliasCache = new Map();
+globalThis.__nghPlayerAliasCache ||= new Map();
+var playerAliasCache = globalThis.__nghPlayerAliasCache;
 const WEEKLY_BENEFIT_RATIO = new Big("0.21");
 const RESCUE_BALANCE_CEILING = new Big("10000");
 const GOLD_RANK_POINTS = () => new Big(getGameTiers().find(tier => tier.key === "gold").min);
@@ -91,20 +90,22 @@ function progressBar(percent, length = 20) {
 }
 function canonicalPlayerId(id) {
   const normalized = String(id || "").replace(/_0$/u, "");
+  const cache = globalThis.__nghPlayerAliasCache || playerAliasCache;
   const privateServer = getCurrentPrivateGameServer();
   if (privateServer?.serverId) {
     const prefix = `private:${privateServer.serverId}:`;
     if (normalized.startsWith(prefix)) return normalized;
     const scopedId = `${prefix}${normalized}`;
-    return playerAliasCache.get(scopedId) || scopedId;
+    return cache?.get?.(scopedId) || scopedId;
   }
-  return playerAliasCache.get(normalized) || normalized;
+  return cache?.get?.(normalized) || normalized;
 }
 
 function rememberPlayerAlias(alias, playerId) {
   const normalizedAlias = String(alias || "").replace(/_0$/u, "");
   const normalizedPlayer = String(playerId || "").replace(/_0$/u, "");
-  if (normalizedAlias && normalizedPlayer) playerAliasCache.set(normalizedAlias, normalizedPlayer);
+  const cache = globalThis.__nghPlayerAliasCache || playerAliasCache;
+  if (normalizedAlias && normalizedPlayer && cache) cache.set(normalizedAlias, normalizedPlayer);
 }
 
 export async function getGamePrivacy(idUserZalo) {
