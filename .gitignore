@@ -11,6 +11,7 @@ assets/config.json
 assets/data/*.sqlite*
 assets/data/backup_*.json
 assets/data/manager-bots.json
+assets/data/removed-bots.json
 assets/data/bot_leader.json
 assets/json-data/api-key.json
 assets/json-data/bank-info.json
