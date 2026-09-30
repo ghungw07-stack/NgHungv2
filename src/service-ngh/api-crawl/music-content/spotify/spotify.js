@@ -20,7 +20,10 @@ import { createCircleWebp } from "../../../chat-zalo/chat-special/send-sticker/c
 import SpotifyAPI from "./spotify-api.js";
 import SpotifyDown from "./spotify-download.js";
 
-const spotifyScrapper = new SpotifyAPI(getApiKeys()["SPOTIFY"].cookie);
+// A fresh installation intentionally starts without private API credentials.
+// Keep Spotify optional so a missing runtime api-key.json entry cannot prevent
+// the main bot, dashboard, and unrelated commands from starting.
+const spotifyScrapper = new SpotifyAPI(getApiKeys()["SPOTIFY"]?.cookie || "");
 const spotifyDownload = new SpotifyDown();
 
 const PLATFORM = "spotify";
