@@ -32,6 +32,10 @@ assets/json-data/vclip-config.json
 assets/json-data/voice-configs/
 assets/resources/duoihinhbatchu/checkpoint-dhbc.json
 src/commands/send-all/hung-marriages.json
+src/service-ngh/game-service/mini-game/cauca/data/bank.json
+src/service-ngh/game-service/mini-game/cauca/data/boss_state.json
+src/service-ngh/game-service/mini-game/cauca/data/player_data.json
+src/service-ngh/game-service/mini-game/cauca/data/teams.json
 chunk.mp3
 dump.txt
 extracted.aac
