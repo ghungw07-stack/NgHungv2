@@ -41,7 +41,7 @@ function weightedBancaResult(random) {
   return { ...FISH_DOORS[0] };
 }
 
-export function chooseBancaResult(players = {}, { random = Math.random, houseBiasChance = 0.8 } = {}) {
+export function chooseBancaResult(players = {}, { random = Math.random, houseBiasChance = 0.18 } = {}) {
   const natural = weightedBancaResult(random);
   const bets = Object.values(players || {});
   if (!bets.length || random() >= houseBiasChance) return natural;

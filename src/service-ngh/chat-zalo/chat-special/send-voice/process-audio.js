@@ -15,7 +15,12 @@ const HOST_AUDIO_MAX_BYTES = 90 * 1024 * 1024;
 const execFileAsync = promisify(execFile);
 
 export function shouldDirectTranscodeAudio(url) {
-  return !String(url).includes(".m3u8") && (String(url).includes(".mp3") || String(url).includes("sndcdn"));
+  const value = String(url || "");
+  return !value.includes(".m3u8") && (
+    value.includes(".mp3") ||
+    value.includes("sndcdn") ||
+    value.includes("soundcloudmp3.org/download.php")
+  );
 }
 
 /**
@@ -78,21 +83,29 @@ export async function uploadAudioFile(audioPath, api, message, uploadCloud = fal
       uploadPath = convertedPath;
     }
 
-    const hostedUrl = await uploadToNghServer(uploadPath);
-    if (hostedUrl) {
-      if (api?.appContext) rememberUploadSize(api.appContext, hostedUrl, (await fs.promises.stat(uploadPath)).size);
-      return hostedUrl;
-    }
-
     // Ưu tiên URL tạm do chính VPS phục vụ; không lộ dqt và không phải upload
-    // lại từng chunk lên Zalo. Bật bằng VOICE_PUBLIC_BASE_URL.
-    const publicBase = String(process.env.VOICE_PUBLIC_BASE_URL || "").replace(/\/$/, "");
+    // lại từng chunk lên Zalo. Đặt trước remote uploader để fast path không bị
+    // chặn bởi một lần upload HTTP dài. Bật bằng VOICE_PUBLIC_BASE_URL.
+    const publicBase = uploadCloud ? "" : String(process.env.VOICE_PUBLIC_BASE_URL || "").replace(/\/$/, "");
     if (publicBase) {
       try {
         const token = await registerVoiceTempFile(uploadPath);
-        return `${publicBase}/voice-temp/${token}`;
+        const hostedUrl = `${publicBase}/voice-temp/${token}`;
+        if (api?.appContext) {
+          const hostedSize = uploadPath === audioPath ? sourceStat.size : (await fs.promises.stat(uploadPath)).size;
+          rememberUploadSize(api.appContext, hostedUrl, hostedSize);
+        }
+        return hostedUrl;
       } catch (error) {
         console.warn("Không tạo được voice URL VPS, fallback Zalo:", error?.message || error);
+      }
+    }
+
+    if (!uploadCloud) {
+      const hostedUrl = await uploadToNghServer(uploadPath);
+      if (hostedUrl) {
+        if (api?.appContext) rememberUploadSize(api.appContext, hostedUrl, (await fs.promises.stat(uploadPath)).size);
+        return hostedUrl;
       }
     }
 
@@ -157,10 +170,15 @@ export async function downloadAndConvertAudio(url, api, message, uploadCloud = f
       sourceHostname = new URL(url).hostname.toLowerCase();
     } catch {}
     const isNhacCuaTuiSource = sourceHostname === "nct.vn" || sourceHostname.endsWith(".nct.vn");
+    const isSoundCloudRelay = sourceHostname === "soundcloudmp3.org" || sourceHostname.endsWith(".soundcloudmp3.org");
     const headers = {
       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.1 Safari/537.36",
       "Accept": "*/*",
-      "Referer": isNhacCuaTuiSource ? "https://www.nhaccuatui.com/" : "https://www.youtube.com/",
+      "Referer": isNhacCuaTuiSource
+        ? "https://www.nhaccuatui.com/"
+        : isSoundCloudRelay
+          ? "https://soundcloudmp3.org/converter"
+          : "https://www.youtube.com/",
     };
 
     // Progressive audio can be downloaded and encoded by ffmpeg in one request.

@@ -12,7 +12,7 @@ export function normalizeDaGaDoor(value) {
   return null;
 }
 
-export function chooseDaGaResult(players = {}, random = Math.random, houseBiasChance = 0.8) {
+export function chooseDaGaResult(players = {}, random = Math.random, houseBiasChance = 0.18) {
   const roll = random();
   let winner = roll < .47 ? "do" : roll < .94 ? "xanh" : "hoa";
   const bets = Object.values(players || {});

@@ -25,7 +25,7 @@ export const getFriendRequestListFactory = apiFactory()((api, appContext, utils)
     const serviceURL = `${baseServiceURL}/api/friend/recommendsv2/list`;
     
     const url = new URL(serviceURL);
-    url.searchParams.set('zpw_ver', String(appContext.options.apiVersion || 667));
+    url.searchParams.set('zpw_ver', String(appContext.options.apiVersion || 685));
     url.searchParams.set('zpw_type', String(appContext.options.typeLogin || 30));
 
     const params = {

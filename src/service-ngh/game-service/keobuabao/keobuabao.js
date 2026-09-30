@@ -2,7 +2,7 @@ import { getGameMentionUid } from "../../../utils/game-mentions.js";
 import { updatePlayerBalance, getPlayerBalance, addGameRankPoints } from "../../../database/player.js";
 import { isHaveLoginAccount, nameServer } from "../../../database/index.js";
 import { checkBeforeJoinGame, checkPlayerBanned } from "../index.js";
-import { formatCurrency, parseGameAmount } from "../../../utils/format-util.js";
+import { formatCurrency, parseGameBetAmount as parseGameAmount } from "../../../utils/format-util.js";
 import { getGlobalPrefix } from "../../service.js";
 import Big from "big.js";
 import { createKBBResultImage } from "../../../utils/canvas/keobuabao.js";

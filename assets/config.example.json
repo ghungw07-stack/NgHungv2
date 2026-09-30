@@ -1,6 +1,6 @@
 {
   "childBotsRunMode": "separate-windows",
-  "timeMessage": 60000,
+  "timeMessage": 300000,
   "infoOwner": {
     "name": "Bot Owner",
     "description": "",

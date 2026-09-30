@@ -85,6 +85,7 @@ class ManagerDataCache {
 }
 
 export const managerDataCache = new ManagerDataCache();
+const restartNotificationInFlight = new Map();
 
 /**
  * Xử phạt người vi phạm anti (link/file/nude/sđt/ảnh...) theo cấu hình chung
@@ -105,45 +106,46 @@ export async function initializeManagerService(api) {
 
   api.apiInstance.schedule.managerDataService = schedule.scheduleJob("*/10 * * * * *", () => {
     managerDataCache.save(idBot);
+    void notifyResetCompleteInGroup(api).catch((error) => {
+      console.error(`[restart-notify] Bot ${idBot} gửi lại thất bại:`, error?.message || error);
+    });
   });
 }
 
 export async function notifyResetCompleteInGroup(api) {
-  const idBot = api.getBotId();
-  const managerData = api.apiManager.getDataManager();
-  const msgRequestReset = managerData.msgRequestReset;
+  const idBot = String(api.getBotId());
+  if (restartNotificationInFlight.has(idBot)) return restartNotificationInFlight.get(idBot);
 
-  if (msgRequestReset && msgRequestReset.threadId) {
-    const resetInfo = { threadId: msgRequestReset.threadId, type: msgRequestReset.type };
+  const notification = (async () => {
+    const managerData = api.apiManager.getDataManager();
+    const pending = managerData.msgRequestReset?.threadId
+      ? managerData.msgRequestReset
+      : managerData.lastRestartNotify;
+    if (!pending?.threadId) return null;
 
-    // Claim trạng thái trước khi await gửi tin. initService() và
-    // activeBotChildren() có thể gọi hàm này gần như đồng thời; nếu xoá sau
-    // await thì cả hai luồng đều đọc được msgRequestReset và báo hoàn tất 2 lần.
+    const resetInfo = { threadId: pending.threadId, type: pending.type };
+    await Promise.race([
+      api.sendMessage(
+        { msg: "NgHung-Bot\nKhởi động lại hoàn tất!\nBot đã hoạt động trở lại!\n✅✅✅", ttl: 300000, linkOn: false },
+        resetInfo.threadId,
+        resetInfo.type
+      ),
+      new Promise((_, reject) => {
+        const timer = setTimeout(() => reject(new Error("Timeout gửi thông báo restart")), 10000);
+        timer.unref?.();
+      }),
+    ]);
+
+    // Chỉ xóa yêu cầu sau khi gửi thành công; lỗi mạng sẽ được retry.
     managerData.msgRequestReset = {};
-    managerData.lastRestartNotify = resetInfo;
-    managerDataCache.setChanged(idBot);
-    managerDataCache.save(idBot);
-
-    await sendMessageResultRequest(
-      api,
-      resetInfo.type,
-      resetInfo.threadId,
-      "Khởi động lại hoàn tất!\nBot đã hoạt động trở lại!",
-      true,
-      300000
-    );
-
-    return resetInfo;
-  }
-
-  if (managerData.lastRestartNotify) {
-    const resetInfo = managerData.lastRestartNotify;
     managerData.lastRestartNotify = null;
     managerDataCache.setChanged(idBot);
+    managerDataCache.save(idBot);
     return resetInfo;
-  }
+  })().finally(() => restartNotificationInFlight.delete(idBot));
 
-  return null;
+  restartNotificationInFlight.set(idBot, notification);
+  return notification;
 }
 
 export async function notifyResettingInGroup(api, message) {
@@ -151,10 +153,12 @@ export async function notifyResettingInGroup(api, message) {
   const threadId = message.threadId;
   const managerData = api.apiManager.getDataManager();
 
-  managerData.msgRequestReset = {
+  const restartNotify = {
     threadId,
     type: message.type,
   };
+  managerData.msgRequestReset = restartNotify;
+  managerData.lastRestartNotify = restartNotify;
   managerDataCache.setChanged(idBot);
   managerDataCache.save(idBot);
 
@@ -165,12 +169,17 @@ export async function exitRestartBot(api, message) {
   try {
     logManagerBot(`[manual-restart] bot=${api?.getBotId?.() || "unknown"} thread=${message?.threadId || "unknown"} by=${message?.data?.uidFrom || "unknown"}`);
     await notifyResettingInGroup(api, message);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    process.exit(0);
+    const { getBotChildrenStore } = await import("../../manager-bot/index.js");
+    getBotChildrenStore().saveIfDirty();
+    // Gửi SIGTERM thay vì process.exit(0) để graceful shutdown handler trong
+    // index.js có cơ hội flush toàn bộ data (groupSettings, tu-tien snapshots,
+    // sql-logger...) trước khi tiến trình thực sự thoát.
+    process.kill(process.pid, "SIGTERM");
   } catch (error) {
     await sendMessageFailed(api, message, "Không thể tắt bot: " + error.message, false, 15000);
   }
 }
+
 
 export async function handleActiveBotUser(api, message, aliasCommand, groupSettings, isAdminLevelHighest) {
   const idBot = api.getBotId();

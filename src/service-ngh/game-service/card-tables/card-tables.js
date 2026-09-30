@@ -3,7 +3,7 @@ import { MessageType } from "../../../api-zalo/index.js";
 import { getPlayerBalance, updatePlayerBalance, ensurePlayerAccount, isPlayerBanned, addGameRankPoints } from "../../../database/player.js";
 import { sendMessageFromSQL } from "../../chat-zalo/chat-style/chat-style.js";
 import { getGlobalPrefix } from "../../service.js";
-import { formatCurrency, parseGameAmount, removeMention } from "../../../utils/format-util.js";
+import { formatCurrency, parseGameBetAmount as parseGameAmount, removeMention } from "../../../utils/format-util.js";
 import { createXiDachHandImage } from "../../../utils/canvas/xidach.js";
 import { createCardTableLobbyImage } from "../../../utils/canvas/card-table.js";
 import { deleteFile } from "../../../utils/util.js";
@@ -126,18 +126,18 @@ async function createTable(api, message, game, betRaw) {
 async function joinTable(api, message, game) {
   const table = tables.get(keyOf(api.getBotId(), message.threadId, game));
   if (!table || table.status !== "waiting") return reply(api, message, "Không có bàn đang chờ.", false);
-  const result = await addPlayer(table, id(message.data.uidFrom), playerName(message));
+  const result = await addPlayer(api, table, id(message.data.uidFrom), playerName(message));
   if (!result.success) return reply(api, message, result.message, false);
   await sendLobby(api, table);
   return reply(api, message, `${playerName(message)} đã vào bàn (${table.players.length}/${MAX_PLAYERS}).`);
 }
 
-async function addPlayer(table, userId, name) {
+async function addPlayer(api, table, userId, name) {
   if (table.players.some((p) => p.id === userId)) return { success: false, message: "Bạn đã ở trong bàn." };
   if (table.players.length >= MAX_PLAYERS) return { success: false, message: "Bàn đã đủ người." };
   const balance = await getPlayerBalance(userId);
   if (!balance.success || new Big(balance.balance).lt(table.bet)) return { success: false, message: "Số dư không đủ mức cược của bàn." };
-  await ensurePlayerAccount(userId, name || userId, table.botId);
+  await ensurePlayerAccount(userId, name || userId, table.botId, api);
   table.players.push({ id: userId, name: name || userId });
   return { success: true };
 }
@@ -326,7 +326,7 @@ async function guide(api, message, game) {
 export async function handleCardTableCommand(api, message, groupSettings, game) {
   const userId = id(message.data.uidFrom);
   if (await isPlayerBanned(userId)) return reply(api, message, "Tài khoản game đã bị khóa.", false);
-  await ensurePlayerAccount(userId, playerName(message), api.getBotId());
+  await ensurePlayerAccount(userId, playerName(message), api.getBotId(), api);
   const parts = removeMention(message).trim().split(/\s+/);
   const sub = String(parts[1] || "").toLowerCase();
   const table = tables.get(keyOf(api.getBotId(), message.threadId, game));
@@ -392,7 +392,7 @@ export async function handleCardTableReaction(api, reaction) {
     const info = await api.getInfoMembers([userId]);
     name = info?.profiles?.[userId]?.zaloName || userId;
   } catch {}
-  const result = await addPlayer(table, userId, name);
+  const result = await addPlayer(api, table, userId, name);
   if (!result.success) return true;
   await sendLobby(api, table);
   await api.sendMessage({ msg: `${name} đã vào bàn bằng cách thả tim (${table.players.length}/${MAX_PLAYERS}).`, ttl: 60000 }, table.threadId, MessageType.GroupMessage);

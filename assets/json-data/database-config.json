@@ -1,8 +1,0 @@
-{
-  "nameServer": "NgHung-Bot",
-  "uri": "mongodb://127.0.0.1:27017",
-  "database": "bot-zalo-ngh",
-  "tablePlayerZalo": "players_zalo",
-  "tableAccount": "account",
-  "dailyReward": 100000000
-}

@@ -9,6 +9,7 @@ class DownloadsCache {
   constructor() {
     this.downloading = new Map();
     this.cleanupInterval = setInterval(() => this.clear(), TIME_CLEANUP);
+    this.cleanupInterval.unref?.();
   }
 
   async getDataDownload(api, message, url, option) {
@@ -73,6 +74,7 @@ class UploadsFilmCache {
     this.cache = new Map();
     this.uploading = new Map();
     this.cleanupInterval = setInterval(() => this.cleanup(), TIME_CLEANUP);
+    this.cleanupInterval.unref?.();
   }
 
   async getDataUploadFilm(api, message, paths) {

@@ -128,7 +128,7 @@ async function handleCommandFromRequest(api, message, fcn, aliasCommand) {
     return;
   }
 
-  await sendReactionConfirmReceive(api, message, 1);
+  sendReactionConfirmReceive(api, message, 1);
   return await fcn(api, message, aliasCommand);
 }
 

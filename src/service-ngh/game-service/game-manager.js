@@ -4,6 +4,7 @@ import { initializeGameTaiXiu } from "./tai-xiu/tai-xiu.js";
 import { initializeGameVietlott655 } from "./vietlott/vietlott655.js";
 import { initializeGameXiDach } from "./xi-dach/xi-dach.js";
 import { initializeGameXoSoNhanh } from "./xoso-nhanh/xoso-nhanh.js";
+import { initializeGameVeSo } from "./ve-so/ve-so.js";
 import { DATA_GAME_FILE_PATH } from "../../utils/io-json.js";
 import { readFilePromise, writeFileSync } from "../../utils/util.js";
 import { DEFAULT_JACKPOT } from "./jackpot-default.js";
@@ -104,6 +105,7 @@ schedule.scheduleJob("*/5 * * * * *", async () => {
 // Khởi tạo service
 export async function initializeGameDataManager(api) {
   initializeGameAutoRewards(api);
+  initializeGameVeSo();
   await Promise.all([initializeGameTaiXiu(api), initializeGameVietlott655(api), initializeGameXiDach(api), initializeGameXoSoNhanh(api)]);
   console.log(chalk.magentaBright("Khởi động service quản lý data game hoàn tất"));
 }

@@ -1,23 +1,37 @@
 node_modules/
 package-lock.json
+.venv-mobile/
+__pycache__/
+*.py[cod]
 logs/
 .env
 .env.*
 !.env.example
+/.session_state.json
 assets/temp/
 assets/temp-v2/
 assets/menu_*.png
 assets/config.json
 assets/data/*.sqlite*
 assets/data/backup_*.json
-assets/data/manager-bots.json
-assets/data/removed-bots.json
-assets/data/bot_leader.json
-assets/json-data/api-key.json
-assets/json-data/bank-info.json
-assets/json-data/cache-link.json
-assets/json-data/setting-config.json
-assets/json-data/database-config.json
+# Mutable bot state and per-install identities. Keep these on the server so a
+# fresh clone starts as a new bot instead of inheriting production data.
+assets/data/*.json
+assets/data/manager-bots.json.entries/
+assets/json-data/*.json
+!assets/json-data/data-sticker.json
+!assets/json-data/words-crawl.json
+assets/json-data/zacl-warrior/player-data.json
+assets/json-data/zacl-warrior/trade-history.json
+assets/json-data/zacl-warrior/clans.json
+assets/json-data/zacl-warrior/codes.json
+assets/json-data/zacl-warrior/worldBossData.json
+assets/json-data/ai-provider-config.json
+assets/json-data/auto-reply-tag.json
+assets/json-data/vclip-config.json
+assets/json-data/voice-configs/
+assets/resources/duoihinhbatchu/checkpoint-dhbc.json
+src/commands/send-all/hung-marriages.json
 chunk.mp3
 dump.txt
 extracted.aac
@@ -32,6 +46,7 @@ temp_ocr/
 temp/
 scratch/
 assets/data/audits/
+assets/data/zalo-mobile/
 *.zip
 khach-web-goc
 khach-web-chinh-sua/
@@ -62,6 +77,8 @@ androguard.db
 /.codex/
 /add_cmd.cjs
 /update_moon.js
+/bin/cloudflared
+/exports/
 
 # Asset crop/test previews
 assets/check_*.png

@@ -3,7 +3,7 @@ import path from "path";
 import fs from "fs/promises";
 import { nameServer } from "../../../database/index.js";
 import { updatePlayerBalance, getPlayerBalance, addGameRankPoints } from "../../../database/player.js";
-import { formatCurrency, parseGameAmount } from "../../../utils/format-util.js";
+import { formatCurrency, parseGameBetAmount as parseGameAmount } from "../../../utils/format-util.js";
 import { checkBeforeJoinGame } from "../index.js";
 import { clearImagePath } from "../../canvas/index.js";
 import { convertSVGtoPNG } from "./svg-converter.js";

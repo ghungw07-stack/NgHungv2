@@ -2,6 +2,7 @@ import gtts from "gtts";
 import axios from "axios";
 import fs from "fs";
 import path from "path";
+import sharp from "sharp";
 import { getGlobalPrefix } from "../../../service.js";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
@@ -37,6 +38,62 @@ import { findVoiceMetadata, saveVoiceMetadata } from "../../../../utils/nova-sto
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const TIME_24H = 86400000;
+
+function soundCloudArtworkProxy(url) {
+  try {
+    const parsed = new URL(url);
+    if (!parsed.hostname.endsWith("sndcdn.com")) return null;
+    return `https://images.weserv.nl/?url=${encodeURIComponent(url)}&w=700&h=700&fit=cover&output=jpg`;
+  } catch {
+    return null;
+  }
+}
+
+async function downloadMusicArtwork(object, destination) {
+  const sources = [...new Set([
+    ...(Array.isArray(object.imageUrls) ? object.imageUrls : []),
+    object.imageUrl,
+  ].filter(Boolean))];
+  if (sources.length === 0) return null;
+
+  let lastError;
+  for (let sourceIndex = 0; sourceIndex < sources.length; sourceIndex++) {
+    const source = sources[sourceIndex];
+    const proxy = soundCloudArtworkProxy(source);
+    const urls = [...new Set([source, proxy].filter(Boolean))];
+    for (const url of urls) {
+      try {
+        const response = await axios.get(url, {
+          responseType: "arraybuffer",
+          timeout: 6_000,
+          maxContentLength: 12 * 1024 * 1024,
+          maxBodyLength: 12 * 1024 * 1024,
+        });
+        const buffer = Buffer.from(response.data);
+        const [metadata, stats] = await Promise.all([
+          sharp(buffer, { failOn: "warning" }).metadata(),
+          sharp(buffer, { failOn: "warning" }).stats(),
+        ]);
+        if (!metadata.width || !metadata.height) throw new Error("Ảnh không có kích thước hợp lệ");
+
+        // A number of SoundCloud users use a fully black default avatar. If a
+        // track also exposes a visual/waveform, prefer that useful fallback.
+        const rgb = stats.channels.slice(0, 3);
+        const mean = rgb.reduce((sum, channel) => sum + channel.mean, 0) / Math.max(1, rgb.length);
+        if (mean < 12 && sourceIndex < sources.length - 1) {
+          throw new Error("Ảnh bìa gần như đen hoàn toàn");
+        }
+        await fs.promises.writeFile(destination, buffer);
+        return destination;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+  }
+  if (lastError) throw lastError;
+  return null;
+}
+
 function rememberMusicMetadata(message, object, voiceUrl) {
   const metadata = {
     title: object.title || "Không rõ tên",
@@ -472,27 +529,37 @@ export async function sendVoiceMusic(api, message, object, ttl = 86400000) {
   // }
   let imagePath = null;
   try {
-    const [userInfoResult, , spinResult] = await Promise.allSettled([
+    // Put the voice frame on the Mobile socket immediately. Artwork download
+    // and canvas rendering run during its ACK wait instead of blocking audio.
+    const voiceSendPromise = api.sendVoice(message, voiceUrl, ttl).then(
+      (value) => ({ status: "fulfilled", value }),
+      (reason) => ({ status: "rejected", reason })
+    );
+    const spinLookupPromise = (object.imageUrl && object.trackId)
+      ? getCachedMedia(PLATFORM_CIRCLE_WEPB, object.trackId, "webp").catch(() => null)
+      : Promise.resolve(null);
+    const [userInfoResult, artworkResult] = await Promise.allSettled([
       message?.data?.uidFrom ? getUserInfoData(api, message.data.uidFrom) : Promise.resolve(null),
-      object.imageUrl ? downloadFile(object.imageUrl, thumbnailPath) : Promise.resolve(null),
-      (object.imageUrl && object.trackId) ? getCachedMedia(PLATFORM_CIRCLE_WEPB, object.trackId, "webp") : Promise.resolve(null),
+      object.imageUrl ? downloadMusicArtwork(object, thumbnailPath) : Promise.resolve(null),
     ]);
 
     if (userInfoResult.status === 'fulfilled' && userInfoResult.value) {
       object.dataUser = userInfoResult.value;
     }
-    if (spinResult.status === 'fulfilled' && spinResult.value) {
-      spinningWebp = spinResult.value;
-    }
-
-    if (object.imageUrl) {
-      try {
-        object.thumbnailPath = thumbnailPath;
-        imagePath = await createMusicCard(object, api.getBotId());
-      } catch (error) {
-        console.error("Lỗi khi tạo music card:", error);
-        imagePath = null;
+    const artworkReady = artworkResult.status === "fulfilled" && artworkResult.value;
+    try {
+      if (artworkReady) {
+        object.thumbnailPath = artworkResult.value;
       }
+      // Canvas vẫn phải xuất hiện khi CDN ảnh bìa SoundCloud tạm thời không
+      // truy cập được; createMusicCard có nền mặc định cho trường hợp này.
+      imagePath = await createMusicCard(object, api.getBotId());
+    } catch (error) {
+      console.error("Lỗi khi tạo music card:", error);
+      imagePath = null;
+    }
+    if (!artworkReady && object.imageUrl) {
+      console.warn("Không tải được ảnh đại diện bài hát:", artworkResult.reason?.message || artworkResult.reason);
     }
 
     if (!object.directStream && !(await checkUrlStatus(voiceUrl))) {
@@ -503,20 +570,11 @@ export async function sendVoiceMusic(api, message, object, ttl = 86400000) {
     const managerData = api.apiManager.getDataManager();
     const spinDisk = managerData.spinDisk && !object.skipSpin;
     
-    // Nếu bật spindisk và có imageUrl nhưng chưa có spinningWebp trong cache, tạo ngay
-    if (spinDisk && object.imageUrl && !spinningWebp && object.trackId) {
-      try {
-        spinningWebp = await createCircleWebp(api, message, object.imageUrl, object.trackId);
-      } catch (error) {
-        console.error("Lỗi khi tạo spindisk:", error);
-        // Tiếp tục gửi nhạc dù không tạo được spindisk
-      }
-    }
-    
-    await sendMessageCompleteRequest(api, message, object, 180000);
-    if (imagePath) {
-      await api.sendMessage({ msg: ``, attachments: [imagePath], ttl: ttl }, message.threadId, message.type);
-    }
+    const voiceResult = await voiceSendPromise;
+    if (voiceResult.status === "rejected") throw voiceResult.reason;
+    if (imagePath) object.imagePath = imagePath;
+    await sendMessageCompleteRequest(api, message, object, ttl);
+    spinningWebp = await spinLookupPromise;
     if (spinningWebp && spinDisk) {
       await api.sendCustomSticker(
         message,
@@ -526,7 +584,6 @@ export async function sendVoiceMusic(api, message, object, ttl = 86400000) {
         spinningWebp.stickerData.height
       );
     }
-    await api.sendVoice(message, voiceUrl, ttl);
     await Promise.allSettled([api.addReaction("UNDO", message), api.addReaction("LIKE", message)]);
     
     // Tạo async để cache cho lần sau nếu chưa có

@@ -7,7 +7,7 @@ import Big from "big.js";
 import { updatePlayerBalance, getPlayerBalance, addGameRankPoints } from "../../../database/player.js";
 import { nameServer } from "../../../database/index.js";
 import { checkBeforeJoinGame } from "../index.js";
-import { formatCurrency, normalizeSymbolName, parseGameAmount } from "../../../utils/format-util.js";
+import { formatCurrency, normalizeSymbolName, parseGameBetAmount as parseGameAmount } from "../../../utils/format-util.js";
 import { getGlobalPrefix } from "../../service.js";
 import { clearImagePath } from "../../../utils/canvas/index.js";
 import { gameState } from "../game-manager.js";
@@ -60,10 +60,9 @@ const SYMBOL_NAMES = Object.fromEntries(Object.values(SYMBOLS).map((s) => [s.emo
 const SYMBOL_EMOJIS = Object.fromEntries(Object.values(SYMBOLS).map((s) => [s.key, s.emoji]));
 const SYMBOL_ICON_NAME = Object.fromEntries(Object.values(SYMBOLS).map((s) => [s.emoji, s.icon]));
 
-const MAX_JACKPOT_MULTIPLIER = 1000;
 const JACKPOT_CONTRIBUTION_PERCENT = 0.6;
-const JACKPOT_CHANCE = 0.20; // Giảm tỉ lệ nổ hũ xuống 20%
-const HOUSE_BIAS_CHANCE = 0.8;
+const TRIPLE_CHANCE = 0.005;
+const HOUSE_BIAS_CHANCE = 0.18;
 
 function roundedRect(ctx, x, y, width, height, radius = 18) {
   ctx.beginPath(); ctx.roundRect(x, y, width, height, radius);
@@ -150,7 +149,7 @@ export async function handleBauCua(api, message, groupSettings) {
 
   const jackpotKey = getGameJackpotKey(api);
 
-  const result = rollDice(Object.keys(bets));
+  const result = rollDice(bets);
   const winnings = calculateWinnings(bets, result);
   let netWinnings = new Big(winnings).minus(totalBet);
   const isWin = netWinnings.gt(0);
@@ -169,16 +168,8 @@ export async function handleBauCua(api, message, groupSettings) {
   let jackpotAmount = new Big(0);
   if (isJackpot) {
     const currentPot = getGameJackpot(gameState, "baucua", jackpotKey);
-    const tripleBet = new Big(bets[tripleSymbol]);
-    const maxJackpotWin = tripleBet.mul(MAX_JACKPOT_MULTIPLIER);
-
-    if (currentPot.gt(maxJackpotWin)) {
-      jackpotAmount = maxJackpotWin;
-      setGameJackpot(gameState, "baucua", jackpotKey, currentPot.minus(maxJackpotWin));
-    } else {
-      jackpotAmount = currentPot.gt(0) ? currentPot : new Big(0);
-      setGameJackpot(gameState, "baucua", jackpotKey, DEFAULT_JACKPOT);
-    }
+    jackpotAmount = currentPot.gt(0) ? currentPot : new Big(0);
+    setGameJackpot(gameState, "baucua", jackpotKey, DEFAULT_JACKPOT);
 
     // Tiền trúng hũ cộng vào lợi nhuận
     netWinnings = netWinnings.plus(jackpotAmount);
@@ -310,18 +301,29 @@ function rollDice(playerBets) {
   const randomRoll = () => Array.from({ length: 3 }, () => SYMBOL_LIST[Math.floor(Math.random() * SYMBOL_LIST.length)]);
   const isTripleResult = (r) => r.length === 3 && r[0] === r[1] && r[1] === r[2];
 
-  if (Math.random() >= HOUSE_BIAS_CHANCE) return randomRoll();
+  // Triple là biến cố riêng, hiếm hơn xác suất tự nhiên 1/36 của ba xúc xắc.
+  if (Math.random() < TRIPLE_CHANCE) {
+    const symbol = SYMBOL_LIST[Math.floor(Math.random() * SYMBOL_LIST.length)];
+    return [symbol, symbol, symbol];
+  }
+
+  const randomNonTripleRoll = () => {
+    let result;
+    do result = randomRoll(); while (isTripleResult(result));
+    return result;
+  };
+
+  if (Math.random() >= HOUSE_BIAS_CHANCE) return randomNonTripleRoll();
 
   // Chọn trong nhiều lượt lắc hợp lệ kết quả có nghĩa vụ trả thưởng thấp nhất.
-  // Triple bị loại trừ khỏi house bias — vì khi triple, hũ sẽ trả thay (không thiệt house).
+  // Triple đã được xử lý riêng ở trên nên nhánh house bias chỉ xét kết quả thường.
   // Chỉ xét chính vé cược hiện tại, tuyệt đối không đọc số dư người chơi.
-  let bestResult = randomRoll();
+  let bestResult = randomNonTripleRoll();
   let bestPayout = calculateWinnings(playerBets, bestResult);
   for (let attempt = 1; attempt < 24; attempt++) {
-    const candidate = randomRoll();
-    if (isTripleResult(candidate)) continue; // Không tránh triple — để jackpot xử lý
+    const candidate = randomNonTripleRoll();
     const payout = calculateWinnings(playerBets, candidate);
-    if (payout.lt(bestPayout) && !isTripleResult(bestResult)) {
+    if (payout.lt(bestPayout)) {
       bestResult = candidate;
       bestPayout = payout;
     }

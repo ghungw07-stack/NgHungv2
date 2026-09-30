@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import { connection, NAME_TABLE_PLAYERS } from "../../../database/index.js";
 import { getPlayerBalance, getUsernameByIdZalo } from "../../../database/player.js";
 import { checkBeforeJoinGame } from "../index.js";
-import { formatCurrency, parseGameAmount } from "../../../utils/format-util.js";
+import { formatCurrency, parseGameBetAmount as parseGameAmount } from "../../../utils/format-util.js";
 import { getGlobalPrefix } from "../../service.js";
 import { sendMessageFromSQL } from "../../chat-zalo/chat-style/chat-style.js";
 import { createCrashStore } from "./store.js";

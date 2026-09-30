@@ -3,6 +3,42 @@ import { apiFactory } from "../utils.js";
 import { getUploadSize, rememberUploadSize } from "../upload-metadata.js";
 import { logMediaTiming } from "../../utils/media-timing.js";
 
+const voiceSizeProbes = new Map();
+
+function probeVoiceSizeInBackground(appContext, voiceUrl) {
+  const probeKey = `${appContext.uid || "unknown"}:${voiceUrl}`;
+  if (voiceSizeProbes.has(probeKey)) return voiceSizeProbes.get(probeKey);
+
+  const startedAt = performance.now();
+  const probe = (async () => {
+    try {
+      const response = await appContext.options.polyfill(voiceUrl, {
+        method: "HEAD",
+        signal: AbortSignal.timeout(3_000),
+      });
+      const size = Number(response?.headers?.get?.("content-length"));
+      if (response?.ok && Number.isSafeInteger(size) && size > 0) {
+        rememberUploadSize(appContext, voiceUrl, size, 60_000);
+      }
+      return size;
+    } catch {
+      return 0;
+    } finally {
+      voiceSizeProbes.delete(probeKey);
+      logMediaTiming("voice-head", startedAt, { bot: appContext.uid, background: true });
+    }
+  })();
+  voiceSizeProbes.set(probeKey, probe);
+  return probe;
+}
+
+export function resolveVoiceSizeForSend(appContext, voiceUrl) {
+  const cachedSize = getUploadSize(appContext, voiceUrl);
+  if (cachedSize !== undefined) return { fileSize: cachedSize, sizeCached: true };
+  void probeVoiceSizeInBackground(appContext, voiceUrl);
+  return { fileSize: 0, sizeCached: false };
+}
+
 export const sendVoiceFactory = apiFactory()((api, appContext, utils) => {
   const directMessageServiceURL = utils.makeURL(`${api.zpwServiceMap.file[0]}/api/message/forward`, {
     nretry: 0,
@@ -25,32 +61,9 @@ export const sendVoiceFactory = apiFactory()((api, appContext, utils) => {
     const threadType = message.type;
     const antiDelete = message.antiDelete || ANTI_DELETE_VOICE;
     const clientId = antiDelete ? Date.now() * 10 + Math.floor(Math.random() * (1 - 9 + 1)) + 1 : Date.now();
-    let fileSize = getUploadSize(appContext, voiceUrl);
-    const sizeCached = fileSize !== undefined;
-    let headMs = 0;
-    if (!sizeCached) {
-      const headStartedAt = performance.now();
-      fileSize = 0;
-      try {
-        const headResponse = await appContext.options.polyfill(voiceUrl, {
-          method: "HEAD",
-          signal: AbortSignal.timeout(15_000),
-        });
-        if (headResponse.ok) {
-          const length = headResponse.headers.get("content-length");
-          const size = length === null ? NaN : Number(length);
-          if (Number.isSafeInteger(size) && size >= 0) {
-            fileSize = size;
-            rememberUploadSize(appContext, voiceUrl, size, 60_000);
-          }
-        }
-      } catch (error) {
-        logMediaTiming("voice-head", headStartedAt, { bot: appContext.uid, ok: false });
-        throw new ZaloApiError(`Unable to get voice content: ${error.message}`);
-      } finally {
-        headMs = Math.round(performance.now() - headStartedAt);
-      }
-    }
+    // The forward endpoint accepts fileSize=0. Do not put a remote HEAD
+    // request on the critical send path; remember its result for later sends.
+    const { fileSize, sizeCached } = resolveVoiceSizeForSend(appContext, voiceUrl);
 
     const payload = {
       params: {
@@ -99,7 +112,7 @@ export const sendVoiceFactory = apiFactory()((api, appContext, utils) => {
       return result;
     } finally {
       logMediaTiming("voice-send", startedAt, {
-        bot: appContext.uid, ok, sizeCached, bytes: fileSize, headMs,
+        bot: appContext.uid, ok, sizeCached, bytes: fileSize, headBackground: !sizeCached,
         sendMs: Math.round(performance.now() - sendStartedAt),
       });
     }

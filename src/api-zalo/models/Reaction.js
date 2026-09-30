@@ -247,6 +247,19 @@ export function resolveReactionInput(value) {
   return null;
 }
 
+/**
+ * Zalo's custom reaction transport consumes the last character of rIcon on
+ * some clients. Duplicate the final visible character at send time so Zalo
+ * consumes the duplicate (for example, "ngọcc" renders as "ngọc"). Punctuation
+ * and invisible guards cannot be used because Zalo strips them first.
+ */
+export function encodeCustomReactionText(value) {
+  const text = String(value || "").replace(/\u200B+$/u, "").trim();
+  if (!text) return "";
+  const characters = Array.from(text);
+  return `${text}${characters.at(-1)}`;
+}
+
 export const Reactions = Object.keys(ReactionMap).reduce((acc, key) => {
   acc[key] = ReactionMap[key].text;
   return acc;

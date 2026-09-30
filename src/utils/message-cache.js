@@ -16,12 +16,11 @@ import { rememberRecentChat } from "./recent-chat-memory.js";
  * giữ trong RAM + ghi đè file message.json mỗi 30 giây như trước. Mỗi lần cần
  * đọc, code sẽ query trực tiếp MongoDB để giữ mức dùng RAM thấp.
  *
- * Giữ lại (mặc định) 24 giờ dữ liệu, có job dọn dẹp định kỳ.
+ * Lưu lịch sử lâu dài để web chat có thể phân trang lại toàn bộ dữ liệu đã ghi.
  * ============================================================================
  */
 
 export const MESSAGE_TABLE = "messages_log";
-export const RETENTION_MS = 24 * 60 * 60 * 1000; // 24 giờ
 
 let tableReady = false;
 const messageLru = new LRUCache({ max: 5000, ttl: 3 * 60 * 1000 });
@@ -38,7 +37,6 @@ const WRITE_RETRY_MS = Math.max(250, Number(process.env.NGH_CACHE_WRITE_RETRY_MS
 let writeFlushTimer = null;
 let writeFlushing = false;
 let persistencePausedUntil = 0;
-let globalMessageCleanupJob = null;
 const OVERLOAD_PAUSE_MS = Math.max(5000, Number(process.env.NGH_CACHE_OVERLOAD_PAUSE_MS) || 30000);
 // Persist by default because topchat and moderation need message history after
 // the short in-memory cache expires. Set the variable to "0" only when a
@@ -57,6 +55,10 @@ function buildCacheEntry(data) {
       type: data.type,
       timestamp: data.data.ts,
       ...data.data,
+      // Giữ loại hội thoại và chiều tin nhắn để web chat phân biệt chính xác
+      // tin riêng/nhóm và bong bóng của bot, kể cả sau khi khởi động lại.
+      conversationType: data.type,
+      isSelf: data.isSelf === true,
     },
   };
 }
@@ -186,7 +188,7 @@ export async function updateMessageCacheBatch(idBot, messages) {
             uidFrom: filterData.uidFrom?.toString() ?? null,
             idTo: filterData.idTo?.toString() ?? null,
             dName: filterData.dName ?? null,
-            msgWrapType: filterData.type ?? null,
+            msgWrapType: filterData.conversationType ?? filterData.type ?? null,
             ts: Number(filterData.timestamp) || 0,
             ttl: Number(filterData.ttl) || 0,
             isUndo: false,
@@ -231,7 +233,7 @@ function rowToMessage(row) {
 }
 
 /**
- * Lấy toàn bộ tin nhắn (trong khoảng RETENTION_MS gần nhất) của 1 thread.
+ * Lấy các tin nhắn gần nhất của một thread từ lịch sử đã lưu lâu dài.
  * Trả về dạng { [msgId]: message } giống hệt cache RAM cũ để hạn chế thay đổi logic ở nơi gọi.
  */
 export async function getMessageCache(idBot, threadId) {
@@ -243,11 +245,10 @@ export async function getMessageCache(idBot, threadId) {
     if (cached) return cached;
     if (!PERSIST_MESSAGE_CACHE) return {};
 
-    const since = Date.now() - RETENTION_MS;
     const [rows] = await connection.execute(
       `SELECT msgId, ttl, isUndo, payload FROM ${MESSAGE_TABLE}
-       WHERE botId = ? AND threadId = ? AND ts >= ? ORDER BY ts DESC LIMIT ${MESSAGE_QUERY_LIMIT}`,
-      [idBot?.toString() ?? "", threadId?.toString() ?? "", since]
+       WHERE botId = ? AND threadId = ? ORDER BY ts DESC LIMIT ${MESSAGE_QUERY_LIMIT}`,
+      [idBot?.toString() ?? "", threadId?.toString() ?? ""]
     );
 
     const result = {};
@@ -346,23 +347,6 @@ export async function getFirstOtherSender(idBot, excludeUid) {
   } catch (error) {
     console.error("Lỗi khi tìm uidFrom ngẫu nhiên:", error);
     return undefined;
-  }
-}
-
-/**
- * Dọn dẹp tin nhắn quá hạn (> RETENTION_MS) trong SQL, xoá theo lô để tránh khoá bảng lâu.
- */
-async function cleanOldMessages() {
-  try {
-    const since = Date.now() - RETENTION_MS;
-    const BATCH = 5000;
-    let affected;
-    do {
-      const [result] = await connection.execute(`DELETE FROM ${MESSAGE_TABLE} WHERE ts < ? LIMIT ${BATCH}`, [since]);
-      affected = result.affectedRows;
-    } while (affected >= BATCH);
-  } catch (error) {
-    console.error("Lỗi khi dọn dẹp message log cũ:", error);
   }
 }
 
@@ -588,14 +572,6 @@ async function checkBugCliMsgId(api) {
 export async function initializeCacheMessageService(api) {
   const botId = api.getBotId();
   await ensureMessageTable();
-
-  // Bảng dùng chung cho mọi bot: chỉ cần một job cleanup, không đăng ký lại
-  // theo từng account rồi cùng quét DB tại đúng một thời điểm.
-  if (!globalMessageCleanupJob) {
-    globalMessageCleanupJob = schedule.scheduleJob("*/10 * * * *", async () => {
-      await cleanOldMessages();
-    });
-  }
 
   // Scanner này phục vụ moderation log nhóm. Khi group log tắt, chạy SELECT
   // mỗi 30 giây cho từng bot chỉ làm nghẽn Mongo mà không có dữ liệu để xử lý.

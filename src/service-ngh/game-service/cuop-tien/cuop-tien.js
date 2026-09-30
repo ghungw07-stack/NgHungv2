@@ -17,7 +17,7 @@ async function reply(api, message, text) {
 
 function help(prefix) {
   return `🥷 CƯỚP TIỀN\n\n` +
-    `• ${prefix}game cuoptien @người — thử cướp 5–12% số dư\n` +
+    `• ${prefix}game cuoptien @người — thử cướp 5% số dư\n` +
     `• ${prefix}game cuoptien random — tìm mục tiêu ngẫu nhiên\n` +
     `• ${prefix}game cuoptien khien — xem trạng thái khiên\n` +
     `• ${prefix}game cuoptien khien <1h|6h|24h> — mua khiên bảo vệ\n\n` +

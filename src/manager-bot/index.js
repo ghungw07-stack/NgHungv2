@@ -35,6 +35,11 @@ import { getUserInfoBasic, getUsersInfoBasic } from "../service-ngh/info-service
 import { createListImage } from "../utils/canvas/list-form-v1.js";
 import { createManagerBotInfoImage } from "../utils/canvas/info.js";
 import { BotChildrenStore } from "./bot-children-store.js";
+import {
+  isInvalidChildCredentialError,
+  runChildPostStartTask,
+  shouldRetryChildStart,
+} from "./child-start-policy.js";
 import { handleNotifyParentOnPM } from "./notify-parent-pm.js";
 import { updateSourceOnGithub } from "./github-update.js";
 import fs from "fs/promises";
@@ -64,7 +69,14 @@ const RENEWAL_REMINDER_RETRY_MS = 5 * 60 * 1000;
 const childFailureNotifications = new Map();
 const childStartRetryTimers = new Map();
 const CHILD_START_RETRY_MS = 30 * 1000;
-const CHILD_START_TIMEOUT_MS = 60 * 1000;
+const CHILD_POST_START_TIMEOUT_MS = Math.max(
+  5_000,
+  Number(process.env.NGH_CHILD_POST_START_TIMEOUT_MS) || 30_000
+);
+// Zalo login/session restore sau khi PM2 restart có thể mất vài phút (đặc biệt
+// khi nhiều bot con cùng khôi phục). Không đánh dấu bot lỗi sớm rồi bắt chủ
+// phải gọi lại `mybot active`.
+const CHILD_START_TIMEOUT_MS = 15 * 60 * 1000;
 const hasUsableRuntime = (botData) => Boolean(
   botData?.timeRemaining === PERMANENT_TIME || botData?.timeRemaining > 1000
 );
@@ -117,14 +129,10 @@ function getPaymentMessageApi(botData, fallbackApi = null) {
   return fallbackApi || getGlobalApi();
 }
 
-function isInvalidCookieError(error) {
-  return /cookie|đăng nhập|login|session|phiên/i.test(error?.message || String(error));
-}
-
 async function notifyChildStartFailure(mainApi, ownerId, botData, error) {
   if (!mainApi || !ownerId) return false;
   const reason = error?.message || String(error);
-  const kind = isInvalidCookieError(error) ? "COOKIE/PHIÊN ĐĂNG NHẬP KHÔNG HỢP LỆ" : "BOT CON KHÔNG KHỞI ĐỘNG ĐƯỢC";
+  const kind = isInvalidChildCredentialError(error) ? "COOKIE/PHIÊN ĐĂNG NHẬP KHÔNG HỢP LỆ" : "BOT CON KHÔNG KHỞI ĐỘNG ĐƯỢC";
   const fingerprint = `${ownerId}:${kind}:${reason}`;
   // Một lỗi liên tục chỉ báo đúng một lần. Latch chỉ được xóa sau khi bot đã
   // đăng nhập thành công, không tự hết hạn rồi gửi lại theo cooldown.
@@ -422,6 +430,7 @@ export async function autoApproveByPaymentCode(paymentCode, payRef = "", receive
 
 const botChildrenStore = new BotChildrenStore(MANAGER_BOTS_FILE_PATH);
 botChildrenStore.load();
+
 const TIME_TO_LIVE = 6000000;
 const PERMANENT_TIME = -1;
 
@@ -462,9 +471,9 @@ async function checkTimeRemainingBot() {
       botChildrenStore.markDirty();
     }
     if (shouldPurgeExpiredBot(botData)) {
-      await purgeRemovedBotData(ownerId, botData);
-      botChildrenStore.delete(ownerId);
+      await botChildrenStore.delete(ownerId);
       botChildrenStore.saveIfDirty();
+      await purgeRemovedBotData(ownerId, botData);
       console.log(`[mybot-expiry] Đã tự xóa toàn bộ dữ liệu bot ${botData.idBot || ownerId} sau 7 ngày hết hạn`);
       continue;
     }
@@ -541,17 +550,29 @@ async function checkTimeRemainingBot() {
   }
 }
 
-export async function startBotChildren(api, ownerId) {
+export async function startBotChildren(api, ownerId, startState = null) {
   const dataBotChildren = botChildrenStore.get(ownerId);
   try {
     if (!hasApprovedRuntime(dataBotChildren) || dataBotChildren.status === "pending") {
       throw new Error("Bot chưa được thanh toán thành công");
     }
     const apiBot = await createBot(dataBotChildren);
+    if (startState?.timedOut) {
+      const error = new Error(`Khởi động bot quá ${CHILD_START_TIMEOUT_MS / 1000}s`);
+      error.code = "CHILD_START_TIMEOUT";
+      throw error;
+    }
+    const authenticatedBotId = apiBot.getBotId();
+    if (dataBotChildren.recreatedAfterRemoval) {
+      await botChildrenStore.allowRecreate(ownerId, authenticatedBotId);
+      delete dataBotChildren.recreatedAfterRemoval;
+    }
     childFailureNotifications.delete(String(ownerId));
+    delete dataBotChildren.lastStartError;
+    delete dataBotChildren.lastStartErrorAt;
     dataBotChildren.status = "active";
     botChildrenStore.markDirty();
-    dataBotChildren.idBot = apiBot.getBotId();
+    dataBotChildren.idBot = authenticatedBotId;
     dataBotChildren.nameBot = apiBot.accountInfo.name;
     dataBotChildren.avatarBot =
       apiBot.accountInfo.avatar || apiBot.accountInfo.avatarFull || dataBotChildren.avatarBot || null;
@@ -559,11 +580,13 @@ export async function startBotChildren(api, ownerId) {
     // ánh xạ quyền quản trị. Zalo có thể trả "Không tìm thấy" khi hai
     // tài khoản chưa kết bạn; không được coi đó là lỗi đăng nhập
     // và tắt bot con đã khởi động thành công.
+    let resolvedMainBotAlias = false;
     try {
       const dataMainBot = await apiBot.findUserByPhone(api.getPhoneNumber());
       if (dataMainBot?.uid) {
         dataBotChildren.idBotMainWithBot = String(dataMainBot.uid);
         apiBot.apiManager.idBotMainWithBot = String(dataMainBot.uid);
+        resolvedMainBotAlias = true;
       }
     } catch (error) {
       console.warn(
@@ -588,6 +611,20 @@ export async function startBotChildren(api, ownerId) {
       }
     } catch (err) {
       console.error(`Có Lỗi Get Data Acc Bot Qua Số Điện Thoại ${numberPhone}\n`);
+    }
+
+    if (resolvedMainBotAlias && dataBotChildren.idBotMainWithBot) {
+      // Đồng bộ hồ sơ game là tác vụ phụ. MongoDB chậm/treo không được
+      // giữ promise khởi động quá 900 giây rồi làm supervisor tắt bot đã online.
+      void runChildPostStartTask(async () => {
+        const { linkGamePlayerAccounts } = await import("../database/player.js");
+        await linkGamePlayerAccounts(dataBotChildren.idBotMainWithBot, api.getBotId());
+      }, {
+        timeoutMs: CHILD_POST_START_TIMEOUT_MS,
+        onError: (error) => {
+          console.warn(`Không thể đồng bộ hồ sơ game Bot Leader trên bot ${apiBot.getBotId()}:`, error?.message || error);
+        },
+      });
     }
 
     botChildrenStore.markDirty();
@@ -617,14 +654,17 @@ const hasApprovedRuntime = (botData) => Boolean(
 
 async function startBotChildrenWithTimeout(api, ownerId) {
   let timeoutId;
+  const startState = { timedOut: false };
   try {
     return await Promise.race([
-      startBotChildren(api, ownerId),
+      startBotChildren(api, ownerId, startState),
       new Promise((_, reject) => {
-        timeoutId = setTimeout(
-          () => reject(new Error(`Khởi động bot quá ${CHILD_START_TIMEOUT_MS / 1000}s`)),
-          CHILD_START_TIMEOUT_MS
-        );
+        timeoutId = setTimeout(() => {
+          startState.timedOut = true;
+          const error = new Error(`Khởi động bot quá ${CHILD_START_TIMEOUT_MS / 1000}s`);
+          error.code = "CHILD_START_TIMEOUT";
+          reject(error);
+        }, CHILD_START_TIMEOUT_MS);
       }),
     ]);
   } finally {
@@ -635,11 +675,19 @@ async function startBotChildrenWithTimeout(api, ownerId) {
 function scheduleChildStartRetry(api, ownerId) {
   const key = String(ownerId);
   if (childStartRetryTimers.has(key)) return;
+  const currentBotData = botChildrenStore.get(ownerId);
+  if (currentBotData?.lastStartError && !shouldRetryChildStart(currentBotData.lastStartError)) return;
 
   const timer = setTimeout(async () => {
     childStartRetryTimers.delete(key);
     const botData = botChildrenStore.get(ownerId);
     if (!botData || botData.status !== "active" || !hasApprovedRuntime(botData)) return;
+    if (botData.lastStartError && !shouldRetryChildStart(botData.lastStartError)) {
+      botData.status = "inactive";
+      botChildrenStore.markDirty();
+      botChildrenStore.saveIfDirty();
+      return;
+    }
     if (getApiManagerWithOwner(ownerId)) return;
 
     try {
@@ -649,12 +697,13 @@ function scheduleChildStartRetry(api, ownerId) {
       botChildrenStore.markDirty();
       botChildrenStore.saveIfDirty();
     } catch (error) {
-      botData.status = "active";
+      const shouldRetry = shouldRetryChildStart(error);
+      botData.status = shouldRetry ? "active" : "inactive";
       botData.lastStartError = error?.message || String(error);
       botData.lastStartErrorAt = Date.now();
       botChildrenStore.markDirty();
       botChildrenStore.saveIfDirty();
-      scheduleChildStartRetry(api, ownerId);
+      if (shouldRetry) scheduleChildStartRetry(api, ownerId);
     }
   }, CHILD_START_RETRY_MS);
   timer.unref?.();
@@ -742,19 +791,17 @@ export async function activeBotChildren(api) {
     totalBotRunError: 0,
     totalBotPending: 0,
   };
-  // Dùng cùng quy trình tuần tự với mybot activeall. Sau restart không được
-  // phụ thuộc vào status runtime còn sót lại từ tiến trình cũ.
-  for (const [ownerId, botData] of Object.entries(botChildrenStore.getAll())) {
+  // Khởi động song song ngay sau khi bot mẹ đăng nhập; một bot chậm không
+  // được chặn các bot con còn lại phải lên theo.
+  const restoreTasks = Object.entries(botChildrenStore.getAll()).map(async ([ownerId, botData]) => {
     statsBot.totalBot++;
     const apiManager = getApiManagerWithOwner(ownerId);
     const canRun = botData.timeRemaining === PERMANENT_TIME || botData.timeRemaining > 1000;
     // activeall dựa trên thời hạn thực tế. Startup cũng phải dùng cùng điều
     // kiện, nếu không bot cũ thiếu metadata approvedAt sẽ bị bỏ qua.
-    if (!canRun || botData.status === "pending" || botData.status === "reject" || apiManager) continue;
+    if (!canRun || botData.status === "pending" || botData.status === "reject" || apiManager) return;
 
     try {
-      // Đăng nhập tuần tự giống activeall. createBot dùng chung cache/socket
-      // nên chạy đồng thời nhiều tài khoản làm các phiên mới giẫm lên nhau.
       await startBotChildrenWithTimeout(api, ownerId);
       const retryTimer = childStartRetryTimers.get(String(ownerId));
       if (retryTimer) clearTimeout(retryTimer);
@@ -770,17 +817,18 @@ export async function activeBotChildren(api) {
       botChildrenStore.markDirty();
       console.error(`Có lỗi khi khởi động bot của ${ownerId}: ${reason}`);
       await shutdownBotByOwnerId(ownerId).catch(() => {});
-      // shutdownBotByOwnerId đặt status inactive để phục vụ lệnh stop. Khi
-      // đây là lỗi khởi động lúc restart thì vẫn phải giữ bot đã thanh toán
-      // ở trạng thái active để bộ retry tự kết nối lại.
+      // Timeout không hủy promise đăng nhập cũ, nên retry ngay sẽ tạo nhiều
+      // login chồng nhau. Lỗi cookie/credential cũng cần người dùng cấp lại.
       if (hasUsableRuntime(botData)) {
-        botData.status = "active";
+        const shouldRetry = shouldRetryChildStart(error);
+        botData.status = shouldRetry ? "active" : "inactive";
         botChildrenStore.markDirty();
-        scheduleChildStartRetry(api, ownerId);
+        if (shouldRetry) scheduleChildStartRetry(api, ownerId);
       }
       botChildrenStore.saveIfDirty();
     }
-  }
+  });
+  await Promise.allSettled(restoreTasks);
   botChildrenStore.saveIfDirty();
 
   // Việc báo hoàn tất không được phép chặn quá trình khởi động bot con.
@@ -799,21 +847,9 @@ export async function activeBotChildren(api) {
       totalBotPending: 0,
     };
 
-    let allBots = {};
-    try {
-      const configPaths = [
-        path.join(process.cwd(), "assets", "data", "manager-bots.json"),
-        path.join(process.cwd(), "shards", "shard2", "assets", "data", "manager-bots.json")
-      ];
-      for (const cp of configPaths) {
-        try {
-          const botsRaw = await fs.readFile(cp, "utf8");
-          Object.assign(allBots, JSON.parse(botsRaw));
-        } catch (err) {}
-      }
-    } catch (e) {
-      allBots = botChildrenStore.getAll();
-    }
+    // Store đang chạy là nguồn dữ liệu duy nhất. Không gộp file của shard cũ
+    // vì các bản sao stale có thể làm số bot và trạng thái bị đếm sai.
+    const allBots = botChildrenStore.getAll();
 
     for (const [oId, bData] of Object.entries(allBots)) {
       statsBot.totalBot++;
@@ -894,6 +930,7 @@ export async function handleManagerBot(api, message, aliasCommand, isAdminLevelH
   const contentParts = content ? content.split(/\s+/) : [];
   const action = contentParts[0]?.toLowerCase() || "";
   const params = contentParts.slice(1);
+
 
   if (action === "gjoin" || action === "gleave") {
     await handleGroupBotsAction(api, message, action, params.join(" "));
@@ -1600,6 +1637,7 @@ async function handleCreateBotWithQR(api, message, ownerId, senderName) {
     const dataLogin = await handleGetCookieImeiByQR(api, message, { purpose: "mybot" });
     if (dataLogin) {
       const { imei, cookie } = dataLogin;
+      const recreatedAfterRemoval = await botChildrenStore.allowRecreate(ownerId);
       let dataBotChildren = botChildrenStore.get(ownerId);
       const requesterUid = String(message.data.uidFrom);
       const paymentContext = {
@@ -1625,6 +1663,7 @@ async function handleCreateBotWithQR(api, message, ownerId, senderName) {
             typePlatform: "web",
           },
         };
+        if (recreatedAfterRemoval) dataBotChildren.recreatedAfterRemoval = true;
         botChildrenStore.set(ownerId, dataBotChildren);
         await botChildrenStore.setCredentials(ownerId, {
           imei,
@@ -1651,6 +1690,8 @@ async function handleCreateBotWithQR(api, message, ownerId, senderName) {
             dataBotChildren.userAgent ||
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
         });
+        delete dataBotChildren.lastStartError;
+        delete dataBotChildren.lastStartErrorAt;
         dataBotChildren.createdAt = Date.now();
         dataBotChildren.createdBy = senderName;
         dataBotChildren.timeRemaining = previousTimeRemaining;
@@ -1730,6 +1771,7 @@ async function handleCreateInfoBot(api, message, params, ownerId, senderName) {
     let [imei, ...cookieParts] = params;
     let cookie = cookieParts.join(" ");
     const jsonCookie = deepParseJSON(cookie);
+    const recreatedAfterRemoval = await botChildrenStore.allowRecreate(ownerId);
     let dataBotChildren = botChildrenStore.get(ownerId);
 
     if (!dataBotChildren) {
@@ -1747,6 +1789,7 @@ async function handleCreateInfoBot(api, message, params, ownerId, senderName) {
           typePlatform: "web",
         },
       };
+      if (recreatedAfterRemoval) dataBotChildren.recreatedAfterRemoval = true;
       await sendMessageComplete(
         api,
         message,
@@ -1783,6 +1826,8 @@ async function handleCreateInfoBot(api, message, params, ownerId, senderName) {
           dataBotChildren.userAgent ||
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
       });
+      delete dataBotChildren.lastStartError;
+      delete dataBotChildren.lastStartErrorAt;
       dataBotChildren.createdAt = Date.now();
       dataBotChildren.createdBy = senderName;
       dataBotChildren.timeRemaining = previousTimeRemaining;
@@ -2146,7 +2191,10 @@ async function handleRemoveBot(api, message, ownerId, isAdminLevelHighest) {
   const apiManager = getApiManagerWithOwner(ownerId);
   const botName = apiManager ? apiManager.apiZalo.accountInfo.name : botData.nameBot || "Chưa xác định";
 
-  // Tắt bot trước khi xóa
+  // Ghi dấu xóa trước mọi await để restart giữa chừng cũng không nạp lại bot.
+  await botChildrenStore.delete(ownerId);
+  botChildrenStore.saveIfDirty();
+
   await shutdownBotByOwnerId(ownerId);
 
   const botIdentifiers = [ownerId, botData.idBot];
@@ -2161,10 +2209,6 @@ async function handleRemoveBot(api, message, ownerId, isAdminLevelHighest) {
       console.error("Lỗi xoá thư mục log:", e);
     }
   }
-  botChildrenStore.delete(ownerId);
-  botChildrenStore.markDirty();
-  botChildrenStore.saveIfDirty();
-
   await sendMessageComplete(
     api,
     message,
@@ -2322,6 +2366,7 @@ async function handleStyleBot(api, message, params, aliasCommand, prefix) {
     const fallbackReaction = "SMILE";
     const reaction = resolveReactionInput(icon) || fallbackReaction;
     const isCustomReaction = reaction && typeof reaction === "object";
+    const hasRequestedReaction = Boolean(reactionKey || isCustomReaction);
     managerData.chatIcon = reactionKey || (isCustomReaction ? icon : fallbackReaction);
     managerDataCache.setChanged(idBot);
     // Lệnh style đã được thả reaction cũ trước khi vào handler; cập nhật ngay
@@ -2331,7 +2376,7 @@ async function handleStyleBot(api, message, params, aliasCommand, prefix) {
     await sendMessageComplete(
       api,
       message,
-      `✅ Đã đặt icon bot thả: ${reactionKey || isCustomReaction ? icon : ":d"} (${reactionKey || (isCustomReaction ? "CUSTOM" : fallbackReaction)})${reactionKey || isCustomReaction ? "" : " — nội dung quá dài, đã dùng mặc định"}`,
+      `✅ Đã đặt icon bot thả: ${hasRequestedReaction ? icon : ":d"} (${reactionKey || (isCustomReaction ? "CUSTOM" : fallbackReaction)})${hasRequestedReaction ? "" : " — nội dung quá dài, đã dùng mặc định"}`,
       false,
       TIME_TO_LIVE
     );
@@ -2558,7 +2603,7 @@ async function handleHelpBotWithBotChildren(api, message, prefix, aliasCommand) 
     `   • ${prefix}${aliasCommand} style icon [tên icon/emoji]\n` +
     `   • ${prefix}${aliasCommand} style reset - Khôi phục giao diện mặc định\n` +
     `➤『${prefix}${aliasCommand} restart』 - Khởi động lại bot\n` +
-    `➤『${prefix}${aliasCommand} shutdown』 - Tắt bot\n\n` +
+    `➤『${prefix}${aliasCommand} shutdown』 - Tắt bot\n` +
     "3️⃣ Thông tin bot\n\n" +
     `➤『${prefix}${aliasCommand} showinfo』 - Xem toàn bộ thông tin bot của bạn\n`;
 
@@ -2914,6 +2959,7 @@ async function handleSetInfoBot(api, message, params, ownerId, isAdminLevelHighe
     writeConfig(dataBot);
   } else {
     botChildrenStore.markDirty();
+    botChildrenStore.saveIfDirty();
   }
 
   await sendMessageComplete(
@@ -2972,39 +3018,26 @@ async function handleNotifyCustomer(api, message, params, isAdminLevelHighest) {
 }
 
 export async function createBotListFromChildren(api, PERMANENT_TIME = -1) {
-  let allBots = {};
-  try {
-    const configPaths = [
-      path.join(process.cwd(), "assets", "data", "manager-bots.json"),
-      path.join(process.cwd(), "shards", "shard2", "assets", "data", "manager-bots.json")
-    ];
-    for (const cp of configPaths) {
-      try {
-        const botsRaw = await fs.readFile(cp, "utf8");
-        Object.assign(allBots, JSON.parse(botsRaw));
-      } catch (err) {
-        // File không tồn tại hoặc lỗi đọc file
-      }
-    }
-  } catch (e) {
-    console.error("Lỗi đọc manager-bots.json toàn hệ thống:", e);
-    allBots = botChildrenStore.getAll(); // Fallback
-  }
+  // Dùng cùng nguồn dữ liệu với các lệnh active/remove/detail. Đọc rồi gộp
+  // manager-bots.json từ nhiều shard từng làm bot đã xóa xuất hiện trở lại.
+  const allBots = botChildrenStore.getAll();
 
   const botList = Object.entries(allBots);
   if (botList.length === 0) return [];
 
-  const listIds = Object.keys(allBots);
-  let infoListBot = {};
+  const botAccountIds = botList.map(([ownerId, botData]) => String(botData.idBot || ownerId));
+  let botProfiles = {};
   try {
-    infoListBot = (await getUsersInfoBasic(api, listIds)) || {};
+    botProfiles = (await getUsersInfoBasic(api, botAccountIds)) || {};
   } catch (error) {
-    console.warn("Không lấy được một số hồ sơ chủ bot, sử dụng dữ liệu đã lưu:", error?.message || error);
+    console.warn("Không lấy được một số hồ sơ bot, sử dụng dữ liệu đã lưu:", error?.message || error);
   }
   const arrList = [];
 
-  for (const [index, [botId, botData]] of botList.entries()) {
-    const ownerInfo = infoListBot?.[botId] || {};
+  for (const [ownerId, botData] of botList) {
+    const botAccountId = String(botData.idBot || ownerId);
+    const botProfile = botProfiles?.[botAccountId] || {};
+    const runningAccount = getApiManagerWithOwner(ownerId)?.apiZalo?.accountInfo || {};
     let timeStatus;
     if (botData.timeRemaining === PERMANENT_TIME) {
       timeStatus = "♾️ Vô thời hạn";
@@ -3014,8 +3047,24 @@ export async function createBotListFromChildren(api, PERMANENT_TIME = -1) {
       timeStatus = `⏳ Thời hạn còn: ${formatSeconds(Math.floor(botData.timeRemaining / 1000))}`;
     }
     arrList.push({
-      name: ownerInfo.displayName || botData.infoOwner?.name || botData.createdBy || `UID ${botId}`,
-      avatar: botData.avatarBot || ownerInfo.avatar || ownerInfo.avatarFull || null,
+      // Đây là danh sách BOT, không phải danh sách chủ bot. Trước đây tên chủ
+      // (ownerInfo.displayName) được ưu tiên nên bot "Hưng Agent" có thể hiện
+      // thành "Nguyễn Gia Hưng" và khiến người quản trị chọn/xóa nhầm.
+      name:
+        runningAccount.name ||
+        botProfile.displayName ||
+        botProfile.name ||
+        botData.nameBot ||
+        botData.infoOwner?.name ||
+        botData.createdBy ||
+        `UID ${botData.idBot || ownerId}`,
+      avatar:
+        runningAccount.avatar ||
+        runningAccount.avatarFull ||
+        botProfile.avatar ||
+        botProfile.avatarFull ||
+        botData.avatarBot ||
+        null,
       info: timeStatus,
       status: botData.status,
     });

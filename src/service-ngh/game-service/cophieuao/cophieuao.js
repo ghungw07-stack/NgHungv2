@@ -8,6 +8,9 @@ import { checkBeforeJoinGame } from "../index.js";
 import { getCurrentPrivateGameServer, getPrivateGameServerForApi } from "../private-game-server.js";
 import { gameSenderMessage } from "../../../utils/game-mentions.js";
 import { createVirtualStockMarketImage } from "./canvas.js";
+import { calculatePurchaseQuote } from "./purchase-quote.js";
+
+export { calculatePurchaseQuote } from "./purchase-quote.js";
 
 const BASE = { SUNWIN: 10000, HITCLUB: 18500, HUNG: 7500, HUN: 24000, MESSI: 12000, RONALDO: 32000 };
 const COMPANY_NAMES = {
@@ -68,7 +71,12 @@ const freshHistory = (prices) => Object.fromEntries(Object.entries(BASE).map(([s
 
 function nextPrices(prices) {
   return Object.fromEntries(Object.entries(BASE).map(([symbol, base]) => {
-    const current = Number(prices?.[symbol] || base), drift = (base - current) / base * .03, move = (Math.random() - .5) * .10 + drift;
+    const current = Number(prices?.[symbol] || base);
+    const drift = (base - current) / base * .03;
+    const naturalMove = (Math.random() - .5) * .10 + drift;
+    // Messi vẫn biến động bình thường ở chiều giảm nhưng bị giới hạn tăng tối đa
+    // 0,5% mỗi kỳ để giá không tăng quá nhanh.
+    const move = symbol === "MESSI" ? Math.min(naturalMove, 0.005) : naturalMove;
     return [symbol, Math.max(base * .25, Math.round(current * (1 + move)))];
   }));
 }
@@ -135,8 +143,8 @@ marketTimer.unref?.();
 function stockHelp(prefix) {
   return `📈 CỔ PHIẾU ẢO — SUNWIN · HITCLUB · HUNG · HUN · MESSI · RONALDO
 
-${prefix}cophieuao bang
-— Bảng giá (biểu đồ 4 giờ) và danh mục của bạn
+${prefix}cophieuao bang [HUNG]
+— Terminal thị trường, biểu đồ 4 giờ và danh mục của bạn
 
 ${prefix}cophieuao mua HUNG all
 — Dùng toàn bộ số dư mua tối đa cổ phiếu HUNG
@@ -174,7 +182,23 @@ export async function handleCoPhieuAo(api, message, groupSettings) {
 
   // Xem bảng giá
   if (["bang", "xem"].includes(action)) {
-    const image = await createVirtualStockMarketImage(m);
+    const requestedSymbol = LEGACY_SYMBOL_MAP[String(args[1] || "").toUpperCase()] || String(args[1] || "HUNG").toUpperCase();
+    const selectedSymbol = m.prices[requestedSymbol] ? requestedSymbol : "HUNG";
+    const rawUid = String(uid).replace(/_0$/u, "");
+    const scopedUid = getCurrentPrivateGameServer()?.serverId
+      ? `private:${getCurrentPrivateGameServer().serverId}:${rawUid}`
+      : rawUid;
+    const [portfolio, balanceResult] = await Promise.all([
+      port.findOne({ server, $or: [{ uid: rawUid }, { uid: scopedUid }] }),
+      getPlayerBalance(uid),
+    ]);
+    const image = await createVirtualStockMarketImage({
+      market: m,
+      symbol: selectedSymbol,
+      portfolio: portfolio || { holdings: {} },
+      wallet: balanceResult?.balance || 0,
+      playerName: message.data.dName || uid,
+    });
     try {
       await api.sendMessage(
         {
@@ -317,7 +341,7 @@ export async function handleCoPhieuAo(api, message, groupSettings) {
     if (byShares) {
       const shareStr = String(rawAmount).replace(/cp$/i, "").trim();
       qty = parseInt(shareStr, 10);
-      if (!Number.isInteger(qty) || qty < 1) {
+      if (!Number.isSafeInteger(qty) || qty < 1) {
         return sendMessageFromSQL(api, message, { success: false, message: "Số cổ phiếu không hợp lệ." }, true, 30000);
       }
       cost = new Big(qty).times(sharePrice).times(1 + FEE_RATE).round(0);
@@ -359,20 +383,19 @@ export async function handleCoPhieuAo(api, message, groupSettings) {
         );
       }
 
-      const priceWithFee = new Big(sharePrice).times(1 + FEE_RATE);
-      qty = Math.floor(budget.div(priceWithFee).toNumber());
-      cost = new Big(qty).times(sharePrice).times(1 + FEE_RATE).round(0);
-
-      // Đảm bảo sau khi làm tròn, tổng tiền không vượt quá số dư hoặc ngân sách yêu cầu
-      while (cost.gt(currentBal) && qty > 0) {
-        qty--;
-        cost = new Big(qty).times(sharePrice).times(1 + FEE_RATE).round(0);
-      }
-      if (!isAll) {
-        while (cost.gt(budget) && qty > 0) {
-          qty--;
-          cost = new Big(qty).times(sharePrice).times(1 + FEE_RATE).round(0);
+      try {
+        ({ qty, cost } = calculatePurchaseQuote(budget, currentBal, sharePrice));
+      } catch (error) {
+        if (error instanceof RangeError) {
+          return sendMessageFromSQL(
+            api,
+            message,
+            { success: false, message: "Giao dịch quá lớn. Vui lòng nhập số tiền nhỏ hơn." },
+            true,
+            30000
+          );
         }
+        throw error;
       }
     }
 
@@ -403,8 +426,19 @@ export async function handleCoPhieuAo(api, message, groupSettings) {
       );
     }
 
+    const currentQty = Number(h.qty || 0);
+    if (!Number.isSafeInteger(currentQty) || !Number.isSafeInteger(currentQty + qty)) {
+      return sendMessageFromSQL(
+        api,
+        message,
+        { success: false, message: "Danh mục cổ phiếu đã đạt giới hạn số lượng an toàn." },
+        true,
+        30000
+      );
+    }
+
     await updatePlayerBalanceByUsername(user, cost.neg());
-    h.qty += qty;
+    h.qty = currentQty + qty;
     h.cost = new Big(h.cost).plus(cost).toString();
 
     recordGameHistory({

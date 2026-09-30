@@ -153,13 +153,19 @@ export async function handleOnReplyFromUser(
   handleChat
 ) {
   let isHandled = false;
+  const hasQuote = Boolean(message.data?.quote);
 
-  if (await handleAttackReply(api, message)) isHandled = true;
+  if (hasQuote && (await handleAttackReply(api, message))) isHandled = true;
   if (!isHandled && (await checkReplySelectionsMapData(api, message, isAdminLevelHighest))) isHandled = true;
   if (!isHandled && (await checkMenuPageReply(api, message))) isHandled = true;
-  if (!isHandled && (await handleAddUserToGroupReply(api, message, isAdminLevelHighest))) isHandled = true;
-  if (await handleDetectContentDownload(api, message, isAdminLevelHighest, groupSettings)) isHandled = true;
-  if (!isHandled) {
+  if (!isHandled && hasQuote && (await handleAddUserToGroupReply(api, message, isAdminLevelHighest))) isHandled = true;
+  if (!isHandled && (await handleDetectContentDownload(api, message, isAdminLevelHighest, groupSettings))) {
+    isHandled = true;
+  }
+  // The legacy platform handlers below are all quote based. Ordinary chat is
+  // the dominant path, so avoid allocating and resolving 20+ promises when the
+  // message cannot possibly belong to any of them.
+  if (!isHandled && hasQuote) {
     const results = await Promise.all([
       handleScanGroupsReply(api, message),
       handleMusicReply(api, message, isAdminLevelHighest),
@@ -195,9 +201,6 @@ export async function handleOnReplyFromUser(
       ),
     ]);
     isHandled = results.some((r) => r === true);
-  }
-
-  if (isHandled) {
   }
 
   return isHandled;

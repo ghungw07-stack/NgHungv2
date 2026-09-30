@@ -368,6 +368,8 @@ export async function createProfileScene(p, sect, realmName, profileData = {}) {
   const mapCult = profileData.mapCult || 0;
   const mapBoss = profileData.mapBoss || 0;
   const faction = profileData.faction || null;
+  const destiny = profileData.destiny || "Chưa định mệnh cách";
+  const destinyPath = profileData.destinyPath || "";
   const techName = profileData.techName || "Dẫn Khí Thuật";
 
   const prevCult = current[1] || 0;
@@ -438,6 +440,7 @@ export async function createProfileScene(p, sect, realmName, profileData = {}) {
   label(pctx, daoLuText, infoX, title ? 275 : 246, 13, p.daoLu?.name ? "#ff94b8" : "#94a7b8", "left", 360);
   const factionText = faction?.name ? `Thế lực: ${faction.name}` : "Thế lực: Tự do";
   label(pctx, factionText, infoX, title ? 298 : 269, 13, faction?.name ? color : "#8298aa", "left", 360);
+  label(pctx, `Vận mệnh: ${destiny}`, infoX, title ? 321 : 292, 13, destinyPath === "villain" ? "#dc8cff" : destinyPath === "chosen" ? "#ffd966" : "#8298aa", "left", 360);
 
   // Box Cảnh Giới & Tu Vi (y: 395)
   const boxY = 395;

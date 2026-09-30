@@ -29,7 +29,7 @@ import {
   createSoiCauImage,
 } from "../../../utils/canvas/index.js";
 import schedule from "node-schedule";
-import { normalizeSymbolName, parseGameAmount, formatCurrency, formatSeconds } from "../../../utils/format-util.js";
+import { normalizeSymbolName, parseGameBetAmount as parseGameAmount, formatCurrency, formatSeconds } from "../../../utils/format-util.js";
 import { getGlobalPrefix } from "../../service.js";
 import Big from "big.js";
 import { checkBeforeJoinGame } from "../index.js";
@@ -47,8 +47,8 @@ const TTL_IMAGE = 10800000;
 
 const WIN_PERCENT = 1000; // x1000
 const NORMAL_PAYOUT_MULTIPLIER = 1.9; // Trả cả gốc, nhà cái giữ lợi thế 5%
-const JACKPOT_CHANCE = 0.20; // Giảm tỉ lệ nổ hũ xuống 20%
-const HOUSE_BIAS_CHANCE = 0.6;
+const JACKPOT_ROLL_CHANCE = 0.002;
+const HOUSE_BIAS_CHANCE = 0.18;
 
 // Thêm biến lưu lịch sử kết quả (giới hạn 15 kết quả gần nhất)
 const MAX_HISTORY = 20;
@@ -74,17 +74,51 @@ function getRandomResult() {
   };
 }
 
+function isTaiXiuJackpotDice(dice) {
+  return Array.isArray(dice) && dice.length === 3 &&
+    ((dice[0] === 1 && dice[1] === 1 && dice[2] === 1) ||
+      (dice[0] === 6 && dice[1] === 6 && dice[2] === 6));
+}
+
+function getRandomNormalResult() {
+  let result;
+  do result = getRandomResult(); while (isTaiXiuJackpotDice(result.dice));
+  return result;
+}
+
+function getQueuedForcedResult() {
+  const queue = gameState.data.taixiu?.forcedResults;
+  if (!Array.isArray(queue) || queue.length === 0) return null;
+
+  const forcedSide = String(queue.shift() || "").toLowerCase();
+  if (queue.length === 0) delete gameState.data.taixiu.forcedResults;
+  saveGameData();
+  if (forcedSide !== "tai" && forcedSide !== "xiu") return null;
+
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const result = getRandomNormalResult();
+    if (result.result === forcedSide) return result;
+  }
+  return forcedSide === "tai"
+    ? { dice: [4, 4, 4], total: 12, result: "tai" }
+    : { dice: [2, 2, 2], total: 6, result: "xiu" };
+}
+
 function getSessionResult(players) {
+  if (Math.random() < JACKPOT_ROLL_CHANCE) {
+    const face = Math.random() < 0.5 ? 1 : 6;
+    return { dice: [face, face, face], total: face * 3, result: face === 1 ? "xiu" : "tai" };
+  }
   const bets = Object.values(players || {});
-  if (!bets.length || Math.random() >= HOUSE_BIAS_CHANCE) return getRandomResult();
+  if (!bets.length || Math.random() >= HOUSE_BIAS_CHANCE) return getRandomNormalResult();
   const totalTai = bets.filter((bet) => bet.betType === "tai").reduce((sum, bet) => sum.plus(bet.amount), new Big(0));
   const totalXiu = bets.filter((bet) => bet.betType === "xiu").reduce((sum, bet) => sum.plus(bet.amount), new Big(0));
   const preferred = totalTai.gt(totalXiu) ? "xiu" : totalXiu.gt(totalTai) ? "tai" : (Math.random() < 0.5 ? "tai" : "xiu");
   for (let attempt = 0; attempt < 50; attempt++) {
-    const result = getRandomResult();
+    const result = getRandomNormalResult();
     if (result.result === preferred) return result;
   }
-  return getRandomResult();
+  return getRandomNormalResult();
 }
 
 export async function initializeGameTaiXiu(api) {
@@ -145,7 +179,7 @@ async function runGameLoop(api) {
 }
 
 async function endGame(api) {
-  const result = getSessionResult(currentSession.players);
+  const result = getQueuedForcedResult() || getSessionResult(currentSession.players);
 
   // Thêm kết quả vào lịch sử với timestamp
   const newResult = {
@@ -176,12 +210,8 @@ async function endGame(api) {
   const threadPlayers = {};
 
   let jackpotWinners = [];
-  // Chỉ nổ hũ khi ra 3 xúc xắc giống nhau (tam hoa / bão: 1-1-1 đến 6-6-6).
-  // Tuyệt đối không nổ hũ với các kết quả khác như 3-4-5.
-  const isTriple = Array.isArray(result.dice) && result.dice.length === 3 &&
-    result.dice[0] === result.dice[1] && result.dice[1] === result.dice[2];
-  // Tỉ lệ nổ hũ giảm xuống 20% khi xuất hiện 3 xúc xắc giống nhau
-  const jackpotTriggered = isTriple && Math.random() < JACKPOT_CHANCE;
+  // Tài Xỉu chỉ nổ hũ với hai bộ đặc biệt 1-1-1 hoặc 6-6-6.
+  const jackpotTriggered = isTaiXiuJackpotDice(result.dice);
   let totalJackpotBet = new Big(0);
   let totalJackpotPaid = new Big(0); // Thêm biến này
 
@@ -568,12 +598,17 @@ async function placeBet(api, message, threadId, senderId, betType, amount, group
   saveGameData();
   const nameType = betType === "tai" ? "Tài" : "Xỉu";
 
+  const confirmation = buildGamePlayerMessage([
+    { player: currentSession.players[senderId] },
+    ` đã đặt cược ${betAmount.toNumber().toLocaleString("vi-VN")} VNĐ cho cửa ${nameType}.`,
+  ], { threadId, botId: api.getBotId(), type: message.type });
   const result = {
     success: true,
-    message: `${playerName} đã đặt cược ${betAmount.toNumber().toLocaleString("vi-VN")} VNĐ cho cửa ${nameType}.`,
+    message: confirmation.msg,
+    mentions: confirmation.mentions,
   };
 
-  // Xác nhận cược không ping. Tài Xỉu chỉ mention khi mở phiên và khi trả kết quả.
+  // Chỉ tag tên nằm trong nội dung xác nhận, không thêm một dòng tên người gửi riêng.
   await sendMessageFromSQL(api, message, result, false, 30000, false);
 
   if (Object.keys(currentSession.players).length === 1) {

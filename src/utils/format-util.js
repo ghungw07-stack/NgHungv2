@@ -1,4 +1,5 @@
 import Big from "big.js";
+import { requireGameWalletBalance } from "./game-wallet.js";
 import { registerFont } from "canvas";
 import JSONbig from "json-bigint";
 import path from "path";
@@ -163,56 +164,51 @@ function formatBigNumber(bigNum) {
   return result.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 }
 
-function formatCurrency(value, minChange = 900_000_000_000_000_000n) {
-  const tempValue = Big(value).abs();
-  if (tempValue <= minChange) return formatBigNumber(value);
+function superscriptInteger(value) {
+  const digits = "⁰¹²³⁴⁵⁶⁷⁸⁹";
+  return String(value).replace(/\d/g, (digit) => digits[Number(digit)]);
+}
 
-  const locale = new Intl.NumberFormat("vi-VN", {
-    maximumFractionDigits: 1,
-  });
+function vietnameseMoneyUnit(group) {
+  const prefix = ["", "Nghìn", "Triệu"][group % 3];
+  const tyCount = Math.floor(group / 3);
+  if (!tyCount) return prefix;
 
-  // Lưu lại dấu của số
-  const isNegative = value < 0;
-  // Lấy giá trị tuyệt đối xử lý
-  value = Math.abs(value);
+  // Viết đầy đủ các mốc thường gặp; với số dư bất thường cực lớn,
+  // số mũ giữ nhãn ngắn mà không rơi về dạng `e+...` khó đọc.
+  const ty = tyCount <= 4
+    ? Array.from({ length: tyCount }, () => "Tỷ").join(" ")
+    : `Tỷ${superscriptInteger(tyCount)}`;
+  return [prefix, ty].filter(Boolean).join(" ");
+}
 
-  let strConvert = "";
-  let conD = 0;
-
-  // Xử lý tỷ
-  while (value >= 1_000_000_000) {
-    value /= 1_000_000_000;
-    strConvert = " Tỷ " + strConvert;
-    conD = 3;
+function formatCurrency(value, minChange = 1_000_000_000) {
+  let amount;
+  let compactFrom;
+  try {
+    amount = new Big(value || 0);
+    compactFrom = new Big(String(minChange));
+  } catch {
+    return "0";
   }
+  if (amount.abs().lt(compactFrom)) return formatBigNumber(amount);
 
-  // Xử lý triệu
-  while (value >= 1_000_000) {
-    value /= 1_000_000;
-    strConvert = " Triệu " + strConvert;
-    conD = 2;
+  let group = Math.floor(amount.abs().e / 3);
+  let divisor = new Big(`1e${group * 3}`);
+  let scaled = amount.div(divisor);
+  // Tránh kết quả kiểu "1000 Tỷ" khi làm tròn sát mốc đơn vị.
+  if (new Big(scaled.toFixed(2)).abs().gte(1000)) {
+    group += 1;
+    divisor = new Big(`1e${group * 3}`);
+    scaled = amount.div(divisor);
   }
-
-  // Xử lý nghìn
-  while (value >= 1_000) {
-    value /= 1_000;
-    strConvert = " Nghìn " + strConvert;
-    conD = 1;
-  }
-
-  // Xử lý các trường hợp đặc biệt
-  switch (conD) {
-    case 1:
-      value *= 1000;
-      strConvert = strConvert.substring(6);
-      break;
-    default:
-      break;
-  }
-
-  strConvert = strConvert.replaceAll("  ", " ");
-  // Thêm dấu trừ vào kết quả nếu là số âm
-  return (isNegative ? "-" : "") + locale.format(value) + strConvert;
+  const suffix = vietnameseMoneyUnit(group);
+  const compact = amount
+    .div(divisor)
+    .toFixed(2)
+    .replace(/\.0+$|(?<=\.[0-9])0$/u, "")
+    .replace(".", ",");
+  return `${compact} ${suffix}`;
 }
 
 export function formatStatistic(value) {
@@ -260,6 +256,16 @@ function normalizeSymbolName(input) {
 }
 
 // Thêm hàm mới để xử lý parse số tiền
+function parseGameBetAmount(amount, currentBalance) {
+  requireGameWalletBalance(currentBalance);
+  const parsed = parseGameAmount(amount, currentBalance);
+  if (parsed === null) throw new Error("Bạn chưa nhập số tiền cược.");
+  if (parsed !== "allin" && new Big(parsed).gt(currentBalance)) {
+    throw new Error(`Ví game không đủ tiền cược. Số dư: ${formatCurrency(currentBalance)} VNĐ.`);
+  }
+  return parsed;
+}
+
 function parseGameAmount(amount, currentBalance) {
   if (!amount) return null;
 
@@ -274,51 +280,39 @@ function parseGameAmount(amount, currentBalance) {
   try {
     // Xử lý phần trăm
     if (amount.endsWith("%")) {
-      const percentage = parseFloat(amount.slice(0, -1));
-      if (isNaN(percentage) || percentage <= 0 || percentage > 100) {
+      const percentageText = amount.slice(0, -1).replace(",", ".");
+      if (!/^\d+(?:\.\d+)?$/.test(percentageText)) {
+        throw new Error("Phần trăm cược không hợp lệ (1-100%)");
+      }
+      const percentage = new Big(percentageText);
+      if (percentage.lte(0) || percentage.gt(100)) {
         throw new Error("Phần trăm cược không hợp lệ (1-100%)");
       }
       value = new Big(currentBalance).mul(percentage).div(100).round(0, Big.roundDown);
     }
     // Xử lý các đơn vị tiền tệ
     else {
-      let normalized = amount.toLowerCase();
-      let multiplier = new Big(1);
-
-      // Tạo map các đơn vị và giá trị
+      // Chỉ chấp nhận đúng một hậu tố. Vòng lặp cũ khiến `1bbbb` bị nhân
+      // 1 tỷ nhiều lần và có thể tạo ra số dư khổng lồ ngoài ý muốn.
       const units = {
-        k: new Big(1000),
-        m: new Big(1000000),
-        b: new Big(1000000000),
-        kb: new Big(100000), // 100k
-        bb: new Big(1000000000000), // 1000b
+        "": new Big(1),
+        k: new Big("1000"),
+        m: new Big("1000000"),
+        b: new Big("1000000000"),
+        kb: new Big("100000"), // 100k
+        bb: new Big("1000000000000"), // 1000b
       };
-
-      // Xử lý từng ký tự đơn vị từ phải sang trái
-      while (normalized.length > 0) {
-        let found = false;
-        for (const [unit, value] of Object.entries(units)) {
-          if (normalized.endsWith(unit)) {
-            multiplier = multiplier.mul(value);
-            normalized = normalized.slice(0, -1);
-            found = true;
-            break;
-          }
-        }
-        if (!found) break;
-      }
+      const match = amount.match(/^(\d+(?:[.,]\d+)*)(bb|kb|k|m|b)?$/i);
+      if (!match) throw new Error("chỉ được dùng một hậu tố k, m, b, kb hoặc bb");
+      const normalized = match[1];
+      const multiplier = units[match[2] || ""];
 
       // Dấu chấm/phẩy theo nhóm hàng nghìn phải được bỏ trước khi parse.
       // Ví dụ: 2.437.500.000.000 = 2437500000000 (không phải 2.437).
       const numberText = /^(?:\d{1,3})(?:[.,]\d{3})+$/.test(normalized)
         ? normalized.replace(/[.,]/g, "")
         : normalized.replace(",", ".");
-      const number = parseFloat(numberText);
-      if (isNaN(number)) {
-        throw new Error("Số tiền không hợp lệ");
-      }
-
-      value = new Big(number).mul(multiplier);
+      value = new Big(numberText).mul(multiplier);
     }
 
     if (value.lt(0)) {
@@ -563,6 +557,7 @@ export {
   normalizeSymbolName,
   formatBigNumber,
   parseGameAmount,
+  parseGameBetAmount,
   formatMiliseconds,
   formatSeconds,
   getContent,

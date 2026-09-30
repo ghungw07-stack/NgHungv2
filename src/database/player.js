@@ -1,12 +1,23 @@
 import { connection, NAME_TABLE_PLAYERS, nameServer, NAME_TABLE_ACCOUNT, DAILY_REWARD } from "./state.js";
 import { getUserInfoAcrossBots } from "../service-ngh/info-service/user-info.js";
 import { getTimeToString, getTimeNow, formatBigNumber } from "../utils/format-util.js";
-import { getGameTier, getGameTiers } from "../utils/canvas/game-finance.js";
+import { getGameTier, getGameTiers, getPlayerGameTier, isExclusiveOverlordProfile, OVERLORD_TIER } from "../utils/canvas/game-finance.js";
 import { Big } from "big.js";
-import crypto from "node:crypto";
 import { getCurrentPrivateGameServer, getPrivateGameBotIds } from "../service-ngh/game-service/private-game-server.js";
 import { applyGameRewardPolicy } from "../service-ngh/game-service/game-reward-policy.js";
 import { addToLuckyEnvelopeFund } from "../service-ngh/game-service/game-auto-rewards.js";
+import {
+  calculateGameNetProfit,
+  getStableGameIdentity,
+  isGamePlayerOwnedByBot,
+  isVerifiedLegacyGamePlayer,
+  getGameAssets,
+  selectGameDisplayName,
+  mergeGamePlayerDocuments,
+  resolveGamePlayerAliasTarget,
+  resolveGamePlayerAliasChain,
+  selectLocalGamePlayer,
+} from "./player-sync.js";
 
 globalThis.__nghPlayerAliasCache ||= new Map();
 var playerAliasCache = globalThis.__nghPlayerAliasCache;
@@ -94,11 +105,14 @@ function canonicalPlayerId(id) {
   const privateServer = getCurrentPrivateGameServer();
   if (privateServer?.serverId) {
     const prefix = `private:${privateServer.serverId}:`;
-    if (normalized.startsWith(prefix)) return normalized;
-    const scopedId = `${prefix}${normalized}`;
-    return cache?.get?.(scopedId) || scopedId;
+    const scopedId = normalized.startsWith(prefix) ? normalized : `${prefix}${normalized}`;
+    return resolveGamePlayerAliasChain(scopedId, cache);
   }
-  return cache?.get?.(normalized) || normalized;
+  return resolveGamePlayerAliasChain(normalized, cache);
+}
+
+export function resolveGamePlayerId(id) {
+  return canonicalPlayerId(id);
 }
 
 function rememberPlayerAlias(alias, playerId) {
@@ -139,113 +153,443 @@ export async function setGamePrivacy(idUserZalo, changes = {}) {
 
 export async function preloadPlayerAliases() {
   try {
-    const docs = await connection.collection("player_identity").find({ aliasId: { $exists: true }, playerId: { $exists: true } }).toArray();
+    const players = connection.collection(NAME_TABLE_PLAYERS);
+    const [docs, allPlayers] = await Promise.all([
+      connection.collection("player_identity").find({ aliasId: { $exists: true }, playerId: { $exists: true } }).toArray(),
+      players.find({}, { projection: { idUserZalo: 1, mergedInto: 1 } }).toArray(),
+    ]);
+    const playersById = new Map(allPlayers.map((player) => [String(player.idUserZalo), player]));
+    const nextCache = new Map();
+    const repairs = [];
     for (const doc of docs) {
       if (doc.aliasId && doc.playerId) {
-        rememberPlayerAlias(doc.aliasId, doc.playerId);
+        const safeTarget = resolveGamePlayerAliasTarget(
+          doc.aliasId,
+          doc.playerId,
+          playersById.get(String(doc.aliasId)),
+          playersById.get(String(doc.playerId))
+        );
+        nextCache.set(String(doc.aliasId).replace(/_0$/u, ""), String(safeTarget).replace(/_0$/u, ""));
+        if (safeTarget !== String(doc.playerId)) {
+          repairs.push({
+            updateOne: {
+              filter: { _id: doc._id },
+              update: { $set: { playerId: safeTarget, updatedAt: new Date() } },
+            },
+          });
+        }
       }
     }
+    // Hồ sơ đã gộp vẫn phải dẫn tới đích dù thiếu bản ghi player_identity.
+    for (const player of allPlayers) {
+      const id = String(player.idUserZalo).replace(/_0$/u, "");
+      nextCache.set(id, String(player.mergedInto || id).replace(/_0$/u, ""));
+    }
+    globalThis.__nghPlayerAliasCache = nextCache;
+    playerAliasCache = nextCache;
+    if (repairs.length) {
+      await connection.collection("player_identity").bulkWrite(repairs, { ordered: false });
+      console.warn(`[player-identity] Đã sửa ${repairs.length} alias trỏ nhầm hồ sơ đang hoạt động.`);
+    }
   } catch (err) {
+    globalThis.__nghPlayerAliasCache = new Map();
+    playerAliasCache = globalThis.__nghPlayerAliasCache;
     console.error("Lỗi khi tải cache player aliases:", err);
   }
 }
 
 async function persistPlayerAlias(alias, playerId) {
-  rememberPlayerAlias(alias, playerId);
+  const normalizedAlias = String(alias || "").replace(/_0$/u, "");
+  const normalizedPlayerId = String(playerId || "").replace(/_0$/u, "");
+  if (!normalizedAlias || !normalizedPlayerId) return;
   try {
+    const players = connection.collection(NAME_TABLE_PLAYERS);
+    const [directPlayer, targetPlayer] = await Promise.all([
+      normalizedAlias === normalizedPlayerId ? null : players.findOne(
+        { idUserZalo: normalizedAlias },
+        { projection: { idUserZalo: 1, mergedInto: 1 } }
+      ),
+      players.findOne(
+        { idUserZalo: normalizedPlayerId },
+        { projection: { idUserZalo: 1, mergedInto: 1 } }
+      ),
+    ]);
+    const safeTarget = resolveGamePlayerAliasTarget(normalizedAlias, normalizedPlayerId, directPlayer, targetPlayer);
+    rememberPlayerAlias(normalizedAlias, safeTarget);
     await connection.collection("player_identity").updateOne(
-      { aliasId: String(alias) },
-      { $set: { aliasId: String(alias), playerId: String(playerId), updatedAt: new Date() } },
+      { aliasId: normalizedAlias },
+      { $set: { aliasId: normalizedAlias, playerId: safeTarget, updatedAt: new Date() } },
       { upsert: true }
     );
   } catch {}
 }
 
+async function mergeSavingsAccounts(sourceId, targetId) {
+  const accounts = connection.collection("game_savings_accounts");
+  const [source, target] = await Promise.all([
+    accounts.findOne({ playerId: sourceId }),
+    accounts.findOne({ playerId: targetId }),
+  ]);
+  if (!source) return;
+  const principal = new Big(target?.principal || 0).plus(source.principal || 0).toString();
+  const lastInterestAt = [target?.lastInterestAt, source.lastInterestAt]
+    .filter(Boolean)
+    .map((value) => new Date(value))
+    .sort((a, b) => b - a)[0] || new Date();
+  await accounts.updateOne(
+    { playerId: targetId },
+    { $set: { playerId: targetId, principal, lastInterestAt, updatedAt: new Date() } },
+    { upsert: true }
+  );
+  await accounts.deleteOne({ _id: source._id });
+}
+
+async function mergePlayerProfiles(sourceId, targetId) {
+  sourceId = String(sourceId || "");
+  targetId = String(targetId || "");
+  if (!sourceId || !targetId || sourceId === targetId) return targetId || sourceId;
+
+  const players = connection.collection(NAME_TABLE_PLAYERS);
+  const [source, target] = await Promise.all([
+    players.findOne({ idUserZalo: sourceId }),
+    players.findOne({ idUserZalo: targetId }),
+  ]);
+  if (!source) return targetId;
+  if (!target) return sourceId;
+  if (source.mergedInto) return String(source.mergedInto);
+
+  const merged = mergeGamePlayerDocuments(target, source);
+  await players.updateOne(
+    { _id: target._id, mergedSources: { $ne: sourceId } },
+    { $set: merged, $addToSet: { mergedSources: sourceId } }
+  );
+
+  const historyIdentityFilter = [{ playerId: sourceId }, { idUserZalo: sourceId }];
+  if (source.username) historyIdentityFilter.push({ username: source.username });
+
+  await Promise.all([
+    mergeSavingsAccounts(sourceId, targetId),
+    connection.collection("game_savings_transactions").updateMany({ playerId: sourceId }, { $set: { playerId: targetId } }),
+    connection.collection("game_history").updateMany(
+      { $or: historyIdentityFilter },
+      { $set: { playerId: targetId, idUserZalo: targetId, username: target.username } }
+    ),
+    connection.collection("game_transactions").updateMany({ senderId: sourceId }, { $set: { senderId: targetId } }),
+    connection.collection("game_transactions").updateMany({ receiverId: sourceId }, { $set: { receiverId: targetId } }),
+    connection.collection("game_reward_payouts").updateMany({ playerId: sourceId }, { $set: { playerId: targetId } }),
+    connection.collection("game_donate_manual_logs").updateMany({ playerId: sourceId }, { $set: { playerId: targetId } }),
+    connection.collection("donation_codes").updateMany({ uid: sourceId }, { $set: { uid: targetId } }),
+    connection.collection("player_identity").updateMany({ playerId: sourceId }, { $set: { playerId: targetId, updatedAt: new Date() } }),
+  ]);
+
+  const privacy = connection.collection(GAME_PRIVACY_COLLECTION);
+  const [sourcePrivacy, targetPrivacy] = await Promise.all([
+    privacy.findOne({ playerId: sourceId }),
+    privacy.findOne({ playerId: targetId }),
+  ]);
+  if (sourcePrivacy) {
+    await privacy.updateOne(
+      { playerId: targetId },
+      { $set: {
+        playerId: targetId,
+        hideProfile: Boolean(sourcePrivacy.hideProfile || targetPrivacy?.hideProfile),
+        hideTier: Boolean(sourcePrivacy.hideTier || targetPrivacy?.hideTier),
+        updatedAt: new Date(),
+      } },
+      { upsert: true }
+    );
+    await privacy.deleteOne({ _id: sourcePrivacy._id });
+  }
+
+  await players.updateOne(
+    { _id: source._id },
+    { $set: {
+      mergedInto: targetId,
+      mergedAt: new Date(),
+      balance: "0",
+      rankPoints: 0,
+      pendingRefund: "0",
+      totalWinnings: "0",
+      totalLosses: "0",
+      netProfit: "0",
+      totalGames: 0,
+      totalWinGames: 0,
+      winRate: 0,
+    } }
+  );
+  await persistPlayerAlias(sourceId, targetId);
+  if (source.username) await persistPlayerAlias(source.username, targetId);
+  return targetId;
+}
+
+export async function linkGamePlayerAccounts(aliasId, canonicalId) {
+  const normalizedAlias = String(aliasId || "").replace(/_0$/u, "");
+  const normalizedCanonical = String(canonicalId || "").replace(/_0$/u, "");
+  if (!normalizedAlias || !normalizedCanonical) return null;
+
+  const identities = connection.collection("player_identity");
+  const [aliasIdentity, canonicalIdentity] = await Promise.all([
+    identities.findOne({ aliasId: normalizedAlias }),
+    identities.findOne({ aliasId: normalizedCanonical }),
+  ]);
+  const sourceId = String(aliasIdentity?.playerId || canonicalPlayerId(normalizedAlias));
+  let targetId = String(canonicalIdentity?.playerId || canonicalPlayerId(normalizedCanonical));
+  const players = connection.collection(NAME_TABLE_PLAYERS);
+  const target = await players.findOne({ idUserZalo: targetId });
+
+  if (!target) {
+    const source = await players.findOne({ idUserZalo: sourceId });
+    if (!source) return null;
+    targetId = sourceId;
+  } else if (sourceId !== targetId) {
+    targetId = await mergePlayerProfiles(sourceId, targetId);
+  }
+
+  await persistPlayerAlias(normalizedAlias, targetId);
+  await persistPlayerAlias(normalizedCanonical, targetId);
+  return targetId;
+}
+
 /**
- * Tự động tạo/đồng bộ tài khoản người chơi theo UID Zalo — không cần đăng ký/đăng nhập.
- * Nếu UID Zalo đã có bản ghi thì chỉ cập nhật lại tên hiển thị (nếu đổi tên).
- * Nếu chưa có thì tạo mới ngay với số dư mặc định của bảng (10.000).
+ * UID Zalo chỉ dùng để gọi API; hồ sơ game dùng username ổn định giữa các bot.
+ * Người chơi không cần đăng ký/đăng nhập và hồ sơ mới có số dư mặc định 10.000.
  */
 export async function ensurePlayerAccount(idUserZalo, senderName, botId, api = null) {
   try {
     const privateServer = getCurrentPrivateGameServer();
     const isPrivateServer = Boolean(privateServer?.serverId);
     const rawZaloId = String(idUserZalo || "").replace(/_0$/u, "");
-    const originalZaloId = canonicalPlayerId(idUserZalo);
+    // UID chỉ dùng gọi API. Khi có API, alias cũ không được phép chọn hồ sơ trước username.
+    const originalZaloId = api && !isPrivateServer ? rawZaloId : canonicalPlayerId(idUserZalo);
     idUserZalo = originalZaloId;
     let identityKey = null;
     let avatarUrl = null;
-    let resolvedDisplayName = String(senderName || "").trim();
+    let resolvedDisplayName = selectGameDisplayName(senderName);
     let resolvedKey = null;
+    let identityProfile = null;
 
-    // Kiểm tra nhanh trong DB: nếu đã có bản ghi theo originalZaloId hoặc rawZaloId thì không cần gọi mạng
-    if (!isPrivateServer) {
-      const col = connection.collection(NAME_TABLE_PLAYERS);
-      const targetIds = Array.from(new Set([idUserZalo, rawZaloId].filter(Boolean)));
-      const found = await col.findOne({
-        $or: [
-          { idUserZalo: { $in: targetIds } },
-          { username: { $in: targetIds } }
-        ]
-      });
-      if (found) {
-        const currentName = String(found.playerName || "").trim();
-        const shouldRefreshName = resolvedDisplayName &&
-          (currentName !== resolvedDisplayName || currentName === String(found.idUserZalo));
-        if (shouldRefreshName) {
-          await connection.execute(`UPDATE ${NAME_TABLE_PLAYERS} SET playerName = ? WHERE idUserZalo = ?`, [
-            resolvedDisplayName,
-            found.idUserZalo,
-          ]);
+    const players = connection.collection(NAME_TABLE_PLAYERS);
+    const rawPlayer = await players.findOne({
+      $or: [{ idUserZalo: rawZaloId }, { username: rawZaloId }],
+    });
+    const isCanonicalUsername = rawPlayer &&
+      String(rawPlayer.username || "") === rawZaloId &&
+      String(rawPlayer.idUserZalo || "") === rawZaloId;
+    const directPlayer = isCanonicalUsername || isGamePlayerOwnedByBot(rawPlayer, botId) ? rawPlayer : null;
+    const cachedPlayer = directPlayer || idUserZalo === rawZaloId ? null : await players.findOne({
+      $or: [{ idUserZalo }, { username: idUserZalo }],
+    });
+    let localPlayer = selectLocalGamePlayer(directPlayer, cachedPlayer, Boolean(api));
+    if (api) {
+      try {
+        const info = await getUserInfoAcrossBots(api, rawZaloId, { currentBotOnly: true });
+        identityProfile = info;
+        avatarUrl = info?.avatarFull || info?.avatar || null;
+        resolvedDisplayName = selectGameDisplayName(info?.name, info?.displayName, resolvedDisplayName);
+        if (!isPrivateServer) {
+          ({ resolvedKey, identityKey } = getStableGameIdentity(info));
         }
-        if (originalZaloId !== found.idUserZalo) {
-          await persistPlayerAlias(originalZaloId, found.idUserZalo);
-        }
-        if (rawZaloId !== found.idUserZalo) {
-          await persistPlayerAlias(rawZaloId, found.idUserZalo);
-        }
-        return { success: true, isNew: false, playerId: found.idUserZalo };
+        // ponytail: Chỉ username Zalo được dùng làm khóa hồ sơ chung; thiếu username thì từ chối để tránh gộp nhầm.
+      } catch {
+        // Thiếu username thì không tạo hồ sơ UID tạm vì UID thay đổi theo bot.
       }
     }
 
-    if (api) {
-      try {
-        const info = await getUserInfoAcrossBots(api, rawZaloId);
-        avatarUrl = info?.avatarFull || info?.avatar || null;
-        if (!resolvedDisplayName) {
-          resolvedDisplayName = String(info?.name || info?.displayName || info?.username || "").trim();
+    if (resolvedKey && !isPrivateServer && identityProfile?.globalId) {
+      const legacy = await players.findOne({ idUserZalo: String(identityProfile.globalId) });
+      if (isVerifiedLegacyGamePlayer(legacy, identityProfile, botId)) {
+        // Keep the old wallet, savings and tier when switching identity schemes.
+        const duplicate = await players.findOne({ idUserZalo: resolvedKey });
+        const playerId = String(legacy.idUserZalo);
+        if (duplicate && !duplicate.mergedInto && duplicate.idUserZalo !== playerId) {
+          await mergePlayerProfiles(duplicate.idUserZalo, playerId);
         }
-        if (!isPrivateServer && info?.globalId) {
-          resolvedKey = info.globalId;
-          identityKey = "GLOBAL:" + info.globalId;
-        } else if (info?.username && info.username !== "Ẩn") {
-          resolvedKey = info.username;
-          identityKey = "USERNAME:" + info.username;
-        } else {
-          const identity = [info?.name, info?.avatarFull || info?.avatar, info?.cover, info?.bio,
-            info?.genderId, info?.birthday, info?.phone]
-            .map((v) => String(v || "").trim().toLowerCase()).join("|");
-          if (identity.replace(/\|/g, "")) {
-            identityKey = crypto.createHash("sha256").update(identity).digest("hex");
-          }
-        }
-      } catch {}
+        await connection.collection("player_identity").updateOne(
+          { identityKey },
+          { $set: { identityKey, playerId, updatedAt: new Date() } },
+          { upsert: true }
+        );
+        await persistPlayerAlias(rawZaloId, playerId);
+        await persistPlayerAlias(resolvedKey, playerId);
+        return { success: true, isNew: false, playerId };
+      }
+    }
+
+    if (!resolvedKey && !isPrivateServer && rawPlayer?.mergedInto) {
+      const playerId = String(rawPlayer.mergedInto);
+      const target = await players.findOne({ idUserZalo: playerId, mergedInto: { $exists: false } });
+      if (target) {
+        await persistPlayerAlias(rawZaloId, playerId);
+        return { success: true, isNew: false, playerId };
+      }
+    }
+
+    if (!resolvedKey && api && !isPrivateServer && !directPlayer) {
+      const persistedAlias = await connection.collection("player_identity").findOne({ aliasId: rawZaloId });
+      const playerId = String(persistedAlias?.playerId || "");
+      const target = playerId
+        ? await players.findOne({ idUserZalo: playerId, mergedInto: { $exists: false } })
+        : null;
+      if (target) {
+        rememberPlayerAlias(rawZaloId, playerId);
+        return { success: true, isNew: false, playerId };
+      }
     }
 
     if (resolvedKey && !isPrivateServer) {
       idUserZalo = resolvedKey;
+      localPlayer = selectLocalGamePlayer(directPlayer, cachedPlayer, true);
+    } else if (api && !isPrivateServer && !directPlayer) {
+      return { success: false };
+    } else if (!api && !isPrivateServer && /^\d+$/u.test(rawZaloId) && !rawPlayer && idUserZalo === rawZaloId) {
+      return { success: false };
+    } else if (!isPrivateServer && rawPlayer && !directPlayer) {
+      localPlayer = rawPlayer;
+    }
+
+    const resolvedPlayer = resolvedKey && !isPrivateServer
+      ? await players.findOne({
+        $or: [{ idUserZalo: String(resolvedKey) }, { username: String(resolvedKey) }],
+      })
+      : null;
+
+    if (resolvedPlayer?.mergedInto) {
+      // resolvedPlayer đã bị gộp vào hồ sơ khác rồi — dùng playerId đích đó làm canonical.
+      const playerId = String(resolvedPlayer.mergedInto);
+      if (identityKey) {
+        await connection.collection("player_identity").updateOne(
+          { identityKey },
+          { $set: { identityKey, playerId, updatedAt: new Date() } },
+          { upsert: true }
+        );
+      }
+      if (directPlayer && directPlayer.idUserZalo !== playerId) {
+        // Gộp hồ sơ bot hiện tại (source) VÀO canonical (target).
+        await mergePlayerProfiles(directPlayer.idUserZalo, playerId);
+      }
+      await persistPlayerAlias(originalZaloId, playerId);
+      await persistPlayerAlias(rawZaloId, playerId);
+      if (resolvedKey) await persistPlayerAlias(resolvedKey, playerId);
+      return { success: true, isNew: false, playerId };
     }
 
     if (identityKey && !isPrivateServer) {
       const identityDoc = await connection.collection("player_identity").findOne({ identityKey });
-      if (identityDoc?.playerId && identityDoc.playerId !== idUserZalo) {
-        const [linked] = await connection.execute(`SELECT username FROM ${NAME_TABLE_PLAYERS} WHERE idUserZalo = ?`, [identityDoc.playerId]);
-        if (linked.length) {
-          await persistPlayerAlias(originalZaloId, identityDoc.playerId);
-          await persistPlayerAlias(rawZaloId, identityDoc.playerId);
-          return { success: true, isNew: false, playerId: identityDoc.playerId };
+      if (identityDoc?.playerId) {
+        // ─── QUYẾT TẮC: identityDoc.playerId là hồ sơ chính thức duy nhất.
+        // Tuyệt đối cấm override nó bằng resolvedPlayer hay bất kỳ hồ sơ nào khác.
+        // Mọi hồ sơ phân mảnh phải được gộp VÀO đây, không bao giờ ngược lại.
+        let playerId = String(identityDoc.playerId);
+
+        // Nếu resolvedPlayer (tìm theo username trong collection) khác canonical → gộp VÀO canonical.
+        if (resolvedPlayer && !resolvedPlayer.mergedInto && resolvedPlayer.idUserZalo !== playerId) {
+          playerId = await mergePlayerProfiles(resolvedPlayer.idUserZalo, playerId);
         }
+
+        // Nếu directPlayer (hồ sơ UID của bot hiện tại) khác canonical → gộp VÀO canonical.
+        if (directPlayer && directPlayer.idUserZalo !== playerId) {
+          playerId = await mergePlayerProfiles(directPlayer.idUserZalo, playerId);
+        }
+
+        const linked = await players.findOne({ idUserZalo: playerId });
+        if (linked) {
+          await players.updateOne({ _id: linked._id }, { $set: {
+            ...(resolvedDisplayName ? { playerName: resolvedDisplayName } : {}),
+            ...(avatarUrl ? { avatar: avatarUrl, avatarUpdatedAt: new Date() } : {}),
+            identityCheckedAt: new Date(),
+          } });
+          if (playerId !== String(identityDoc.playerId)) {
+            await connection.collection("player_identity").updateOne(
+              { _id: identityDoc._id },
+              { $set: { playerId, updatedAt: new Date() } }
+            );
+          }
+          await persistPlayerAlias(originalZaloId, playerId);
+          await persistPlayerAlias(rawZaloId, playerId);
+          if (resolvedKey) await persistPlayerAlias(resolvedKey, playerId);
+          return { success: true, isNew: false, playerId };
+        }
+        // identityDoc trỏ tới player không còn tồn tại → xóa record lỗi, tạo lại bên dưới.
+        await connection.collection("player_identity").deleteOne({ _id: identityDoc._id });
       }
+    }
+
+    if (resolvedKey && !isPrivateServer) {
+      // identityDoc chưa tồn tại. Nếu cả resolvedPlayer lẫn directPlayer đều có → gộp directPlayer VÀO resolvedPlayer
+      // (resolvedPlayer trở thành canonical cho username này, directPlayer là source phân mảnh).
+      if (resolvedPlayer && directPlayer && resolvedPlayer.idUserZalo !== directPlayer.idUserZalo) {
+        const playerId = await mergePlayerProfiles(directPlayer.idUserZalo, resolvedPlayer.idUserZalo);
+        await persistPlayerAlias(originalZaloId, playerId);
+        await persistPlayerAlias(rawZaloId, playerId);
+        await persistPlayerAlias(resolvedKey, playerId);
+        if (identityKey) {
+          await connection.collection("player_identity").updateOne(
+            { identityKey },
+            { $set: { identityKey, playerId, updatedAt: new Date() } },
+            { upsert: true }
+          );
+        }
+        return { success: true, isNew: false, playerId };
+      }
+      if (resolvedPlayer && !directPlayer) {
+        const playerId = String(resolvedPlayer.idUserZalo);
+        await connection.collection("player_identity").updateOne(
+          { identityKey },
+          { $set: { identityKey, playerId, updatedAt: new Date() } },
+          { upsert: true }
+        );
+        await persistPlayerAlias(originalZaloId, playerId);
+        await persistPlayerAlias(rawZaloId, playerId);
+        await persistPlayerAlias(resolvedKey, playerId);
+        return { success: true, isNew: false, playerId };
+      }
+      if (cachedPlayer && !cachedPlayer.mergedInto) {
+        const playerId = String(cachedPlayer.idUserZalo);
+        await players.updateOne({ _id: cachedPlayer._id }, { $set: {
+          username: resolvedKey,
+          ...(resolvedDisplayName ? { playerName: resolvedDisplayName } : {}),
+          ...(avatarUrl ? { avatar: avatarUrl, avatarUpdatedAt: new Date() } : {}),
+          identityCheckedAt: new Date(),
+        } });
+        await connection.collection("player_identity").updateOne(
+          { identityKey },
+          { $set: { identityKey, playerId, updatedAt: new Date() } },
+          { upsert: true }
+        );
+        await persistPlayerAlias(originalZaloId, playerId);
+        await persistPlayerAlias(rawZaloId, playerId);
+        await persistPlayerAlias(resolvedKey, playerId);
+        return { success: true, isNew: false, playerId };
+      }
+    }
+
+    if (localPlayer && !isPrivateServer) {
+      const playerId = String(localPlayer.idUserZalo);
+      // Sau checkPlayerLogin, uidFrom có thể đã là username canonical. Những
+      // handler gọi ensure lần hai vẫn truyền dName của tin nhắn; không được
+      // dùng tên đó để đổi hồ sơ canonical khi API không trả đúng profile.
+      const canRefreshStoredProfile = Boolean(identityProfile) || /^\d+$/u.test(rawZaloId);
+      if (identityKey) {
+        await connection.collection("player_identity").updateOne(
+          { identityKey },
+          { $set: { identityKey, playerId, updatedAt: new Date() } },
+          { upsert: true }
+        );
+      }
+      await persistPlayerAlias(originalZaloId, playerId);
+      await persistPlayerAlias(rawZaloId, playerId);
+      if (resolvedKey) await persistPlayerAlias(resolvedKey, playerId);
+      if (canRefreshStoredProfile && (resolvedDisplayName || avatarUrl)) {
+        await players.updateOne({ _id: localPlayer._id }, { $set: {
+          ...(resolvedKey ? { username: resolvedKey } : {}),
+          ...(resolvedDisplayName ? { playerName: resolvedDisplayName } : {}),
+          ...(avatarUrl ? { avatar: avatarUrl } : {}),
+          identityCheckedAt: new Date(),
+        } });
+      } else {
+        await players.updateOne({ _id: localPlayer._id }, { $set: { identityCheckedAt: new Date() } });
+      }
+      return { success: true, isNew: false, playerId };
     }
     const [rows] = await connection.execute(
       `SELECT id, playerName FROM ${NAME_TABLE_PLAYERS} WHERE idUserZalo = ?`,
@@ -277,7 +621,7 @@ export async function ensurePlayerAccount(idUserZalo, senderName, botId, api = n
     try {
       await connection.execute(
         `INSERT INTO ${NAME_TABLE_PLAYERS} (username, idUserZalo, playerName, serverId, avatar, registrationTime) VALUES (?, ?, ?, ?, ?, NOW())`,
-        [idUserZalo, idUserZalo, resolvedDisplayName || originalZaloId, botId, avatarUrl]
+        [idUserZalo, idUserZalo, resolvedDisplayName || "Người chơi", botId, avatarUrl]
       );
     } catch (insertError) {
       const col = connection.collection(NAME_TABLE_PLAYERS);
@@ -356,6 +700,7 @@ export async function isPlayerBanned(idUserZalo) {
 
 export async function isPlayerActive(idUserZalo) {
   try {
+    idUserZalo = canonicalPlayerId(idUserZalo);
     const [existingLoginRows] = await connection.execute(
       `SELECT username FROM ${NAME_TABLE_PLAYERS} WHERE idUserZalo = ?`,
       [idUserZalo]
@@ -375,7 +720,7 @@ export async function isPlayerActive(idUserZalo) {
   }
 }
 
-export async function claimDailyReward(idUser) {
+export async function claimDailyReward(idUser, tierOverride = null) {
   try {
     idUser = canonicalPlayerId(idUser);
     const [rows] = await connection.execute(`SELECT * FROM ${NAME_TABLE_PLAYERS} WHERE idUserZalo = ?`, [idUser]);
@@ -402,7 +747,7 @@ export async function claimDailyReward(idUser) {
       };
     }
 
-    const tierInfo = getGameTier(player.rankPoints);
+    const tierInfo = tierOverride || (isExclusiveOverlordProfile(player) ? OVERLORD_TIER : getGameTier(player.rankPoints));
     // Daily chỉ là quà hạng. Lãi theo hạng được tính riêng trong sổ tiết kiệm
     // (`.game nganhang`) để tiền trong ví game không tự tăng vô hạn.
     const rewardAmount = new Big(tierInfo.daily || DAILY_REWARD);
@@ -431,14 +776,14 @@ export async function claimDailyReward(idUser) {
 }
 
 /** Trợ cấp bằng 21% Daily: dưới Kim Cương mỗi tuần; Kim Cương+ dùng quỹ tuần tích lũy mỗi 5 giờ. */
-export async function claimWeeklyAllowance(idUser) {
+export async function claimWeeklyAllowance(idUser, tierOverride = null) {
   try {
     idUser = canonicalPlayerId(idUser);
     const player = await connection.collection(NAME_TABLE_PLAYERS).findOne({ idUserZalo: idUser });
     if (!player) return { success: false, message: "Không thể khởi tạo hồ sơ game của bạn." };
 
-    const tier = getGameTier(player.rankPoints || 0);
-    const isDiamondOrHigher = new Big(player.rankPoints || 0).gte(DIAMOND_RANK_POINTS());
+    const tier = tierOverride || getPlayerGameTier(player);
+    const isDiamondOrHigher = tier.key === "overlord" || new Big(player.rankPoints || 0).gte(DIAMOND_RANK_POINTS());
     const now = new Date();
     const weekKey = getVietnamWeekKey(now);
     const lastClaimAt = player.lastAllowanceAt ? new Date(player.lastAllowanceAt) : null;
@@ -497,7 +842,7 @@ export async function claimWeeklyAllowance(idUser) {
 }
 
 /** Cứu trợ phá sản: Vàng+ , số dư dưới 10.000, mỗi 5 giờ và bằng 100% Daily. */
-export async function claimRescueReward(idUser) {
+export async function claimRescueReward(idUser, tierOverride = null) {
   try {
     idUser = canonicalPlayerId(idUser);
     const player = await connection.collection(NAME_TABLE_PLAYERS).findOne({ idUserZalo: idUser });
@@ -507,7 +852,9 @@ export async function claimRescueReward(idUser) {
     if (balance.gte(RESCUE_BALANCE_CEILING)) {
       return { success: false, message: "🎖️ CỨU TRỢ PHÁ SẢN chỉ áp dụng khi số dư ví game của bạn dưới 10.000 VNĐ." };
     }
-    if (new Big(player.rankPoints || 0).lt(GOLD_RANK_POINTS())) {
+    const tier = tierOverride || getPlayerGameTier(player);
+    const isOverlord = tier.key === "overlord";
+    if (!isOverlord && new Big(player.rankPoints || 0).lt(GOLD_RANK_POINTS())) {
       const tier = getGameTier(player.rankPoints || 0);
       return {
         success: false,
@@ -519,7 +866,6 @@ export async function claimRescueReward(idUser) {
       };
     }
 
-    const tier = getGameTier(player.rankPoints || 0);
     const now = new Date();
     const lastClaimAt = player.lastRescueAt ? new Date(player.lastRescueAt) : null;
     const remainingMs = lastClaimAt ? FIVE_HOUR_COOLDOWN_MS - (now.getTime() - lastClaimAt.getTime()) : 0;
@@ -551,7 +897,7 @@ export async function claimRescueReward(idUser) {
   }
 }
 
-export async function getMyCard(api, idUser) {
+export async function getMyCard(api, idUser, profileUid = null) {
   try {
     idUser = canonicalPlayerId(idUser);
     const [rows] = await connection.execute(`SELECT * FROM ${NAME_TABLE_PLAYERS} WHERE idUserZalo = ?`, [idUser]);
@@ -566,15 +912,17 @@ export async function getMyCard(api, idUser) {
     const player = rows[0];
     let dataPlayerZalo = {};
     try {
-      dataPlayerZalo = (await getUserInfoAcrossBots(api, idUser)) || {};
+      dataPlayerZalo = (await getUserInfoAcrossBots(api, profileUid, { currentBotOnly: true })) || {};
     } catch {
       // UID có thể thuộc bot khác; dữ liệu game vẫn hiển thị được.
     }
 
     const totalWinnings = new Big(player.totalWinnings);
     const totalLosses = new Big(player.totalLosses);
-    const netProfit = totalWinnings.plus(totalLosses);
+    const netProfit = new Big(calculateGameNetProfit(totalWinnings, totalLosses));
     const balance = new Big(player.balance);
+    const savingsAccount = await connection.collection("game_savings_accounts").findOne({ playerId: String(player.idUserZalo) });
+    const assets = getGameAssets(balance, savingsAccount?.principal);
     const winRate =
       player.totalGames > 0 ? new Big(player.totalWinGames).div(player.totalGames).times(100) : new Big(0);
 
@@ -591,12 +939,15 @@ export async function getMyCard(api, idUser) {
     }
 
     const playerInfo = {
+      ...dataPlayerZalo,
       account: player.username,
       idUser: player.idUserZalo,
       playerName: player.playerName,
       avatar: dataPlayerZalo.avatarFull || dataPlayerZalo.avatar || player.avatar || null,
       balance: balance.toString(),
+      ...assets,
       rankPoints: Number(player.rankPoints || 0),
+      specialTier: player.specialTier || null,
       registrationTime: getTimeToString(player.registrationTime),
       totalWinnings: totalWinnings.toString(),
       totalLosses: totalLosses.toString(),
@@ -605,7 +956,6 @@ export async function getMyCard(api, idUser) {
       totalGames: player.totalGames,
       winRate: formatWinRate(winRate),
       lastDailyReward: lastDailyReward,
-      ...dataPlayerZalo,
     };
 
     return { success: true, data: playerInfo };
@@ -632,14 +982,16 @@ export async function setLoserGame(idUser, amount, meta = null) {
     }
 
     const refund = new Big(amount).abs().times("0.05").round(0, Big.roundDown);
-    const currentBalance = new Big(playerRows[0].balance || 0).plus(refund).toString();
+    // Tiền cược đã bị trừ lúc đặt. Khoản hoàn chỉ được đưa vào pendingRefund
+    // để người chơi nhận bằng lệnh hoàn trả, không cộng vào ví hai lần.
+    const currentBalance = new Big(playerRows[0].balance || 0).toString();
 
     let query = `UPDATE ${NAME_TABLE_PLAYERS} SET 
       balance = ?,
       totalLosses = totalLosses + ?,
       totalGames = totalGames + ?
       WHERE idUserZalo = ?`;
-    const [result] = await connection.execute(query, [currentBalance, new Big(amount).neg().toString(), 1, idUser]);
+    const [result] = await connection.execute(query, [currentBalance, new Big(amount).abs().toString(), 1, idUser]);
 
     if (result.affectedRows === 1) {
       await addPendingRefund(idUser, refund);
@@ -667,29 +1019,32 @@ export async function setLoserGame(idUser, amount, meta = null) {
 
 export async function setLoserGameByUsername(username, amount, meta = null) {
   try {
-    const [playerRows] = await connection.execute(`SELECT balance, idUserZalo, playerName FROM ${NAME_TABLE_PLAYERS} WHERE username = ?`, [
-      username,
-    ]);
-    if (playerRows.length === 0) {
+    const players = connection.collection(NAME_TABLE_PLAYERS);
+    let player = await players.findOne({ username });
+    if (player?.mergedInto) player = await players.findOne({ idUserZalo: String(player.mergedInto) });
+    if (!player) {
       return { success: false, message: `${nameServer}: Không tìm thấy người chơi. ❌` };
     }
 
     const refund = new Big(amount).abs().times("0.05").round(0, Big.roundDown);
-    const currentBalance = new Big(playerRows[0].balance || 0).plus(refund).toString();
+    // Tiền cược đã bị trừ lúc đặt; chỉ ghi khoản hoàn chờ nhận.
+    const currentBalance = new Big(player.balance || 0).toString();
 
-    let query = `UPDATE ${NAME_TABLE_PLAYERS} SET 
-      balance = ?,
-      totalLosses = totalLosses + ?,
-      totalGames = totalGames + ?
-      WHERE username = ?`;
-    const [result] = await connection.execute(query, [currentBalance, new Big(amount).neg().toString(), 1, username]);
+    const result = await players.updateOne(
+      { _id: player._id, balance: player.balance },
+      { $set: {
+        balance: currentBalance,
+        totalLosses: new Big(player.totalLosses || 0).plus(new Big(amount).abs()).toString(),
+        totalGames: Number(player.totalGames || 0) + 1,
+      } }
+    );
 
-    if (result.affectedRows === 1) {
-      await addPendingRefund(playerRows[0].idUserZalo, refund);
+    if (result.modifiedCount === 1) {
+      await addPendingRefund(player.idUserZalo, refund);
       recordGameHistory({
-        playerId: playerRows[0].idUserZalo,
-        username,
-        playerName: playerRows[0].playerName,
+        playerId: player.idUserZalo,
+        username: player.username,
+        playerName: player.playerName,
         amount: meta?.betAmount || new Big(amount).abs().toString(),
         netAmount: new Big(amount).abs().neg().toString(),
         balanceAfter: currentBalance,
@@ -710,63 +1065,72 @@ export async function setLoserGameByUsername(username, amount, meta = null) {
   }
 }
 
-export async function updatePlayerBalance(idUser, amount, isWin = null, numAmountWin, meta = null) {
+export async function updatePlayerBalance(idUser, amount, isWin = null, numAmountWin, meta = null, attempt = 0) {
   try {
     idUser = canonicalPlayerId(idUser);
-    const [playerRows] = await connection.execute(`SELECT balance FROM ${NAME_TABLE_PLAYERS} WHERE idUserZalo = ?`, [
-      idUser,
-    ]);
+    const col = connection.collection(NAME_TABLE_PLAYERS);
+    const player = await col.findOne({ idUserZalo: idUser });
 
-    if (playerRows.length === 0) {
+    if (!player) {
       return { success: false, message: `${nameServer}: Không tìm thấy người chơi. ❌` };
     }
 
-    const oldBalance = new Big(playerRows[0].balance).round(0);
+    const oldBalance = new Big(player.balance || 0).round(0);
     const bigNumAmount = new Big(amount).round(0);
     const settlement = applyGameRewardPolicy(bigNumAmount, isWin, numAmountWin);
     const newBalance = oldBalance.plus(settlement.walletDelta);
+    if (settlement.walletDelta.lt(0) && newBalance.lt(0)) {
+      return { success: false, message: `${nameServer}: Số dư không đủ. ❌` };
+    }
     const numBalanceWin = numAmountWin ? new Big(numAmountWin) : new Big(0);
     const isSetWinPoint = numBalanceWin.gt(0) ? 1 : 0;
 
-    let query = `UPDATE ${NAME_TABLE_PLAYERS} SET balance = ?`;
-    let params = [newBalance.toString()];
+    const positiveAmount =
+      isSetWinPoint && numAmountWin ? numBalanceWin.toString() : bigNumAmount.gt(0) ? bigNumAmount.toString() : "0";
+    const negativeAmount =
+      !isSetWinPoint && numAmountWin
+        ? numBalanceWin.abs().toString()
+        : bigNumAmount.lt(0)
+        ? bigNumAmount.abs().toString()
+        : "0";
+
+    const updateDoc = {
+      $set: {
+        balance: newBalance.toString(),
+      },
+    };
 
     if (isWin !== null) {
-      query += `, 
-        totalWinnings = CASE WHEN ? > 0 THEN totalWinnings + ? ELSE totalWinnings END,
-        totalLosses = CASE WHEN ? < 0 THEN totalLosses - ? ELSE totalLosses END,
-        totalGames = totalGames + 1,
-        totalWinGames = totalWinGames + ?`;
+      const currentWinGames = Number(player.totalWinGames || 0) + (isWin ? 1 : 0);
+      const currentTotalGames = Number(player.totalGames || 0) + 1;
+      const winRate = currentTotalGames > 0 ? (currentWinGames / currentTotalGames) * 100 : 0;
 
-      const positiveAmount =
-        isSetWinPoint && numAmountWin ? numBalanceWin.toString() : bigNumAmount.gt(0) ? bigNumAmount.toString() : "0";
-      const negativeAmount =
-        !isSetWinPoint && numAmountWin
-          ? numBalanceWin.abs().toString()
-          : bigNumAmount.lt(0)
-          ? bigNumAmount.abs().toString()
-          : "0";
-
-      params.push(bigNumAmount.toString(), positiveAmount, bigNumAmount.toString(), negativeAmount, isWin ? 1 : 0);
+      if (new Big(positiveAmount).gt(0)) {
+        updateDoc.$set.totalWinnings = new Big(player.totalWinnings || 0).plus(positiveAmount).toString();
+      }
+      if (new Big(negativeAmount).gt(0)) {
+        updateDoc.$set.totalLosses = new Big(player.totalLosses || 0).plus(negativeAmount).toString();
+      }
+      updateDoc.$set.totalGames = currentTotalGames;
+      updateDoc.$set.totalWinGames = currentWinGames;
+      updateDoc.$set.winRate = winRate;
     }
 
-    query += ` WHERE idUserZalo = ?`;
-    params.push(idUser);
+    const result = await col.updateOne(
+      { idUserZalo: idUser, balance: player.balance },
+      updateDoc
+    );
 
-    const [result] = await connection.execute(query, params);
+    // Một ví có thể được dùng đồng thời qua nhiều bot. Nếu số dư đã đổi sau
+    // lúc đọc, tính lại toàn bộ từ bản mới để không làm mất một giao dịch.
+    if (result.matchedCount === 0 && attempt < 9) {
+      return updatePlayerBalance(idUser, amount, isWin, numAmountWin, meta, attempt + 1);
+    }
 
-    if (result.affectedRows === 1) {
+    if (result.matchedCount > 0 || result.modifiedCount > 0) {
       if (settlement.refund.gt(0)) await addPendingRefund(idUser, settlement.refund);
       if (settlement.fundContribution.gt(0)) {
         await addToLuckyEnvelopeFund(settlement.fundContribution).catch((error) => console.error("Lỗi cộng Quỹ Lì Xì:", error));
-      }
-      if (isWin !== null) {
-        await connection.execute(
-          `UPDATE ${NAME_TABLE_PLAYERS} 
-          SET winRate = (totalWinGames / NULLIF(totalGames, 0)) * 100
-          WHERE idUserZalo = ?`,
-          [idUser]
-        );
       }
 
       if (isWin !== null || meta) {
@@ -789,8 +1153,7 @@ export async function updatePlayerBalance(idUser, amount, isWin = null, numAmoun
         success: true,
         oldBalance: oldBalance.toString(),
         newBalance: newBalance.toString(),
-        refund: settlement.refund.toString(),
-        fundContribution: settlement.fundContribution.toString(),
+        netProfit: settlement.walletDelta.toString(),
       };
     } else {
       return { success: false, message: `${nameServer}: Cập nhật thất bại. ❌` };
@@ -813,7 +1176,7 @@ export async function adjustPlayerBalanceSafely(idUser, amount) {
       if (!player) return { success: false, message: "Không tìm thấy người chơi." };
       const oldBalance = new Big(player.balance || 0).round(0);
       const nextBalance = oldBalance.plus(delta);
-      if (nextBalance.lt(0)) return { success: false, message: "Số dư không đủ." };
+      if (delta.lt(0) && nextBalance.lt(0)) return { success: false, message: "Số dư không đủ." };
       const result = await collection.updateOne(
         { _id: player._id, balance: player.balance },
         { $set: { balance: nextBalance.toString() } }
@@ -827,8 +1190,55 @@ export async function adjustPlayerBalanceSafely(idUser, amount) {
   }
 }
 
+export async function adjustPlayerBalanceSafelyOnce(idUser, amount, operationId) {
+  const normalizedId = canonicalPlayerId(idUser);
+  const delta = new Big(amount).round(0);
+  const receipt = String(operationId || "").trim();
+  if (!receipt) return { success: false, message: "Mã giao dịch không hợp lệ." };
+  try {
+    const collection = connection.collection(NAME_TABLE_PLAYERS);
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const player = await collection.findOne({ idUserZalo: normalizedId });
+      if (!player) return { success: false, message: "Không tìm thấy người chơi." };
+      const operations = Array.isArray(player.xoso45sWallet?.operations) ? player.xoso45sWallet.operations : [];
+      if (operations.includes(receipt)) {
+        return { success: true, duplicate: true, balance: String(player.balance || 0) };
+      }
+      const oldBalance = new Big(player.balance || 0).round(0);
+      const nextBalance = oldBalance.plus(delta);
+      if (delta.lt(0) && nextBalance.lt(0)) return { success: false, message: "Số dư không đủ." };
+      const result = await collection.updateOne(
+        { _id: player._id, balance: player.balance, "xoso45sWallet.operations": { $ne: receipt } },
+        {
+          $set: { balance: nextBalance.toString() },
+          $push: { "xoso45sWallet.operations": { $each: [receipt], $slice: -500 } },
+        }
+      );
+      if (result.modifiedCount === 1) {
+        return { success: true, oldBalance: oldBalance.toString(), balance: nextBalance.toString() };
+      }
+    }
+    return { success: false, message: "Số dư vừa thay đổi, vui lòng thử lại." };
+  } catch (error) {
+    console.error("Lỗi cập nhật số dư một lần:", error);
+    return { success: false, message: "Không thể cập nhật số dư." };
+  }
+}
+
+export async function hasPlayerBalanceOperation(idUser, operationId) {
+  const normalizedId = canonicalPlayerId(idUser);
+  const receipt = String(operationId || "").trim();
+  if (!receipt) return false;
+  const player = await connection.collection(NAME_TABLE_PLAYERS).findOne(
+    { idUserZalo: normalizedId, "xoso45sWallet.operations": receipt },
+    { projection: { _id: 1 } }
+  );
+  return Boolean(player);
+}
+
 export async function setPlayerBalance(idUser, amount) {
   try {
+    idUser = canonicalPlayerId(idUser);
     const [rows] = await connection.execute(`SELECT * FROM ${NAME_TABLE_PLAYERS} WHERE idUserZalo = ?`, [idUser]);
 
     if (rows.length === 0) {
@@ -900,49 +1310,6 @@ export async function getPlayerInfo(idUserZalo) {
 export async function addGameRankPoints(idUserZalo, { won = false, jackpot = false } = {}) {
   void idUserZalo; void won; void jackpot;
   return { success: true, points: 0 };
-}
-
-/** Đổi tiền trong ví game thành điểm hạng, có khóa lạc quan để tránh trừ tiền hai lần. */
-export async function donateForRank(idUserZalo, amount) {
-  const donation = new Big(amount).round(0, Big.roundDown);
-  const points = Number(donation.div(10000).round(0, Big.roundDown).toString());
-  if (points < 1) return { success: false, message: "Số tiền donenat tối thiểu là 10.000 VNĐ." };
-
-  const charged = new Big(points).times(10000);
-  try {
-    const collection = connection.collection(NAME_TABLE_PLAYERS);
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const player = await collection.findOne({ idUserZalo: String(idUserZalo) });
-      if (!player) return { success: false, message: "Không tìm thấy hồ sơ game của bạn." };
-      const oldBalance = new Big(player.balance || 0);
-      if (oldBalance.lt(charged)) {
-        return { success: false, message: `Số dư không đủ. Bạn chỉ có ${formatBigNumber(oldBalance)} VNĐ.` };
-      }
-
-      const oldPoints = Number(player.rankPoints || 0);
-      const newBalance = oldBalance.minus(charged);
-      const tierChanged = getGameTier(oldPoints).key !== getGameTier(oldPoints + points).key;
-      const result = await collection.updateOne(
-        { _id: player._id, balance: player.balance },
-        { $set: { balance: newBalance.toString(), ...(tierChanged ? { lastDailyReward: null } : {}) }, $inc: { rankPoints: points } }
-      );
-      if (result.modifiedCount === 1) {
-        return {
-          success: true,
-          charged: charged.toString(),
-          points,
-          oldPoints,
-          newPoints: oldPoints + points,
-          oldBalance: oldBalance.toString(),
-          newBalance: newBalance.toString(),
-        };
-      }
-    }
-    return { success: false, message: "Số dư vừa thay đổi, vui lòng thử lại." };
-  } catch (error) {
-    console.error("Lỗi khi donenat đổi điểm hạng:", error);
-    return { success: false, message: "Không thể donenat lúc này, vui lòng thử lại." };
-  }
 }
 
 /** Chỉ nâng điểm lên mốc mới, tuyệt đối không hạ điểm/hạng hiện tại. */
@@ -1182,70 +1549,79 @@ export async function getUsernameByIdZalo(idUserZalo) {
   }
 }
 
-export async function updatePlayerBalanceByUsername(username, amount, isWin = null, numAmountWin, meta = null) {
+export async function updatePlayerBalanceByUsername(username, amount, isWin = null, numAmountWin, meta = null, attempt = 0) {
   try {
-    const [playerRows] = await connection.execute(`SELECT balance, idUserZalo, playerName FROM ${NAME_TABLE_PLAYERS} WHERE username = ?`, [
-      username,
-    ]);
+    const col = connection.collection(NAME_TABLE_PLAYERS);
+    let player = await col.findOne({ username });
+    if (player?.mergedInto) player = await col.findOne({ idUserZalo: String(player.mergedInto) });
 
-    if (playerRows.length === 0) {
+    if (!player) {
       return { success: false, message: `${nameServer}: Không tìm thấy người chơi. ❌` };
     }
 
-    const oldBalance = new Big(playerRows[0].balance);
+    const oldBalance = new Big(player.balance || 0);
     const bigNumAmount = new Big(amount);
     const settlement = applyGameRewardPolicy(bigNumAmount, isWin, numAmountWin);
     const newBalance = oldBalance.plus(settlement.walletDelta);
+    if (settlement.walletDelta.lt(0) && newBalance.lt(0)) {
+      return { success: false, message: `${nameServer}: Số dư không đủ. ❌` };
+    }
     const numBalanceWin = numAmountWin ? new Big(numAmountWin) : new Big(0);
     const isSetWinPoint = numBalanceWin.gt(0) ? 1 : 0;
 
-    let query = `UPDATE ${NAME_TABLE_PLAYERS} SET balance = ?`;
-    let params = [newBalance.toString()];
+    const positiveAmount =
+      isSetWinPoint && numAmountWin ? numBalanceWin.toString() : bigNumAmount.gt(0) ? bigNumAmount.toString() : "0";
+    const negativeAmount =
+      !isSetWinPoint && numAmountWin
+        ? numBalanceWin.abs().toString()
+        : bigNumAmount.lt(0)
+        ? bigNumAmount.abs().toString()
+        : "0";
+
+    const updateDoc = {
+      $set: {
+        balance: newBalance.toString(),
+      },
+    };
 
     if (isWin !== null) {
-      query += `, 
-        totalWinnings = CASE WHEN ? > 0 THEN totalWinnings + ? ELSE totalWinnings END,
-        totalLosses = CASE WHEN ? < 0 THEN totalLosses - ? ELSE totalLosses END,
-        totalGames = totalGames + 1,
-        totalWinGames = totalWinGames + ?`;
+      const currentWinGames = Number(player.totalWinGames || 0) + (isWin ? 1 : 0);
+      const currentTotalGames = Number(player.totalGames || 0) + 1;
+      const winRate = currentTotalGames > 0 ? (currentWinGames / currentTotalGames) * 100 : 0;
 
-      const positiveAmount =
-        isSetWinPoint && numAmountWin ? numBalanceWin.toString() : bigNumAmount.gt(0) ? bigNumAmount.toString() : "0";
-      const negativeAmount =
-        !isSetWinPoint && numAmountWin
-          ? numBalanceWin.abs().toString()
-          : bigNumAmount.lt(0)
-          ? bigNumAmount.abs().toString()
-          : "0";
-
-      params.push(bigNumAmount.toString(), positiveAmount, bigNumAmount.toString(), negativeAmount, isWin ? 1 : 0);
+      if (new Big(positiveAmount).gt(0)) {
+        updateDoc.$set.totalWinnings = new Big(player.totalWinnings || 0).plus(positiveAmount).toString();
+      }
+      if (new Big(negativeAmount).gt(0)) {
+        updateDoc.$set.totalLosses = new Big(player.totalLosses || 0).plus(negativeAmount).toString();
+      }
+      updateDoc.$set.totalGames = currentTotalGames;
+      updateDoc.$set.totalWinGames = currentWinGames;
+      updateDoc.$set.winRate = winRate;
     }
 
-    query += ` WHERE username = ?`;
-    params.push(username);
+    const result = await col.updateOne(
+      { _id: player._id, balance: player.balance },
+      updateDoc
+    );
 
-    const [result] = await connection.execute(query, params);
+    if (result.matchedCount === 0 && attempt < 9) {
+      return updatePlayerBalanceByUsername(username, amount, isWin, numAmountWin, meta, attempt + 1);
+    }
 
-    if (result.affectedRows === 1) {
+    if (result.matchedCount > 0 || result.modifiedCount > 0) {
+      if (settlement.refund.gt(0)) await addPendingRefund(player.idUserZalo, settlement.refund);
       if (settlement.fundContribution.gt(0)) {
         await addToLuckyEnvelopeFund(settlement.fundContribution).catch((error) => console.error("Lỗi cộng Quỹ Lì Xì:", error));
-      }
-      if (isWin !== null) {
-        await connection.execute(
-          `UPDATE ${NAME_TABLE_PLAYERS} 
-          SET winRate = (totalWinGames / NULLIF(totalGames, 0)) * 100
-          WHERE username = ?`,
-          [username]
-        );
       }
 
       if (isWin !== null || meta) {
         const isWinBool = isWin !== null ? Boolean(isWin) : bigNumAmount.gt(0);
         const winAmt = isSetWinPoint && numAmountWin ? numBalanceWin : bigNumAmount;
         recordGameHistory({
-          playerId: playerRows[0].idUserZalo,
-          username,
-          playerName: playerRows[0].playerName,
+          playerId: player.idUserZalo,
+          username: player.username,
+          playerName: player.playerName,
           amount: meta?.betAmount || (numAmountWin ? Math.abs(numAmountWin) : bigNumAmount.abs().toString()),
           netAmount: meta?.netAmount !== undefined ? meta.netAmount : (isWinBool ? winAmt.toString() : bigNumAmount.toString()),
           balanceAfter: newBalance.toString(),
@@ -1270,5 +1646,94 @@ export async function updatePlayerBalanceByUsername(username, amount, isWin = nu
   } catch (error) {
     console.error("Lỗi khi cập nhật số dư:", error);
     return { success: false, message: `${nameServer}: Đã xảy ra lỗi khi cập nhật số dư. ❌` };
+  }
+}
+
+export async function settleXoSoBalanceByUsernameOnce(username, {
+  operationId,
+  totalWin = "0",
+  totalBet = "0",
+  meta = null,
+} = {}) {
+  const receipt = String(operationId || "").trim();
+  if (!receipt) return { success: false, message: "Mã quyết toán không hợp lệ." };
+  try {
+    const players = connection.collection(NAME_TABLE_PLAYERS);
+    for (let attempt = 0; attempt < 5; attempt++) {
+      let player = await players.findOne({ username });
+      if (player?.mergedInto) player = await players.findOne({ idUserZalo: String(player.mergedInto) });
+      if (!player) return { success: false, message: `${nameServer}: Không tìm thấy người chơi. ❌` };
+
+      const settlements = Array.isArray(player.xoso45sWallet?.settlements)
+        ? player.xoso45sWallet.settlements
+        : [];
+      if (settlements.includes(receipt)) {
+        return { success: true, duplicate: true, balance: String(player.balance || 0) };
+      }
+
+      const winAmount = new Big(totalWin || 0).round(0);
+      const betAmount = new Big(totalBet || 0).abs().round(0);
+      const isWin = winAmount.gt(0);
+      const oldBalance = new Big(player.balance || 0).round(0);
+      const reward = isWin
+        ? applyGameRewardPolicy(winAmount, true, winAmount)
+        : applyGameRewardPolicy(betAmount.neg(), false);
+      // Vé đã trừ trước. Người thua nhận 5% qua pendingRefund khi chủ động
+      // dùng lệnh hoàn trả, nên không cộng ngay vào ví ở bước quyết toán.
+      const walletDelta = isWin ? reward.walletDelta : new Big(0);
+      const newBalance = oldBalance.plus(walletDelta);
+      const totalGames = Number(player.totalGames || 0) + 1;
+      const totalWinGames = Number(player.totalWinGames || 0) + (isWin ? 1 : 0);
+      const updateSet = {
+        balance: newBalance.toString(),
+        totalGames,
+        totalWinGames,
+        winRate: totalGames > 0 ? (totalWinGames / totalGames) * 100 : 0,
+      };
+      if (isWin) {
+        updateSet.totalWinnings = new Big(player.totalWinnings || 0).plus(winAmount).toString();
+      } else {
+        updateSet.totalLosses = new Big(player.totalLosses || 0).plus(betAmount).toString();
+        updateSet.pendingRefund = new Big(player.pendingRefund || 0).plus(reward.refund).toString();
+      }
+
+      const result = await players.updateOne(
+        { _id: player._id, balance: player.balance, "xoso45sWallet.settlements": { $ne: receipt } },
+        {
+          $set: updateSet,
+          $push: { "xoso45sWallet.settlements": { $each: [receipt], $slice: -500 } },
+        }
+      );
+      if (result.modifiedCount !== 1) continue;
+
+      if (reward.fundContribution.gt(0)) {
+        await addToLuckyEnvelopeFund(reward.fundContribution)
+          .catch((error) => console.error("Lỗi cộng Quỹ Lì Xì:", error));
+      }
+      await recordGameHistory({
+        playerId: player.idUserZalo,
+        username: player.username,
+        playerName: player.playerName,
+        amount: meta?.betAmount || betAmount.toString(),
+        netAmount: isWin ? winAmount.toString() : betAmount.neg().toString(),
+        balanceAfter: newBalance.toString(),
+        isWin,
+        gameName: meta?.gameName || "Xổ Số 45S",
+        gameKey: meta?.gameKey || "xoso45s",
+        choice: meta?.choice || "",
+        detail: meta?.detail || "",
+        referenceCode: receipt,
+      });
+      return {
+        success: true,
+        balance: newBalance.toString(),
+        refund: reward.refund.toString(),
+        fundContribution: reward.fundContribution.toString(),
+      };
+    }
+    return { success: false, message: "Số dư vừa thay đổi, sẽ tự thử quyết toán lại." };
+  } catch (error) {
+    console.error("Lỗi quyết toán Xổ Số 45S:", error);
+    return { success: false, message: "Không thể quyết toán Xổ Số 45S." };
   }
 }

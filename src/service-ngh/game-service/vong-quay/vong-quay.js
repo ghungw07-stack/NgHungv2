@@ -1,7 +1,7 @@
 import Big from "big.js";
 import fs from "fs/promises";
 import { getPlayerBalance, getUsernameByIdZalo, updatePlayerBalanceByUsername, recordGameHistory } from "../../../database/player.js";
-import { formatCurrency, parseGameAmount } from "../../../utils/format-util.js";
+import { formatCurrency, parseGameBetAmount as parseGameAmount } from "../../../utils/format-util.js";
 import { sendMessageFromSQL } from "../../chat-zalo/chat-style/chat-style.js";
 import { getGlobalPrefix } from "../../service.js";
 import { checkBeforeJoinGame } from "../index.js";

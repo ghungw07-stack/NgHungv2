@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 export const BOT_CREDENTIAL_FIELDS = Object.freeze(["imei", "cookie", "userAgent"]);
 
 const COLLECTION_NAME = "bot_credentials";
+const REMOVED_COLLECTION_NAME = "removed_bots";
 const ALGORITHM = "aes-256-gcm";
 const VERSION = 1;
 const IV_BYTES = 12;
@@ -29,10 +30,11 @@ function parseMasterKey(value = process.env.NGH_CREDENTIAL_MASTER_KEY) {
 }
 
 export function pickBotCredentials(value = {}) {
+  const source = value && typeof value === "object" ? value : {};
   return Object.fromEntries(
     BOT_CREDENTIAL_FIELDS
-      .filter((field) => value[field] !== undefined && value[field] !== null && value[field] !== "")
-      .map((field) => [field, value[field]])
+      .filter((field) => source[field] !== undefined && source[field] !== null && source[field] !== "")
+      .map((field) => [field, source[field]])
   );
 }
 
@@ -58,12 +60,14 @@ export class BotCredentialVault {
   constructor(db, masterKey = process.env.NGH_CREDENTIAL_MASTER_KEY) {
     if (!db?.collection) throw new Error("MongoDB chưa sẵn sàng cho credential vault");
     this.collection = db.collection(COLLECTION_NAME);
+    this.removedCollection = db.collection(REMOVED_COLLECTION_NAME);
     this.key = parseMasterKey(masterKey);
   }
 
   async initialize() {
     await this.collection.createIndex({ scope: 1, identity: 1 }, { unique: true });
     await this.collection.createIndex({ updatedAt: -1 });
+    await this.removedCollection.createIndex({ removedAt: -1 });
     return this;
   }
 
@@ -125,7 +129,17 @@ export class BotCredentialVault {
 
   async getAll(scope) {
     const documents = await this.collection.find({ scope: String(scope) }).toArray();
-    return new Map(documents.map((document) => [String(document.identity), this.decrypt(document)]));
+    return new Map(documents.map((document) => {
+      try {
+        return [String(document.identity), this.decrypt(document)];
+      } catch (error) {
+        // Một credential cũ dùng master key thất lạc không được phép làm bot mẹ
+        // và dashboard ngừng khởi động. Giữ dấu vết bản ghi để metadata bot con
+        // không bị xóa; quản trị viên có thể đăng nhập lại bot con sau.
+        console.warn(`[credential-vault] Bỏ qua credential không giải mã được: ${document._id}`);
+        return [String(document.identity), null];
+      }
+    }));
   }
 
   async set(scope, identity, credentials) {
@@ -149,6 +163,41 @@ export class BotCredentialVault {
 
   async delete(scope, identity) {
     await this.collection.deleteOne({ _id: this.documentId(scope, identity) });
+  }
+
+  async getRemovedBots() {
+    const documents = await this.removedCollection.find({}).toArray();
+    return {
+      ownerIds: new Set(documents.map((item) => item.ownerId).filter(Boolean).map(String)),
+      botIds: new Set(documents.map((item) => item.botId).filter(Boolean).map(String)),
+    };
+  }
+
+  async markBotRemoved(ownerId, botId) {
+    const removedAt = new Date();
+    const writes = [];
+    if (ownerId) {
+      writes.push(this.removedCollection.updateOne(
+        { _id: `owner:${String(ownerId)}` },
+        { $set: { ownerId: String(ownerId), removedAt } },
+        { upsert: true }
+      ));
+    }
+    if (botId) {
+      writes.push(this.removedCollection.updateOne(
+        { _id: `bot:${String(botId)}` },
+        { $set: { botId: String(botId), removedAt } },
+        { upsert: true }
+      ));
+    }
+    await Promise.all(writes);
+  }
+
+  async unmarkBotRemoved(ownerId, botId) {
+    const ids = [];
+    if (ownerId) ids.push(`owner:${String(ownerId)}`);
+    if (botId) ids.push(`bot:${String(botId)}`);
+    if (ids.length > 0) await this.removedCollection.deleteMany({ _id: { $in: ids } });
   }
 }
 

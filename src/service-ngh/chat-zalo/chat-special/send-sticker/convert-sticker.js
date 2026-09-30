@@ -12,6 +12,7 @@ import {
   createCircleWebp,
   TIME_CIRCLE,
 } from "./create-webp.js";
+import { createVinylCardSpinning } from "./vinyl-card.js";
 import { removeBackground } from "../../../utilities/remove-background.js";
 import {
   applyImageEffects,
@@ -103,6 +104,7 @@ export async function processAndSendSticker(
   let roundedCorners = valueObject.roundedCorners;
   let isXoaPhong = valueObject.isXoaPhong;
   let isSpindisk = valueObject.isSpindisk;
+  const isVinyl = Boolean(valueObject.isVinyl);
   let timeCircleSeconds = valueObject.timeCircleSeconds || TIME_CIRCLE;
   let zoomFactor = valueObject.zoomFactor || null;
   let speedFactor = valueObject.speedFactor || null;
@@ -128,6 +130,30 @@ export async function processAndSendSticker(
   // }
 
   const isVideo = mediaCheck.isVideo;
+
+  if (isVinyl) {
+    if (isVideo) {
+      await sendMessageWarning(api, message, "Vinyl chỉ hỗ trợ ảnh tĩnh.", false);
+      return;
+    }
+    await sendMessageComplete(api, message, "Đang tạo vinyl card...", true, 60000);
+    const hashResult = await calculateFileHashFromURLByBuffer(mediaSource).catch(() => null);
+    const result = await createVinylCardSpinning(
+      api,
+      message,
+      mediaSource,
+      hashResult?.hashCode || mediaSource,
+      timeCircleSeconds
+    );
+    await api.sendCustomSticker(
+      message,
+      result.url,
+      result.url,
+      result.stickerData?.width || 600,
+      result.stickerData?.height || 600
+    );
+    return;
+  }
 
   if (isXoaPhong && isVideo) {
     await sendMessageWarning(api, message, `Chưa hỗ trợ xóa phong cho sticker video!`, false);
@@ -370,6 +396,7 @@ const STICKER_HELP_CAPTION =
   `   sp(x): Tăng/giảm tốc độ video hoặc spin (vd: sp2, sp0.5)\n` +
   `   pixel(size): Tạo hiệu ứng pixel (vd: pixel8)\n` +
   `   spin hoặc sd(s): Tạo sticker xoay tròn (Min 0.5s, Max 15s)\n` +
+  `   vinyl hoặc vd: Tạo sticker bìa đĩa vinyl xoay\n` +
   `   cat: Ép sticker về đúng khung 512x512\n` +
   `   rot(số): Xoay theo góc độ (vd: rot90, rot-45, rot10.5)\n` +
   `   fh: Lật ngang | fv: Lật dọc\n`;
@@ -465,9 +492,11 @@ export async function handleConvertStickerCommand(api, message, aliasCommand) {
     let roundedCorners = 0;
     let isXoaPhong;
     let isSpindisk = false;
+    let isVinyl = false;
     let timeCircleSeconds = TIME_CIRCLE;
     const roundedCornersRegex = /^-?r(\d+)?$/;
     const spindiskRegex = /^(sd|spin|spindisk)([\d.]+)?$/i;
+    const vinylRegex = /^(vd|vinyl)$/i;
 
     args.forEach((arg) => {
       const match = arg.match(roundedCornersRegex);
@@ -481,6 +510,8 @@ export async function handleConvertStickerCommand(api, message, aliasCommand) {
         }
       } else if (arg.startsWith("xp")) {
         isXoaPhong = true;
+      } else if (vinylRegex.test(arg)) {
+        isVinyl = true;
       } else {
         const sdMatch = arg.match(spindiskRegex);
         if (sdMatch) {
@@ -502,6 +533,7 @@ export async function handleConvertStickerCommand(api, message, aliasCommand) {
       roundedCorners,
       isXoaPhong,
       isSpindisk,
+      isVinyl,
       timeCircleSeconds,
       zoomFactor,
       speedFactor,

@@ -58,12 +58,13 @@ import { DATA_ROOT, LOG_ROOT, readAdmins, readConfig, readCommandConfig, tempDir
 
 import { logManagerBot } from "./utils/io-json.js";
 import { getGlobalPrefix, hasPendingMediaSelection, initService } from "./service-ngh/service.js";
+import { ptgService } from "./service-ngh/api-crawl/content/ptg.js";
 import { reactionEvents } from "./automations/events-reaction.js";
 import { typingEvents } from "./automations/event-typing.msg.js";
 import { enqueueMessageCache } from "./utils/message-cache.js";
 import { enqueueConcurrentRuntimeTask, enqueueRuntimeTask } from "./utils/runtime-work-queue.js";
 import { enqueueBackgroundTask } from "./utils/background-work-queue.js";
-import { isInteractiveCommandContent, shouldCacheIncomingMessage, shouldProcessGroupMessage } from "./utils/message-routing.js";
+import { isGroupMessageLogEnabled, isInteractiveCommandContent, shouldCacheIncomingMessage, shouldProcessGroupMessage } from "./utils/message-routing.js";
 import {
   hasAuthoritativeMembership,
   recordLiveGroupSnapshot,
@@ -74,7 +75,7 @@ import { managerDataCache } from "./commands/bot-manager/active-bot.js";
 import { getAllInfoUser } from "./service-ngh/info-service/user-info.js";
 import { getDataAllGroup } from "./service-ngh/info-service/group-info.js";
 import { startWebServer, PortManager } from "./web-service/web-server.js";
-import { initializeDatabase, ensurePlayerAccount, connection, NAME_TABLE_PLAYERS } from "./database/index.js";
+import { initializeDatabase } from "./database/index.js";
 import {
   getBotCredentialVault,
   hasBotCredentials,
@@ -88,6 +89,35 @@ import { reportRuntimeError, runGuarded, setRuntimeMainApi, getRuntimeMainApi } 
 import { cleanupTempDirectory, startRuntimeMaintenance, trimMessageLogs } from "./utils/runtime-maintenance.js";
 import { startRuntimeHealthMonitor } from "./utils/runtime-health.js";
 import { runWithBotCanvasStyle } from "./utils/canvas/theme.js";
+import { withZaloRequestPriority } from "./api-zalo/utils.js";
+
+// Graceful shutdown: flush toàn bộ data xuống disk trước khi exit.
+// process.exit(0) bỏ qua beforeExit handlers nên các module như tu-tien,
+// sql-logger dùng beforeExit sẽ mất data. Handler này đảm bảo flush đúng cách
+// khi lệnh "bot restart" gửi SIGTERM thay vì gọi process.exit() trực tiếp.
+let gracefulShutdownInProgress = false;
+process.once("SIGTERM", async () => {
+  if (gracefulShutdownInProgress) return;
+  gracefulShutdownInProgress = true;
+  try {
+    const flushTasks = [];
+    // Flush group settings (async write)
+    flushTasks.push(groupSettingsAll.save().catch(() => {}));
+    // Flush managerDataCache (sync, nhưng gọi trong promise để chạy song song)
+    flushTasks.push(Promise.resolve().then(() => { try { managerDataCache.save(); } catch {} }));
+    // Flush botChildrenStore
+    flushTasks.push(Promise.resolve().then(() => { try { getBotChildrenStore().saveIfDirty(); } catch {} }));
+    // Flush các module dùng beforeExit (tu-tien dirtySnapshots, sql-logger)
+    // bằng cách emit beforeExit thủ công rồi chờ một tick
+    process.emit("beforeExit", process.exitCode || 0);
+    await Promise.allSettled(flushTasks);
+    // Chờ thêm để các async write hoàn tất (sql-logger batch flush)
+    await new Promise((resolve) => setTimeout(resolve, 800));
+  } catch { /* ignore */ }
+  process.exit(0);
+});
+
+
 
 export const portManager = new PortManager(Math.max(1, Number(process.env.NGH_WEB_PORT) || 8000));
 
@@ -159,7 +189,7 @@ export class ApiClass {
           userAgent: this.config.userAgent,
           // TTL native theo từng tin bot gửi. Bot con không dùng assets/config.json,
           // nên cho cùng một mặc định; đặt timeMessage: 0 riêng cho bot nào cần tắt.
-          timeMessage: this.config.timeMessage ?? 60000,
+          timeMessage: this.config.timeMessage ?? 300000,
         },
         {
           selfListen: true,
@@ -171,6 +201,9 @@ export class ApiClass {
       this.api = await this.zalo.login();
       this.botId = this.api.getBotId();
       this.api.apiManager = await initApiManager(this.botId, this.api, this.config);
+      // Đăng ký API ngay sau khi đăng nhập để follow PTG cũ hoạt động lại sau
+      // restart, nhưng không đặt dynamic import trong initService gây kẹt boot.
+      ptgService.registerApi(this.api);
       while (!this.api.accountInfo) {
         try {
           this.api.accountInfo = getAllInfoUser((await this.api.getProfileMe()).profile);
@@ -492,13 +525,22 @@ export function setupBotListeners(api) {
     const incomingContent = message.data?.content;
     const isSensitiveAttack = message.type === MessageType.DirectMessage &&
       typeof incomingContent === "string" && /^\s*\S*attack\s+(?!send\b)/i.test(incomingContent);
-    const groupLoggingEnabled = process.env.NGH_GROUP_MESSAGE_LOG === "1";
+    const groupLoggingEnabled = isGroupMessageLogEnabled();
     if (
       !isSensitiveAttack &&
       shouldCacheIncomingMessage(message.type, MessageType.GroupMessage, groupLoggingEnabled)
     ) {
       enqueueMessageCache(api.getBotId(), message, { persist: true });
     }
+
+    const textContent = typeof incomingContent === "string" ? incomingContent.trimStart() : "";
+    const commandPrefix = getGlobalPrefix(api.getBotId());
+    const isCommand = isInteractiveCommandContent(textContent, commandPrefix, message);
+    const senderId = message.data?.uidFrom;
+    const isPendingNumericSelection = !message.data?.quote &&
+      /^\d+(?:\s+\S+)?$/u.test(textContent.trim()) &&
+      !!senderId && hasPendingMediaSelection(senderId);
+    const isInteractive = message.type === MessageType.DirectMessage || isCommand || isPendingNumericSelection;
 
     // Message handlers may contain slow downloads, AI calls or media rendering.
     // Do not serialize all commands behind one slow command in the same group;
@@ -511,22 +553,19 @@ export function setupBotListeners(api) {
       const startedAt = performance.now();
       // Không circuit-break toàn bộ luồng chat: một command lỗi không được
       // phép làm bot ngừng nhận các command còn lại.
-      await runWithBotCanvasStyle(api, () =>
+      const handleMessage = () => runWithBotCanvasStyle(api, () =>
         runGuarded(api, "message", () => messagesUser(api, message), { maxFailures: Infinity })
       );
+      // The Zalo transport keeps request slots in reserve for priority work.
+      // Propagate that priority through the whole command so its profile lookup,
+      // reaction and final reply do not wait behind background API traffic.
+      await (isInteractive ? withZaloRequestPriority(handleMessage) : handleMessage());
       const elapsedMs = performance.now() - startedAt;
       handlerElapsedMs = elapsedMs;
       if (elapsedMs >= 1500) {
         logManagerBot(`[runtime:slow_message] bot=${api.getBotId()} thread=${message.threadId || "unknown"} type=${message.type} elapsedMs=${Math.round(elapsedMs)} contentType=${typeof message.data?.content}`);
       }
     };
-    const textContent = typeof incomingContent === "string" ? incomingContent.trimStart() : "";
-    const commandPrefix = getGlobalPrefix(api.getBotId());
-    const isCommand = isInteractiveCommandContent(textContent, commandPrefix, message);
-    const senderId = message.data?.uidFrom;
-    const isPendingNumericSelection = !message.data?.quote &&
-      /^\d+(?:\s+\S+)?$/u.test(textContent.trim()) &&
-      !!senderId && hasPendingMediaSelection(senderId);
     if (message.type === MessageType.GroupMessage) {
       const settings = groupSettingsAll.getByID(api.getBotId())?.[message.threadId];
       // Nếu user đang chờ chọn số từ canvas (xnhau, spotify, youtube,...),
@@ -536,7 +575,7 @@ export function setupBotListeners(api) {
     const options = {
       // Commands should not sit behind ordinary chat/auto-service handlers in
       // the shared pool. Private messages retain the same interactive class.
-      priority: message.type === MessageType.DirectMessage || isCommand || isPendingNumericSelection ? 1 : 0,
+      priority: isInteractive ? 1 : 0,
       key: `${api.getBotId()}:${message.threadId || message.data?.uidFrom || "unknown"}`,
     };
     await enqueueConcurrentRuntimeTask(runMessage, options);
@@ -632,7 +671,6 @@ export async function createBot(config) {
     await apiInstance.init();
     apiInstance.api.apiInstance = apiInstance;
     await runWithBotCanvasStyle(apiInstance.api, () => initService(apiInstance.api));
-    await ensureMainBotChuTuoc(apiInstance.api);
     const botId = apiInstance.api.getBotId();
     const reconcileGroups = (attempt = 1) => {
       const warmup = enqueueBackgroundTask(`group-cache:${botId}`, async () => {
@@ -663,29 +701,6 @@ export async function createBot(config) {
   }
 }
 
-// Tài khoản của chính bot chính luôn được ghi nhận ở hạng Chu Tước.
-// Dùng botId thực tế sau khi đăng nhập để không phụ thuộc UID cấu hình cũ.
-async function ensureMainBotChuTuoc(api) {
-  if (!api?.apiManager?.isMainBot || !connection?.collection || !NAME_TABLE_PLAYERS) return;
-  const botId = api.getBotId?.();
-  if (!botId) return;
-  try {
-    const account = await ensurePlayerAccount(
-      botId,
-      api.accountInfo?.name || api.accountInfo?.displayName || "Mainbot",
-      botId,
-      api
-    );
-    const playerId = account?.playerId || String(botId);
-    await connection.collection(NAME_TABLE_PLAYERS).updateOne(
-      { idUserZalo: String(playerId) },
-      { $set: { rankPoints: 10000000, vipExpireAt: null } }
-    );
-  } catch (error) {
-    console.error("Không thể gán hạng Chu Tước cho mainbot:", error);
-  }
-}
-
 // Lỗi đã được bắt ở từng handler sẽ không làm chết tiến trình. Chỉ những lỗi
 // lọt ra ngoài toàn bộ lớp bảo vệ mới buộc process thoát để PM2/bot.js dựng lại
 // một trạng thái sạch, tránh process treo nhưng vẫn mang trạng thái hỏng.
@@ -712,11 +727,12 @@ async function initializeCredentialStorage() {
   credentialStorageInitialization ||= (async () => {
     const vault = getBotCredentialVault();
     const plaintextCredentials = pickBotCredentials(configBotMain);
-    let credentials = await vault.get("main", "primary");
-
-    if (!credentials && hasBotCredentials(plaintextCredentials)) {
+    let credentials;
+    if (hasBotCredentials(plaintextCredentials)) {
       await vault.set("main", "primary", plaintextCredentials);
       credentials = plaintextCredentials;
+    } else {
+      credentials = await vault.get("main", "primary");
     }
     if (!hasBotCredentials(credentials)) {
       throw new Error("Không tìm thấy IMEI/cookie của bot chính trong MongoDB hoặc config.json");
@@ -736,9 +752,11 @@ export function initializeSharedServices(api) {
   sharedServiceInfrastructure ||= (async () => {
     await Promise.all([initializeDatabase(), initializeCacheLinkService()]);
   const { startSavingsInterestAccrual } = await import("./service-ngh/game-service/savings-interest.js");
+  const { startGameLoanCollection } = await import("./service-ngh/game-service/game-loan.js");
   const { connection: savingsDb, NAME_TABLE_PLAYERS: savingsPlayers } = await import("./database/state.js");
-  const { getGameTier: savingsTier } = await import("./utils/canvas/game-finance.js");
+  const { getPlayerGameTier: savingsTier } = await import("./utils/canvas/game-finance.js");
   if (savingsDb) startSavingsInterestAccrual(savingsDb, savingsPlayers, savingsTier);
+  if (savingsDb) startGameLoanCollection(savingsDb, savingsPlayers);
     await initializeCredentialStorage();
     await Promise.all([initializeGameBauCua(), initializeGameChanLe()]);
   })();
@@ -758,12 +776,25 @@ if (process.env.NGH_LEGACY_LIBRARY !== "1" && process.env.NGH_SERVICE_LIBRARY !=
   }
   await Promise.all([initializeDatabase(), initializeCacheLinkService()]);
   const { startSavingsInterestAccrual } = await import("./service-ngh/game-service/savings-interest.js");
+  const { startGameLoanCollection } = await import("./service-ngh/game-service/game-loan.js");
   const { connection: savingsDb, NAME_TABLE_PLAYERS: savingsPlayers } = await import("./database/state.js");
-  const { getGameTier: savingsTier } = await import("./utils/canvas/game-finance.js");
+  const { getPlayerGameTier: savingsTier } = await import("./utils/canvas/game-finance.js");
   if (savingsDb) startSavingsInterestAccrual(savingsDb, savingsPlayers, savingsTier);
+  if (savingsDb) startGameLoanCollection(savingsDb, savingsPlayers);
   await initializeCredentialStorage();
   await Promise.all([initializeGameBauCua(), initializeGameChanLe()]);
-  const api = await createBot(configBotMain);
+  // Dashboard phải vẫn truy cập được khi phiên Zalo hết hạn để quản trị viên
+  // xem lịch sử và xử lý đăng nhập; không buộc vòng đời web phụ thuộc bot.
+  void startWebServer().catch((error) => {
+    console.error(`[web] Không thể khởi động dashboard: ${error?.message || error}`);
+  });
+  let api = null;
+  try {
+    api = await createBot(configBotMain);
+  } catch (error) {
+    console.error(`[startup] Bot chưa đăng nhập được; dashboard vẫn hoạt động: ${error?.message || error}`);
+  }
+  if (api) {
   setRuntimeMainApi(api);
   startRuntimeMaintenance({
     tempDirectory: tempDir,
@@ -781,7 +812,6 @@ if (process.env.NGH_LEGACY_LIBRARY !== "1" && process.env.NGH_SERVICE_LIBRARY !=
   // Phục hồi bot con ngay sau khi bot mẹ đăng nhập. Không để giveaway, web
   // server hoặc tác vụ phụ chặn luồng khởi động bot con sau restart.
   await activeBotChildren(api);
-  await startWebServer();
   const { resumeGiveaway } = await import("./service-ngh/game-service/giveaway/giveaway.js");
   try {
     await runWithBotCanvasStyle(api, () => resumeGiveaway(api));
@@ -816,4 +846,5 @@ if (process.env.NGH_LEGACY_LIBRARY !== "1" && process.env.NGH_SERVICE_LIBRARY !=
     if (!childManager?.apiZalo) return;
     void reportRuntimeError(childManager.apiZalo, "self_test", Object.assign(new Error("Đây là cảnh báo thử nghiệm, bot vẫn hoạt động bình thường."), { code: "SELF_TEST" }));
   });
+  }
 }

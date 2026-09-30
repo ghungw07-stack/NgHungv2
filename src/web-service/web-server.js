@@ -27,6 +27,11 @@ import {
   extractPaymentCode,
   isExactMyBotPaymentAmount,
 } from "../manager-bot/payment-code.js";
+import {
+  serializeRecentGroupMessages,
+  serializeConversationMessage,
+  serializeConversationSummary,
+} from "./conversation-view.js";
 
 export class PortManager {
   constructor(basePort = 3000) {
@@ -119,6 +124,12 @@ let lastGroupsFetchTime = {};
 const GROUPS_CACHE_DURATION = 10000;
 
 const ANTI_DELETE = true;
+const DEFAULT_WEB_MESSAGE_TTL = 300_000;
+
+function getWebMessageTtl(delay) {
+  const ttl = Number(delay);
+  return Number.isFinite(ttl) && ttl > 0 ? Math.trunc(ttl) : DEFAULT_WEB_MESSAGE_TTL;
+}
 
 const botSockets = new Map();
 export const getCachedGroups = () => cachedGroups;
@@ -399,8 +410,126 @@ export async function startWebServer() {
   app.get("/send-private-message.html", requireAuth, (req, res) => {
     return res.sendFile(path.join(pagesDir, "send-private-message.html"));
   });
+  app.get("/conversations.html", requireAuth, (req, res) => {
+    return res.sendFile(path.join(pagesDir, "conversations.html"));
+  });
   app.get("/logs.html", requireAuth, (req, res) => {
     return res.sendFile(path.join(pagesDir, "logs.html"));
+  });
+
+  // Trả lịch sử đã lưu lâu dài nhưng chỉ expose shape an toàn; tuyệt đối không
+  // đưa nguyên payload socket Zalo ra trình duyệt.
+  app.get("/api/conversations", async (req, res) => {
+    try {
+      const botId = String(req.query.botId || "").trim().slice(0, 128);
+      if (!botId) return res.status(400).json({ success: false, message: "Thiếu botId" });
+      const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 100, 1), 200);
+      const rows = await connection.collection("messages_log").aggregate([
+        { $match: { botId } },
+        { $sort: { ts: -1 } },
+        {
+          $group: {
+            _id: "$threadId",
+            latest: { $first: "$$ROOT" },
+            otherName: {
+              $max: { $cond: [{ $ne: ["$uidFrom", botId] }, { $ifNull: ["$dName", ""] }, ""] },
+            },
+            directEvidence: {
+              $max: {
+                $cond: [
+                  { $and: [{ $ne: ["$uidFrom", botId] }, { $eq: ["$idTo", botId] }] },
+                  1,
+                  0,
+                ],
+              },
+            },
+            messageCount: { $sum: 1 },
+          },
+        },
+        { $sort: { "latest.ts": -1 } },
+        { $limit: limit },
+      ]).toArray();
+
+      const conversations = rows.map((row) => {
+        const storedTypeRaw = row.latest?.msgWrapType;
+        const storedType = storedTypeRaw == null ? null : Number(storedTypeRaw);
+        const latestIsSelf = String(row.latest?.uidFrom || "") === botId;
+        const conversationType = storedType === MessageType.GroupMessage
+          ? "group"
+          : storedType === MessageType.DirectMessage
+            ? "direct"
+            : row.directEvidence
+              ? "direct"
+              : latestIsSelf ? null : "group";
+        return serializeConversationSummary({ ...row, conversationType }, botId);
+      });
+      return res.json({ success: true, conversations, retention: "unlimited" });
+    } catch (error) {
+      console.error("Lỗi khi lấy danh sách hội thoại:", error);
+      return res.status(500).json({ success: false, message: "Không thể tải danh sách hội thoại" });
+    }
+  });
+
+  app.get("/api/conversations/messages", async (req, res) => {
+    try {
+      const botId = String(req.query.botId || "").trim().slice(0, 128);
+      const threadId = String(req.query.threadId || "").trim().slice(0, 128);
+      if (!botId || !threadId) {
+        return res.status(400).json({ success: false, message: "Thiếu botId hoặc threadId" });
+      }
+      const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 100, 1), 200);
+      const before = Number(req.query.before);
+      const beforeId = String(req.query.beforeId || "").trim().slice(0, 128);
+      const conversationType = req.query.type === "group" ? "group" : "direct";
+      const messageQuery = { botId, threadId };
+      if (Number.isFinite(before) && before > 0) messageQuery.ts = { $lt: before };
+      const rows = await connection.collection("messages_log")
+        .find(
+          messageQuery,
+          {
+            projection: {
+              _id: 0, threadId: 1, msgId: 1, uidFrom: 1, idTo: 1, dName: 1,
+              msgType: 1, msgWrapType: 1, ts: 1, isUndo: 1, payload: 1,
+            },
+          }
+        )
+        .sort({ ts: -1 })
+        .limit(limit + 1)
+        .toArray();
+      let hasMore = rows.length > limit;
+      let messages = rows.slice(0, limit).reverse().map((row) => serializeConversationMessage(row, botId));
+
+      // Với nhóm, API Zalo hỗ trợ cursor nên có thể backfill cả lịch sử cũ đã
+      // bị TTL 24 giờ xóa trước đây. Tin riêng không có endpoint lịch sử tương
+      // đương trong SDK; các tin mới sẽ được giữ vĩnh viễn trong MongoDB.
+      const isOlderPage = Number.isFinite(before) && before > 0;
+      if (conversationType === "group" && (!isOlderPage || beforeId)) {
+        const api = apiManager.get(botId)?.apiZalo;
+        if (api?.getRecentMessages) {
+          try {
+            const cursor = beforeId || 10000000000000000;
+            const groupPageSize = Math.min(limit, 50);
+            const response = await api.getRecentMessages(threadId, cursor, groupPageSize);
+            const fetched = serializeRecentGroupMessages(response, botId, threadId);
+            const recent = fetched
+              .filter((message) => !isOlderPage || message.timestamp < before);
+            if (fetched.length >= groupPageSize) hasMore = true;
+            const merged = new Map();
+            for (const message of recent) merged.set(message.id || `${message.senderId}:${message.timestamp}`, message);
+            for (const message of messages) merged.set(message.id || `${message.senderId}:${message.timestamp}`, message);
+            messages = [...merged.values()]
+              .sort((a, b) => a.timestamp - b.timestamp)
+              .slice(-limit);
+          } catch (error) {
+            console.warn(`Không thể tải lịch sử gần đây của nhóm ${threadId}:`, error?.message || error);
+          }
+        }
+      }
+      return res.json({ success: true, messages, hasMore });
+    } catch (error) {
+      console.error("Lỗi khi lấy nội dung hội thoại:", error);
+      return res.status(500).json({ success: false, message: "Không thể tải nội dung hội thoại" });
+    }
   });
 
   // ── API xem log MongoDB (collection bot_logs) ─────────────────────────
@@ -522,6 +651,10 @@ export async function startWebServer() {
 
       const client = connectedClients.get(socket.id);
       if (client) {
+        const previousBotId = client.currentBotId;
+        if (previousBotId && previousBotId !== botId) {
+          botSockets.get(previousBotId)?.delete(socket.id);
+        }
         client.currentBotId = botId;
       }
 
@@ -644,10 +777,19 @@ export async function startWebServer() {
         if (!cachedGroups[botId] || currentTime - lastGroupsFetchTime[botId] > GROUPS_CACHE_DURATION) {
           const groups = await getDataAllGroup(api);
           const groupSettings = groupSettingsAll.getByID(botId);
-          cachedGroups[botId] = groups.map((group) => ({
-            ...group,
-            settings: groupSettings[group.groupId] || {},
-          }));
+          const groupById = new Map(groups.map((group) => [String(group.groupId), group]));
+          const activeGroupIds = Array.isArray(groups.activeGroupIds)
+            ? groups.activeGroupIds.map(String)
+            : [...groupById.keys()];
+          // Một batch metadata lỗi không được làm nhóm biến mất khỏi web chat.
+          // Membership list vẫn là nguồn chuẩn; dùng placeholder cho tới lần refresh sau.
+          cachedGroups[botId] = activeGroupIds.map((groupId) => {
+            const group = groupById.get(groupId) || { groupId, name: `Nhóm ${groupId}` };
+            return {
+              ...group,
+              settings: groupSettings[groupId] || {},
+            };
+          });
           lastGroupsFetchTime[botId] = currentTime;
         }
         socket.emit("groupsList", cachedGroups[botId], botId);
@@ -657,7 +799,10 @@ export async function startWebServer() {
     });
 
     socket.on("sendMessageToSingle", async (data) => {
-      const { botId, id, type, message, delay } = data;
+      const { botId, id, type, message, delay, permanent, includePendingFiles = true } = data;
+      // Trang hội thoại gửi như Zalo Web (không tự biến mất). Các màn hình gửi
+      // hàng loạt cũ vẫn giữ TTL mặc định để không thay đổi hành vi hiện tại.
+      const ttl = permanent === true ? 0 : getWebMessageTtl(delay);
       const api = apiManager.get(botId || getCurrentBotId(socket))?.apiZalo;
       if (!api) {
         socket.emit("error", "Bot không tồn tại hoặc không hoạt động");
@@ -666,32 +811,37 @@ export async function startWebServer() {
 
       let messageType = type === "friend" ? MessageType.DirectMessage : MessageType.GroupMessage;
       try {
-        if (filePaths.length > 0) {
+        if (includePendingFiles && filePaths.length > 0) {
           await api.sendMessage(
             {
               msg: message,
               attachments: filePaths,
-              ttl: delay ? delay : 0,
+              ttl,
+              useDefaultTtl: false,
               linkOn: true,
-              antiDelete: ANTI_DELETE,
+              antiDelete: false,
             },
             id,
             messageType
           );
         } else {
-          await api.sendMessageForward(
+          await api.sendMessage(
             {
               msg: message,
-              antiDelete: ANTI_DELETE,
+              ttl,
+              useDefaultTtl: false,
+              linkOn: true,
+              antiDelete: false,
             },
             id,
-            messageType,
-            delay ? delay : 0
+            messageType
           );
         }
 
-        await deleteFiles(filePaths);
-        filePaths = [];
+        if (includePendingFiles) {
+          await deleteFiles(filePaths);
+          filePaths = [];
+        }
         socket.emit("messageSent", "Tin nhắn đã được gửi thành công");
       } catch (error) {
         socket.emit("error", "Không thể gửi tin nhắn");
@@ -701,6 +851,7 @@ export async function startWebServer() {
     socket.on("sendMessageAll", async (data) => {
       try {
         const { botId, message, messageType, delay } = data;
+        const ttl = getWebMessageTtl(delay);
         const api = apiManager.get(botId || getCurrentBotId(socket))?.apiZalo;
         if (!api) {
           socket.emit("error", "Bot không tồn tại hoặc không hoạt động");
@@ -718,19 +869,25 @@ export async function startWebServer() {
                   {
                     msg: message,
                     attachments: filePaths,
-                    ttl: delay ? delay : 0,
+                    ttl,
+                    useDefaultTtl: false,
                     linkOn: false,
-                    antiDelete: ANTI_DELETE,
+                    antiDelete: false,
                   },
                   type === MessageType.DirectMessage ? data.userId : data.groupId,
                   type
                 );
               } else {
-                await api.sendMessageForward(
-                  { msg: message, antiDelete: ANTI_DELETE },
+                await api.sendMessage(
+                  {
+                    msg: message,
+                    ttl,
+                    useDefaultTtl: false,
+                    linkOn: false,
+                    antiDelete: false,
+                  },
                   type === MessageType.DirectMessage ? data.userId : data.groupId,
-                  type,
-                  delay ? delay : 0
+                  type
                 );
               }
             }
@@ -748,6 +905,7 @@ export async function startWebServer() {
     socket.on("sendMessageForSelected", async (data) => {
       try {
         const { botId, message, delay } = data;
+        const ttl = getWebMessageTtl(delay);
         const currentBotId = botId || getCurrentBotId(socket);
         if (!currentBotId) {
           socket.emit("error", "Không tìm thấy bot ID");
@@ -771,19 +929,25 @@ export async function startWebServer() {
                 {
                   msg: message,
                   attachments: filePaths,
-                  ttl: delay ? delay : 0,
+                  ttl,
+                  useDefaultTtl: false,
                   linkOn: false,
-                  antiDelete: ANTI_DELETE,
+                  antiDelete: false,
                 },
                 friendId,
                 MessageType.DirectMessage
               );
             } else {
-              await api.sendMessageForward(
-                { msg: message, antiDelete: ANTI_DELETE },
+              await api.sendMessage(
+                {
+                  msg: message,
+                  ttl,
+                  useDefaultTtl: false,
+                  linkOn: false,
+                  antiDelete: false,
+                },
                 friendId,
-                MessageType.DirectMessage,
-                delay ? delay : 0
+                MessageType.DirectMessage
               );
             }
           } catch (error) {}
@@ -795,19 +959,25 @@ export async function startWebServer() {
                 {
                   msg: message,
                   attachments: filePaths,
-                  ttl: delay ? delay : 0,
+                  ttl,
+                  useDefaultTtl: false,
                   linkOn: false,
-                  antiDelete: ANTI_DELETE,
+                  antiDelete: false,
                 },
                 groupId,
                 MessageType.GroupMessage
               );
             } else {
-              await api.sendMessageForward(
-                { msg: message, antiDelete: ANTI_DELETE },
+              await api.sendMessage(
+                {
+                  msg: message,
+                  ttl,
+                  useDefaultTtl: false,
+                  linkOn: false,
+                  antiDelete: false,
+                },
                 groupId,
-                MessageType.GroupMessage,
-                delay ? delay : 0
+                MessageType.GroupMessage
               );
             }
           } catch (error) {}
@@ -1818,7 +1988,7 @@ export async function startWebServer() {
     });
   });
 
-  const PORT = Number(process.env.PORT) || 3000; // Port cố định để Sepay webhook hoạt động ổn định (có thể override khi test)
+  const PORT = Number(process.env.PORT) || portManager.getAvailablePort();
   // Bind locally; public access goes through Cloudflare Tunnel only.
   httpServer.listen(PORT, "127.0.0.1", () => {
   });

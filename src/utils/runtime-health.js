@@ -1,12 +1,14 @@
 import { pingDatabase } from "../database/state.js";
-import { getRuntimeQueueStats } from "./runtime-work-queue.js";
+import { getRuntimeQueueStats, isRuntimeMemoryPressure } from "./runtime-work-queue.js";
 import { getBackgroundQueueStats } from "./background-work-queue.js";
 import { getNativeRuntimeStats } from "./native-runtime.js";
 
 const DEFAULT_INTERVAL_MS = 60_000;
 // Keep this aligned with the queue's default pressure point. Native image and
 // media libraries make RSS materially larger than V8 heap usage in this bot.
-const DEFAULT_RSS_LIMIT = 2 * 1024 * 1024 * 1024;
+const DEFAULT_RSS_LIMIT = 500 * 1024 * 1024;
+const PRESSURE_GC_COOLDOWN_MS = 60_000;
+let lastPressureGcAt = 0;
 
 const withTimeout = (promise, timeoutMs, label) =>
   new Promise((resolve, reject) => {
@@ -80,8 +82,33 @@ export function startRuntimeHealthMonitor(api, {
           recoveringSocket = false;
         }
       }
-      const memoryPressure = health.queue?.memoryPressure === true ||
-        (health.memory.rss >= rssLimitBytes && (health.queue?.systemFreeMemoryRatio ?? 1) < 0.2);
+      const hasMemoryPressure = () => health.queue?.memoryPressure === true || isRuntimeMemoryPressure({
+        rss: health.memory.rss,
+        rssLimit: rssLimitBytes,
+        freeMemoryRatio: health.queue?.systemFreeMemoryRatio ?? 1,
+      });
+      let memoryPressure = hasMemoryPressure();
+      // Canvas/Cairo buffers are released by finalizers outside V8's normal
+      // heap pressure. Under RSS pressure, an idle collection runs those
+      // finalizers and lets glibc return native pages to the OS. The cooldown
+      // prevents GC churn while commands are busy.
+      if (
+        memoryPressure &&
+        typeof global.gc === "function" &&
+        health.queue?.active === 0 &&
+        health.queue?.pending === 0 &&
+        Date.now() - lastPressureGcAt >= PRESSURE_GC_COOLDOWN_MS
+      ) {
+        lastPressureGcAt = Date.now();
+        global.gc();
+        const memoryAfterGc = process.memoryUsage();
+        health.memory = {
+          rss: memoryAfterGc.rss,
+          heapUsed: memoryAfterGc.heapUsed,
+          external: memoryAfterGc.external,
+        };
+        memoryPressure = hasMemoryPressure();
+      }
       if (!health.database.ok || memoryPressure || !health.socket.ok || health.runtime?.ok === false) {
         onHealth?.(health);
       }

@@ -6,6 +6,7 @@ import { isAdmin } from "../../index.js";
 import { handleSendTrackSoundCloud } from "./music-content/soundcloud.js";
 import { handleSendTrackNhacCuaTui } from "./music-content/nhaccuatui.js";
 import { handleSendTrackMixcloud } from "./music-content/mixcloud.js";
+import { handleSendMemeVoice } from "./music-content/memevoice.js";
 import { handleSendMediaYoutube } from "./youtube/youtube-service.js";
 import { deleteFile } from "../../utils/util.js";
 import { handleSendTemplateCapcut } from "./capcut/capcut-service.js";
@@ -17,13 +18,16 @@ import { PLATFORM_CLIPPHOT, processStageClipHot } from "./video-content/cliphot.
 import { PLATFORM_MOTPHIM, processMotPhimStageReply } from "./video-content/mot-phim.js";
 import { sendMessageWarningRequest } from "../chat-zalo/chat-style/chat-style.js";
 import { PLATFORM_KHOPHIM, processKhoPhimStageReply } from "./video-content/kho-phim.js";
+import { PLATFORM_LAUPHIM, processLauPhimStageReply } from "./video-content/lauphim.js";
 import { PLATFORM_NETTRUYEN, processNetTruyenStageReply } from "./image-content/nettruyen.js";
 import { PLATFORM_CNOVEL, processCNovelTruyenChuStageReply } from "./content/cnovel-truyen-chu.js";
+import { PLATFORM_CELLPHONES, processCellphonesDetailReply } from "./content/cellphones-search.js";
 import { handleSendTrackSpotify } from "./music-content/spotify/spotify.js";
 import { PLATFORM_TENOR, processSendTenorSticker } from "./image-content/tenor.js";
 import { PLATFORM_TRUYEN_HENTAI, processTruyenHentaiStageReply } from "./image-content/hentai.js";
 import { handleSendTruyenSexVLDetail } from "../../commands/send-all/truyensex.js";
 import { findRecentMessages } from "../../commands/bot-manager/recent-message.js";
+import { withoutZaloRequestPriority } from "../../api-zalo/utils.js";
 
 const TIME_TO_SELECT = 60000;
 export const selectionsMapData = new LRUCache({
@@ -40,6 +44,27 @@ export function deleteSelectionsMapData(idUser) {
   if (selectionsMapData.has(idUser)) {
     selectionsMapData.delete(idUser);
   }
+}
+
+function cleanupSelectionMessage(api, message, quotedMsgId) {
+  setImmediate(() => {
+    void withoutZaloRequestPriority(async () => {
+      const findQuotedMsg = await findRecentMessages(api, message, quotedMsgId).catch(() => null);
+      const msgDel = {
+        type: message.type,
+        threadId: message.threadId,
+        data: {
+          cliMsgId: findQuotedMsg?.cliMsgId || Date.now(),
+          msgId: quotedMsgId,
+          uidFrom: api.getBotId(),
+        },
+      };
+      await Promise.allSettled([
+        api.deleteMessage(msgDel, false),
+        api.addReaction("CLOCK", message),
+      ]);
+    }).catch(() => {});
+  });
 }
 
 // Cú pháp chọn nhanh: "từ khóa >>1" hoặc "từ khóa >>1 audio".
@@ -89,6 +114,7 @@ export async function checkReplySelectionsMapData(api, message, isAdminLevelHigh
       PLATFORM_NETTRUYEN,
       PLATFORM_TRUYEN_HENTAI,
       PLATFORM_CNOVEL,
+      PLATFORM_LAUPHIM,
     ];
     const { collection, quotedMsgId, platform, stage } = data;
     const requiresValidation = !arrNoneIndex.includes(platform) || stage === 1;
@@ -107,16 +133,10 @@ export async function checkReplySelectionsMapData(api, message, isAdminLevelHigh
     if (!media) return;
 
     deleteSelectionsMapData(senderId);
-    const findQuotedMsg = await findRecentMessages(api, message, quotedMsgId);
-    const msgDel = {
-      type: message.type,
-      threadId: message.threadId,
-      data: { cliMsgId: findQuotedMsg?.cliMsgId || Date.now(), msgId: quotedMsgId, uidFrom: api.getBotId() },
-    };
-    try {
-      await api.deleteMessage(msgDel, false);
-    } catch {}
-    await api.addReaction("CLOCK", message);
+    // Removing the old selection card and showing CLOCK are cosmetic. Start
+    // the selected download/send immediately instead of waiting for history
+    // lookup plus two Zalo round-trips first.
+    cleanupSelectionMessage(api, message, quotedMsgId);
 
     switch (data.platform) {
       case "truyensexvl":
@@ -127,6 +147,8 @@ export async function checkReplySelectionsMapData(api, message, isAdminLevelHigh
         return await handleSendTrackSoundCloud(api, message, media);
       case "mixcloud":
         return await handleSendTrackMixcloud(api, message, media);
+      case "memevoice":
+        return await handleSendMemeVoice(api, message, media);
       case "spotify":
         return await handleSendTrackSpotify(api, message, media);
       case "nhaccuatui":
@@ -193,12 +215,16 @@ export async function checkReplySelectionsMapData(api, message, isAdminLevelHigh
         return await processMotPhimStageReply(api, message, data, selectionFinal);
       case PLATFORM_KHOPHIM:
         return await processKhoPhimStageReply(api, message, data, selectionFinal);
+      case PLATFORM_LAUPHIM:
+        return await processLauPhimStageReply(api, message, data, selectionFinal);
       case PLATFORM_NETTRUYEN:
         return await processNetTruyenStageReply(api, message, data, selectionFinal);
       case PLATFORM_TRUYEN_HENTAI:
         return await processTruyenHentaiStageReply(api, message, data, selectionFinal);
       case PLATFORM_CNOVEL:
         return await processCNovelTruyenChuStageReply(api, message, data, selectionFinal);
+      case PLATFORM_CELLPHONES:
+        return await processCellphonesDetailReply(api, message, media);
       case PLATFORM_TENOR:
         return await processSendTenorSticker(api, message, media);
     }

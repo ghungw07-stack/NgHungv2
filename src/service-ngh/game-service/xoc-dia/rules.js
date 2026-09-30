@@ -75,7 +75,7 @@ export function coinsForRedCount(redCount, random = Math.random) {
   return coins;
 }
 
-export function chooseXocDiaCoins(players = {}, { random = Math.random, houseBiasChance = 0.6 } = {}) {
+export function chooseXocDiaCoins(players = {}, { random = Math.random, houseBiasChance = 0.18 } = {}) {
   const naturalCoins = shakeXocDiaCoins(random);
   const bets = Object.values(players || {});
   if (!bets.length || random() >= houseBiasChance) return naturalCoins;

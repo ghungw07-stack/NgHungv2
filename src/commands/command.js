@@ -2,6 +2,7 @@ import { resolveQuickBet } from "../service-ngh/game-service/shared/quick-bet.js
 import { allowGameRequest } from "../utils/game-admission.js";
 import { getReplyAdminCommandText } from "../utils/admin-command-text.js";
 import { isGiveawayJoinText } from "../utils/message-routing.js";
+import { withoutZaloRequestPriority } from "../api-zalo/utils.js";
 import { handleMuteList, handleMuteUser, handleUnmuteUser } from "../service-ngh/anti-service/mute-user.js";
 import { handleWelcomeBye, handleApprove, handleUpdateGroup, handleKickImageCommand, handleBlockImageCommand, handleSendUserMemberCommand } from "./bot-manager/welcome-bye.js";
 import { handleBlock,
@@ -11,6 +12,7 @@ import { handleBlock,
   handlePinConversation, 
   handleHiddenConversation,
   handleUpgradeGroupToCommunity,
+  handleUpgradeBusinessBasic,
   handlePinGroupMsg
 } from "./bot-manager/group-manage.js";
 import { handleUpdateProfile, handleCreatePoll, handleSpamPoll, handleSendReport } from "./bot-manager/utilities.js";
@@ -34,10 +36,12 @@ import { handleCheckTuongLienQuanCommand } from "../service-ngh/api-crawl/conten
 import { handleCheckTuongLMHTCommand } from "../service-ngh/api-crawl/content/info-lmht.js";
 import { handleCheckOrderDeliveryCommand } from "../service-ngh/api-crawl/content/check-giao-hang.js";
 import { handleShopeeCommand } from "../service-ngh/api-crawl/content/shopee.js";
+import { handleCellphonesSearchCommand } from "../service-ngh/api-crawl/content/cellphones-search.js";
 import { handleCheckDomainNameCommand, handleCheckIPCommand } from "../service-ngh/api-crawl/content/check-host.js";
 import { handleCheckClipphotCommand } from "../service-ngh/api-crawl/video-content/cliphot.js";
 import { handleMotPhimCommand } from "../service-ngh/api-crawl/video-content/mot-phim.js";
 import { handleKhoPhimCommand } from "../service-ngh/api-crawl/video-content/kho-phim.js";
+import { handleLauPhimCommand } from "../service-ngh/api-crawl/video-content/lauphim.js";
 import { handleXoSoCommand } from "../service-ngh/api-crawl/content/xo-so.js";
 import { handleFootballCommand } from "../service-ngh/api-crawl/content/football.js";
 import { handleAutoDownloadAndReplyCommand } from "../service-ngh/api-crawl/api-download/auto-download.js";
@@ -45,6 +49,7 @@ import { searchImagePinterest } from "../service-ngh/api-crawl/image-content/pin
 import { handleTikTokCommand } from "../service-ngh/api-crawl/tiktok/tiktok-service.js";
 import { handleMusicCommand } from "../service-ngh/api-crawl/music-content/soundcloud.js";
 import { handleMixcloudCommand } from "../service-ngh/api-crawl/music-content/mixcloud.js";
+import { handleMemeVoiceCommand } from "../service-ngh/api-crawl/music-content/memevoice.js";
 import { handleTopChartZingMp3, handleZingMp3Command } from "../service-ngh/api-crawl/music-content/zingmp3.js";
 import { handleYoutubeCommand } from "../service-ngh/api-crawl/youtube/youtube-service.js";
 import { handleNhacCuaTuiCommand } from "../service-ngh/api-crawl/music-content/nhaccuatui.js";
@@ -108,6 +113,7 @@ import {
   handleRutCommand,
   handleSetVNDCommand,
   handleStatementCommand,
+  handleGameLoanCommand,
   handleTopPlayers,
   handleUnbanCommand,
   handleDonateRankCommand,
@@ -167,12 +173,15 @@ import {
   handleTarrotCommand,
   handleVoiceCommand,
 } from "../service-ngh/chat-zalo/chat-special/send-voice/send-voice.js";
+import { handleVClipCommand } from "../service-ngh/chat-zalo/chat-special/send-voice/vclip-command.js";
 import { antiNude, handleAntiNudeCommand } from "../service-ngh/anti-service/anti-nude/anti-nude.js";
 import { handleSettingGroupCommand } from "./bot-manager/group-manage.js";
 import { handleVietlott655Command } from "../service-ngh/game-service/vietlott/vietlott655.js";
 import { handleXoSoNhanhCommand } from "../service-ngh/game-service/xoso-nhanh/xoso-nhanh.js";
+import { handleVeSoCommand } from "../service-ngh/game-service/ve-so/ve-so.js";
 import { getCurrentPrivateGameServer, isPrivateGameServerManager } from "../service-ngh/game-service/private-game-server.js";
 import { handleMiniGameCommand } from "../service-ngh/game-service/mini-game/index.js";
+import { handlePokerCommand } from "../service-ngh/game-service/mini-game/poker/index.js";
 import { handleJoinGroup, handleLeaveGroup, handleShowGroupsList, handleLeaveLockedGroups, handleLeaveAllGroup } from "./bot-manager/remote-action-group.js";
 import { removeMention } from "../utils/format-util.js";
 import { handleWhiteList } from "../service-ngh/anti-service/white-list.js";
@@ -191,9 +200,12 @@ import { handleDaGaBet } from "../service-ngh/game-service/da-ga/da-ga.js";
 import { handleMines, minesContinuation } from "../service-ngh/game-service/mines/mines.js";
 import { handleNuoiRongCommand, nuoiRongContinuation } from "../service-ngh/game-service/nuoi-rong/nuoi-rong.js";
 import { handleTower, towerContinuation } from "../service-ngh/game-service/thap/thap.js";
+import { handleHighLow, highLowContinuation } from "../service-ngh/game-service/high-low/high-low.js";
 import { handleLuckyWheel } from "../service-ngh/game-service/vong-quay/vong-quay.js";
 import { handleNoHu } from "../service-ngh/game-service/nohu/nohu.js";
+import { handleElementalGame } from "../service-ngh/game-service/nguyen-to/nguyen-to.js";
 import { handleCoPhieuAo } from "../service-ngh/game-service/cophieuao/cophieuao.js";
+import { handleForex } from "../service-ngh/game-service/forex/forex.js";
 import { getPermissionCommandName, handleSetCommandActive, isCommandDisabledInGroup } from "./manager-command/set-command.js";
 import { scanGroupsWithAction } from "./bot-manager/scan-group.js";
 import { handleDeleteMessage } from "./bot-manager/recent-message.js";
@@ -246,6 +258,7 @@ import { gameTypeCauCa } from "../service-ngh/game-service/mini-game/cauca/index
 import { handleBenchmarkCommand } from "../service-ngh/utilities/benchmark/index.js";
 import { handleAntiFile } from "../service-ngh/anti-service/anti-file.js";
 import { handleAutoReplyCommand } from "../service-ngh/api-crawl/assistant-ai/auto-reply-gemini.js";
+import { handleAutoReplyTagCommand } from "../service-ngh/chat-zalo/chat-special/auto-reply-tag/auto-reply-tag.js";
 import { handleGifTextCommand } from "../service-ngh/chat-zalo/chat-special/send-gif/send-gif.js";
 import { handleVideoToGifCommand } from "../service-ngh/chat-zalo/chat-special/send-gif/gifvd.js";
 import { handleSimValuationCommand } from "./send-all/dinhgiasim.js";
@@ -262,6 +275,7 @@ import { searchImagePexels } from "../service-ngh/api-crawl/image-content/pexels
 import { handleLoveCommand } from "./send-all/lovelink.js";
 import { handleQrcodeCommand, handleScanQrcodeCommand } from "./send-all/send-qrcode.js"
 import { handleAntiTagCommand } from "../service-ngh/anti-service/anti-tag.js";
+import { handleAntiTagAllCommand } from "../service-ngh/anti-service/anti-tag-all.js";
 import { handleAntiBotCommand } from "../service-ngh/anti-service/anti-bot.js";
 import { sendMessageToMentioned } from "./send-all/sendmsg-user.js";
 import { handleAntiAllEffectGifCommand } from "../service-ngh/anti-service/anti-gif.js";
@@ -289,6 +303,12 @@ import { handleCreateAutoReplyCommand,
 } from "./bot-manager/summary.js";
 import { handleCheckGiaVangCommand } from "./send-all/check-gia-vang.js";
 import { handleCheckGiaXangCommand } from "./send-all/check-gia-xang.js";
+import {
+  handleCheckTienTeCommand,
+  handleCheckCoPhieuCommand,
+  handleCheckCryptoCommand,
+  handleCheckLaiSuatCommand,
+} from "./send-all/market-check.js";
 import { handleTrolGayLessCommand } from "./send-all/checkgayless.js";
 import { handleAntiInvite } from "../service-ngh/anti-service/anti-invite.js";
 import { handleHeartReactionDeleteCommand } from "../automations/reaction-delete.js";
@@ -296,6 +316,7 @@ import { resolveReactionInput } from "../api-zalo/models/Reaction.js";
 import { MessageType } from "../api-zalo/index.js";
 import { handleEventSendMessage } from "./bot-manager/event-sendmsg.js";
 import { getCommandCooldownSeconds } from "../utils/command-cooldown.js";
+import { enforceGameCaptcha } from "../service-ngh/game-service/game-captcha.js";
 
 const lastCommandUsage = {};
 const COMMAND_USAGE_RETENTION_MS = 24 * 60 * 60 * 1000;
@@ -453,6 +474,8 @@ const antiCommandAliases = {
   voice: "antivoice",
   antitag: "antitag",
   tag: "antitag",
+  antitagall: "antitagall",
+  tagall: "antitagall",
   antiphonenumber: "antiphonenumber",
   phonenumber: "antiphonenumber",
   phone: "antiphonenumber",
@@ -524,7 +547,7 @@ async function handleAntiCommandFamily(api, message, aliasCommand, groupSettings
     await sendMessageFailed(
       api,
       message,
-      `Dùng: ${prefix}anti <all|badword|media|file|forward|invite|bot|link|gif|spam|nude|undo|stickereffect|text|voice|tag|phone|sticker|photo> <on|off>`,
+      `Dùng: ${prefix}anti <all|badword|media|file|forward|invite|bot|link|gif|spam|nude|undo|stickereffect|text|voice|tag|tagall|phone|sticker|photo> <on|off>`,
       false
     );
     return false;
@@ -552,6 +575,7 @@ async function handleAntiCommandFamily(api, message, aliasCommand, groupSettings
     case "onlytext": return await handleOnlyText(api, routedMessage, groupSettings);
     case "antivoice": return await handleAntiVoiceCommand(api, routedMessage, groupSettings);
     case "antitag": return await handleAntiTagCommand(api, routedMessage, groupSettings);
+    case "antitagall": return await handleAntiTagAllCommand(api, routedMessage, groupSettings);
     case "antiphonenumber": return await handleAntiPhoneNumber(api, routedMessage, groupSettings);
     case "antisticker": return await handleAntiAllEffectStickerCommand(api, routedMessage, groupSettings);
     case "antiphoto": return await handleAntiPhotoVideo(api, routedMessage, groupSettings, antiCommand);
@@ -893,9 +917,10 @@ const GAME_COMMANDS_REQUIRING_PREFIX = new Set([
   "lixi",
   "quy",
   "nap",
-  "rut",
   "bank",
   "nganhang",
+  "nh",
+  "vay",
   "tier",
   "hide",
   "rank",
@@ -927,13 +952,24 @@ async function handleCoreGameCommand(api, message, command, groupSettings, alias
       await handleNapCommand(api, message, groupSettings);
       return true;
     case "rut":
-      await handleRutCommand(api, message, groupSettings);
+    case "rút": {
+      const prefix = getGlobalPrefix(api.getBotId());
+      const payload = getCommandPayload(message, prefix, aliasCommand);
+      if (message.__originalQuoteMessage || payload) await handleRutCommand(api, message, groupSettings);
+      else {
+        await handleElementalGame(api, createRoutedCommandMessage(message, `${prefix}xoaynuoc rut`), groupSettings);
+      }
       return true;
+    }
     case "bank":
       await handleBankCommand(api, message, groupSettings);
       return true;
     case "nganhang":
+    case "nh":
       await handleSavingsBankCommand(api, message, groupSettings);
+      return true;
+    case "vay":
+      await handleGameLoanCommand(api, message, groupSettings);
       return true;
     case "saoke":
       await handleStatementCommand(api, message, groupSettings);
@@ -1035,6 +1071,13 @@ async function handleCoreGameCommand(api, message, command, groupSettings, alias
     case "tower":
       await handleTower(api, message, groupSettings);
       return true;
+    case "hl":
+    case "highlow":
+    case "high-low":
+    case "caothap":
+    case "cao-thap":
+      await handleHighLow(api, message, groupSettings);
+      return true;
     case "maybay":
     case "maybaycrash":
     case "crash":
@@ -1060,15 +1103,29 @@ async function handleCoreGameCommand(api, message, command, groupSettings, alias
     case "vongquay":
     case "wheel":
     case "luckywheel":
-    case "quay":
     case "vq":
       await handleLuckyWheel(api, message, groupSettings);
       return true;
     case "nohu":
       await handleNoHu(api, message, groupSettings);
       return true;
+    case "xoaynuoc":
+    case "xoay-nuoc":
+    case "xn":
+    case "quay":
+    case "nguyento":
+    case "nguyen-to":
+    case "element":
+    case "elements":
+    case "nt":
+      await handleElementalGame(api, message, groupSettings);
+      return true;
     case "cophieuao":
       await handleCoPhieuAo(api, message, groupSettings);
+      return true;
+    case "forex":
+    case "fx":
+      await handleForex(api, message, groupSettings);
       return true;
     case "xidach":
       await handleXiDachCommand(api, message, groupSettings);
@@ -1103,6 +1160,11 @@ async function handleCoreGameCommand(api, message, command, groupSettings, alias
       return true;
     case "vietlott655":
       await handleVietlott655Command(api, message, groupSettings, aliasCommand);
+      return true;
+    case "veso":
+    case "vs":
+    case "xs60s":
+      await handleVeSoCommand(api, message, groupSettings);
       return true;
     case "xsn":
     case "xoso45s":
@@ -1149,7 +1211,10 @@ export function getCommand(botId, command) {
   if (!cmdFind && ["quyetchien", "qchien", "bandito", "wildbandito"].includes(String(command).toLowerCase())) {
     return { name: "quyetchien", alias: ["qchien", "bandito", "wildbandito"], permission: "all", countdown: 1, type: 5, active: true };
   }
-  if (!cmdFind && ["nohu", "cophieuao", "mines", "mine", "domin", "vongquay", "pid", "thap", "leothap", "tower", "cuoptien", "cuop", "daga", "da-ga", "dagacua", "xoatier", "xoa-tier", "resettier", "reset-tier"].includes(String(command).toLowerCase())) {
+  if (!cmdFind && ["hl", "highlow", "high-low", "caothap", "cao-thap"].includes(String(command).toLowerCase())) {
+    return { name: "highlow", alias: ["hl", "high-low", "caothap", "cao-thap"], permission: "all", countdown: 1, type: 5, active: true };
+  }
+  if (!cmdFind && ["nohu", "xoaynuoc", "xoay-nuoc", "xn", "quay", "rut", "rút", "nguyento", "nguyen-to", "element", "elements", "nt", "cophieuao", "forex", "fx", "mines", "mine", "domin", "vongquay", "pid", "thap", "leothap", "tower", "cuoptien", "cuop", "daga", "da-ga", "dagacua", "xoatier", "xoa-tier", "resettier", "reset-tier"].includes(String(command).toLowerCase())) {
     return { name: String(command).toLowerCase(), alias: [], permission: "all", countdown: 1, type: 5, active: true };
   }
   return cmdFind;
@@ -1252,11 +1317,11 @@ export function sendReactionConfirmReceive(api, message, numHandleCommand) {
     const reaction = resolveReactionInput(configured) || fallbackReaction;
     // Reaction chỉ là hiệu ứng phụ. Không chặn command bằng một round-trip Zalo
     // vì request này có thể đứng sau upload/PR và làm phản hồi trễ vài giây.
-    void api.addReaction(reaction, message).catch(async (error) => {
+    void withoutZaloRequestPriority(() => api.addReaction(reaction, message)).catch(async (error) => {
       console.warn(`[reaction] Icon ${String(configured)} thất bại: ${error?.message || error}`);
       if (reaction === fallbackReaction) return;
       try {
-        await api.addReaction(fallbackReaction, message);
+        await withoutZaloRequestPriority(() => api.addReaction(fallbackReaction, message));
       } catch (fallbackError) {
         console.warn(`[reaction] Icon mặc định :d (${fallbackReaction}) cũng thất bại: ${fallbackError?.message || fallbackError}`);
       }
@@ -1296,6 +1361,7 @@ export function initGroupSettings(groupSettings, threadId, nameGroup) {
     autoJoinGroup: false,
     antiVoice: false,
     antiTag: false,
+    antiTagAll: false,
     antiSticker: false,
     antiPhotoVideo: false,
     antiPhoneNumber: false,
@@ -1380,7 +1446,6 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
   const managerBot = api.apiManager.getDataManager();
 
   if (isUserBlocked(botId, senderId)) return -1;
-
   // Các thao tác game không prefix vẫn phải tuân theo công tắc game tin riêng.
   if (managerBot.onGamePrivate) {
     // Ma Sói dùng toàn bộ thao tác bí mật và mã vào phòng qua tin nhắn riêng, không cần prefix.
@@ -1405,6 +1470,8 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
 
     const towerText = towerContinuation(api, message, content);
     if (towerText) { message = createRoutedCommandMessage(message, towerText); content = towerText; }
+    const highLowText = highLowContinuation(api, message, content);
+    if (highLowText) { message = createRoutedCommandMessage(message, highLowText); content = highLowText; }
     if (isGiveawayJoinText(content, message)) {
       content = `${prefix}game giveaway`;
       message = createRoutedCommandMessage(message, content);
@@ -1434,6 +1501,8 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
     }
     let commandLowerCase = command.toLowerCase();
     if (isBareGameCommand(commandLowerCase)) return 1;
+    const privateGameCommandInfo = getCommand(botId, commandLowerCase);
+    if (privateGameCommandInfo?.type === 5 && !(await enforceGameCaptcha(api, message))) return 0;
     const isMyBotSelfServiceCommand =
       command.toLowerCase() === "mybot" &&
       ["qrlogin", "active", "extend", "approve", "addtime", "subtime", "settime"].includes(
@@ -1493,7 +1562,7 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
       managerCommand.notAllowedCommand.includes(command)
     ) return numHandleCommand;
 
-    await sendReactionConfirmReceive(api, message, numHandleCommand);
+    sendReactionConfirmReceive(api, message, numHandleCommand);
     const managerData = api.apiManager.getDataManager();
     if (!managerData.listAcceptUseCommandPrivate) managerData.listAcceptUseCommandPrivate = [];
     let isAcceptCommandPrivate = managerData.listAcceptUseCommandPrivate.includes(senderId);
@@ -1576,6 +1645,9 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
             return 0;
           case "upgradecommunity":
             await handleUpgradeGroupToCommunity(api, message, groupInfo);
+            return 0;
+          case "upbasic":
+            await handleUpgradeBusinessBasic(api, message);
             return 0;
           case "inviteall":
             await handleInviteAllFriendsCommand(api, message, aliasCommand);
@@ -1694,6 +1766,9 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
           case "voice":
             await handleVoiceCommand(api, message, aliasCommand);
             return 0;
+          case "vclip":
+            await handleVClipCommand(api, message, aliasCommand);
+            return 0;
           case "truyencuoi":
             await handleStoryCommand(api, message);
             return 0;
@@ -1705,6 +1780,9 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
             return 0;
           case "mixcloud":
             await handleMixcloudCommand(api, message, aliasCommand);
+            return 0;
+          case "memevoice":
+            await handleMemeVoiceCommand(api, message, aliasCommand);
             return 0;
           case "spotify":
             await handleMusicSpotifyCommand(api, message, aliasCommand);
@@ -1729,6 +1807,9 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
             return 0;
           case "shopee":
             await handleShopeeCommand(api, message, aliasCommand);
+            return 0;
+          case "cellphone":
+            await handleCellphonesSearchCommand(api, message, aliasCommand);
             return 0;
           case "capcut":
             await handleCapcutCommand(api, message, aliasCommand);
@@ -1799,6 +1880,9 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
           case "khophim":
             await handleKhoPhimCommand(api, message, aliasCommand);
             return 0;
+          case "lauphim":
+            await handleLauPhimCommand(api, message, aliasCommand);
+            return 0;
           case "lienquanmobile":
             await handleCheckTuongLienQuanCommand(api, message, aliasCommand);
             return 0;
@@ -1831,6 +1915,18 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
             return 0;
           case "giaxang":
             await handleCheckGiaXangCommand(api, message);
+            return 0;
+          case "tiente":
+            await handleCheckTienTeCommand(api, message);
+            return 0;
+          case "cophieu":
+            await handleCheckCoPhieuCommand(api, message);
+            return 0;
+          case "crypto":
+            await handleCheckCryptoCommand(api, message);
+            return 0;
+          case "laisuat":
+            await handleCheckLaiSuatCommand(api, message);
             return 0;
           case "getlogin":
             await handleGetCookieImeiByQR(api, message);
@@ -2074,6 +2170,11 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
           case "bancafish":
           case "keno":
           case "thap":
+          case "hl":
+          case "highlow":
+          case "high-low":
+          case "caothap":
+          case "cao-thap":
           case "maybay":
           case "maybaycrash":
           case "crash":
@@ -2093,7 +2194,19 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
           case "quay":
           case "vq":
           case "nohu":
+          case "rut":
+          case "rút":
+          case "xoaynuoc":
+          case "xoay-nuoc":
+          case "xn":
+          case "nguyento":
+          case "nguyen-to":
+          case "element":
+          case "elements":
+          case "nt":
           case "cophieuao":
+          case "forex":
+          case "fx":
           case "taixiu":
           case "xidach":
           case "baicao":
@@ -2108,6 +2221,9 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
           case "dagacua":
           case "nuoirong":
           case "vietlott655":
+          case "veso":
+          case "vs":
+          case "xs60s":
           case "xsn":
           case "xoso45s":
           case "xs45s":
@@ -2115,6 +2231,9 @@ export async function handleCommandPrivate(api, message, isAdminLevelHighest, is
           case "lode":
           case "xsmb45s":
             await handleCoreGameCommand(api, message, command, undefined, aliasCommand);
+            return 0;
+          case "poker":
+            await handlePokerCommand(api, message, aliasCommand);
             return 0;
         }
       } else {
@@ -2236,6 +2355,8 @@ export async function handleCommand(
 
   const towerText = towerContinuation(api, message, content);
   if (towerText) { message = createRoutedCommandMessage(message, towerText); content = towerText; }
+  const highLowText = highLowContinuation(api, message, content);
+  if (highLowText) { message = createRoutedCommandMessage(message, highLowText); content = highLowText; }
   if (isGiveawayJoinText(content, message)) {
     content = `${prefix}game giveaway`;
     message = createRoutedCommandMessage(message, content);
@@ -2306,6 +2427,17 @@ export async function handleCommand(
     const groupCommandInfo = getCommand(botId, commandLowerCase);
     const canonicalGroupCommand = groupCommandInfo?.name || commandLowerCase;
     if (isCommandDisabledInGroup(botId, canonicalGroupCommand, threadId)) return numHandleCommand;
+    // Bot Leader được phép vận hành game để kiểm tra/quản trị ngay cả khi
+    // nhóm đang tắt một trong hai công tắc activeBot/activeGame. Điều kiện
+    // này phải đồng nhất với kiểm tra bypass ở phía dưới; nếu chặn ở đây thì
+    // Bot Leader không bao giờ đi tới được nhánh bypass đó.
+    const botLeaderBypassesGroupSwitches = isBotLeader(botId, senderId);
+    if (
+      groupCommandInfo?.type === 5 &&
+      (!isGroupActiveBot || !isGroupActiveGame) &&
+      !botLeaderBypassesGroupSwitches
+    ) return numHandleCommand;
+    if (groupCommandInfo?.type === 5 && !(await enforceGameCaptcha(api, message))) return numHandleCommand;
     // Bỏ im lặng spam game trước cooldown, DB, canvas và request Zalo.
     if (groupCommandInfo?.type === 5 && !allowGameRequest(botId, threadId, senderId)) return numHandleCommand;
     const fnAfterCountdown = async () =>
@@ -2383,7 +2515,6 @@ export async function handleCommand(
 
     // Bot Leader đã xác thực được phép kiểm tra/vận hành game qua bot con dù
     // nhóm đang tắt activeBot hoặc activeGame. Các tài khoản khác giữ nguyên.
-    const botLeaderBypassesGroupSwitches = isBotLeader(botId, senderId);
     if (numHandleCommand === 5 && (!isGroupActiveBot || !isGroupActiveGame) && !botLeaderBypassesGroupSwitches) {
       if (isAdminBot) {
         const requiredCommands = [];
@@ -2420,7 +2551,7 @@ export async function handleCommand(
     // Lệnh đã vượt qua kiểm tra quyền và trạng thái ở phía trên thì luôn xác
     // nhận bằng reaction. Trước đây admin chạy lệnh khi bot group đang OFF vẫn
     // nhận được kết quả, nhưng reaction bị bỏ qua vì phụ thuộc activeBot.
-    await sendReactionConfirmReceive(api, message, numHandleCommand);
+    sendReactionConfirmReceive(api, message, numHandleCommand);
 
     switch (command) {
       case "event.sendmsg":
@@ -2594,6 +2725,10 @@ export async function handleCommand(
 
       case "autoreply":
         isChangeSetting = await handleAutoReplyCommand(api, message, aliasCommand, groupSettings);
+        break;
+
+      case "autoreplytag":
+        await handleAutoReplyTagCommand(api, message, aliasCommand);
         break;
 
       case "scold":
@@ -2821,6 +2956,10 @@ export async function handleCommand(
                 await handleUpgradeGroupToCommunity(api, message, groupInfo);
                 break;
 
+              case "upbasic":
+                await handleUpgradeBusinessBasic(api, message);
+                break;
+
               case "inviteall":
                 await handleInviteAllFriendsCommand(api, message, aliasCommand);
                 break;
@@ -3034,6 +3173,10 @@ export async function handleCommand(
                 await handleVoiceCommand(api, message, aliasCommand);
                 break;
 
+              case "vclip":
+                await handleVClipCommand(api, message, aliasCommand);
+                break;
+
               case "truyencuoi":
                 await handleStoryCommand(api, message);
                 break;
@@ -3048,6 +3191,10 @@ export async function handleCommand(
 
               case "mixcloud":
                 await handleMixcloudCommand(api, message, aliasCommand);
+                break;
+
+              case "memevoice":
+                await handleMemeVoiceCommand(api, message, aliasCommand);
                 break;
 
               case "spotify":
@@ -3080,6 +3227,10 @@ export async function handleCommand(
 
               case "shopee":
                 await handleShopeeCommand(api, message, aliasCommand);
+                break;
+
+              case "cellphone":
+                await handleCellphonesSearchCommand(api, message, aliasCommand);
                 break;
 
               case "capcut":
@@ -3162,6 +3313,10 @@ export async function handleCommand(
                 await handleKhoPhimCommand(api, message, aliasCommand);
                 break;
 
+              case "lauphim":
+                await handleLauPhimCommand(api, message, aliasCommand);
+                break;
+
               case "lienquanmobile":
                 await handleCheckTuongLienQuanCommand(api, message, aliasCommand);
                 break;
@@ -3203,6 +3358,22 @@ export async function handleCommand(
 
               case "giaxang":
                 await handleCheckGiaXangCommand(api, message);
+                break;
+
+              case "tiente":
+                await handleCheckTienTeCommand(api, message);
+                break;
+
+              case "cophieu":
+                await handleCheckCoPhieuCommand(api, message);
+                break;
+
+              case "crypto":
+                await handleCheckCryptoCommand(api, message);
+                break;
+
+              case "laisuat":
+                await handleCheckLaiSuatCommand(api, message);
                 break;
 
               case "getlogin":
@@ -3369,6 +3540,11 @@ export async function handleCommand(
             case "bancafish":
             case "keno":
             case "thap":
+            case "hl":
+            case "highlow":
+            case "high-low":
+            case "caothap":
+            case "cao-thap":
             case "maybay":
             case "maybaycrash":
             case "crash":
@@ -3388,7 +3564,19 @@ export async function handleCommand(
             case "quay":
             case "vq":
             case "nohu":
+            case "rut":
+            case "rút":
+            case "xoaynuoc":
+            case "xoay-nuoc":
+            case "xn":
+            case "nguyento":
+            case "nguyen-to":
+            case "element":
+            case "elements":
+            case "nt":
             case "cophieuao":
+            case "forex":
+            case "fx":
             case "taixiu":
             case "xidach":
             case "baicao":
@@ -3396,6 +3584,10 @@ export async function handleCommand(
             case "chanle":
             case "keobuabao":
               await handleCoreGameCommand(api, message, command, groupSettings, aliasCommand);
+              break;
+
+            case "poker":
+              await handlePokerCommand(api, message, aliasCommand);
               break;
 
             case "doanso":
@@ -3451,6 +3643,9 @@ export async function handleCommand(
               break;
 
             case "vietlott655":
+            case "veso":
+            case "vs":
+            case "xs60s":
             case "xsn":
             case "xoso45s":
             case "xs45s":

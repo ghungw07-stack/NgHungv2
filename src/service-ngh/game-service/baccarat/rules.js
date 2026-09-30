@@ -116,3 +116,45 @@ export function evaluateBaccaratBet(door, deal) {
 export function getWinningBaccaratDoors(deal) {
   return BACCARAT_DOORS.filter((door) => evaluateBaccaratBet(door, deal).outcome === "win");
 }
+
+export function buildBaccaratRoad(history, maxRows = 6) {
+  const rows = Math.max(1, Number(maxRows) || 6);
+  const placements = [];
+  const occupied = new Set();
+  let streakStartColumn = -1;
+  let column = -1;
+  let row = 0;
+  let lastDoor = null;
+  let lastPlacement = null;
+  let pendingTies = 0;
+
+  for (const item of history || []) {
+    if (item?.door === "hòa") {
+      if (lastPlacement) lastPlacement.ties += 1;
+      else pendingTies += 1;
+      continue;
+    }
+    if (item?.door !== "con" && item?.door !== "cái") continue;
+
+    if (item.door !== lastDoor) {
+      streakStartColumn += 1;
+      column = streakStartColumn;
+      row = 0;
+      while (occupied.has(`${column}:${row}`)) column += 1;
+      streakStartColumn = column;
+    } else if (row + 1 < rows && !occupied.has(`${column}:${row + 1}`)) {
+      row += 1;
+    } else {
+      column += 1;
+      while (occupied.has(`${column}:${row}`)) column += 1;
+    }
+
+    lastPlacement = { column, row, door: item.door, ties: pendingTies };
+    pendingTies = 0;
+    lastDoor = item.door;
+    occupied.add(`${column}:${row}`);
+    placements.push(lastPlacement);
+  }
+
+  return placements;
+}

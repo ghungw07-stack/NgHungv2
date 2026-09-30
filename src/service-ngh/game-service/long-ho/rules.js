@@ -30,7 +30,7 @@ export function dealLongHo(random = Math.random) {
   return getLongHoResult(drawLongHoCard(random), drawLongHoCard(random));
 }
 
-export function chooseLongHoResult(players = {}, { random = Math.random, houseBiasChance = 0.6 } = {}) {
+export function chooseLongHoResult(players = {}, { random = Math.random, houseBiasChance = 0.18 } = {}) {
   let result = dealLongHo(random);
   const bets = Object.values(players || {});
   if (!bets.length || random() >= houseBiasChance) return result;

@@ -134,6 +134,15 @@ function applyDefaultMessageStyle(api, message) {
   };
 }
 
+export function resolveMessageTtl(defaultTtl, requestedTtl, useDefaultTtl = true) {
+  const normalize = (value) => {
+    const ttl = Number(value);
+    return Number.isFinite(ttl) && ttl > 0 ? Math.trunc(ttl) : 0;
+  };
+  const requested = normalize(requestedTtl);
+  return useDefaultTtl ? normalize(defaultTtl) || requested : requested;
+}
+
 function prepareQMSGAttach(quote) {
   const quoteData = quote.data;
   if (typeof quoteData.content == "string") return quoteData.propertyExt;
@@ -166,6 +175,7 @@ function prepareQMSG(quote) {
 }
 
 export const sendMessageFactory = apiFactory()((api, appContext, utils) => {
+  let ttlDebugRemaining = 12;
   const serviceURLs = {
     message: {
       [MessageType.DirectMessage]: utils.makeURL(`${api.zpwServiceMap.chat[0]}/api/message`, {
@@ -297,12 +307,9 @@ export const sendMessageFactory = apiFactory()((api, appContext, utils) => {
     msg = msgFinal;
     const quoteData = quote === null || quote === void 0 ? void 0 : quote.data;
     const isMentionsValid = mentionsFinal.length > 0 && isGroupMessage;
-    const clientId = antiDelete
+    const clientId = antiDelete && ttl <= 0
       ? Date.now() * 10 + Math.floor(Math.random() * (1 - 9 + 1)) + 1
       : clientIdCustomer || Date.now();
-    // Khi bot cấu hình TTL native, nó phải thắng TTL cũ do từng command gán
-    // (nhiều command đang hard-code 300000/6000000), nếu không Zalo nhận sai TTL.
-    ttl = appContext.timeMessage || ttl || 0;
     const params = quote
       ? {
           toid: isGroupMessage ? undefined : threadId,
@@ -353,7 +360,7 @@ export const sendMessageFactory = apiFactory()((api, appContext, utils) => {
     };
   }
   async function handleAttachment(
-    { msg, attachments, mentions, quote, isUseProphylactic, antiDelete = ANTI_DELETE_ATTACHMENT },
+    { msg, attachments, mentions, quote, isUseProphylactic, noCache, uploadCloud, normalQualityImage = false, antiDelete = ANTI_DELETE_ATTACHMENT },
     threadId,
     type,
     ttl
@@ -367,14 +374,16 @@ export const sendMessageFactory = apiFactory()((api, appContext, utils) => {
     attachments = attachments.filter((e) => getFileExtension(e) != "gif");
     const attachmentsData = [];
     if (attachments.length > 0) {
-      const uploadAttachment = await api.uploadAttachment(attachments, threadId, type, { isUseProphylactic });
+      const uploadAttachment = await api.uploadAttachment(attachments, threadId, type, { isUseProphylactic, noCache, uploadCloud });
       let indexInGroupLayout = uploadAttachment.length - 1;
       const groupLayoutId = getGroupLayoutId();
       const { mentionsFinal, msgFinal } = handleMentions(type, msg, mentions);
       msg = msgFinal;
       const isMentionsValid = mentionsFinal.length > 0 && isGroupMessage && attachments.length == 1;
       const isMultiFile = attachments.length > 1;
-      let clientId = antiDelete ? Date.now() * 10 + Math.floor(Math.random() * (1 - 9 + 1)) + 1 : Date.now();
+      let clientId = antiDelete && ttl <= 0
+        ? Date.now() * 10 + Math.floor(Math.random() * (1 - 9 + 1)) + 1
+        : Date.now();
       for (const attachment of uploadAttachment) {
         let data;
         switch (attachment.fileType) {
@@ -390,15 +399,16 @@ export const sendMessageFactory = apiFactory()((api, appContext, utils) => {
                 toid: isGroupMessage ? undefined : String(threadId),
                 grid: isGroupMessage ? String(threadId) : undefined,
                 rawUrl: attachment.normalUrl,
-                hdUrl: attachment.hdUrl,
+                hdUrl: normalQualityImage ? attachment.normalUrl : attachment.hdUrl,
                 thumbUrl: attachment.thumbUrl,
                 oriUrl: isGroupMessage ? attachment.normalUrl : undefined,
                 normalUrl: isGroupMessage ? undefined : attachment.normalUrl,
                 hdSize: String(attachment.totalSize),
                 zsource: -1,
                 ttl: ttl,
-                // Đánh dấu ảnh chất lượng gốc để client Zalo hiển thị nhãn Original.
-                jcp: '{"sendSource":1,"convertible":"jxl","is_original":1}',
+                jcp: normalQualityImage
+                  ? '{"sendSource":1,"convertible":"jxl","is_original":0}'
+                  : '{"sendSource":1,"convertible":"jxl","is_original":1}',
                 groupLayoutId: isMultiFile ? groupLayoutId : undefined,
                 isGroupLayout: isMultiFile ? 1 : undefined,
                 idInGroup: isMultiFile ? indexInGroupLayout-- : undefined,
@@ -571,6 +581,8 @@ export const sendMessageFactory = apiFactory()((api, appContext, utils) => {
    *
    * @throws {ZaloApiError}
    */
+  api.__prepareMessageForSend = (message) => applyDefaultMessageStyle(api, message);
+
   return async function sendMessage(message, threadId, type = MessageType.DirectMessage) {
     if (!appContext.secretKey || !appContext.imei || !appContext.cookie || !appContext.userAgent)
       throw new ZaloApiError("Missing required app context fields");
@@ -579,9 +591,26 @@ export const sendMessageFactory = apiFactory()((api, appContext, utils) => {
     if (typeof message == "string") message = { msg: message };
     // Áp style text mặc định cho mọi tin nhắn chưa chỉ định style riêng.
     message = applyDefaultMessageStyle(api, message);
-    let { msg, quote, attachments, mentions, ttl, linkOn = true, isUseProphylactic = false } = message;
-    // Áp cùng quy tắc cho text, reply và attachment gửi qua sendMessage.
-    ttl = appContext.timeMessage || ttl || 0;
+    let {
+      msg,
+      quote,
+      attachments,
+      mentions,
+      ttl,
+      linkOn = true,
+      isUseProphylactic = false,
+      noCache = false,
+      uploadCloud,
+      useDefaultTtl = true,
+    } = message;
+    ttl = resolveMessageTtl(appContext.timeMessage, ttl, useDefaultTtl);
+    if (ttlDebugRemaining > 0) {
+      ttlDebugRemaining--;
+      console.error(
+        `[ttl-debug] bot=${api.getBotId?.()} ttl=${ttl} default=${appContext.timeMessage} useDefault=${useDefaultTtl} ` +
+        `attachments=${Array.isArray(attachments) ? attachments.length : 0} linkOn=${linkOn}`
+      );
+    }
     if (!msg && (!attachments || (attachments && attachments.length == 0)))
       throw new ZaloApiError("Missing message content");
     if (attachments && isExceedMaxFile(attachments.length))
@@ -592,24 +621,40 @@ export const sendMessageFactory = apiFactory()((api, appContext, utils) => {
       link: null,
     };
     if (attachments && attachments.length > 0) {
+      let leadingMessagePromise = null;
       const firstExtFile = getFileExtension(attachments[0]);
       const isSingleFile = attachments.length == 1;
       const canBeDesc = isSingleFile && ["jpg", "jpeg", "png", "webp"].includes(firstExtFile);
       if ((!canBeDesc && msg.length > 0) || (msg.length > 0 && quote)) {
-        await handleMessage(message, threadId, type, ttl).then(async (data) => {
-          const sent = (await send(data))[0];
-          responses.message = { ...sent, cliMsgId: sent?.cliMsgId ?? data?.params?.clientId };
+        const leadingData = await handleMessage(message, threadId, type, ttl);
+        // Upload media while the separate caption/quote message is in flight.
+        // Await it before sending attachments to keep the visible order stable.
+        leadingMessagePromise = send(leadingData).then((result) => {
+          const sent = result[0];
+          responses.message = { ...sent, cliMsgId: sent?.cliMsgId ?? leadingData?.params?.clientId };
         });
+        void leadingMessagePromise.catch(() => {});
         msg = "";
         mentions = undefined;
       }
       try {
         const handledData = await handleAttachment(
-          { msg, mentions, attachments, quote, isUseProphylactic, antiDelete: message.antiDelete },
+          {
+            msg,
+            mentions,
+            attachments,
+            quote,
+            isUseProphylactic,
+            noCache,
+            uploadCloud,
+            normalQualityImage: message.normalQualityImage === true,
+            antiDelete: message.antiDelete,
+          },
           threadId,
           type,
           ttl
         );
+        if (leadingMessagePromise) await leadingMessagePromise;
         const rawAttachmentResponses = await send(handledData);
         // Server Zalo chỉ trả về msgId cho mỗi tin nhắn đính kèm, KHÔNG trả về cliMsgId.
         // cliMsgId (cần để sau này thu hồi/undo tin nhắn) thực ra là clientId mà CHÍNH MÌNH
@@ -621,6 +666,7 @@ export const sendMessageFactory = apiFactory()((api, appContext, utils) => {
           cliMsgId: res?.cliMsgId ?? handledData[i]?.params?.clientId ?? handledData[i]?.clientId,
         }));
       } catch (error) {
+        if (leadingMessagePromise) await leadingMessagePromise;
         console.error(`[sendMessage-attachment-error] bot=${api.getBotId()} code=${error?.code} message=${error?.message}`);
         const fallback = await sendRateLimitedImageFallback(error, attachments, msg, mentions, threadId, type, ttl);
         if (!fallback) throw error;
@@ -633,7 +679,7 @@ export const sendMessageFactory = apiFactory()((api, appContext, utils) => {
       let handledData = null;
       if (linkOn && linkData.count == 1) {
         try {
-          responses.link = await api.sendLink(message.msg, linkData.links[0], threadId, type, ttl);
+          responses.link = await api.sendLink(message.msg, linkData.links[0], threadId, type, ttl, false);
         } catch (error) {
           handledData = await handleMessage(message, threadId, type, ttl);
           const sent = (await send(handledData))[0];

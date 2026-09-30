@@ -5,13 +5,14 @@ import { getGlobalPrefix } from "../service.js";
 import { apiManager } from "../../index.js";
 import { handleI4BgImgCommand } from "./i4bgimg.js";
 import { handleI4ImageCommand } from "./i4image.js";
+import { getExactGameIdentityProfile } from "../../database/player-sync.js";
 
 globalThis.__basicUserCache ||= new Map();
 globalThis.__basicUserRequests ||= new Map();
 var basicUserCache = globalThis.__basicUserCache;
 var basicUserRequests = globalThis.__basicUserRequests;
 const BASIC_USER_TTL_MS = Math.max(30000, Number(process.env.NGH_USER_CACHE_TTL_MS) || 5 * 60 * 1000);
-const BASIC_USER_CACHE_SIZE = Math.max(1000, Number(process.env.NGH_USER_CACHE_SIZE) || 50000);
+const BASIC_USER_CACHE_SIZE = Math.max(500, Number(process.env.NGH_USER_CACHE_SIZE) || 2500);
 
 export async function userInfoCommand(api, message, aliasCommand) {
   const threadId = message.threadId;
@@ -184,12 +185,12 @@ export async function getUserInfoData(api, userId) {
   try {
     avatarResponse = await api.getUserAvatar(realUserId);
   } catch {}
-  const userInfo = userInfoResponse.unchanged_profiles?.[realUserId] || userInfoResponse.changed_profiles?.[realUserId];
+  const userInfo = getExactGameIdentityProfile(userInfoResponse, realUserId);
   if (!userInfo) return null;
   let basicInfo = null;
   try {
     const basicInfoResponse = await api.getInfoMembers([realUserId]);
-    basicInfo = basicInfoResponse.profiles?.[realUserId] || null;
+    basicInfo = getExactGameIdentityProfile(basicInfoResponse, realUserId);
   } catch {}
   const avatarFull = getBestAvatarUrl(avatarResponse, true);
   return getAllInfoUser({
@@ -204,7 +205,7 @@ export async function getUserInfoData(api, userId) {
 
 // UID người dùng có thể chỉ hợp lệ với một bot cụ thể. Khi bot hiện tại
 // không tra được, thử các bot đang chạy trong cùng hệ thống.
-export async function getUserInfoAcrossBots(api, userId) {
+export async function getUserInfoAcrossBots(api, userId, { currentBotOnly = false } = {}) {
   userId = String(userId || "").replace(/^private:[^:]+:/, "").replace(/_0$/, "");
   if (!userId || !/^\d+$/.test(userId)) return null;
 
@@ -223,9 +224,10 @@ export async function getUserInfoAcrossBots(api, userId) {
   } catch {}
   try {
     const response = await withTimeout(api.getInfoMembers([userId]), 2000);
-    const profile = response?.profiles?.[userId] || Object.values(response?.profiles || {})[0];
+    const profile = getExactGameIdentityProfile(response, userId);
     if (profile) return getAllInfoUser(profile);
   } catch {}
+  if (currentBotOnly) return null;
   const managers = Object.values(apiManager?.apiManagerObject || {});
   for (const manager of managers) {
     const otherApi = manager?.apiZalo;
@@ -237,7 +239,7 @@ export async function getUserInfoAcrossBots(api, userId) {
     } catch {}
     try {
       const response = await withTimeout(otherApi.getInfoMembers([userId]), 1500);
-      const profile = response?.profiles?.[userId] || Object.values(response?.profiles || {})[0];
+      const profile = getExactGameIdentityProfile(response, userId);
       if (profile) return getAllInfoUser(profile);
     } catch {}
   }
@@ -325,7 +327,7 @@ export function getAllInfoUser(userInfo) {
     title: "Thông Tin Người Dùng",
     uid: userInfo.userId || "Không xác định",
     globalId: userInfo.globalId || userInfo.global_id || null,
-    name: formatName(userInfo.zaloName),
+    name: formatName(userInfo.zaloName || userInfo.displayName || userInfo.name),
     avatar: bestAvatar,
     avatarFallback: userInfo.avatarFallback,
     cover,

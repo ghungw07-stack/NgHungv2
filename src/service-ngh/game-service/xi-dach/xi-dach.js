@@ -5,7 +5,7 @@ import { sendMessageFromSQL } from "../../chat-zalo/chat-style/chat-style.js";
 import { getPlayerBalance, updatePlayerBalance, ensurePlayerAccount, isPlayerBanned, addGameRankPoints } from "../../../database/player.js";
 import { isAdmin } from "../../../index.js";
 import { getGlobalPrefix } from "../../service.js";
-import { formatCurrency, parseGameAmount, removeMention } from "../../../utils/format-util.js";
+import { formatCurrency, parseGameBetAmount as parseGameAmount, removeMention } from "../../../utils/format-util.js";
 import { gameState } from "../game-manager.js";
 import {
   createXiDachWaitingImage,
@@ -504,8 +504,8 @@ export async function handleXiDachCommand(api, message, groupSettings) {
     return;
   }
 
-  // luôn đảm bảo người chơi có tài khoản game tự động theo Zalo UID
-  await ensurePlayerAccount(senderId, senderName, botId);
+  // Luôn lấy username từ UID trước khi tạo hồ sơ game.
+  await ensurePlayerAccount(senderId, senderName, botId, api);
 
   const content = removeMention(message).trim();
   const parts = content.split(/\s+/);
@@ -721,7 +721,7 @@ async function addPlayerToTable(api, table, playerIdRaw, playerName) {
       return { success: false, message: "Tài khoản của bạn đã bị khóa." };
     }
 
-    await ensurePlayerAccount(playerId, playerName, table.botId);
+    await ensurePlayerAccount(playerId, playerName, table.botId, api);
 
     const balanceResult = await getPlayerBalance(playerId);
     if (!balanceResult.success || new Big(balanceResult.balance).lt(table.betAmount)) {

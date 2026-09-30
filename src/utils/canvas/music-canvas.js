@@ -203,13 +203,17 @@ export async function createMusicCard(musicInfo, botId) {
     if (thumbnail) {
       drawImageCover(ctx, thumbnail, thumbX, thumbY, thumbSize, thumbSize);
     } else {
-      ctx.fillStyle = "rgba(255,255,255,0.14)";
+      const placeholder = ctx.createLinearGradient(thumbX, thumbY, thumbX + thumbSize, thumbY + thumbSize);
+      placeholder.addColorStop(0, "#ff8a00");
+      placeholder.addColorStop(0.52, "#ff4d00");
+      placeholder.addColorStop(1, "#7c2cff");
+      ctx.fillStyle = placeholder;
       ctx.fillRect(thumbX, thumbY, thumbSize, thumbSize);
-      ctx.font = `700 64px ${CARD_FONT}`;
+      ctx.font = `700 72px ${CARD_FONT}`;
       ctx.fillStyle = theme.title;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText("♪", thumbX + thumbSize / 2, thumbY + thumbSize / 2);
+      ctx.fillText("♫", thumbX + thumbSize / 2, thumbY + thumbSize / 2);
       ctx.textAlign = "left";
       ctx.textBaseline = "alphabetic";
     }

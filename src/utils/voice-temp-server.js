@@ -16,7 +16,14 @@ export async function registerVoiceTempFile(sourcePath) {
   const token = crypto.randomBytes(18).toString("hex");
   const ext = path.extname(sourcePath).toLowerCase() || ".aac";
   const targetPath = path.join(voiceDir, `${token}${ext}`);
-  await fsp.copyFile(sourcePath, targetPath);
+  // A hard-link is effectively instant for long audio on the same filesystem
+  // and remains valid after the producer removes its temporary pathname.
+  try {
+    await fsp.link(sourcePath, targetPath);
+  } catch (error) {
+    if (!["EXDEV", "EPERM", "EACCES", "EEXIST"].includes(error?.code)) throw error;
+    await fsp.copyFile(sourcePath, targetPath);
+  }
   const expiresAt = Date.now() + TTL_MS;
   entries.set(token, { path: targetPath, expiresAt });
   setTimeout(() => removeVoiceTempFile(token), TTL_MS).unref();

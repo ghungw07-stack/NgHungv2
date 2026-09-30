@@ -1,14 +1,25 @@
 import { loadImageBuffer } from "./util.js";
+import { LRUCache } from "lru-cache";
 
-const TIME_CLEANUP = 1 * 60 * 1000;
 const TIME_CACHE = 3 * 60 * 1000;
+const MAX_CACHE_BYTES = Math.max(
+  8 * 1024 * 1024,
+  Number(process.env.NGH_IMAGE_BUFFER_CACHE_BYTES) || 32 * 1024 * 1024
+);
 
 class ImageBufferCache {
   constructor() {
-    this.cache = new Map();
+    // Image buffers live outside the V8 heap. A time-only Map could retain an
+    // arbitrary amount of native memory during a burst, making RSS climb even
+    // though heap usage looked healthy. Bound both entry count and total bytes.
+    this.cache = new LRUCache({
+      max: 256,
+      maxSize: MAX_CACHE_BYTES,
+      ttl: TIME_CACHE,
+      updateAgeOnGet: true,
+      sizeCalculation: (entry) => Math.max(1, entry?.buffer?.byteLength || 1),
+    });
     this.downloading = new Map();
-    this.cleanupInterval = setInterval(() => this.cleanup(), TIME_CLEANUP);
-    this.cleanupInterval.unref?.();
   }
 
   async getBuffer(url, options = {}) {
@@ -59,12 +70,7 @@ class ImageBufferCache {
   }
   
   cleanup() {
-    const now = Date.now();
-    for (const [key, data] of this.cache.entries()) {
-      if (now - data.timestamp > TIME_CACHE) {
-        this.cache.delete(key);
-      }
-    }
+    this.cache.purgeStale();
   }
 
   clear() {

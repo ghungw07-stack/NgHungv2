@@ -50,6 +50,28 @@ const lockChatTimers = new Map();
 const BLOCK_LIST_SESSION_TTL = 10 * 60 * 1000;
 const blockListReplySessions = new LRUCache({ max: 500, ttl: BLOCK_LIST_SESSION_TTL });
 
+export async function handleUpgradeBusinessBasic(api, message) {
+  try {
+    await api.upgradeBusinessBasic();
+    await sendMessageComplete(
+      api,
+      message,
+      `✅ Đã gửi yêu cầu nâng tài khoản ${api.getBotId()} lên Business Basic dùng thử.`,
+      true,
+      60000
+    );
+  } catch (error) {
+    console.error("[UpgradeBusinessBasic]", error?.message || error);
+    await sendMessageWarning(
+      api,
+      message,
+      `Không thể nâng Business Basic: ${error?.message || "hãy kiểm tra trạng thái tài khoản"}`,
+      false,
+      60000
+    );
+  }
+}
+
 function getSentMessageIds(result) {
   return [
     result?.message?.msgId,

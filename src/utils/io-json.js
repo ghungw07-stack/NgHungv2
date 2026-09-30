@@ -363,7 +363,14 @@ export function readManagerFile(idBot) {
 }
 
 export function writeManagerFile(idBot, data) {
-  fs.writeFileSync(MANAGER_FILE_PATH(idBot), JSON.stringify(data, null, 2));
+  const target = MANAGER_FILE_PATH(idBot);
+  // Thư mục log có thể chưa được khởi tạo (bot mới) hoặc vừa bị dọn khi bot
+  // đang shutdown. Luôn tái tạo nó trước khi lưu để lệnh stop/restart không
+  // chết vì ENOENT.
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  const temporaryPath = `${target}.tmp`;
+  fs.writeFileSync(temporaryPath, JSON.stringify(data, null, 2), "utf8");
+  fs.renameSync(temporaryPath, target);
 }
 
 export function readWebConfig(botId) {

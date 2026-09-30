@@ -19,7 +19,7 @@ import { autoJoinGroup } from "../service-ngh/anti-service/auto-join.js";
 import { getGroupAdmins, getGroupInfoData } from "../service-ngh/info-service/group-info.js";
 import { updateUserRank } from "../service-ngh/info-service/rank-chat.js";
 import { writeGroupSettings } from "../utils/io-json.js";
-import { handleCommand, initGroupSettings, handleCommandPrivate, updateNameGroupSetting } from "../commands/command.js";
+import { getCommand, handleCommand, initGroupSettings, handleCommandPrivate, updateNameGroupSetting } from "../commands/command.js";
 import { logMessageToFile, readGroupSettings } from "../utils/io-json.js";
 import { canvasTest, checkIsValidContext, superCheckBox, testFutureGroup, testFutureUser } from "./ngh-test.js";
 import { antiNude } from "../service-ngh/anti-service/anti-nude/anti-nude.js";
@@ -29,9 +29,11 @@ import { antiMedia } from "../service-ngh/anti-service/anti-media-file.js";
 import { antiStickerEffect } from "../service-ngh/anti-service/anti-sticker-effect.js";
 import { antiPhotoVideo } from "../service-ngh/anti-service/anti-photo.js";
 import { antiTag } from "../service-ngh/anti-service/anti-tag.js";
+import { antiTagAll } from "../service-ngh/anti-service/anti-tag-all.js";
 import { antiAllEffectSticker } from "../service-ngh/anti-service/anti-sticker.js";
 import { antiVoice } from "../service-ngh/anti-service/anti-voice.js";
 import { handleAutoReplyGemini } from "../service-ngh/api-crawl/assistant-ai/auto-reply-gemini.js";
+import { handleAutoReplyTag } from "../service-ngh/chat-zalo/chat-special/auto-reply-tag/auto-reply-tag.js";
 import { antiPhoneNumber } from "../service-ngh/anti-service/anti-phone-number.js";
 import { antiAds } from "../service-ngh/anti-service/anti-ads.js";
 import { antiBot } from "../service-ngh/anti-service/anti-bot.js";
@@ -43,8 +45,10 @@ import { handleNotifyParentOnPM, handleParentReplyToPM } from "../manager-bot/no
 import { checkAutoPingId } from "../commands/send-all/ping-id.js";
 import { isUserSilenced } from "../utils/user-antispam.js";
 import { checkAutoVoiceTriggers } from "../service-ngh/chat-bot/auto-voice-reply.js";
-import { isInteractiveCommandContent } from "../utils/message-routing.js";
+import { isGroupMessageLogEnabled, isInteractiveCommandContent } from "../utils/message-routing.js";
 import { runWithGameServer } from "../service-ngh/game-service/private-game-server.js";
+import { handleGameCaptchaMessage } from "../service-ngh/game-service/game-captcha.js";
+import { handlePokerChat } from "../service-ngh/game-service/mini-game/poker/index.js";
 
 class GroupsSettingsAll {
   constructor() {
@@ -161,6 +165,63 @@ const AUTO_REPLY_COOLDOWN = 1 * 60 * 60 * 1000; // 1 hour to prevent spam
 const processedCliMsgIds = new Map();
 const CLI_MSG_DEDUPE_TTL = 30 * 1000; // giữ 30s rồi tự dọn, đủ để chặn spam dồn dập
 const rentalExpiryJobs = new Map();
+const configuredIdentityBudgetMs = Number(process.env.NGH_IDENTITY_RESOLUTION_BUDGET_MS);
+const IDENTITY_RESOLUTION_BUDGET_MS = Number.isFinite(configuredIdentityBudgetMs)
+  ? Math.max(0, configuredIdentityBudgetMs)
+  : 150;
+
+async function warmPrivilegedIdentity(api, senderId, senderName) {
+  const work = Promise.allSettled([
+    developerAdmins.resolve(api, senderId),
+    inheritBotLeader(api, senderId, senderName),
+  ]);
+  if (IDENTITY_RESOLUTION_BUDGET_MS === 0) {
+    void work;
+    return;
+  }
+
+  let timer;
+  await Promise.race([
+    work,
+    new Promise((resolve) => {
+      timer = setTimeout(resolve, IDENTITY_RESOLUTION_BUDGET_MS);
+      timer.unref?.();
+    }),
+  ]);
+  clearTimeout(timer);
+}
+
+function commandNeedsPrivilegedIdentity(api, message, content, prefix) {
+  if (typeof content !== "string") return false;
+  const text = content.trimStart();
+  let commandName = "";
+  let hasArgument = false;
+
+  if (/^prefix(?:\s|$)/iu.test(text)) {
+    commandName = "prefix";
+    hasArgument = text.trim().split(/\s+/u).length > 1;
+  } else if (prefix && text.startsWith(prefix)) {
+    const commandText = text.slice(prefix.length).trim();
+    commandName = commandText.split(/\s+/u, 1)[0]?.toLowerCase() || "";
+    hasArgument = commandText.split(/\s+/u).length > 1;
+  } else {
+    // Reply-admin commands are resolved from quoted bot messages later.
+    return Boolean(message.data?.quote && isInteractiveCommandContent(text, prefix, message));
+  }
+
+  if (!commandName) return false;
+  if (commandName === "prefix") return hasArgument;
+  const command = getCommand(api.getBotId(), commandName);
+  if (command?.permission && command.permission !== "all") return true;
+
+  if (message.type === MessageType.GroupMessage) {
+    return groupSettingsAll.getByID(api.getBotId())?.[message.threadId]?.activeBot !== true;
+  }
+  if (message.type === MessageType.DirectMessage && commandName !== "mybot") {
+    return api.apiManager?.getDataManager?.()?.onBotPrivate !== true;
+  }
+  return false;
+}
 
 function ensureRentalExpiryJob(api, threadId) {
   const botId = api.getBotId();
@@ -363,6 +424,12 @@ async function messagesUserWithGameServer(api, message) {
   const threadId = message.threadId;
   if (message.type === MessageType.GroupMessage && String(senderId) !== String(idBot)
     && await handleCaptchaMessage(api, message, groupSettingsAll)) return;
+  if (String(senderId) !== String(idBot) && (
+    message.type !== MessageType.GroupMessage || (
+      groupSettingsAll.getByID(idBot)?.[threadId]?.activeBot === true &&
+      groupSettingsAll.getByID(idBot)?.[threadId]?.activeGame === true
+    )
+  ) && await handleGameCaptchaMessage(api, message)) return;
   ensureRentalExpiryJob(api, threadId);
   let content = message.data.content;
   const isPlainText = typeof message.data.content === "string";
@@ -371,23 +438,14 @@ async function messagesUserWithGameServer(api, message) {
   let isAdminBot = false;
   const prefix = getGlobalPrefix(idBot);
   const shouldResolveLeaderIdentity =
-    message.type === MessageType.DirectMessage ||
-    (typeof content === "string" && isInteractiveCommandContent(content, prefix, message));
-  if (shouldResolveLeaderIdentity) {
-    await developerAdmins.resolve(api, senderId);
-    // Identity discovery can require one or more Zalo profile requests for a
-    // previously unseen user. Give it a small budget for the owner fast-path,
-    // then let its internal cache finish warming without delaying every normal
-    // command by several seconds.
-    let identityBudgetTimer;
-    await Promise.race([
-      inheritBotLeader(api, senderId, senderName),
-      new Promise((resolve) => {
-        identityBudgetTimer = setTimeout(resolve, 250);
-        identityBudgetTimer.unref?.();
-      }),
-    ]);
-    clearTimeout(identityBudgetTimer);
+    typeof content === "string" &&
+    isInteractiveCommandContent(content, prefix, message) &&
+    commandNeedsPrivilegedIdentity(api, message, content, prefix);
+  if (shouldResolveLeaderIdentity && !isAdmin(idBot, senderId) && !isBotLeader(idBot, senderId)) {
+    // Unknown identities need network profile lookups. Run both lookups in
+    // parallel and stop holding the command path after a small shared budget;
+    // the same promises continue warming their internal caches in background.
+    await warmPrivilegedIdentity(api, senderId, senderName);
   }
   // Bot Leader được kế thừa qua bot_leader.json; không chỉ dựa vào
   // danh sách admin cục bộ của từng bot con.
@@ -509,7 +567,7 @@ async function messagesUserWithGameServer(api, message) {
     break;
     }
     case MessageType.GroupMessage: {
-      const groupMessageLogEnabled = process.env.NGH_GROUP_MESSAGE_LOG === "1";
+      const groupMessageLogEnabled = isGroupMessageLogEnabled();
       let nameGroup = "";
       let isAdminBox = false;
       let botIsAdminBox = false;
@@ -638,8 +696,14 @@ async function messagesUserWithGameServer(api, message) {
         // numberHandleCommand = 99: Phát Hiện Dùng Lệnh, Check Lệnh Hiện Tại (Nếu Không Có Lệnh Nào Được Xử Lý -> Đưa Ra Gợi Ý)
         handleChat = handleChat && groupSettings[threadId].activeBot === true;
         handleChat = handleChat && !isSelf && !isSilenced;
-        if (handleChat || (!isSelf && isAdminBot && !isSilenced)) {
-          await handleOnChatUser(api, message, numberHandleCommand === 5, groupSettings, groupInfo);
+        // Commands already own their game/action dispatch. Only ordinary chat
+        // needs the mini-game continuation router; skipping it avoids probing
+        // every game subsystem after a command has already replied.
+        if (
+          numberHandleCommand === -1 &&
+          (handleChat || (!isSelf && isAdminBot && !isSilenced))
+        ) {
+          await handleOnChatUser(api, message, false, groupSettings, groupInfo);
         }
       }
 
@@ -661,9 +725,12 @@ async function messagesUserWithGameServer(api, message) {
         );
       }
 
-      if (isPlainText && !autoRaiLinkHandled && !isSilenced) {
+      if (isPlainText && !autoRaiLinkHandled && !isSilenced && numberHandleCommand === -1) {
         if (!isSelf && !isBlocked) {
-          await handleChatBot(api, message, threadId, groupSettings, nameGroup, numberHandleCommand === 2);
+          const handledByPoker = await handlePokerChat(api, message).catch(() => false);
+          if (!handledByPoker) {
+            await handleChatBot(api, message, threadId, groupSettings, nameGroup, false);
+          }
         }
       }
 
@@ -717,6 +784,7 @@ async function messagesUserWithGameServer(api, message) {
           ["antiforward", () => antiForward(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf)],
           ["antiFile", () => antiFile(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf)],
           ["antiVoice", () => antiVoice(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf)],
+          ["antiTagAll", () => antiTagAll(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf)],
           ["antiTag", () => antiTag(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf)],
           ["antiSticker", () => antiAllEffectSticker(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf)],
           ["antiPhotoVideo", () => antiPhotoVideo(api, message, isAdminBox, groupSettings, botIsAdminBox, isSelf)],
@@ -736,7 +804,10 @@ async function messagesUserWithGameServer(api, message) {
 
       await autoJoinGroup(api, message, groupSettings, botIsAdminBox, isSelf);
       if (canRunRemainingAnti && !remainingAntiHandled) {
-        await handleAutoReplyGemini(api, message, groupSettings, isSelf);
+        const autoReplyTagHandled = await handleAutoReplyTag(api, message, isSelf);
+        if (!autoReplyTagHandled) {
+          await handleAutoReplyGemini(api, message, groupSettings, isSelf);
+        }
       }
     }
   }

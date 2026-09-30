@@ -6,10 +6,11 @@ import { MessageType, MultiMsgStyle, MessageStyle } from "../../../api-zalo/inde
 import { getApiManager, isAdmin } from "../../../index.js";
 import {
   getPlayerBalance,
-  updatePlayerBalanceByUsername,
-  setLoserGameByUsername,
   getUsernameByIdZalo,
   addGameRankPoints,
+  adjustPlayerBalanceSafelyOnce,
+  hasPlayerBalanceOperation,
+  settleXoSoBalanceByUsernameOnce,
 } from "../../../database/player.js";
 import {
   sendMessageFromSQL,
@@ -19,14 +20,17 @@ import {
   SIZE_18,
   IS_BOLD,
 } from "../../chat-zalo/chat-style/chat-style.js";
-import { parseGameAmount, formatCurrency, formatSeconds } from "../../../utils/format-util.js";
+import { parseGameBetAmount as parseGameAmount, formatCurrency, formatSeconds } from "../../../utils/format-util.js";
 import { getGlobalPrefix } from "../../service.js";
 import { checkBeforeJoinGame } from "../index.js";
-import { gameState } from "../game-manager.js";
+import { gameState, saveGameDataNow } from "../game-manager.js";
 import { createXoSo45sResultImage } from "./canvas-xoso.js";
 import { clearImagePath } from "../../../utils/canvas/index.js";
+import { resolveQueuedXoSoResult } from "./forced-result.js";
+import { restoreXoSoSession, upsertXoSoHistory } from "./session-state.js";
 
 const SESSION_DURATION = 45; // 45 giây xổ 1 lần
+const END_SESSION_RETRY_MS = 45_000;
 const MAX_HISTORY = 20;
 const TTL_IMAGE = 10800000; // 3 tiếng
 
@@ -48,6 +52,7 @@ let isEndingGame = false;
 let forcedResult = null;
 let gameHistory = [];
 let gameScheduleJob = null;
+let nextEndSessionRetryAt = 0;
 
 let currentSession = {
   sessionCode: 1,
@@ -56,16 +61,49 @@ let currentSession = {
   endTime: null,
   isRunning: false,
   notified15s: false,
+  phase: "betting",
+  result: null,
+  resultTimestamp: null,
+  resultTimeStr: null,
+  settledPlayerIds: [],
 };
 
 function saveGameData() {
   gameState.changes.xoso45s = true;
 }
 
+function saveCurrentSessionNow() {
+  if (!gameState.data.xoso45s) gameState.data.xoso45s = {};
+  gameState.data.xoso45s.currentSession = currentSession;
+  saveGameDataNow();
+}
+
+function clearSavedCurrentSession() {
+  if (gameState.data.xoso45s) delete gameState.data.xoso45s.currentSession;
+  saveGameDataNow();
+}
+
+async function reconcileRestoredSessionBets(session) {
+  for (const [playerId, player] of Object.entries(session.players || {})) {
+    const operationIds = [...new Set(
+      (player.bets || []).map((bet) => bet.debitOperationId).filter(Boolean).map(String)
+    )];
+    const applied = new Set();
+    for (const operationId of operationIds) {
+      if (await hasPlayerBalanceOperation(playerId, operationId)) applied.add(operationId);
+    }
+    player.bets = (player.bets || []).filter((bet) =>
+      !bet.debitOperationId || applied.has(String(bet.debitOperationId))
+    );
+    if (player.bets.length === 0) delete session.players[playerId];
+  }
+  return session;
+}
+
 /**
  * Sinh ngẫu nhiên kết quả 27 giải Xổ Số Miền Bắc chuẩn
  */
-function generateRandomXSMB() {
+function generateRandomXSMB(deTarget = null, baCangTarget = null, loTargets = []) {
   if (forcedResult) {
     const res = forcedResult;
     forcedResult = null;
@@ -80,7 +118,13 @@ function generateRandomXSMB() {
     return s;
   };
 
-  const db = randDigits(5);
+  const randomDb = randDigits(5);
+  const forcedSuffix = typeof baCangTarget === "string" && /^\d{3}$/.test(baCangTarget)
+    ? baCangTarget
+    : typeof deTarget === "string" && /^\d{2}$/.test(deTarget)
+    ? deTarget
+    : null;
+  const db = forcedSuffix ? randomDb.slice(0, 5 - forcedSuffix.length) + forcedSuffix : randomDb;
   const g1 = randDigits(5);
   const g2 = [randDigits(5), randDigits(5)];
   const g3 = [randDigits(5), randDigits(5), randDigits(5), randDigits(5), randDigits(5), randDigits(5)];
@@ -88,6 +132,13 @@ function generateRandomXSMB() {
   const g5 = [randDigits(4), randDigits(4), randDigits(4), randDigits(4), randDigits(4), randDigits(4)];
   const g6 = [randDigits(3), randDigits(3), randDigits(3)];
   const g7 = [randDigits(2), randDigits(2), randDigits(2), randDigits(2)];
+
+  const validLoTargets = Array.isArray(loTargets)
+    ? [...new Set(loTargets.filter((number) => typeof number === "string" && /^\d{2}$/.test(number)))].slice(0, g7.length)
+    : [];
+  validLoTargets.forEach((number, index) => {
+    g7[index] = number;
+  });
 
   const allPrizes = [db, g1, ...g2, ...g3, ...g4, ...g5, ...g6, ...g7];
   const lo27 = allPrizes.map((p) => p.slice(-2));
@@ -275,11 +326,25 @@ function calculateBetReward(bet, xsmbResult) {
 async function endSession(fallbackApi) {
   if (isEndingGame) return;
   isEndingGame = true;
+  let sessionCompleted = false;
 
   try {
     const sessionCode = currentSession.sessionCode;
-    const xsmbResult = generateRandomXSMB();
-    const timeStr = new Date().toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" });
+    const queuedResult = resolveQueuedXoSoResult(gameState.data.xoso45s, sessionCode);
+    const nextDe = queuedResult.de;
+    const nextBaCang = queuedResult.baCang;
+    const nextLoNumbers = queuedResult.loNumbers;
+    const xsmbResult = currentSession.result || generateRandomXSMB(nextDe, nextBaCang, nextLoNumbers);
+    const resultTimestamp = currentSession.resultTimestamp || Date.now();
+    const timeStr = currentSession.resultTimeStr
+      || new Date(resultTimestamp).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" });
+    currentSession.phase = "settling";
+    currentSession.result = xsmbResult;
+    currentSession.resultTimestamp = resultTimestamp;
+    currentSession.resultTimeStr = timeStr;
+    currentSession.settledPlayerIds ||= [];
+    // Ghi kết quả trước khi trả thưởng để restart vẫn tiếp tục đúng cùng một kỳ.
+    saveCurrentSessionNow();
 
     // Lưu vào lịch sử
     const historyItem = {
@@ -287,28 +352,27 @@ async function endSession(fallbackApi) {
       db: xsmbResult.db,
       de: xsmbResult.de,
       baCang: xsmbResult.baCang,
-      timestamp: Date.now(),
+      timestamp: resultTimestamp,
       timeStr,
     };
-    gameHistory.unshift(historyItem);
-    if (gameHistory.length > MAX_HISTORY) {
-      gameHistory = gameHistory.slice(0, MAX_HISTORY);
-    }
+    gameHistory = upsertXoSoHistory(gameHistory, historyItem, MAX_HISTORY);
     if (gameState.data.xoso45s) {
       gameState.data.xoso45s.history = gameHistory;
+      // Tiêu thụ thiết lập một lần cùng lịch sử để không lặp lại sau khi restart.
+      if (queuedResult.consume || queuedResult.expired) {
+        delete gameState.data.xoso45s.nextDe;
+        delete gameState.data.xoso45s.nextBaCang;
+        delete gameState.data.xoso45s.nextLoNumbers;
+        delete gameState.data.xoso45s.forcedSessionCode;
+        saveGameDataNow();
+      }
       saveGameData();
-    }
-
-    // Vẽ ảnh Canvas kết quả XSMB 45s
-    let resultImagePath = null;
-    try {
-      resultImagePath = await createXoSo45sResultImage(xsmbResult, sessionCode, timeStr);
-    } catch (e) {
-      console.error("[XSMB 45S] Lỗi vẽ ảnh canvas:", e);
     }
 
     // Gom người chơi theo nhóm để gửi kết quả
     const threadPlayers = {};
+    const settledPlayerIds = new Set(currentSession.settledPlayerIds.map(String));
+    const settlementErrors = [];
     for (const [playerId, player] of Object.entries(currentSession.players)) {
       const threadId = player.threadId;
       if (!threadPlayers[threadId]) threadPlayers[threadId] = [];
@@ -334,46 +398,56 @@ async function endSession(fallbackApi) {
       player.totalWin = playerTotalWin;
       player.totalBet = playerTotalBet;
 
-      // Cập nhật số dư database
-      if (playerTotalWin.gt(0)) {
+      // Cập nhật số dư database. Người đã quyết toán được bỏ qua khi khôi phục
+      // phiên sau restart, tránh trả thưởng hai lần.
+      if (!settledPlayerIds.has(String(playerId))) {
         try {
-          await updatePlayerBalanceByUsername(
-            player.username,
-            playerTotalWin.toNumber(),
-            true,
-            playerTotalWin.toNumber(),
-            {
+          const updateResult = await settleXoSoBalanceByUsernameOnce(player.username, {
+            operationId: `xoso45s:settle:${sessionCode}:${playerId}`,
+            totalWin: playerTotalWin.toString(),
+            totalBet: playerTotalBet.toString(),
+            meta: {
               gameName: "Xổ Số 45S",
               gameKey: "xoso45s",
               choice: `Kỳ #${sessionCode}`,
-              betAmount: playerTotalBet.toNumber(),
+              betAmount: playerTotalBet.toString(),
               detail: betDetails.join(" | "),
-            }
-          );
-        } catch (err) {
-          console.error("[XSMB 45S] Lỗi update balance thắng:", err);
-        }
-      } else {
-        try {
-          await setLoserGameByUsername(player.username, -playerTotalBet.toNumber(), {
-            gameName: "Xổ Số 45S",
-            gameKey: "xoso45s",
-            choice: `Kỳ #${sessionCode}`,
-            betAmount: playerTotalBet.toNumber(),
-            detail: betDetails.join(" | "),
+            },
           });
+          if (!updateResult?.success) throw new Error(updateResult?.message || "Quyết toán thất bại");
         } catch (err) {
-          console.error("[XSMB 45S] Lỗi update balance thua:", err);
+          console.error("[XSMB 45S] Lỗi quyết toán người chơi:", err);
+          settlementErrors.push(`${playerId}: ${err?.message || err}`);
+          continue;
         }
       }
 
-      await addGameRankPoints(playerId, {
-        won: playerTotalWin.gt(0),
-        jackpot: player.bets.some((b) => b.type === "de" && b.number === xsmbResult.de),
-      });
+      if (!settledPlayerIds.has(String(playerId))) {
+        settledPlayerIds.add(String(playerId));
+        currentSession.settledPlayerIds = [...settledPlayerIds];
+        saveCurrentSessionNow();
+        await addGameRankPoints(playerId, {
+          won: playerTotalWin.gt(0),
+          jackpot: player.bets.some((b) => b.type === "de" && b.number === xsmbResult.de),
+        }).catch((error) => console.error("[XSMB 45S] Lỗi cập nhật điểm hạng:", error));
+      }
     }
 
-    // Gửi kết quả đến các nhóm có người chơi cược
+    if (settlementErrors.length > 0) {
+      throw new Error(`Còn ${settlementErrors.length} người chơi chưa quyết toán: ${settlementErrors.join(" | ")}`);
+    }
+
+    // Chỉ dựng ảnh sau khi mọi người đã được quyết toán thành công.
+    let resultImagePath = null;
+    try {
+      resultImagePath = await createXoSo45sResultImage(xsmbResult, sessionCode, timeStr);
+    } catch (e) {
+      console.error("[XSMB 45S] Lỗi vẽ ảnh canvas:", e);
+    }
+
+    // Gửi kết quả đến các nhóm có người chơi cược. Chỉ đóng kỳ sau khi tất
+    // cả các nhóm đã nhận được ảnh hoặc bản text dự phòng.
+    const deliveryErrors = [];
     for (const [threadId, players] of Object.entries(threadPlayers)) {
       // Xác định đúng bot của nhóm này để gửi tin nhắn
       const targetBotId = players[0]?.botId;
@@ -441,7 +515,9 @@ async function endSession(fallbackApi) {
           await botApi.sendMessage(
             {
               msg: msgText,
-              mentions: playerMentions,
+              ttl: TTL_IMAGE,
+              useDefaultTtl: false,
+              linkOn: false,
             },
             threadId,
             MessageType.GroupMessage
@@ -451,23 +527,43 @@ async function endSession(fallbackApi) {
           console.error(`[XSMB 45S] Lỗi gửi text nhóm ${threadId}:`, textErr.message || textErr);
         }
       }
+
+      if (!sentSuccess) {
+        deliveryErrors.push(String(threadId));
+      }
     }
 
     if (resultImagePath) {
       await clearImagePath(resultImagePath);
     }
+    if (deliveryErrors.length > 0) {
+      // Tiền đã được quyết toán idempotent và kết quả đã lưu. Không giữ kỳ ở
+      // trạng thái settling để cron upload lại cùng ảnh mãi, gây nghẽn toàn bot.
+      console.error(`[XSMB 45S] Bỏ qua gửi lại tự động cho nhóm lỗi: ${deliveryErrors.join(", ")}`);
+    }
+    sessionCompleted = true;
   } catch (err) {
     console.error("[XSMB 45S] Lỗi khi kết thúc phiên xổ số 45s:", err);
   } finally {
-    // Reset phiên mới
-    currentSession = {
-      sessionCode: (Number(currentSession.sessionCode) || 0) + 1,
-      players: {},
-      startTime: null,
-      endTime: null,
-      isRunning: false,
-      notified15s: false,
-    };
+    if (sessionCompleted) {
+      nextEndSessionRetryAt = 0;
+      const nextSessionCode = (Number(currentSession.sessionCode) || 0) + 1;
+      clearSavedCurrentSession();
+      currentSession = {
+        sessionCode: nextSessionCode,
+        players: {},
+        startTime: null,
+        endTime: null,
+        isRunning: false,
+        notified15s: false,
+        phase: "betting",
+        result: null,
+        resultTimestamp: null,
+        resultTimeStr: null,
+        settledPlayerIds: [],
+      };
+    }
+    if (!sessionCompleted) nextEndSessionRetryAt = Date.now() + END_SESSION_RETRY_MS;
     isEndingGame = false;
   }
 }
@@ -508,7 +604,7 @@ async function runGameLoop(api) {
   }
 
   // Khi hết thời gian: Xổ số!
-  if (remainingSeconds <= 0 && !isEndingGame) {
+  if (remainingSeconds <= 0 && !isEndingGame && now >= nextEndSessionRetryAt) {
     await endSession(api);
   }
 }
@@ -528,6 +624,17 @@ async function placeBet(api, message, threadId, senderId, betList, groupSettings
         success: false,
         message: "Không thể lấy hồ sơ game của bạn. Vui lòng thử lại sau.",
       },
+      true,
+      30000
+    );
+    return;
+  }
+
+  if (currentSession.isRunning && (currentSession.phase === "settling" || currentSession.endTime <= Date.now())) {
+    await sendMessageFromSQL(
+      api,
+      message,
+      { success: false, message: `Kỳ #${currentSession.sessionCode} đang quyết toán, vui lòng cược lại sau ít giây.` },
       true,
       30000
     );
@@ -571,7 +678,7 @@ async function placeBet(api, message, threadId, senderId, betList, groupSettings
         message,
         {
           success: false,
-          message: `Số tiền cược không hợp lệ (${item.amountStr}): ${e.message}`,
+          message: e.message,
         },
         true,
         30000
@@ -600,7 +707,7 @@ async function placeBet(api, message, threadId, senderId, betList, groupSettings
     totalBetAmount = totalBetAmount.plus(betAmount);
     validBets.push({
       ...item,
-      amount: betAmount.toNumber(),
+      amount: betAmount.toString(),
     });
   }
 
@@ -618,20 +725,26 @@ async function placeBet(api, message, threadId, senderId, betList, groupSettings
     return;
   }
 
-  // Trừ tiền cược ngay
-  await updatePlayerBalanceByUsername(username, totalBetAmount.neg().toNumber());
-
-  // Đăng ký phiên nếu chưa chạy
-  if (!currentSession.isRunning) {
+  // Tạo phiên trước, sau đó ghi vé xuống đĩa trước khi trừ tiền. Mã giao dịch
+  // trong hồ sơ người chơi giúp khôi phục đúng vé nếu process dừng giữa chừng.
+  const openedNewSession = !currentSession.isRunning;
+  if (openedNewSession) {
     currentSession.isRunning = true;
     currentSession.startTime = Date.now();
     currentSession.endTime = Date.now() + SESSION_DURATION * 1000;
     currentSession.notified15s = false;
     currentSession.sessionCode = currentSession.sessionCode || 1;
+    currentSession.phase = "betting";
+    currentSession.result = null;
+    currentSession.resultTimestamp = null;
+    currentSession.resultTimeStr = null;
+    currentSession.settledPlayerIds = [];
   }
 
-  // Lưu cược người chơi
   const playerName = message.data.dName || senderId;
+  const messageId = message.data.msgId || message.data.cliMsgId || message.data.msgIdClient || message.data.ts;
+  const debitOperationId = `xoso45s:${currentSession.sessionCode}:${botId}:${threadId}:${senderId}:${messageId || `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
+  validBets.forEach((bet) => { bet.debitOperationId = debitOperationId; });
   if (!currentSession.players[senderId]) {
     currentSession.players[senderId] = {
       ...gameMentionPlayer(api, message),
@@ -642,8 +755,36 @@ async function placeBet(api, message, threadId, senderId, betList, groupSettings
       bets: [],
     };
   }
+  const playerBets = currentSession.players[senderId].bets;
+  const alreadyRecorded = playerBets.some((bet) => bet.debitOperationId === debitOperationId);
+  if (!alreadyRecorded) playerBets.push(...validBets);
+  saveCurrentSessionNow();
 
-  currentSession.players[senderId].bets.push(...validBets);
+  const debitResult = await adjustPlayerBalanceSafelyOnce(
+    senderId,
+    totalBetAmount.neg().toString(),
+    debitOperationId
+  );
+  if (!debitResult?.success) {
+    currentSession.players[senderId].bets = playerBets.filter((bet) => bet.debitOperationId !== debitOperationId);
+    if (currentSession.players[senderId].bets.length === 0) delete currentSession.players[senderId];
+    if (Object.keys(currentSession.players).length === 0) {
+      currentSession.isRunning = false;
+      currentSession.startTime = null;
+      currentSession.endTime = null;
+      clearSavedCurrentSession();
+    } else {
+      saveCurrentSessionNow();
+    }
+    await sendMessageFromSQL(
+      api,
+      message,
+      { success: false, message: debitResult?.message || "Không thể trừ tiền cược, vé chưa được ghi nhận." },
+      true,
+      30000
+    );
+    return;
+  }
 
   // Đăng ký nhóm
   if (!Array.isArray(activeThreads[botId])) activeThreads[botId] = [];
@@ -658,7 +799,20 @@ async function placeBet(api, message, threadId, senderId, betList, groupSettings
   // Tính thời gian còn lại
   const remainingSeconds = Math.max(0, Math.ceil((currentSession.endTime - Date.now()) / 1000));
 
-  let confirmMsg = `✅ ${playerName} đã đặt cược thành công cho Kỳ #${currentSession.sessionCode}:\n`;
+  if (openedNewSession) {
+    await api.sendMessage(
+      {
+        msg: `🎰 XỔ SỐ NHANH 45S\n🔔 Đã mở Kỳ #${currentSession.sessionCode}\n⏱ Nhận cược trong ${SESSION_DURATION} giây.`,
+        ttl: 30000,
+        useDefaultTtl: false,
+        linkOn: false,
+      },
+      threadId,
+      MessageType.GroupMessage
+    );
+  }
+
+  let confirmDetail = ` đã đặt cược thành công cho Kỳ #${currentSession.sessionCode}:\n`;
   for (const b of validBets) {
     let typeName = "Đề";
     if (b.type === "lo") typeName = b.diem ? `Lô (${b.diem}đ)` : "Lô";
@@ -669,21 +823,26 @@ async function placeBet(api, message, threadId, senderId, betList, groupSettings
     else if (b.type === "tai") typeName = "Đề Tài";
     else if (b.type === "xiu") typeName = "Đề Xỉu";
 
-    confirmMsg += `• [${typeName}] ${b.number ? b.number + " : " : ""}${formatCurrency(b.amount)} VNĐ\n`;
+    confirmDetail += `• [${typeName}] ${b.number ? b.number + " : " : ""}${formatCurrency(b.amount)} VNĐ\n`;
   }
-  confirmMsg += `💰 Tổng cược: ${formatCurrency(totalBetAmount)} VNĐ\n`;
-  confirmMsg += `⏱ Thời gian còn lại: ${remainingSeconds} giây đếm ngược!`;
+  confirmDetail += `💰 Tổng cược: ${formatCurrency(totalBetAmount)} VNĐ\n`;
+  confirmDetail += `⏱ Thời gian còn lại: ${remainingSeconds} giây đếm ngược!`;
+  const confirmation = buildGamePlayerMessage([
+    "✅ ",
+    { player: currentSession.players[senderId] },
+    confirmDetail,
+  ], { threadId, botId: api.getBotId(), type: message.type });
 
-  await sendMessageFromSQL(
-    api,
-    message,
+  await api.sendMessage(
     {
-      success: true,
-      message: confirmMsg,
+      msg: confirmation.msg,
+      mentions: confirmation.mentions,
+      ttl: 30000,
+      useDefaultTtl: false,
+      linkOn: false,
     },
-    false,
-    30000,
-    false
+    threadId,
+    MessageType.GroupMessage
   );
 }
 
@@ -1034,14 +1193,29 @@ export async function initializeGameXoSoNhanh(api) {
   activeThreads = gameState.data.xoso45s.activeThreads;
   gameHistory = gameState.data.xoso45s.history;
 
-  currentSession = {
+  let restoredSession = restoreXoSoSession(
+    gameState.data.xoso45s.currentSession,
+    gameHistory[0]?.sessionCode || 0
+  );
+  if (restoredSession) {
+    restoredSession = await reconcileRestoredSessionBets(restoredSession);
+    if (Object.keys(restoredSession.players).length === 0) restoredSession = null;
+  }
+  currentSession = restoredSession || {
     sessionCode: (gameHistory[0]?.sessionCode || 0) + 1,
     players: {},
     startTime: null,
     endTime: null,
     isRunning: false,
     notified15s: false,
+    phase: "betting",
+    result: null,
+    resultTimestamp: null,
+    resultTimeStr: null,
+    settledPlayerIds: [],
   };
+  nextEndSessionRetryAt = 0;
+  if (!restoredSession && gameState.data.xoso45s.currentSession) clearSavedCurrentSession();
 
   // Đảm bảo chỉ có 1 job schedule chạy cho game này
   if (gameScheduleJob) {
@@ -1053,5 +1227,9 @@ export async function initializeGameXoSoNhanh(api) {
     api.apiInstance.schedule.xosoNhanhJob = gameScheduleJob;
   }
 
-  console.log(chalk.magentaBright("Khởi động minigame Xổ Số Nhanh 45S hoàn tất"));
+  console.log(chalk.magentaBright(
+    restoredSession
+      ? `Khôi phục Xổ Số Nhanh kỳ #${currentSession.sessionCode} với ${Object.keys(currentSession.players).length} người chơi`
+      : "Khởi động minigame Xổ Số Nhanh 45S hoàn tất"
+  ));
 }

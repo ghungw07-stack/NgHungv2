@@ -1,5 +1,5 @@
 import { MultiMsgStyle, MessageStyle, MessageType } from "../../../api-zalo/index.js";
-import { nameServer } from "../../../database/index.js";
+import { nameServer } from "../../../database/state.js";
 import { getLocalImageInfo, uploadTempFile } from "../../../utils/util.js";
 import { getGameMentionUid } from "../../../utils/game-mentions.js";
 
@@ -564,7 +564,16 @@ export async function sendMessageImageNotQuote(
 ) {
   const nameServer = getNameServer(api);
   const serverStyle = getServerStyle(api);
-  const style = MultiMsgStyle([MessageStyle(0, nameServer.length, serverStyle.color, serverStyle.size, serverStyle.bold, serverStyle.italic, serverStyle.underline, serverStyle.strike)]);
+  const textStyle = getTextStyle(api);
+  const bodyOffset = Math.min(nameServer.length, result.message.length);
+  const bodyLength = Math.max(0, result.message.length - bodyOffset);
+  const bodySize = String(Math.max(18, Number(textStyle.size) || 18));
+  const style = MultiMsgStyle([
+    MessageStyle(0, bodyOffset, serverStyle.color, serverStyle.size, serverStyle.bold, serverStyle.italic, serverStyle.underline, serverStyle.strike),
+    ...(bodyLength > 0
+      ? [MessageStyle(bodyOffset, bodyLength, textStyle.color, bodySize, textStyle.bold, textStyle.italic, textStyle.underline, textStyle.strike)]
+      : []),
+  ]);
   try {
     return await api.sendMessage(
       {
@@ -584,7 +593,7 @@ export async function sendMessageImageNotQuote(
   }
 }
 
-export async function sendMessageFromSQLImage(api, message, result, hasState = true, waitingImagePath) {
+export async function sendMessageFromSQLImage(api, message, result, hasState = true, waitingImagePath, ttl = 0, quote = false) {
   try {
     const threadId = message.threadId;
     const senderId = getGameMentionUid(message);
@@ -609,9 +618,11 @@ export async function sendMessageFromSQLImage(api, message, result, hasState = t
     return await api.sendMessage(
       {
         msg: msg,
-        mentions: [{ pos: 0, uid: senderId, len: senderName.length }],
+        mentions: isGroup ? [{ pos: 0, uid: senderId, len: senderName.length }] : [],
         attachments: waitingImagePath ? [waitingImagePath] : [],
         style: style,
+        ...(quote ? { quote: message } : {}),
+        ttl,
         linkOn: false,
       },
       threadId,

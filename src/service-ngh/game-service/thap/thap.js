@@ -2,7 +2,7 @@ import Big from 'big.js';
 import fs from 'node:fs/promises';
 import { randomInt } from 'node:crypto';
 import { getPlayerBalance, getUsernameByIdZalo, updatePlayerBalanceByUsername, setLoserGameByUsername } from '../../../database/player.js';
-import { parseGameAmount } from '../../../utils/format-util.js';
+import { parseGameBetAmount as parseGameAmount } from '../../../utils/format-util.js';
 import { getGlobalPrefix } from '../../service.js';
 import { checkBeforeJoinGame } from '../index.js';
 import { MODES, normalize, payout, resolveTowerBomb } from './rules.js';

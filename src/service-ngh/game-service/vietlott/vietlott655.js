@@ -18,7 +18,7 @@ import {
 } from "../../chat-zalo/chat-style/chat-style.js";
 import { nameServer } from "../../../database/index.js";
 import schedule from "node-schedule";
-import { parseGameAmount, formatCurrency } from "../../../utils/format-util.js";
+import { parseGameBetAmount as parseGameAmount, formatCurrency } from "../../../utils/format-util.js";
 import { getGlobalPrefix } from "../../service.js";
 import Big from "big.js";
 import { checkBeforeJoinGame } from "../index.js";

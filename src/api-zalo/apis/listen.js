@@ -101,8 +101,7 @@ export class Listener extends EventEmitter {
       this.retryTimer = null;
     }
     logger(this.appContext, true).verbose(`Application is starting...`);
-    this.ws = new WebSocket(this.wsURL, {
-      agent: this.appContext.options.agent,
+    const websocketOptions = {
       headers: {
         "accept-encoding": "gzip, deflate, br, zstd",
         "accept-language": "en-US,en;q=0.9",
@@ -117,7 +116,13 @@ export class Listener extends EventEmitter {
         "user-agent": this.userAgent,
         cookie: this.cookie,
       },
-    });
+    };
+    // ws chỉ nhận Agent object; một số transport fetch dùng callback agent.
+    // Không truyền callback vào WebSocket vì nó làm crash toàn bộ bot lúc login.
+    if (this.appContext.options.agent && typeof this.appContext.options.agent !== "function") {
+      websocketOptions.agent = this.appContext.options.agent;
+    }
+    this.ws = new WebSocket(this.wsURL, websocketOptions);
     this.ws.onopen = () => {
       // A successful reconnect starts a fresh retry budget. Without this, a
       // long-running bot eventually consumes all retries across unrelated
@@ -513,14 +518,20 @@ export class Listener extends EventEmitter {
       this.retryTimer = null;
     }
     if (this.ws) {
-      this.ws.onopen = null;
-      this.ws.onclose = null;
-      this.ws.onmessage = null;
-      this.ws.onerror = null;
-      if (this.ws.readyState !== WebSocket.CLOSED) {
-        this.ws.close(CloseWebSocketReason.ManualClosure);
-      }
+      const socket = this.ws;
       this.ws = null;
+      socket.onopen = null;
+      socket.onclose = null;
+      socket.onmessage = null;
+      socket.onerror = null;
+      if (socket.readyState === WebSocket.CONNECTING) {
+        // ws emits an asynchronous error when a handshake is aborted. Keep a
+        // one-shot listener so stopping one child cannot crash the whole worker.
+        socket.once("error", () => {});
+        socket.close(CloseWebSocketReason.ManualClosure);
+      } else if (socket.readyState === WebSocket.OPEN) {
+        socket.close(CloseWebSocketReason.ManualClosure);
+      }
     }
     this.cipherKey = undefined;
     if (this.pingInterval) clearInterval(this.pingInterval);

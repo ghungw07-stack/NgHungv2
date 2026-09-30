@@ -1,5 +1,6 @@
 import path from "path";
 import Big from "big.js";
+import { selectGameDisplayName } from "../../database/player-sync.js";
 import { createCanvas, loadImage } from "canvas";
 import { FONT_MAIN, formatCurrency } from "../format-util.js";
 import { writeFilePromise } from "../util.js";
@@ -12,23 +13,47 @@ const TIERS = [
   { key: "silver", name: "Bạc", min: "0", donate: "Hạng mặc định", color: "#b0c4de", deep: "#506172", dark: "#111923", glow: "rgba(176,196,222,0.30)", daily: "3000000000", sendLimit: "50000000000", receiveLimit: "15000000000", dailyText: "3 TỶ", sendText: "50 TỶ", recvText: "15 TỶ", extra: "Hạn mức cộng dồn / 30 ngày", rate: 0 },
   { key: "gold", name: "Vàng", min: "10000", donate: "Ủng hộ 10.000đ", color: "#ffd700", deep: "#9b6414", dark: "#211707", glow: "rgba(255,215,0,0.30)", daily: "5000000000", sendLimit: "100000000000", receiveLimit: "30000000000", dailyText: "5 TỶ", sendText: "100 TỶ", recvText: "30 TỶ", extra: "Hạn mức cộng dồn / 30 ngày", rate: 0 },
   { key: "platinum", name: "Bạch Kim", min: "20000", donate: "Ủng hộ 20.000đ", color: "#e5e4e2", deep: "#4d8591", dark: "#0d1c23", glow: "rgba(229,228,226,0.28)", daily: "12000000000", sendLimit: "300000000000", receiveLimit: "120000000000", dailyText: "12 TỶ", sendText: "300 TỶ", recvText: "120 TỶ", extra: "Hạn mức cộng dồn / 30 ngày", rate: 0 },
-  { key: "emerald", name: "Lục Bảo", min: "40000", donate: "Ủng hộ 40.000đ", color: "#2ecc71", deep: "#187a38", dark: "#0a2612", glow: "rgba(46,204,113,0.30)", daily: "30000000000", sendLimit: "1200000000000", receiveLimit: "300000000000", dailyText: "30 TỶ", sendText: "1,2 K TỶ", recvText: "300 TỶ", extra: "Hạn mức cộng dồn / 30 ngày", rate: 0 },
-  { key: "ruby", name: "Hồng Ngọc", min: "70000", donate: "Ủng hộ 70.000đ", color: "#ff4d6d", deep: "#971d45", dark: "#290b18", glow: "rgba(255,77,109,0.30)", daily: "90000000000", sendLimit: "3600000000000", receiveLimit: "800000000000", dailyText: "90 TỶ", sendText: "3,6 K TỶ", recvText: "800 TỶ", extra: "Hạn mức cộng dồn / 30 ngày", rate: 0 },
-  { key: "diamond", name: "Kim Cương", min: "100000", donate: "Ủng hộ 100.000đ", color: "#00d2ff", deep: "#3159ad", dark: "#0a1530", glow: "rgba(0,210,255,0.30)", daily: "200000000000", sendLimit: "8000000000000", receiveLimit: "1800000000000", dailyText: "200 TỶ", sendText: "8 K TỶ", recvText: "1,8 K TỶ", extra: "NH 6%/ngày · Hạn mức / 30 ngày", rate: 0.06 },
-  { key: "gold_dragon", name: "Kim Long", min: "150000", donate: "Ủng hộ 150.000đ", color: "#ffb703", deep: "#a86408", dark: "#211204", glow: "rgba(255,183,3,0.38)", daily: "500000000000", sendLimit: "20000000000000", receiveLimit: "5000000000000", dailyText: "500 TỶ", sendText: "20 K TỶ", recvText: "5 K TỶ", extra: "NH 12%/ngày · Hạn mức / 30 ngày", rate: 0.12 },
-  { key: "huyen_vu", name: "Huyền Vũ", min: "200000", donate: "Ủng hộ 200.000đ", color: "#52b788", deep: "#2d6a4f", dark: "#081c15", glow: "rgba(82,183,136,0.38)", daily: "700000000000", sendLimit: "20000000000000", receiveLimit: "4500000000000", dailyText: "700 TỶ", sendText: "20 K TỶ", recvText: "4,5 K TỶ", extra: "NH 12%/ngày · Hạn mức / 30 ngày", rate: 0.12 },
-  { key: "angel", name: "Mỹ Nhân", min: "250000", donate: "Hạng đặc biệt", color: "#ffa3d1", deep: "#a84576", dark: "#2e0f1d", glow: "rgba(255,163,209,0.38)", daily: "700000000000", sendLimit: "20000000000000", receiveLimit: "4500000000000", dailyText: "700 TỶ", sendText: "20 K TỶ", recvText: "4,5 K TỶ", extra: "Hạng đặc biệt Mỹ Nhân", rate: 0.12 },
-  { key: "bach_ho", name: "Bạch Hổ", min: "300000", donate: "Ủng hộ 300.000đ", color: "#caf0f8", deep: "#48cae4", dark: "#03045e", glow: "rgba(202,240,248,0.38)", daily: "1000000000000", sendLimit: "40000000000000", receiveLimit: "9000000000000", dailyText: "1 K TỶ", sendText: "40 K TỶ", recvText: "9 K TỶ", extra: "NH 16%/ngày · Hạn mức / 30 ngày", rate: 0.16 },
-  { key: "con_bang", name: "Côn Bằng", min: "400000", donate: "Ủng hộ 400.000đ", color: "#48cae4", deep: "#0077b6", dark: "#03045e", glow: "rgba(72,202,228,0.38)", daily: "2000000000000", sendLimit: "80000000000000", receiveLimit: "18000000000000", dailyText: "2 K TỶ", sendText: "80 K TỶ", recvText: "18 K TỶ", extra: "NH 20%/ngày · Hạn mức / 30 ngày", rate: 0.20 },
-  { key: "thanh_long", name: "Thanh Long", min: "500000", donate: "Ủng hộ 500.000đ", color: "#2dc653", deep: "#1b4332", dark: "#081c15", glow: "rgba(45,198,83,0.38)", daily: "3000000000000", sendLimit: "120000000000000", receiveLimit: "27000000000000", dailyText: "3 K TỶ", sendText: "120 K TỶ", recvText: "27 K TỶ", extra: "NH 24%/ngày · Hạn mức / 30 ngày", rate: 0.24 },
-  { key: "chu_tuoc", name: "Chu Tước", min: "600000", donate: "Ủng hộ 600.000đ", color: "#f77f00", deep: "#d62828", dark: "#370617", glow: "rgba(247,127,0,0.38)", daily: "4500000000000", sendLimit: "180000000000000", receiveLimit: "40500000000000", dailyText: "4,5 K TỶ", sendText: "180 K TỶ", recvText: "40,5 K TỶ", extra: "NH 30%/ngày · Hạn mức / 30 ngày", rate: 0.30 },
-  { key: "ky_lan", name: "Kỳ Lân", min: "700000", donate: "Ủng hộ 700.000đ", color: "#ffd166", deep: "#f48c06", dark: "#370617", glow: "rgba(255,209,102,0.38)", daily: "7000000000000", sendLimit: "280000000000000", receiveLimit: "63000000000000", dailyText: "7 K TỶ", sendText: "280 K TỶ", recvText: "63 K TỶ", extra: "NH 36%/ngày · Hạn mức / 30 ngày", rate: 0.36 },
-  { key: "hon_don", name: "Hỗn Độn", min: "780000", donate: "Ủng hộ 780.000đ", color: "#b5179e", deep: "#7209b7", dark: "#240046", glow: "rgba(181,23,151,0.38)", daily: "10000000000000", sendLimit: "400000000000000", receiveLimit: "90000000000000", dailyText: "10 K TỶ", sendText: "400 K TỶ", recvText: "90 K TỶ", extra: "NH 45%/ngày · Hạn mức / 30 ngày", rate: 0.45 },
-  { key: "vo_cuc", name: "Vô Cực", min: "850000", donate: "Ủng hộ 850.000đ", color: "#7209b7", deep: "#560bad", dark: "#10002b", glow: "rgba(114,9,183,0.38)", daily: "14000000000000", sendLimit: "560000000000000", receiveLimit: "126000000000000", dailyText: "14 K TỶ", sendText: "560 K TỶ", recvText: "126 K TỶ", extra: "NH 48%/ngày · Hạn mức / 30 ngày", rate: 0.48 },
-  { key: "can_khon", name: "Càn Khôn", min: "900000", donate: "Ủng hộ 900.000đ", color: "#9d4edd", deep: "#3c096c", dark: "#10002b", glow: "rgba(157,78,221,0.38)", daily: "20000000000000", sendLimit: "800000000000000", receiveLimit: "180000000000000", dailyText: "20 K TỶ", sendText: "800 K TỶ", recvText: "180 K TỶ", extra: "NH 50%/ngày · Hạn mức / 30 ngày", rate: 0.50 },
-  { key: "vinh_hang", name: "Vĩnh Hằng", min: "950000", donate: "Ủng hộ 950.000đ", color: "#4895ef", deep: "#3f37c9", dark: "#03045e", glow: "rgba(72,149,239,0.38)", daily: "28000000000000", sendLimit: "1100000000000000", receiveLimit: "252000000000000", dailyText: "28 K TỶ", sendText: "1100 K TỶ", recvText: "252 K TỶ", extra: "NH 52%/ngày · Hạn mức / 30 ngày", rate: 0.52 },
-  { key: "chi_ton", name: "Chí Tôn", min: "1000000", donate: "Ủng hộ 1.000.000đ", color: "#ffb703", deep: "#fb8500", dark: "#211204", glow: "rgba(255,183,3,0.45)", daily: "40000000000000", sendLimit: "1600000000000000", receiveLimit: "360000000000000", dailyText: "40 K TỶ", sendText: "1600 K TỶ", recvText: "360 K TỶ", extra: "NH 55%/ngày · Hạn mức / 30 ngày", rate: 0.55 },
-];
+  { key: "emerald", name: "Lục Bảo", min: "40000", donate: "Ủng hộ 40.000đ", color: "#2ecc71", deep: "#187a38", dark: "#0a2612", glow: "rgba(46,204,113,0.30)", daily: "30000000000", sendLimit: "1200000000000", receiveLimit: "300000000000", dailyText: "30 TỶ", sendText: "1,2 NGHÌN TỶ", recvText: "300 TỶ", extra: "Hạn mức cộng dồn / 30 ngày", rate: 0 },
+  { key: "ruby", name: "Hồng Ngọc", min: "70000", donate: "Ủng hộ 70.000đ", color: "#ff4d6d", deep: "#971d45", dark: "#290b18", glow: "rgba(255,77,109,0.30)", daily: "90000000000", sendLimit: "3600000000000", receiveLimit: "800000000000", dailyText: "90 TỶ", sendText: "3,6 NGHÌN TỶ", recvText: "800 TỶ", extra: "Hạn mức cộng dồn / 30 ngày", rate: 0 },
+  { key: "diamond", name: "Kim Cương", min: "100000", donate: "Ủng hộ 100.000đ", color: "#00d2ff", deep: "#3159ad", dark: "#0a1530", glow: "rgba(0,210,255,0.30)", daily: "200000000000", sendLimit: "8000000000000", receiveLimit: "1800000000000", dailyText: "200 TỶ", sendText: "8 NGHÌN TỶ", recvText: "1,8 NGHÌN TỶ", extra: "NH 6%/ngày · Hạn mức / 30 ngày", rate: 0.06 },
+  { key: "gold_dragon", name: "Kim Long", min: "150000", donate: "Ủng hộ 150.000đ", color: "#ffb703", deep: "#a86408", dark: "#211204", glow: "rgba(255,183,3,0.38)", daily: "500000000000", sendLimit: "20000000000000", receiveLimit: "5000000000000", dailyText: "500 TỶ", sendText: "20 NGHÌN TỶ", recvText: "5 NGHÌN TỶ", extra: "NH 12%/ngày · Hạn mức / 30 ngày", rate: 0.12 },
+  { key: "huyen_vu", name: "Huyền Vũ", min: "200000", donate: "Ủng hộ 200.000đ", color: "#52b788", deep: "#2d6a4f", dark: "#081c15", glow: "rgba(82,183,136,0.38)", daily: "700000000000", sendLimit: "20000000000000", receiveLimit: "4500000000000", dailyText: "700 TỶ", sendText: "20 NGHÌN TỶ", recvText: "4,5 NGHÌN TỶ", extra: "NH 12%/ngày · Hạn mức / 30 ngày", rate: 0.12 },
+  { key: "angel", name: "Mỹ Nhân", min: "250000", donate: "Hạng đặc biệt", color: "#ffa3d1", deep: "#a84576", dark: "#2e0f1d", glow: "rgba(255,163,209,0.38)", daily: "700000000000", sendLimit: "20000000000000", receiveLimit: "4500000000000", dailyText: "700 TỶ", sendText: "20 NGHÌN TỶ", recvText: "4,5 NGHÌN TỶ", extra: "Hạng đặc biệt Mỹ Nhân", rate: 0.12 },
+  { key: "bach_ho", name: "Bạch Hổ", min: "300000", donate: "Ủng hộ 300.000đ", color: "#caf0f8", deep: "#48cae4", dark: "#03045e", glow: "rgba(202,240,248,0.38)", daily: "1000000000000", sendLimit: "40000000000000", receiveLimit: "9000000000000", dailyText: "1 NGHÌN TỶ", sendText: "40 NGHÌN TỶ", recvText: "9 NGHÌN TỶ", extra: "NH 16%/ngày · Hạn mức / 30 ngày", rate: 0.16 },
+  { key: "con_bang", name: "Côn Bằng", min: "400000", donate: "Ủng hộ 400.000đ", color: "#48cae4", deep: "#0077b6", dark: "#03045e", glow: "rgba(72,202,228,0.38)", daily: "2000000000000", sendLimit: "80000000000000", receiveLimit: "18000000000000", dailyText: "2 NGHÌN TỶ", sendText: "80 NGHÌN TỶ", recvText: "18 NGHÌN TỶ", extra: "NH 20%/ngày · Hạn mức / 30 ngày", rate: 0.20 },
+  { key: "thanh_long", name: "Thanh Long", min: "500000", donate: "Ủng hộ 500.000đ", color: "#2dc653", deep: "#1b4332", dark: "#081c15", glow: "rgba(45,198,83,0.38)", daily: "3000000000000", sendLimit: "120000000000000", receiveLimit: "27000000000000", dailyText: "3 NGHÌN TỶ", sendText: "120 NGHÌN TỶ", recvText: "27 NGHÌN TỶ", extra: "NH 24%/ngày · Hạn mức / 30 ngày", rate: 0.24 },
+  { key: "chu_tuoc", name: "Chu Tước", min: "600000", donate: "Ủng hộ 600.000đ", color: "#f77f00", deep: "#d62828", dark: "#370617", glow: "rgba(247,127,0,0.38)", daily: "4500000000000", sendLimit: "180000000000000", receiveLimit: "40500000000000", dailyText: "4,5 NGHÌN TỶ", sendText: "180 NGHÌN TỶ", recvText: "40,5 NGHÌN TỶ", extra: "NH 30%/ngày · Hạn mức / 30 ngày", rate: 0.30 },
+  { key: "ky_lan", name: "Kỳ Lân", min: "700000", donate: "Ủng hộ 700.000đ", color: "#ffd166", deep: "#f48c06", dark: "#370617", glow: "rgba(255,209,102,0.38)", daily: "7000000000000", sendLimit: "280000000000000", receiveLimit: "63000000000000", dailyText: "7 NGHÌN TỶ", sendText: "280 NGHÌN TỶ", recvText: "63 NGHÌN TỶ", extra: "NH 36%/ngày · Hạn mức / 30 ngày", rate: 0.36 },
+  { key: "hon_don", name: "Hỗn Độn", min: "780000", donate: "Ủng hộ 780.000đ", color: "#b5179e", deep: "#7209b7", dark: "#240046", glow: "rgba(181,23,151,0.38)", daily: "10000000000000", sendLimit: "400000000000000", receiveLimit: "90000000000000", dailyText: "10 NGHÌN TỶ", sendText: "400 NGHÌN TỶ", recvText: "90 NGHÌN TỶ", extra: "NH 45%/ngày · Hạn mức / 30 ngày", rate: 0.45 },
+  { key: "vo_cuc", name: "Vô Cực", min: "850000", donate: "Ủng hộ 850.000đ", color: "#7209b7", deep: "#560bad", dark: "#10002b", glow: "rgba(114,9,183,0.38)", daily: "14000000000000", sendLimit: "560000000000000", receiveLimit: "126000000000000", dailyText: "14 NGHÌN TỶ", sendText: "560 NGHÌN TỶ", recvText: "126 NGHÌN TỶ", extra: "NH 48%/ngày · Hạn mức / 30 ngày", rate: 0.48 },
+  { key: "can_khon", name: "Càn Khôn", min: "900000", donate: "Ủng hộ 900.000đ", color: "#9d4edd", deep: "#3c096c", dark: "#10002b", glow: "rgba(157,78,221,0.38)", daily: "16000000000000", sendLimit: "800000000000000", receiveLimit: "180000000000000", dailyText: "16 NGHÌN TỶ", sendText: "800 NGHÌN TỶ", recvText: "180 NGHÌN TỶ", extra: "NH 50%/ngày · Hạn mức / 30 ngày", rate: 0.50 },
+  { key: "vinh_hang", name: "Vĩnh Hằng", min: "950000", donate: "Ủng hộ 950.000đ", color: "#4895ef", deep: "#3f37c9", dark: "#03045e", glow: "rgba(72,149,239,0.38)", daily: "18000000000000", sendLimit: "1100000000000000", receiveLimit: "252000000000000", dailyText: "18 NGHÌN TỶ", sendText: "1,1 TRIỆU TỶ", recvText: "252 NGHÌN TỶ", extra: "NH 52%/ngày · Hạn mức / 30 ngày", rate: 0.52 },
+  { key: "chi_ton", name: "Chí Tôn", min: "1000000", donate: "Ủng hộ 1.000.000đ", color: "#ffb703", deep: "#fb8500", dark: "#211204", glow: "rgba(255,183,3,0.45)", daily: "20000000000000", sendLimit: "1600000000000000", receiveLimit: "360000000000000", dailyText: "20 NGHÌN TỶ", sendText: "1,6 TRIỆU TỶ", recvText: "360 NGHÌN TỶ", extra: "NH 55%/ngày · Hạn mức / 30 ngày", rate: 0.55 },
+].map((tier) => ({
+  ...tier,
+  dailyText: formatCurrency(tier.daily),
+  sendText: formatCurrency(tier.sendLimit),
+  recvText: formatCurrency(tier.receiveLimit),
+}));
+
+// Hạng nhận diện riêng cho Bot Leader. Không đưa vào TIERS để người chơi không
+// thể mở khóa bằng điểm donate; quyền lợi giữ ngang Chí Tôn.
+export const OVERLORD_TIER = {
+  key: "overlord", name: "👑 Overlord", min: "1000000", donate: "Độc quyền Bot Leader",
+  color: "#f7c95c", deep: "#6f3cc3", dark: "#100817", glow: "rgba(247,201,92,0.48)",
+  daily: "20000000000000", sendLimit: "1600000000000000", receiveLimit: "360000000000000",
+  dailyText: formatCurrency("20000000000000"), sendText: "VÔ HẠN", recvText: "VÔ HẠN", bankUnlimited: true,
+  extra: "NH 60%/ngày · Chuyển/nhận vô hạn · Độc quyền Nguyễn Gia Hưng", rate: 0.60,
+};
+
+export const OVERLORD_PLAYER_ID = "t_m7e09z0izz";
+
+export function isExclusiveOverlordProfile(player = {}) {
+  const ids = [player.idUserZalo, player.idUser, player.username, player.account]
+    .filter(Boolean)
+    .map((value) => String(value).replace(/^private:[^:]+:/, "").replace(/_0$/u, ""));
+  return ids.includes(OVERLORD_PLAYER_ID) && player.specialTier === "overlord";
+}
 
 const KIM_LONG_DRAGON_PATH = path.resolve("./assets/resources/game/kim-long-dragon.png");
 const MY_NHAN_BG_PATH = path.resolve("./assets/resources/game/my-nhan-bg.jpg");
@@ -74,6 +99,14 @@ export function getGameTier(rankPoints) {
     if (value.gte(TIERS[index].min)) return TIERS[index];
   }
   return TIERS[0];
+}
+
+export function getPlayerGameTier(player = {}) {
+  // Overlord là tier độc quyền của đúng hồ sơ Nguyễn Gia Hưng. `isOverlord`
+  // chỉ được set sau khi đối chiếu alias chủ bot; specialTier một mình không đủ
+  // để admin/chủ bot con vô tình nhận tier này.
+  if (player.isOverlord === true || isExclusiveOverlordProfile(player)) return OVERLORD_TIER;
+  return getGameTier(player.rankPoints || 0);
 }
 
 /** Danh sách hạng donate dùng chung cho menu, QR và các màn hình game. */
@@ -254,18 +287,8 @@ function fullNumber(value) {
   }
 }
 
-function compactMoney(value) {
-  try {
-    const amount = new Big(value || 0);
-    if (amount.abs().lt(1_000_000_000)) return fullNumber(amount);
-    const billions = amount.div(1_000_000_000);
-    const [integerPart, decimalPart = ""] = billions.toFixed(2).split(".");
-    const grouped = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-    const decimals = decimalPart.replace(/0+$/, "");
-    return `${grouped}${decimals ? `,${decimals}` : ""} TỶ`;
-  } catch {
-    return "0";
-  }
+export function compactMoney(value) {
+  return formatCurrency(value);
 }
 
 function formatDate(value = Date.now()) {
@@ -474,6 +497,8 @@ function drawLabelValue(ctx, label, value, x, y, width, tier, valueColor = "#fff
 }
 
 export async function createGameRankImage(players, title = "BẢNG XẾP HẠNG GAME", viewer = null) {
+  players = players.map(player => ({ ...player, playerName: selectGameDisplayName(player.playerName) || "Người chơi" }));
+  if (viewer) viewer = { ...viewer, playerName: selectGameDisplayName(viewer.playerName) || "Người chơi" };
   const activeStyle = getActiveCanvasStyle();
   if (activeStyle !== 1) {
     const topPlayers = players.slice(0, 10);
@@ -485,7 +510,7 @@ export async function createGameRankImage(players, title = "BẢNG XẾP HẠNG 
       footer: viewer ? `Vị trí của bạn: ${viewer.rank || "--"} • ${compactMoney(viewer.balance)} VNĐ` : "Bảng xếp hạng tài sản game",
       items: topPlayers.map((player, index) => ({
         title: player.playerName || "Người chơi",
-        subtitle: player.hideTier ? "ẨN HẠNG" : getGameTier(player.rankPoints).name,
+        subtitle: player.hideTier ? "" : getPlayerGameTier(player).name,
         meta: `${compactMoney(player.balance)} VNĐ`,
         image: avatars[index],
         badge: String(player.rank || index + 1).padStart(2, "0"),
@@ -494,7 +519,7 @@ export async function createGameRankImage(players, title = "BẢNG XẾP HẠNG 
   }
   const width = 900;
   const height = 1332;
-  const topTier = getGameTier(players[0]?.rankPoints || 0);
+  const topTier = getPlayerGameTier(players[0]);
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext("2d");
   
@@ -566,8 +591,8 @@ export async function createGameRankImage(players, title = "BẢNG XẾP HẠNG 
   const artworkMap = {};
   const fullCreatureTiers = new Set(["gold_dragon", "huyen_vu", "bach_ho", "con_bang", "thanh_long", "chu_tuoc", "ky_lan"]);
   const allNeededTiers = new Set([
-    ...topTen.map((p) => getGameTier(p.rankPoints).key),
-    viewer ? getGameTier(viewer.rankPoints).key : "silver"
+    ...topTen.map((p) => getPlayerGameTier(p).key),
+    viewer ? getPlayerGameTier(viewer).key : "silver"
   ]);
 
   const [avatars] = await Promise.all([
@@ -589,7 +614,7 @@ export async function createGameRankImage(players, title = "BẢNG XẾP HẠNG 
   const rowGap = 12;
 
   const drawRow = (ctx, y, player, index, avatar, isViewer = false) => {
-    const tier = getGameTier(player.rankPoints);
+    const tier = getPlayerGameTier(player);
     const textColor = getGameTierTextColor(tier);
     const isDefaultTier = tier.key === "silver";
     const isPremium = ["emerald", "ruby", "diamond", "angel"].includes(tier.key);
@@ -660,24 +685,26 @@ export async function createGameRankImage(players, title = "BẢNG XẾP HẠNG 
     ctx.font = fitFont(ctx, player.playerName || "Người chơi", 300, 25, 16);
     ctx.fillText(player.playerName || "Người chơi", 187, y + 30);
     
-    // Badge danh hiệu
-    const titleText = player.hideTier ? "ẨN HẠNG" : `${tier.name.toUpperCase()} • ${getPlayerTitle(player)}`;
-    ctx.font = fitFont(ctx, titleText, 275, 13, 9);
-    const badgeW = ctx.measureText(titleText).width + 24;
-    roundedRect(ctx, 187, y + 52, badgeW, 23, 11);
-    if (isPremium) {
-      ctx.fillStyle = `${tier.color}33`;
-      ctx.fill();
-      ctx.strokeStyle = `${tier.color}`;
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      ctx.fillStyle = textColor;
-    } else {
-      ctx.fillStyle = "rgba(3,6,10,0.72)";
-      ctx.fill();
-      ctx.fillStyle = textColor;
+    // Khi đã ẩn tier thì bỏ hẳn badge, không để lại nhãn tiết lộ trạng thái ẩn.
+    if (!player.hideTier) {
+      const titleText = `${tier.name.toUpperCase()} • ${getPlayerTitle(player)}`;
+      ctx.font = fitFont(ctx, titleText, 275, 13, 9);
+      const badgeW = ctx.measureText(titleText).width + 24;
+      roundedRect(ctx, 187, y + 52, badgeW, 23, 11);
+      if (isPremium) {
+        ctx.fillStyle = `${tier.color}33`;
+        ctx.fill();
+        ctx.strokeStyle = `${tier.color}`;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.fillStyle = textColor;
+      } else {
+        ctx.fillStyle = "rgba(3,6,10,0.72)";
+        ctx.fill();
+        ctx.fillStyle = textColor;
+      }
+      ctx.fillText(titleText, 199, y + 64);
     }
-    ctx.fillText(titleText, 199, y + 64);
 
     // Tài sản
     ctx.textAlign = "right";
@@ -719,11 +746,11 @@ export async function createGameRankImage(players, title = "BẢNG XẾP HẠNG 
 
   // Vị trí của người gọi lệnh
   const viewerY = 1167;
-  ctx.strokeStyle = `${(viewer ? getGameTier(viewer.rankPoints) : topTier).color}70`;
+  ctx.strokeStyle = `${(viewer ? getPlayerGameTier(viewer) : topTier).color}70`;
   ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(44, viewerY); ctx.lineTo(334, viewerY); ctx.moveTo(566, viewerY); ctx.lineTo(856, viewerY); ctx.stroke();
   ctx.textAlign = "center";
-  ctx.fillStyle = viewer ? getGameTierTextColor(getGameTier(viewer.rankPoints)) : "rgba(255,255,255,0.45)";
+  ctx.fillStyle = viewer ? getGameTierTextColor(getPlayerGameTier(viewer)) : "rgba(255,255,255,0.45)";
   ctx.font = `bold 14px ${FONT_MAIN}`;
   ctx.fillText("VỊ TRÍ CỦA BẠN", width / 2, viewerY);
 
@@ -743,8 +770,13 @@ export async function createGameRankImage(players, title = "BẢNG XẾP HẠNG 
 }
 async function renderGamePlayerCardClassic(playerInfo) {
   const W = 1080, H = 720;
-  const tier = getGameTier(playerInfo.rankPoints);
+  const tier = getPlayerGameTier(playerInfo);
   const avatar = await safeLoadImage(playerInfo.avatarFull || playerInfo.avatar);
+  const overlordBackground = tier.key === "overlord"
+    ? await safeLoadImage(path.resolve("./assets/resources/game/tiers/backgrounds/overlord.jpg")) : null;
+  const tierFrame = tier.key === "silver"
+    ? null
+    : await safeLoadImage(path.resolve(`./assets/resources/game/tiers/frames/${tier.key}.png`));
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext("2d");
   ctx.textBaseline = "middle";
@@ -762,7 +794,10 @@ async function renderGamePlayerCardClassic(playerInfo) {
     ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, 76, 0, Math.PI * 2); ctx.clip();
     if (avatar) ctx.drawImage(avatar, cx - 76, cy - 76, 152, 152);
     else { ctx.fillStyle = "#39424f"; ctx.fillRect(cx - 76, cy - 76, 152, 152); ctx.fillStyle = "#fff"; ctx.textAlign = "center"; ctx.font = `bold 56px ${FONT_MAIN}`; ctx.fillText((playerInfo.playerName || "P")[0].toUpperCase(), cx, cy); }
-    ctx.restore(); ctx.beginPath(); ctx.arc(cx, cy, 80, 0, Math.PI * 2); ctx.strokeStyle = tier.color; ctx.lineWidth = 6; ctx.stroke();
+    ctx.restore();
+    // Dùng cùng bộ frame tier với game rank.
+    if (tierFrame) ctx.drawImage(tierFrame, cx - 104, cy - 104, 208, 208);
+    else { ctx.beginPath(); ctx.arc(cx, cy, 80, 0, Math.PI * 2); ctx.strokeStyle = tier.color; ctx.lineWidth = 6; ctx.stroke(); }
   };
   const stat = (x, y, w, h, title, value, color, note = "") => {
     rr(x, y, w, h, 8, "rgba(255,255,255,.055)", "rgba(245,191,80,.30)");
@@ -774,6 +809,17 @@ async function renderGamePlayerCardClassic(playerInfo) {
   const bg = ctx.createLinearGradient(0, 0, W, H);
   bg.addColorStop(0, "#46504d"); bg.addColorStop(.4, "#171c1e"); bg.addColorStop(1, "#252d2c");
   ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+  if (overlordBackground) {
+    const scale = Math.max(W / overlordBackground.width, H / overlordBackground.height);
+    const bw = overlordBackground.width * scale;
+    const bh = overlordBackground.height * scale;
+    ctx.save();
+    ctx.globalAlpha = 0.72;
+    ctx.drawImage(overlordBackground, (W - bw) / 2, (H - bh) / 2, bw, bh);
+    ctx.fillStyle = "rgba(7,3,12,.34)";
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+  }
   const glow = ctx.createRadialGradient(130, 90, 0, 130, 90, 620);
   glow.addColorStop(0, `${tier.color}30`); glow.addColorStop(1, "rgba(0,0,0,0)"); ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H);
   rr(36, 36, 1008, 648, 10, "rgba(10,13,15,.90)", "rgba(255,255,255,.24)", 1.2);
@@ -793,17 +839,22 @@ async function renderGamePlayerCardClassic(playerInfo) {
   });
   // Không hiển thị mã nội bộ (đặc biệt private:<server>:<uid>) trên thẻ;
   // mã dài làm tràn khung và không có giá trị với người chơi.
-  ctx.fillStyle = tier.color; ctx.font = `bold 24px ${FONT_MAIN}`; ctx.fillText("♠   ♥   ♦   ♣", 188, 642);
+  // Căn từng chất bài vào ô cố định; không phụ thuộc khoảng trắng/glyph của font.
+  ctx.textAlign = "center";
+  ctx.fillStyle = tier.color;
+  ctx.font = `bold 24px ${FONT_MAIN}`;
+  ["♠", "♥", "♦", "♣"].forEach((suit, index) => ctx.fillText(suit, 128 + index * 40, 642));
 
   const rX = 376, rW = 634;
-  label("SỐ DƯ", rX, 88);
+  label("VÍ GAME", rX, 88);
   const balance = compactMoney(playerInfo.balance);
   ctx.fillStyle = tier.color; ctx.font = fitFont(ctx, balance, 470, 68, 38); ctx.textAlign = "left"; ctx.fillText(balance, rX, 151);
   ctx.fillStyle = "#f5c75d"; ctx.font = `bold 26px ${FONT_MAIN}`; ctx.textAlign = "right"; ctx.fillText("VNĐ", rX + rW, 171);
   line(rX, 216, rX + rW, 216);
   const profit = new Big(playerInfo.netProfit || 0); const gain = profit.gte(0); const profitColor = gain ? "#42ddca" : "#ff637a";
   ctx.textAlign = "left"; ctx.fillStyle = "#fff"; ctx.font = `bold 27px ${FONT_MAIN}`; ctx.fillText("Lợi nhuận", rX, 255);
-  ctx.fillStyle = profitColor; ctx.font = `bold 29px ${FONT_MAIN}`; ctx.fillText(`${gain ? "▲" : "▼"}  ${gain ? "+" : "−"}${compactMoney(profit.abs())} VNĐ`, rX + 176, 255);
+  const profitText = `${gain ? "▲" : "▼"}  ${gain ? "+" : "−"}${compactMoney(profit.abs())} VNĐ`;
+  ctx.fillStyle = profitColor; ctx.font = fitFont(ctx, profitText, rW - 176, 29, 16); ctx.fillText(profitText, rX + 176, 255);
   line(rX, 286, rX + rW, 286);
   stat(rX, 304, 312, 124, "Tổng thắng", compactMoney(playerInfo.totalWinnings || 0), "#42ddca");
   stat(rX + 322, 304, 312, 124, "Tổng thua", compactMoney(new Big(playerInfo.totalLosses || 0).abs()), "#ff637a");
@@ -824,13 +875,16 @@ export async function createGamePlayerCard(playerInfo) {
   if (playerInfo.mycardStyle !== "legacy") return renderGamePlayerCardClassic(playerInfo);
   const W = 1100;
   const H = 720;
-  const tier = getGameTier(playerInfo.rankPoints);
+  const tier = getPlayerGameTier(playerInfo);
   const { nextTier, progress: tierProgress } = getGameTierProgress(playerInfo.rankPoints);
   const isDragon = tier.key === "gold_dragon";
   const isPremium = ["emerald", "ruby", "diamond", "angel"].includes(tier.key);
   
   const dragonImage = isDragon ? await safeLoadImage(KIM_LONG_DRAGON_PATH) : null;
   const beautyImage = tier.key === "angel" ? await safeLoadImage(MY_NHAN_BG_PATH) : null;
+  const tierFrame = tier.key === "silver"
+    ? null
+    : await safeLoadImage(path.resolve(`./assets/resources/game/tiers/frames/${tier.key}.png`));
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext("2d");
   ctx.textBaseline = "middle";
@@ -1018,6 +1072,11 @@ export async function createGamePlayerCard(playerInfo) {
   }
   ctx.restore();
 
+  if (tierFrame) {
+    const frameSize = 250;
+    ctx.drawImage(tierFrame, avX - frameSize / 2, avY - frameSize / 2, frameSize, frameSize);
+  }
+
   // Name
   ctx.textAlign = "center";
   ctx.fillStyle = textPrimary;
@@ -1084,7 +1143,7 @@ export async function createGamePlayerCard(playerInfo) {
   ctx.textAlign = "left";
   ctx.fillStyle = textSecondary;
   ctx.font = `bold 16px ${FONT_MAIN}`;
-  ctx.fillText("SỐ DƯ GAME", rX + 40, lY + 50);
+  ctx.fillText("VÍ GAME", rX + 40, lY + 50);
 
   const balanceText = compactMoney(playerInfo.balance);
   ctx.fillStyle = textPrimary;
@@ -1688,15 +1747,15 @@ export async function createGameStatementImage(data) {
   const activeStyle = getActiveCanvasStyle();
   if (activeStyle !== 1) {
     return renderCollectionStyle(activeStyle, {
-      kicker: "MYBOT • LỊCH SỬ THẮNG THUA",
-      title: "SAO KÊ THẮNG THUA",
+      kicker: "MYBOT • LỊCH SỬ TÀI KHOẢN",
+      title: "SAO KÊ TÀI KHOẢN",
       subtitle: `${data.playerName || "Người chơi"} • Thắng ${totalWinGames}/${totalGames} (${winRate}%) • LN ${profitPrefix}${compactMoney(netProfit)} VNĐ`,
-      footer: `${transactions.length} ván gần nhất • Số dư ${compactMoney(data.balance)} VNĐ • ${formatDate()}`,
+      footer: `${transactions.length} biến động gần nhất • Số dư ${compactMoney(data.balance)} VNĐ • ${formatDate()}`,
       items: transactions.map((transaction) => {
         const isWin = transaction.direction === "in";
         const isPush = transaction.direction === "push";
         const sign = isWin ? "+" : isPush ? "±" : "−";
-        const badge = isWin ? "THẮNG" : isPush ? "HÒA" : "THUA";
+        const badge = transaction.badge || (isWin ? "THẮNG" : isPush ? "HÒA" : "THUA");
         return {
           title: transaction.counterpartyName || "Ván đấu",
           subtitle: `${formatDate(transaction.createdAt)} • ${transaction.referenceCode || "N/A"}${transaction.detail ? ` • ${transaction.detail}` : ""}`,
@@ -1708,7 +1767,7 @@ export async function createGameStatementImage(data) {
   }
   const width = 1080;
   const height = Math.max(560, 310 + transactions.length * 92);
-  const tier = getGameTier(data.rankPoints);
+  const tier = getPlayerGameTier(data);
   const dragonImage = tier.key === "gold_dragon" ? await safeLoadImage(KIM_LONG_DRAGON_PATH) : null;
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext("2d");
@@ -1719,13 +1778,13 @@ export async function createGameStatementImage(data) {
   ctx.textAlign = "left";
   ctx.fillStyle = tier.color;
   ctx.font = `bold 14px ${FONT_MAIN}`;
-  ctx.fillText("MYBOT • LỊCH SỬ GAME", 46, 42);
+  ctx.fillText("MYBOT • LỊCH SỬ TÀI KHOẢN", 46, 42);
   ctx.fillStyle = "#ffffff";
   ctx.font = `bold 40px ${FONT_MAIN}`;
-  ctx.fillText("SAO KÊ THẮNG THUA", 46, 82);
+  ctx.fillText("SAO KÊ TÀI KHOẢN", 46, 82);
   ctx.fillStyle = "rgba(255,255,255,0.48)";
   ctx.font = `bold 13px ${FONT_MAIN}`;
-  ctx.fillText(`10 VÁN ĐẤU GẦN NHẤT  •  ${formatDate()}`, 46, 120);
+  ctx.fillText(`10 BIẾN ĐỘNG GẦN NHẤT  •  ${formatDate()}`, 46, 120);
 
   // Main account panel
   drawPanel(ctx, 46, 146, 988, 76, tier, true);
@@ -1773,10 +1832,10 @@ export async function createGameStatementImage(data) {
     ctx.textAlign = "center";
     ctx.fillStyle = "rgba(255,255,255,0.52)";
     ctx.font = `bold 20px ${FONT_MAIN}`;
-    ctx.fillText("CHƯA CÓ LỊCH SỬ VÁN ĐẤU GẦN ĐÂY", width / 2, 380);
+    ctx.fillText("CHƯA CÓ BIẾN ĐỘNG TÀI KHOẢN GẦN ĐÂY", width / 2, 380);
     ctx.font = `14px ${FONT_MAIN}`;
     ctx.fillStyle = "rgba(255,255,255,0.35)";
-    ctx.fillText("Hãy tham gia Tài Xỉu, Bầu Cua, Baccarat... để lưu sao kê ván đấu!", width / 2, 415);
+    ctx.fillText("Ván chơi, chuyển tiền, ngân hàng và khoản vay sẽ hiện tại đây.", width / 2, 415);
   }
 
   transactions.forEach((transaction, index) => {
@@ -1807,7 +1866,7 @@ export async function createGameStatementImage(data) {
     ctx.fillText(`${symbol}${compactMoney(transaction.amount)} VNĐ`, 1004, y + 28);
     ctx.fillStyle = "rgba(255,255,255,0.42)";
     ctx.font = `bold 11px ${FONT_MAIN}`;
-    ctx.fillText(transaction.balanceAfter ? `Số dư: ${compactMoney(transaction.balanceAfter)} VNĐ` : (isPush ? "Hoàn cược" : (incoming ? "Thắng cược" : "Thua cược")), 1004, y + 54);
+    ctx.fillText(transaction.balanceAfter ? `Số dư: ${compactMoney(transaction.balanceAfter)} VNĐ` : (transaction.badge || (isPush ? "Hòa" : (incoming ? "Tiền vào" : "Tiền ra"))), 1004, y + 54);
   });
 
   const filePath = path.resolve(`./assets/temp/game_statement_${Date.now()}.png`);
@@ -1819,7 +1878,7 @@ export async function createGameStatementImage(data) {
 export async function createGameSavingsImage(data) {
   const width = 1080;
   const height = 640;
-  const tier = getGameTier(data.rankPoints);
+  const tier = getPlayerGameTier(data);
   const [artwork, avatar] = await Promise.all([
     safeLoadImage(path.resolve(`./assets/resources/game/tiers/artworks/${tier.key}.png`)),
     safeLoadImage(data.avatar),
@@ -1883,8 +1942,8 @@ export async function createGameSavingsImage(data) {
   const values = [
     ["SỐ DƯ VÍ CHÍNH", `${compactMoney(data.balance)} VNĐ`, tier.color],
     ["SỔ TIẾT KIỆM", locked ? "Đang khóa" : `${compactMoney(data.savings)} VNĐ`, locked ? "#44e3ae" : tier.color],
-    ["LÃI MỖI NGÀY", locked ? "—" : `${Math.round((data.rate || 0) * 100)}%`, "#44e3ae"],
-    ["CÒN CHUYỂN / NHẬN", `${compactMoney(tier.sendLimit)} / ${compactMoney(tier.receiveLimit)}`, "#fff"],
+    [`LÃI SAU 1 ĐÊM (${Math.round((data.rate || 0) * 100)}%)`, locked ? "—" : `${compactMoney(data.oneNightInterest || 0)} VNĐ`, "#44e3ae"],
+    ["CÒN CHUYỂN / NHẬN", tier.bankUnlimited ? "VÔ HẠN / VÔ HẠN" : `${compactMoney(tier.sendLimit)} / ${compactMoney(tier.receiveLimit)}`, "#fff"],
   ];
   values.forEach(([label, value, color], index) => {
     const col = index % 2;
@@ -2121,7 +2180,9 @@ export async function createVIPTierImage(data) {
   const W = 1280;
   // listStartY(410) + 18×rowH(70)=1260 + gap(20) + footer(80) = 1770 → dùng 1780
   const H = 1780;
-  const { tier: currentTier, nextTier } = getGameTierProgress(data.rankPoints);
+  const { tier: currentTier, nextTier } = getPlayerGameTier(data).key === "overlord"
+    ? { tier: OVERLORD_TIER, nextTier: null }
+    : getGameTierProgress(data.rankPoints);
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext("2d");
 
@@ -2213,7 +2274,7 @@ export async function createVIPTierImage(data) {
   ctx.fillText("Có hiệu lực đến", avatarCenterX, 425);
   ctx.fillStyle = "#ffffff";
   ctx.font = `bold 18px ${FONT_MAIN}`;
-  const expireDate = data.vipExpireAt ? formatDate(data.vipExpireAt).split(" ")[1] : "06/10/2026";
+  const expireDate = data.vipExpireAt ? formatDate(data.vipExpireAt).split(" ")[1] : "Vĩnh viễn";
   ctx.fillText(expireDate, avatarCenterX, 450);
 
   // Ủng hộ trong 30 ngày (quy đổi từ rankPoints hoặc donate)
@@ -2335,7 +2396,7 @@ export async function createVIPTierImage(data) {
 
   // Row 2
   drawMetricCard(rightX, 235, "DAILY", currentTier.dailyText || compactMoney(Number(currentTier.daily)), "");
-  drawMetricCard(rightX + cardW + cardGap, 235, "SỐ DƯ", compactMoney(Number(data.balance || 0)), "");
+  drawMetricCard(rightX + cardW + cardGap, 235, "SỐ DƯ", compactMoney(data.balance || "0"), "");
 
   // CÁC HẠNG THÀNH VIÊN Header
   ctx.fillStyle = "#ffffff";

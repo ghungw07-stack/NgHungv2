@@ -25,6 +25,7 @@ async function loadCache() {
     cacheState.data = JSON.parse(data);
     console.log(chalk.magentaBright("Đã nạp dữ liệu cache link platform từ file thành công"));
   } catch (error) {
+    if (error?.code === "ENOENT") return;
     console.error("Lỗi khi đọc file cache:", error);
   }
 }

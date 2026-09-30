@@ -3,7 +3,6 @@ import crypto from "crypto";
 import fs from "fs";
 import sharp from "sharp";
 import pako from "pako";
-import SparkMD5 from "spark-md5";
 import path from "path";
 import axios from "axios";
 import ffmpeg from "fluent-ffmpeg";
@@ -13,6 +12,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { GroupEventType } from "./models/GroupEvent.js";
 import { ZaloApiError } from "./Errors/ZaloApiError.js";
 import { isContextHaveSecretKey } from "./context.js";
+import { getMd5LargeFileFromUrl as hashRemoteFile } from "./remote-file-checksum.js";
 
 export function getSignKey(type, params) {
   let n = [];
@@ -247,6 +247,10 @@ export function withZaloRequestPriority(task) {
   return requestPriority.run(true, task);
 }
 
+export function withoutZaloRequestPriority(task) {
+  return requestPriority.run(false, task);
+}
+
 export function request(appContext, url, options) {
   // Ordinary API calls retain their account-wide limit. Prepare cookies and
   // start the transport timeout only when the request actually leaves the queue.
@@ -411,12 +415,14 @@ export function decodeAES(secretKey, data, t = 0) {
 }
 
 export async function getImageMetaData(filePath) {
-  const fileData = await fs.promises.readFile(filePath);
-  const imageData = await sharp(fileData).metadata();
+  const [imageData, stat] = await Promise.all([
+    sharp(filePath).metadata(),
+    fs.promises.stat(filePath),
+  ]);
   const fileName = filePath.split("/").pop();
   return {
     fileName,
-    totalSize: imageData.size,
+    totalSize: stat.size,
     width: imageData.width,
     height: imageData.height,
   };
@@ -425,21 +431,16 @@ export async function getFileSize(filePath) {
   return fs.promises.stat(filePath).then((s) => s.size);
 }
 export async function getGifDimensions(filePath) {
-  let fileHandle;
-  try {
-    fileHandle = await fs.promises.open(filePath, "r");
-    const fileData = await fileHandle.readFile();
-    const detailData = await sharp(fileData).metadata();
-    const fileName = path.basename(filePath);
-    return {
-      fileName,
-      totalSize: detailData.size,
-      width: detailData.width,
-      height: detailData.height,
-    };
-  } finally {
-    if (fileHandle) await fileHandle.close();
-  }
+  const [detailData, stat] = await Promise.all([
+    sharp(filePath).metadata(),
+    fs.promises.stat(filePath),
+  ]);
+  return {
+    fileName: path.basename(filePath),
+    totalSize: stat.size,
+    width: detailData.width,
+    height: detailData.height,
+  };
 }
 
 export async function getVideoMetadata(fileLink) {
@@ -515,7 +516,7 @@ export async function getVideoMetadata(fileLink) {
 
 export async function getFileInfoFromUrl(url) {
   try {
-    const response = await axios.head(url);
+    const response = await axios.head(url, { timeout: 8_000, maxRedirects: 5 });
     let fileName = "";
     const contentDisposition = response.headers["content-disposition"];
     if (contentDisposition) {
@@ -602,37 +603,7 @@ export async function getMd5LargeFileObject(filePath, fileSize) {
   return { currentChunk: Math.max(1, Math.ceil(fileSize / 2097152)), data: hash.digest("hex") };
 }
 export async function getMd5LargeFileFromUrl(url, fileSize) {
-  return new Promise(async (resolve, reject) => {
-    try {
-      const response = await axios({
-        url: url,
-        method: "GET",
-        responseType: "arraybuffer",
-      });
-      let chunkSize = 2097152,
-        chunks = Math.ceil(fileSize / chunkSize),
-        currentChunk = 0,
-        spark = new SparkMD5.ArrayBuffer(),
-        buffer = Buffer.from(response.data);
-      function loadNext() {
-        let start = currentChunk * chunkSize,
-          end = start + chunkSize >= fileSize ? fileSize : start + chunkSize;
-        spark.append(buffer.subarray(start, end));
-        currentChunk++;
-        if (currentChunk < chunks) {
-          loadNext();
-        } else {
-          resolve({
-            currentChunk,
-            data: spark.end(),
-          });
-        }
-      }
-      loadNext();
-    } catch (error) {
-      reject(error);
-    }
-  });
+  return hashRemoteFile(url);
 }
 export const logger = (appContext, obligatory = false) => ({
   verbose: (...args) => {

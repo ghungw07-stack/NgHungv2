@@ -1,7 +1,6 @@
 export const ROB_COOLDOWN_MS = 30 * 60 * 1000;
 export const ROB_SUCCESS_RATE = 0.55;
 export const MIN_TARGET_BALANCE = 10_000;
-export const MAX_STEAL_AMOUNT = 2_000_000;
 export const MAX_FAILURE_FINE = 500_000;
 
 export const SHIELD_PLANS = Object.freeze({
@@ -10,10 +9,9 @@ export const SHIELD_PLANS = Object.freeze({
   "24h": { durationMs: 24 * 60 * 60 * 1000, price: 800_000, label: "24 giờ" },
 });
 
-export function calculateStealAmount(balance, random = Math.random()) {
+export function calculateStealAmount(balance) {
   const safeBalance = Math.max(0, Math.floor(Number(balance) || 0));
-  const ratio = 0.05 + Math.max(0, Math.min(1, random)) * 0.07;
-  return Math.max(1, Math.min(MAX_STEAL_AMOUNT, Math.floor(safeBalance * ratio)));
+  return Math.max(1, Math.floor(safeBalance * 0.05));
 }
 
 export function calculateFailureFine(balance, random = Math.random()) {

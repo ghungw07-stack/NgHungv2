@@ -11,18 +11,22 @@ import { readSettingConfig } from "../../utils/io-json.js";
 import { rememberUploadSize } from "../upload-metadata.js";
 import { logMediaTiming } from "../../utils/media-timing.js";
 
-const DEFAULT_CHUNK_SIZE = 100 * 1024 * 1024;
+const MAX_CHUNK_SIZE = 8 * 1024 * 1024;
+const DEFAULT_CHUNK_SIZE = MAX_CHUNK_SIZE;
 // Zalo endpoint vẫn áp giới hạn ~512KB cho audio asyncfile, kể cả nhánh file
 // lớn. Giữ 256KB để chừa overhead multipart và tránh lỗi 201 khi nhạc dài.
 const LARGE_AUDIO_CHUNK_SIZE = 256 * 1024;
 const LARGE_AUDIO_CONCURRENCY = Math.max(1, Number(process.env.NGH_LARGE_AUDIO_UPLOAD_CONCURRENCY) || 6);
-const MAX_VOICE_UPLOAD_CONCURRENCY = Math.max(1, Number(process.env.NGH_VOICE_UPLOAD_CONCURRENCY) || 6);
+const MAX_VOICE_UPLOAD_CONCURRENCY = Math.max(1, Number(process.env.NGH_VOICE_UPLOAD_CONCURRENCY) || 8);
 const MAX_VOICE_UPLOAD_SIZE = DEFAULT_CHUNK_SIZE;
-const DEFAULT_CONCURRENT_CHUNKS = Math.max(1, Number(process.env.NGH_UPLOAD_CHUNK_CONCURRENCY) || 6);
-const MAX_CONCURRENT_FILES = Math.max(1, Number(process.env.NGH_UPLOAD_FILE_CONCURRENCY) || 2);
+const DEFAULT_CONCURRENT_CHUNKS = Math.max(1, Math.min(4, Number(process.env.NGH_UPLOAD_CHUNK_CONCURRENCY) || 4));
+const MAX_CONCURRENT_FILES = Math.max(1, Math.min(2, Number(process.env.NGH_UPLOAD_FILE_CONCURRENCY) || 2));
 const UPLOAD_CACHE_TTL_MS = 30 * 60 * 1000;
 const MAX_UPLOAD_CACHE_ENTRIES = 1000;
-const UPLOAD_RATE_LIMIT_COOLDOWN_MS = 15 * 1000;
+const UPLOAD_RATE_LIMIT_COOLDOWN_MS = Math.max(
+  15_000,
+  Number(process.env.NGH_UPLOAD_RATE_LIMIT_COOLDOWN_MS) || 60_000
+);
 const uploadSettingConfig = readSettingConfig();
 const uploadResultCache = new Map();
 const uploadsInFlight = new Map();
@@ -88,8 +92,6 @@ export const uploadAttachmentFactory = apiFactory()((api, appContext, utils) => 
     const settingConfig = uploadSettingConfig;
 
     const processFile = async (filePath) => {
-      if (!fs.existsSync(filePath)) throw new ZaloApiError("File not found");
-
       const botId = String(api.getBotId());
       const blockedUntil = uploadRateLimitedUntil.get(botId) || 0;
       if (blockedUntil > Date.now()) {
@@ -104,21 +106,27 @@ export const uploadAttachmentFactory = apiFactory()((api, appContext, utils) => 
       }
       if (blockedUntil) uploadRateLimitedUntil.delete(botId);
 
-      const stat = await fs.promises.stat(filePath);
+      const stat = await fs.promises.stat(filePath).catch((error) => {
+        if (error?.code === "ENOENT") throw new ZaloApiError("File not found");
+        throw error;
+      });
+      const resolvedPath = path.resolve(filePath);
+      const generatedTempRoot = `${path.resolve("./assets/temp")}${path.sep}`;
+      const bypassCache = configOption.noCache || resolvedPath.startsWith(generatedTempRoot);
       const cacheKey = [
-        api.getBotId(),
-        path.resolve(filePath),
+        isUploadCloud ? "shared-cloud" : api.getBotId(),
+        resolvedPath,
         stat.size,
         stat.mtimeMs,
         isUploadCloud ? "cloud" : `${type}:${threadId}`,
         isCloudVoice ? "voice-cloud" : "normal",
       ].join(":");
-      const cached = uploadResultCache.get(cacheKey);
+      const cached = bypassCache ? null : uploadResultCache.get(cacheKey);
       if (cached && Date.now() - cached.timestamp < UPLOAD_CACHE_TTL_MS) {
         return cached.results.map((item) => ({ ...item }));
       }
       if (cached) uploadResultCache.delete(cacheKey);
-      if (uploadsInFlight.has(cacheKey)) {
+      if (!bypassCache && uploadsInFlight.has(cacheKey)) {
         const sharedResults = await uploadsInFlight.get(cacheKey);
         return sharedResults.map((item) => ({ ...item }));
       }
@@ -131,7 +139,10 @@ export const uploadAttachmentFactory = apiFactory()((api, appContext, utils) => 
       let checksumPromise;
 
       const extFile = path.extname(filePath).slice(1);
-      const configuredChunkSize = appContext.settings.features.sharefile.chunk_size_file || DEFAULT_CHUNK_SIZE;
+      const configuredChunkSize = Math.max(256 * 1024, Math.min(
+        MAX_CHUNK_SIZE,
+        Number(appContext.settings.features.sharefile.chunk_size_file) || DEFAULT_CHUNK_SIZE
+      ));
       const isAudio = ["mp3", "aac", "m4a"].includes(extFile.toLowerCase());
       const useRegularFileUpload = isAudio && stat.size > MAX_VOICE_UPLOAD_SIZE;
 
@@ -142,6 +153,9 @@ export const uploadAttachmentFactory = apiFactory()((api, appContext, utils) => 
       const MAX_VOICE_CHUNK = 256 * 1024; // 256KB
       const chunkSize = isVoiceUpload ? MAX_VOICE_CHUNK : (useRegularFileUpload ? LARGE_AUDIO_CHUNK_SIZE : configuredChunkSize);
 
+      // Temporary canvas images still need the normal cloud upload route.
+      // Bypassing the upload cache must not switch them to group photo upload:
+      // Zalo rejects that route for some bots with code 114.
       const useCloudUpload = isUploadCloud || useRegularFileUpload;
       const effectiveCloudId = appContext.idCloud || appContext.uid;
       const canUseCloud = Boolean(useCloudUpload && effectiveCloudId);
@@ -156,7 +170,7 @@ export const uploadAttachmentFactory = apiFactory()((api, appContext, utils) => 
         const isGroupMessage = fileType_ == MessageType.GroupMessage;
         const url = `${serviceURL}/${isGroupMessage ? "group" : "message"}/`;
         const query = {
-          zpw_ver: appContext.options.apiVersion || 667,
+          zpw_ver: appContext.options.apiVersion || 685,
           zpw_type: 30, // Upload endpoint của Zalo Web CDN yêu cầu zpw_type 30
           type: isGroupMessage ? "11" : "2",
         };
@@ -235,7 +249,7 @@ export const uploadAttachmentFactory = apiFactory()((api, appContext, utils) => 
                   useRegularFileUpload
                     ? LARGE_AUDIO_CONCURRENCY
                     : (Number(settingConfig["CHUNK_UPLOAD"]) || DEFAULT_CONCURRENT_CHUNKS),
-                  useRegularFileUpload ? LARGE_AUDIO_CONCURRENCY : 12
+                  useRegularFileUpload ? LARGE_AUDIO_CONCURRENCY : DEFAULT_CONCURRENT_CHUNKS
                 )
               ));
 
@@ -359,12 +373,6 @@ export const uploadAttachmentFactory = apiFactory()((api, appContext, utils) => 
         } catch (error) {
           attempts++;
           console.error(`[uploadAttachment-attempt-error] bot=${botId} attempt=${attempts} fileType_=${fileType_} threadId_=${threadId_} code=${error?.code} message=${error?.message}`);
-          // Nếu đang upload qua Cloud mà lỗi (hoặc bị rate limit 221), thử fallback sang direct group upload
-          if (fileType_ === MessageType.DirectMessage && (threadId_ === appContext.idCloud || threadId_ === appContext.uid) && type === MessageType.GroupMessage) {
-            fileType_ = type;
-            threadId_ = threadId;
-            continue;
-          }
           if (Number(error?.code) === 221) {
             uploadRateLimitedUntil.set(botId, Date.now() + UPLOAD_RATE_LIMIT_COOLDOWN_MS);
             if (!configOption.isDelegated) {
@@ -382,8 +390,34 @@ export const uploadAttachmentFactory = apiFactory()((api, appContext, utils) => 
                 }
               }
             }
+            // If no helper is available, try the group endpoint once. Do this
+            // only after delegation; switching first turns a recoverable 221
+            // into repeated deterministic group error 114.
+            if (
+              fileType_ === MessageType.DirectMessage &&
+              (threadId_ === appContext.idCloud || threadId_ === appContext.uid) &&
+              type === MessageType.GroupMessage
+            ) {
+              fileType_ = type;
+              threadId_ = threadId;
+              continue;
+            }
             throw error;
           }
+          // A Cloud route can be unavailable for a specific account. One
+          // direct-group attempt is useful, but repeating a rejected payload
+          // only adds backoff latency and pressure to Zalo.
+          if (
+            fileType_ === MessageType.DirectMessage &&
+            (threadId_ === appContext.idCloud || threadId_ === appContext.uid) &&
+            type === MessageType.GroupMessage
+          ) {
+            fileType_ = type;
+            threadId_ = threadId;
+            continue;
+          }
+          const errorCode = Number(error?.code);
+          if (Number.isFinite(errorCode) && errorCode > 0 && errorCode < 500) throw error;
           if (attempts >= 3) throw error;
           await new Promise((resolve) => setTimeout(resolve, attempts * 300));
         }
@@ -391,18 +425,20 @@ export const uploadAttachmentFactory = apiFactory()((api, appContext, utils) => 
       return fileResults;
       })();
 
-      uploadsInFlight.set(cacheKey, uploadPromise);
+      if (!bypassCache) uploadsInFlight.set(cacheKey, uploadPromise);
       try {
         const uploaded = await uploadPromise;
         ok = true;
-        uploadResultCache.set(cacheKey, { timestamp: Date.now(), results: uploaded });
-        if (uploadResultCache.size > MAX_UPLOAD_CACHE_ENTRIES) {
-          const oldestKey = uploadResultCache.keys().next().value;
-          uploadResultCache.delete(oldestKey);
+        if (!bypassCache) {
+          uploadResultCache.set(cacheKey, { timestamp: Date.now(), results: uploaded });
+          if (uploadResultCache.size > MAX_UPLOAD_CACHE_ENTRIES) {
+            const oldestKey = uploadResultCache.keys().next().value;
+            uploadResultCache.delete(oldestKey);
+          }
         }
         return uploaded.map((item) => ({ ...item }));
       } finally {
-        uploadsInFlight.delete(cacheKey);
+        if (!bypassCache) uploadsInFlight.delete(cacheKey);
         logMediaTiming("upload", startedAt, { bot: api.getBotId(), ok, bytes: stat.size, ...timings });
       }
     };

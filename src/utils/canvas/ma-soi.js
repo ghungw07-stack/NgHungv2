@@ -149,7 +149,11 @@ function roleIcon(role = "") {
 }
 
 const avatarCache = new Map();
-const MAX_AVATAR_CACHE = 500;
+// Image của canvas được giải mã thành pixel trong RAM. 500 avatar cỡ lớn có
+// thể giữ hàng trăm MB sau khi ván Ma Sói đã kết thúc.
+const MAX_AVATAR_CACHE = 32;
+const MAX_AVATAR_CACHE_PIXELS = 8 * 1024 * 1024;
+let cachedAvatarPixels = 0;
 
 async function loadPlayerAvatars(players = []) {
   const entries = await Promise.all(
@@ -162,11 +166,17 @@ async function loadPlayerAvatars(players = []) {
       const url = String(player.avatar).startsWith("//") ? `https:${player.avatar}` : player.avatar;
       try {
         const img = await loadImage(url);
-        if (avatarCache.size >= MAX_AVATAR_CACHE) {
-          const firstKey = avatarCache.keys().next().value;
-          avatarCache.delete(firstKey);
+        const pixels = img.width * img.height;
+        if (pixels <= MAX_AVATAR_CACHE_PIXELS) {
+          while (avatarCache.size >= MAX_AVATAR_CACHE || cachedAvatarPixels + pixels > MAX_AVATAR_CACHE_PIXELS) {
+            const firstKey = avatarCache.keys().next().value;
+            const previous = avatarCache.get(firstKey);
+            cachedAvatarPixels -= previous.width * previous.height;
+            avatarCache.delete(firstKey);
+          }
+          avatarCache.set(pid, img);
+          cachedAvatarPixels += pixels;
         }
-        avatarCache.set(pid, img);
         return [pid, img];
       } catch {
         return [pid, null];

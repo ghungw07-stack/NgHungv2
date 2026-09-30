@@ -23,13 +23,25 @@ import { renderCollectionStyle } from "../../../../utils/canvas/collection-style
 class StickerManager {
   constructor() {
     this.data = null;
+    this.loading = null;
     this.hasChanges = false;
     this.saveInterval = setInterval(() => this.checkSave(), 30 * 1000);
+    this.saveInterval.unref?.();
   }
 
   async init() {
+    if (this.data) return;
+    if (this.loading) return this.loading;
+    this.loading = this.load();
     try {
-      if (this.data) return;
+      await this.loading;
+    } finally {
+      this.loading = null;
+    }
+  }
+
+  async load() {
+    try {
       const dataStickerReadFile = await readFilePromise(DATA_STICKER_FILE_PATH);
       this.data = JSON.parse(dataStickerReadFile);
     } catch (error) {
@@ -39,7 +51,6 @@ class StickerManager {
   }
 
   get() {
-    if (!this.data) this.init();
     return this.data;
   }
 
@@ -55,7 +66,7 @@ class StickerManager {
   }
 
   getById(idSticker) {
-    if (!this.data) this.init();
+    if (!this.data) return null;
     for (const category of Object.values(this.data)) {
       if (category.stickers && Array.isArray(category.stickers)) {
         for (const sticker of category.stickers) {
@@ -78,7 +89,6 @@ class StickerManager {
 }
 
 export const dataSticker = new StickerManager();
-await dataSticker.init();
 
 export async function checkUrlStatus(url) {
   if (!url) return false;
@@ -464,6 +474,7 @@ async function handleFindCommand(api, message, searchTerm, cmdPrefix) {
 }
 
 export async function handleSearchCategoryCommand(api, message, searchTerm, cmdPrefix, notify = true) {
+  await dataSticker.init();
   if (!searchTerm) {
     await sendMessageWarning(
       api,

@@ -4,6 +4,7 @@ import { getTimeToString } from "../utils/format-util.js";
 
 const parentReplyTargets = new Map();
 const PARENT_REPLY_TTL = 7 * 24 * 60 * 60 * 1000;
+const MAX_PARENT_REPLY_TARGETS = 1000;
 
 function normalizeId(id) {
   if (!id) return "";
@@ -18,10 +19,13 @@ function rememberParentReplyTarget(botId, ids, senderId) {
     }
   }
 
-  if (parentReplyTargets.size > 1000) {
+  if (parentReplyTargets.size > MAX_PARENT_REPLY_TARGETS) {
     const now = Date.now();
     for (const [key, value] of parentReplyTargets) {
       if (value.expiresAt <= now) parentReplyTargets.delete(key);
+    }
+    while (parentReplyTargets.size > MAX_PARENT_REPLY_TARGETS) {
+      parentReplyTargets.delete(parentReplyTargets.keys().next().value);
     }
   }
 }

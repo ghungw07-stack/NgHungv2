@@ -8,10 +8,11 @@ import { runRenderJob } from "./render-job.js";
 import { createActionScene, createBattleScene, encodeSceneGif, loadHeroSheet } from "./cinematic-renderer.js";
 import { resolveSentMessageTarget } from "../../../utils/zalo-message-target.js";
 import { createShortDonationCode } from "../donation-code.js";
-import { connection } from "../../../database/index.js";
+import { connection, ensurePlayerAccount, resolveGamePlayerId } from "../../../database/index.js";
 import { sendMessageStateQuote } from "../../chat-zalo/chat-style/chat-style.js";
 import { displayItemCode, MAX_SHOP_QUANTITY, parseShopQuantity, resolveItemCode } from "./item-input.js";
 import { resolveAlchemy, resolveGuildWar, resolvePartyDungeon, resolveRoguelikeFloor, resolveTribulationChoice } from "./expansion-rules.js";
+import { advanceDestinyQuest, chooseDestinyPath, claimDestinyQuest, currentDestinyQuest, destinyBonuses, destinyTitle } from "./destiny-paths.js";
 import { isAdmin, isBotLeader } from "../../../index.js";
 
 for (const [file, family, weight] of [
@@ -276,11 +277,12 @@ export const TU_TIEN_DONATE_TIERS = Object.freeze([
   { amount: 100_000, cultivation: 10_000_000, stones: 100_000 },
   { amount: 200_000, cultivation: 20_000_000, stones: 200_000 },
 ]);
-const dataPath = botId => path.join(process.cwd(), "logs", String(botId), "tu-tien.json");
+const SHARED_DATA_KEY = "shared";
+const dataPath = () => path.join(process.cwd(), "logs", SHARED_DATA_KEY, "tu-tien.json");
 const sessionPath = botId => path.join(process.cwd(), "logs", String(botId), "tu-tien-sessions.json");
 const SECT_INDEX = { kiem: 0, dan: 1, ma: 2, phat: 3, linh: 4 };
 const MAX_ENERGY = 5000;
-const playerKey = id => String(id);
+const playerKey = id => resolveGamePlayerId(String(id ?? "").trim().replace(/_0$/u, ""));
 const SESSION_TTL = 5 * 60_000;
 const sessions = new Map();
 // Map alias tin mời theo đúng mô hình xác nhận ❤️ của social kethon.
@@ -323,13 +325,13 @@ function flushJsonWrite(file) {
   writeJson(file, value);
 }
 function readData(botId) {
-  const key = String(botId);
+  const key = SHARED_DATA_KEY;
   if (playerSnapshots.has(key)) return playerSnapshots.get(key);
   const data = readJson(dataPath(key), { players: {} });
   data.players ||= {}; playerSnapshots.set(key, data);
   return data;
 }
-function writeData(botId, data) { const key = String(botId); playerSnapshots.set(key, data); queueJsonWrite(dataPath(key), data); }
+function writeData(botId, data) { const key = SHARED_DATA_KEY; playerSnapshots.set(key, data); queueJsonWrite(dataPath(key), data); }
 function getSessionSnapshot(botId) {
   const key = String(botId);
   if (!sessionSnapshots.has(key)) sessionSnapshots.set(key, readJson(sessionPath(key), {}));
@@ -365,13 +367,14 @@ function stats(p) {
   const beast = SPIRIT_BEASTS[p.spiritBeast?.key], beastLevel = clamp(Number(p.spiritBeast?.level) || 0, 0, 50);
   if (beast && beastLevel) { bonus.atk += beast.atk * beastLevel; bonus.def += beast.def * beastLevel; bonus.hp += beast.hp * beastLevel; }
   const permanentBreakthroughPower = Math.max(0, Math.floor(Number(p.breakthroughPower) || 0));
+  const destiny = destinyBonuses(p);
   return {
     atk: Math.round((30 + realmProgress * 24 + bonus.atk) * s.atk * tech.atk * rebirthMult),
     def: Math.round((20 + realmProgress * 20 + bonus.def) * s.def * tech.def * rebirthMult),
     hp: Math.round((280 + realmProgress * 150 + bonus.hp) * s.hp * tech.hp * rebirthMult),
     crit: bonus.crit,
-    cultivationRate: tech.cultivation * (1 + bonus.cultivation),
-    power: Math.round((((30 + realmProgress * 24 + bonus.atk) * s.atk * tech.atk) * 5 + ((20 + realmProgress * 20 + bonus.def) * s.def * tech.def) * 4 + (280 + realmProgress * 150 + bonus.hp) * s.hp * tech.hp + p.cultivation / 18) * rebirthMult + permanentBreakthroughPower),
+    cultivationRate: tech.cultivation * (1 + bonus.cultivation) * destiny.cultivation,
+    power: Math.round(((((30 + realmProgress * 24 + bonus.atk) * s.atk * tech.atk) * 5 + ((20 + realmProgress * 20 + bonus.def) * s.def * tech.def) * 4 + (280 + realmProgress * 150 + bonus.hp) * s.hp * tech.hp + p.cultivation / 18) * rebirthMult + permanentBreakthroughPower) * destiny.power),
   };
 }
 function addCultivation(p, amount) { p.cultivation = Math.max(0, Math.floor((p.cultivation || 0) + amount)); }
@@ -481,8 +484,8 @@ async function resolveInvitationIds(api, message, sent) {
 }
 
 export async function processTuTienDonatePayment(botId, uid, payRef, receivedAmount) {
-  const normalizedBotId = String(botId || "").trim(), normalizedUid = normalizeUid(uid);
-  if (!/^\d+$/.test(normalizedBotId) || !/^\d+$/.test(normalizedUid)) return { success: false, error: "Mã Tu Tiên không hợp lệ" };
+  const normalizedBotId = String(botId || "").trim(), normalizedUid = playerKey(normalizeUid(uid));
+  if (!/^\d+$/.test(normalizedBotId) || !normalizedUid) return { success: false, error: "Mã Tu Tiên không hợp lệ" };
   const tier = donateTier(Number(receivedAmount));
   if (!tier) return { success: false, error: "Chỉ nhận đúng các mốc 10k, 20k, 50k, 100k hoặc 200k" };
   const data = readData(normalizedBotId), player = data.players[playerKey(normalizedUid)];
@@ -515,6 +518,22 @@ function refreshPlayer(p) {
   if (p.questDate !== todayVN()) { p.questDate = todayVN(); p.quests = { cultivate: 0, hunt: 0, boss: 0 }; p.questClaims = {}; }
 }
 function touchQuest(p, key) { p.quests ||= {}; p.quests[key] = (p.quests[key] || 0) + 1; }
+function applyDestinyReward(p, reward) {
+  addCultivation(p, reward.cultivation);
+  p.stones = Math.max(0, Number(p.stones) || 0) + reward.stones;
+}
+function destinyStatus(p) {
+  const current = currentDestinyQuest(p);
+  if (!current) return null;
+  const bonus = destinyBonuses(p), reward = current.quest?.reward;
+  return {
+    ...current,
+    bonusText: current.state.path === "villain"
+      ? `Chiến lực +${Math.round((bonus.power - 1) * 1000) / 10}%`
+      : `Tu luyện +${Math.round((bonus.cultivation - 1) * 1000) / 10}% · rơi đồ +${Math.round((bonus.drop - 1) * 1000) / 10}%`,
+    rewardText: reward ? `+${fmt(reward.cultivation)} tu vi · +${fmt(reward.stones)} linh thạch · +${reward.score} ${current.path.scoreName}` : "",
+  };
+}
 function unlockedSkills(p) { return (COMBAT_SKILLS[p.sect] || []).filter(skill => skill.req <= (p.realm || 0)); }
 function selectedCombatSkill(p) { const available = unlockedSkills(p), chosen = available.find(skill => skill.key === p.activeSkill); return chosen || available[available.length - 1] || COMBAT_SKILLS[p.sect][0]; }
 function mapCultivation(p, key = p.activeMap || "thachthon") { p.mapCultivation ||= {}; return Math.max(0, Number(p.mapCultivation[key]) || 0); }
@@ -563,6 +582,7 @@ function mapList(p) {
 }
 function grantBossDrops(p, boss, chanceMultiplier = 1) {
   const drops = [];
+  chanceMultiplier *= destinyBonuses(p).drop;
   for (const [key, chance] of boss.drops) {
     if (Math.random() > Math.min(.92, chance * chanceMultiplier)) continue;
     p.inventory[key] = (p.inventory[key] || 0) + 1;
@@ -728,8 +748,9 @@ async function renderProfileStatic(p) {
   fitText(ctx, `BẢN ĐỒ   ${currentMap.name}   ·   ${fmt(mapCultivation(p))}/${fmt(currentMap.need)} tu vi map`, 112, 1060, 780, 16, "#c7b6e7", "left", "600");
   const faction = activeFaction(p);
   fitText(ctx, `ĐẠO LỮ   ${p.daoLu?.name || "Chưa kết duyên"}`, 112, 1085, 780, 16, "#c7b6e7", "left", "600");
-  fitText(ctx, `THẾ LỰC KHU VỰC   ${faction?.name || "Chưa gia nhập"}`, 112, 1110, 780, 16, faction ? sect.color : "#9cafbe", "left", "600");
-  text(ctx, "Ngẩng đầu ba thước có thần minh · Nghịch thiên cải mệnh", 500, 1135, 15, "#71879a", "center");
+  fitText(ctx, `THẾ LỰC KHU VỰC   ${faction?.name || "Chưa gia nhập"}`, 112, 1106, 780, 16, faction ? sect.color : "#9cafbe", "left", "600");
+  fitText(ctx, `VẬN MỆNH   ${destinyTitle(p)}`, 112, 1131, 780, 16, p.destiny?.path === "villain" ? "#dc8cff" : p.destiny?.path === "chosen" ? "#ffd966" : "#9cafbe", "left", "600");
+  text(ctx, "Ngẩng đầu ba thước có thần minh · Nghịch thiên cải mệnh", 500, 1152, 15, "#71879a", "center");
   return saveCanvas(canvas, "profile");
 }
 
@@ -749,6 +770,8 @@ async function renderProfile(p) {
         mapCult: mapCultivation(p),
         mapBoss: mapBossKills(p),
         faction: activeFaction(p),
+        destiny: destinyTitle(p),
+        destinyPath: p.destiny?.path || "",
         techName: TECHNIQUES[p.activeTechnique]?.name || "Dẫn Khí Thuật",
       },
     };
@@ -852,6 +875,7 @@ function help(prefix) {
     `• ${prefix}tt daugia — ký gửi đấu giá 1-24 giờ; hệ thống giữ tiền đấu giá và tự hoàn cho người bị vượt giá.`,
     `• ${prefix}tt sudo · nghenghiep · kham · tayluyen · setdo — sư đồ, nghề và hoàn thiện trang bị.`,
     `• ${prefix}tt cottruyen · dautruong · chuyensinh · truyna — cốt truyện, PvP mùa và hậu kỳ.`,
+    `• ${prefix}tt vanmenh — chọn Phản Diện hoặc Khí Vận Chi Tử, làm chuỗi nhiệm vụ riêng kiểu truyện.`,
     `• ${prefix}tt dongphu · bangchien — trồng linh dược, nâng động phủ và tranh điểm mùa, lãnh địa tông môn.`,
     `• ${prefix}tt thienkiep · ditich · bicanh · bossraid — thiên kiếp lựa chọn, di tích server, roguelike và Boss ba giai đoạn.`,
     `• ${prefix}tt danlo · traodoi · muagiai · doihinh — nâng lò, đổi đồ hai chiều, thưởng mùa và vai trò tổ đội.`,
@@ -899,7 +923,7 @@ function closeSession(api, key) {
   delete snapshot[key];
   persistSessionSnapshot(api.getBotId());
 }
-const SESSION_COMMANDS = new Set(["xem","info","hoso","tuluyen","dotpha","thienkiep","san","boss","bossraid","phoban","bicanh","ditich","ai","daudoi","2v2","3v3","doihinh","luyenkhi","cuonghoa","luyendan","danlo","linhthu","thamhiem","thanhtuu","muagiai","chetao","thegioiboss","worldboss","todoi","party","banghoi","guild","cho","market","daugia","auction","traodoi","sudo","nghenghiep","kham","tayluyen","setdo","cottruyen","dautruong","chuyensinh","truyna","dongphu","bangchien","thiendao","map","hanhtrinh","tongmon","daolu","huydaolu","songtu","pk","treo","offline","thutuvi","daily","tui","shop","mua","dung","trangbi","nhiemvu","nv","quest","rank","monphai","nhap","congphap","hoc","chon","chienky","chieu","donate","buff","tang","trao","help","huongdan"]);
+const SESSION_COMMANDS = new Set(["xem","info","hoso","tuluyen","dotpha","thienkiep","san","boss","bossraid","phoban","bicanh","ditich","ai","daudoi","2v2","3v3","doihinh","luyenkhi","cuonghoa","luyendan","danlo","linhthu","thamhiem","thanhtuu","muagiai","chetao","thegioiboss","worldboss","todoi","party","banghoi","guild","cho","market","daugia","auction","traodoi","sudo","nghenghiep","kham","tayluyen","setdo","cottruyen","vanmenh","phandien","phanvien","khivan","khivanchitu","dautruong","chuyensinh","truyna","dongphu","bangchien","thiendao","map","hanhtrinh","tongmon","daolu","huydaolu","songtu","pk","treo","offline","thutuvi","daily","tui","shop","mua","dung","trangbi","nhiemvu","nv","quest","rank","monphai","nhap","congphap","hoc","chon","chienky","chieu","donate","buff","tang","trao","help","huongdan"]);
 
 export async function handleTuTienShortcut(api, message) {
   const key = sessionKey(api, message), expires = getSessionExpiry(api, key), now = Date.now();
@@ -932,7 +956,7 @@ async function executePvPMatch(api, targetThreadId, targetMessageType, pvpInvite
   const teamA = pvpInvite.teamAIds.map(uid => data.players[playerKey(uid)]), teamB = pvpInvite.teamBIds.map(uid => data.players[playerKey(uid)]), powerA = teamPower(teamA), powerB = teamPower(teamB), aWins = powerA * (.86 + Math.random() * .28) >= powerB * (.86 + Math.random() * .28), winners = aWins ? teamA : teamB, losers = aWins ? teamB : teamA;
   const cultivation = 70 + Math.max(...players.map(player => player.realm || 0)) * 35 + (pvpInvite.size - 1) * 40, stones = 28 + pvpInvite.size * 25;
   for (const player of players) player.energy -= cost;
-  for (const player of winners) { player.wins++; if (pvpInvite.size > 1) player.teamWins = (player.teamWins || 0) + 1; addCultivation(player, cultivation); player.stones += stones; }
+  for (const player of winners) { player.wins++; if (pvpInvite.size > 1) player.teamWins = (player.teamWins || 0) + 1; addCultivation(player, cultivation); player.stones += stones; advanceDestinyQuest(player, "pvp_win"); }
   for (const player of losers) { player.losses++; if (pvpInvite.size > 1) player.teamLosses = (player.teamLosses || 0) + 1; }
   writeData(botId, data);
   const p1 = teamA[0], p2 = teamB[0];
@@ -989,9 +1013,11 @@ export async function handleTuTienReaction(api, reaction) {
   // theo UID người được mời thay vì bỏ qua event ngay tại đây.
   if (!reactorId) return false;
   const botId = api.getBotId(), data = readData(botId);
+  const reactorAccount = await ensurePlayerAccount(reactorId, reaction.data?.dName || reactorId, botId, api);
+  const canonicalReactorId = playerKey(reactorAccount?.playerId || reactorId);
   data.pvpInvites ||= {};
   const threadIdForFallback = String(reaction.threadId || reaction.data?.threadId || reaction.data?.idTo || reaction.data?.grid || reaction.data?.toId || "");
-  const normalizedReactorForFallback = normalizeUid(reactorId);
+  const normalizedReactorForFallback = canonicalReactorId;
   const pvpInviteId = reactedIds.map(messageId => pendingPvPReactions.get(messageId)).find(Boolean)
     || Object.keys(data.pvpInvites).find(key => data.pvpInvites[key].messageIds?.some(messageId => reactedIds.includes(String(messageId))))
     // Một số payload reaction không trả rMsg ID; Giveaway dùng idTo làm dự phòng.
@@ -1003,20 +1029,20 @@ export async function handleTuTienReaction(api, reaction) {
     // phiên bản Zalo không có threadId/rMsg ổn định).
     || Object.keys(data.pvpInvites).filter(key => {
       const invite = data.pvpInvites[key];
-      return invite.expiresAt >= Date.now() && invite.participantIds?.some(uid => normalizeUid(uid) === normalizedReactorForFallback);
+      return invite.expiresAt >= Date.now() && invite.participantIds?.some(uid => playerKey(uid) === normalizedReactorForFallback);
     }).sort((a, b) => Number(data.pvpInvites[b].expiresAt || 0) - Number(data.pvpInvites[a].expiresAt || 0))[0];
   const pvpInvite = pvpInviteId && data.pvpInvites[pvpInviteId];
   if (pvpInvite) {
     const clear = () => (pvpInvite.messageIds || []).forEach(messageId => pendingPvPReactions.delete(String(messageId)));
     if (pvpInvite.expiresAt < Date.now()) { clear(); delete data.pvpInvites[pvpInviteId]; writeData(botId, data); return true; }
-    const normalizedReactorId = normalizeUid(reactorId);
-    const reactorParticipantId = pvpInvite.participantIds.find(uid => normalizeUid(uid) === normalizedReactorId);
-    if (!reactorParticipantId || normalizeUid(reactorParticipantId) === normalizeUid(pvpInvite.initiatorId)) return false;
+    const normalizedReactorId = canonicalReactorId;
+    const reactorParticipantId = pvpInvite.participantIds.find(uid => playerKey(uid) === normalizedReactorId);
+    if (!reactorParticipantId || playerKey(reactorParticipantId) === playerKey(pvpInvite.initiatorId)) return false;
     const reactor = data.players[playerKey(reactorParticipantId)], messageType = reaction.isGroup ? MessageType.GroupMessage : MessageType.DirectMessage;
     if (isLike) { clear(); delete data.pvpInvites[pvpInviteId]; writeData(botId, data); await api.sendMessage({ msg: `👍 ${reactor?.name || "Người được mời"} đã từ chối; trận ${pvpInvite.mode} bị hủy.` }, reaction.threadId, messageType); return true; }
     pvpInvite.acceptedIds ||= [pvpInvite.initiatorId];
-    if (!pvpInvite.acceptedIds.some(uid => normalizeUid(uid) === normalizedReactorId)) pvpInvite.acceptedIds.push(reactorParticipantId);
-    const waiting = pvpInvite.participantIds.filter(uid => !pvpInvite.acceptedIds.some(accepted => normalizeUid(accepted) === normalizeUid(uid)));
+    if (!pvpInvite.acceptedIds.some(uid => playerKey(uid) === normalizedReactorId)) pvpInvite.acceptedIds.push(reactorParticipantId);
+    const waiting = pvpInvite.participantIds.filter(uid => !pvpInvite.acceptedIds.some(accepted => playerKey(accepted) === playerKey(uid)));
     if (waiting.length) { writeData(botId, data); await api.sendMessage({ msg: `❤️ ${reactor?.name || "Một tu sĩ"} đã đồng ý ${pvpInvite.mode}. Còn chờ: ${waiting.map(uid => data.players[uid]?.name || uid).join(" · ")}.` }, reaction.threadId, messageType); return true; }
     clear(); delete data.pvpInvites[pvpInviteId];
     return executePvPMatch(api, reaction.threadId, messageType, pvpInvite, data, botId);
@@ -1025,7 +1051,7 @@ export async function handleTuTienReaction(api, reaction) {
   const target = pending ? data.players[playerKey(pending.targetId)] : Object.values(data.players).find(player => {
     const invite = player.pendingSongTu;
     const messageIds = Array.isArray(invite?.messageIds) ? invite.messageIds.map(String) : [];
-    return normalizeUid(player.userId) === normalizeUid(reactorId) && messageIds.some(id => reactedIds.includes(id));
+    return playerKey(player.userId) === canonicalReactorId && messageIds.some(id => reactedIds.includes(id));
   });
   if (!target) return false;
   const invite = target.pendingSongTu, proposer = data.players[playerKey(invite.fromId)];
@@ -1064,7 +1090,9 @@ export async function handleTuTienCommand(api, message) {
     type ?? message.type,
   );
   openSession(api, message);
-  const botId = api.getBotId(), prefix = commandPrefix(message), args = parseBody(message), data = readData(botId), id = playerKey(message.data.uidFrom); let cmd = (args[0] || "").toLowerCase(), p = data.players[id];
+  const botId = api.getBotId(), prefix = commandPrefix(message), args = parseBody(message), data = readData(botId);
+  const account = await ensurePlayerAccount(message.data.uidFrom, message.data.dName || message.data.uidFrom, botId, originalApi);
+  const id = playerKey(account?.playerId || message.data.uidFrom); let cmd = (args[0] || "").toLowerCase(), p = data.players[id];
   if (p?.disciples?.length) {
     const disciple = data.players[playerKey(p.disciples[0])];
     if (disciple) { p.companionName = disciple.name; p.companionSect = disciple.sect; }
@@ -1171,6 +1199,58 @@ export async function handleTuTienCommand(api, message) {
     const role = (args[1] || "").toLowerCase(), roles = { tank: "Hộ Pháp", satthuong: "Chủ Công", hotro: "Trợ Đạo" };
     if (!roles[role]) return api.sendMessage({ msg: `⚔️ ĐỘI HÌNH\n${Object.entries(roles).map(([key,name]) => `${p.formationRole === key ? "🔆" : "▫️"} ${key} · ${name}`).join("\n")}\nChọn: doihinh <tank|satthuong|hotro>` }, message.threadId, message.type);
     p.formationRole = role; writeData(botId, data); return api.sendMessage({ msg: `⚔️ Đã chọn vai trò ${roles[role]}. Tổ đội đủ 3 vai trò nhận thêm 10% hiệp lực.` }, message.threadId, message.type);
+  }
+  if (["vanmenh", "phandien", "phanvien", "khivan", "khivanchitu"].includes(cmd)) {
+    const directChoice = !p.destiny?.path && (cmd === "phandien" || cmd === "phanvien" ? "phandien" : ["khivan", "khivanchitu"].includes(cmd) ? "khivanchitu" : "");
+    const action = directChoice || (args[1] || "").toLowerCase();
+    const selection = action === "chon" ? (args[2] || "").toLowerCase() : action;
+    if (["phandien", "phanvien", "villain", "khivan", "khivanchitu", "chosen"].includes(selection)) {
+      const chosen = chooseDestinyPath(p, selection);
+      if (!chosen.success) return api.sendMessage({ msg: `⚠️ ${chosen.error}` }, message.threadId, message.type);
+      writeData(botId, data);
+      return api.sendMessage({ msg: `${chosen.path.icon} MỆNH CÁCH ĐÃ ĐỊNH: ${chosen.path.name.toUpperCase()}
+
+${chosen.path.passive}
+Chuỗi ${chosen.path.quests.length} chương đã mở. Gõ ${prefix}tt vanmenh để xem nhiệm vụ đầu tiên.
+
+Mệnh cách không thể đổi sau khi chọn.` }, message.threadId, message.type);
+    }
+    if (action === "nhan") {
+      const claimed = claimDestinyQuest(p);
+      if (!claimed.success) return api.sendMessage({ msg: `⚠️ ${claimed.error}` }, message.threadId, message.type);
+      applyDestinyReward(p, claimed.reward); writeData(botId, data);
+      return api.sendMessage({ msg: `${claimed.path.icon} HOÀN THÀNH: ${claimed.quest.name}
+
+${claimed.quest.story}
+🎁 +${fmt(claimed.reward.cultivation)} tu vi · +${fmt(claimed.reward.stones)} linh thạch · +${claimed.reward.score} ${claimed.path.scoreName}.
+${claimed.complete ? "👑 Toàn bộ thiên mệnh đã hoàn thành." : `📖 Chương kế đã mở. Gõ ${prefix}tt vanmenh để xem.`}` }, message.threadId, message.type);
+    }
+    const status = destinyStatus(p);
+    if (!status) return api.sendMessage({ msg: `☯️ THIÊN MỆNH SONG TUYẾN
+
+🌑 PHẢN DIỆN
+Cướp cơ duyên, trấn áp thiên kiêu, tích Điểm Phản Diện để tăng chiến lực.
+Chọn: ${prefix}tt vanmenh chon phandien
+
+☀️ KHÍ VẬN CHI TỬ
+Gặp kỳ duyên, tuyệt cảnh phá cảnh, tích Khí Vận để tăng tu luyện và rơi đồ.
+Chọn: ${prefix}tt vanmenh chon khivanchitu
+
+Mỗi nhân vật chỉ chọn một lần.` }, message.threadId, message.type);
+    if (!status.quest) return api.sendMessage({ msg: `${status.path.icon} ${status.path.name.toUpperCase()} · ĐÃ VIÊN MÃN
+${status.path.scoreName}: ${status.state.score} · ${status.bonusText}
+Bạn đã hoàn thành toàn bộ ${status.path.quests.length} chương thiên mệnh.` }, message.threadId, message.type);
+    const done = Math.min(status.quest.target, Number(status.state.progress) || 0);
+    return api.sendMessage({ msg: `${status.path.icon} ${status.path.name.toUpperCase()} · CHƯƠNG ${status.chapter + 1}/${status.path.quests.length}
+
+📖 ${status.quest.name}
+“${status.quest.story}”
+
+🎯 ${status.quest.objective}: ${done}/${status.quest.target}
+🎁 ${status.rewardText}
+✨ ${status.path.scoreName}: ${status.state.score || 0} · ${status.bonusText}
+
+${done >= status.quest.target ? `Đã xong. Nhận: ${prefix}tt vanmenh nhan` : "Tiến độ tự cộng khi thực hiện đúng hoạt động."}` }, message.threadId, message.type);
   }
   if (cmd === "muagiai") {
     const season = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Ho_Chi_Minh" }).slice(0, 7); if (p.seasonPass?.season !== season) p.seasonPass = { season, claimed: 0 };
@@ -1399,7 +1479,7 @@ export async function handleTuTienCommand(api, message) {
     const myPower = Math.round(stats(p).power * skillA.mult);
     const enemyPower = Math.round(stats(target).power * skillB.mult);
     const win = myPower*(.85+Math.random()*.3)>=enemyPower*(.85+Math.random()*.3), winner=win?p:target, loser=win?target:p;
-    winner.arena.points+=25;winner.arena.wins++;
+    winner.arena.points+=25;winner.arena.wins++;advanceDestinyQuest(winner,"pvp_win");
     loser.arena.points=Math.max(0,loser.arena.points-10);loser.arena.losses++;
     p.energy-=18;target.energy-=18;
     writeData(botId,data);
@@ -1506,7 +1586,7 @@ export async function handleTuTienCommand(api, message) {
     const left = cooldown(p, "worldBoss", 60_000); if (left) return api.sendMessage({ msg: `⏳ Chờ ${waitText(left)} để đánh Boss thế giới tiếp.` }, message.threadId, message.type);
     if (p.energy < 15) return api.sendMessage({ msg: "⚡ Cần 15 thể lực để xuất chiến." }, message.threadId, message.type);
     const damage = Math.max(1, Math.round(stats(p).power * selectedCombatSkill(p).mult * (.72 + Math.random() * .36)));
-    p.energy -= 15; p.actions.worldBoss = Date.now(); boss.hp = Math.max(0, boss.hp - damage); boss.contributions[id] = (boss.contributions[id] || 0) + damage;
+    p.energy -= 15; p.actions.worldBoss = Date.now(); boss.hp = Math.max(0, boss.hp - damage); boss.contributions[id] = (boss.contributions[id] || 0) + damage; advanceDestinyQuest(p, "world_boss_hit");
     let rewardText = "";
     if (!boss.hp) { boss.defeatedAt = Date.now(); boss.rewardsGiven = true; const total = Math.max(1, Object.values(boss.contributions).reduce((a,b) => a + b, 0)); for (const [uid, dealt] of Object.entries(boss.contributions)) { const member = data.players[uid]; if (!member) continue; const share = dealt / total, stones = Math.max(300, Math.round(18000 * share)), cultivation = Math.max(500, Math.round(45000 * share)); member.stones += stones; addCultivation(member, cultivation); member.worldBossKills = (member.worldBossKills || 0) + 1; } rewardText = "\n🌠 Boss đã bị tiêu diệt! 18.000 linh thạch và 45.000 tu vi được chia theo đóng góp (mọi người có tham chiến đều có thưởng tối thiểu)."; }
     writeData(botId, data);
@@ -1542,7 +1622,7 @@ export async function handleTuTienCommand(api, message) {
       const enemyPower = Math.round((520 + floor * 210 + dungeon.req * 360) * dungeon.power * Math.max(1, members.length * .78));
       const battle = resolvePartyDungeon(members.map(member => stats(member).power * selectedCombatSkill(member).mult), enemyPower);
       const cultivation = battle.win ? Math.round((110 + floor * 42) * dungeon.reward) : 0, stones = battle.win ? Math.round((65 + floor * 24) * dungeon.reward) : 0;
-      for (const member of members) { member.energy -= cost; if (battle.win) { member.dungeons ||= {}; member.dungeons[dungeonKey] = Math.max(dungeonProgress(member, dungeonKey), floor); member.wins++; member.kills++; member.stones += stones; addCultivation(member, cultivation); grantDrops(member, dungeon.drops, 1 + members.length * .25); } else member.losses++; }
+      for (const member of members) { member.energy -= cost; if (battle.win) { member.dungeons ||= {}; member.dungeons[dungeonKey] = Math.max(dungeonProgress(member, dungeonKey), floor); member.wins++; member.kills++; member.stones += stones; addCultivation(member, cultivation); grantDrops(member, dungeon.drops, 1 + members.length * .25); advanceDestinyQuest(member, "dungeon_win"); } else member.losses++; }
       writeData(botId, data);
       return api.sendMessage({ msg: `🏯 BÍ CẢNH TỔ ĐỘI · ${dungeon.name} ${floor}/${dungeon.floors}\n${members.map(member => member.name).join(" · ")}\n\n${battle.win ? `🏆 Vượt ải! Mỗi người +${fmt(cultivation)} tu vi, +${fmt(stones)} linh thạch và tự roll đồ.` : `💥 Thất bại (${fmt(battle.partyPower)}/${fmt(enemyPower)} chiến lực).`}\n🤝 Hiệp lực đội: +${Math.round((battle.synergy - 1) * 100)}%.` }, message.threadId, message.type);
     }
@@ -1555,7 +1635,7 @@ export async function handleTuTienCommand(api, message) {
       if (members.some(member => member.energy < cost)) return api.sendMessage({ msg: `⚡ Mọi thành viên cần ${cost} thể lực.` }, message.threadId, message.type);
       const myPower = teamPower(members), enemyPower = Math.round((1000 + map.level * 900 + Math.max(...members.map(x => x.realm)) * 360) * map.multiplier * boss.multiplier * difficulty.power * Math.max(1, members.length * .72)), win = myPower * (.84 + Math.random() * .28) >= enemyPower * (.88 + Math.random() * .2);
       const cultivation = win ? Math.round((180 + map.level * 130) * difficulty.reward) : 0, stones = win ? Math.round((100 + map.level * 70) * difficulty.reward) : 0;
-      for (const member of members) { member.energy -= cost; if (win) { member.wins++; member.bossKills++; member.stones += stones; addCultivation(member, cultivation); addMapBossKill(member, p.activeMap); grantBossDrops(member, boss, difficulty.drop * .75); } else member.losses++; }
+      for (const member of members) { member.energy -= cost; if (win) { member.wins++; member.bossKills++; member.stones += stones; addCultivation(member, cultivation); addMapBossKill(member, p.activeMap); grantBossDrops(member, boss, difficulty.drop * .75); advanceDestinyQuest(member, "boss_win"); } else member.losses++; }
       writeData(botId, data); return api.sendMessage({ msg: `🛡️ BOSS TỔ ĐỘI ${members.length} NGƯỜI\n${members.map(x => x.name).join(" · ")}\n\n${win ? `🏆 Hạ ${boss.name} cấp ${difficultyLevel}! Mỗi người +${fmt(cultivation)} tu vi, +${fmt(stones)} linh thạch và tự roll đồ.` : `💥 Cả đội thất bại (${fmt(myPower)}/${fmt(enemyPower)} chiến lực).`}` }, message.threadId, message.type);
     }
     return api.sendMessage({ msg: party ? `🛡️ TỔ ĐỘI ${partyCode} · ${party.members.length}/3\n${party.members.map((uid,i) => `${uid === party.leaderId ? "👑" : "▫️"} ${data.players[uid]?.name || uid}`).join("\n")}\n\nĐội trưởng: todoi boss <mã_boss> [cấp 1-5] · todoi phoban <mã>\nRời: todoi roi` : `🛡️ Bạn chưa có tổ đội.\nTạo: todoi tao\nVào: todoi vao <mã>` }, message.threadId, message.type);
@@ -1639,7 +1719,7 @@ export async function handleTuTienCommand(api, message) {
     delete p.daoLu; writeData(botId, data);
     return api.sendMessage({ msg: `💔 Đã giải trừ đạo lữ với ${name}.` }, message.threadId, message.type);
   }
-  if (cmd === "tuluyen") { const left = cooldown(p, "cultivate"); if (left) return api.sendMessage({ msg: `🕰️ Linh khí chưa ổn định, chờ ${waitText(left)}.` }, message.threadId, message.type); const rate = stats(p).cultivationRate, gain = Math.round((42 + p.realm * 18 + Math.floor(Math.random() * 36)) * rate), stones = 12 + Math.floor(Math.random() * 18), map = MAPS[p.activeMap] || MAPS.thachthon, mapKey = p.activeMap; addCultivation(p, gain); addMapCultivation(p, gain, mapKey); const arrived = advanceMapIfReady(p); p.stones += stones; p.energy = Math.min(MAX_ENERGY, p.energy + 6); p.actions.cultivate = Date.now(); touchQuest(p, "cultivate"); writeData(botId, data); return sendImage(api, message, await animatedOrProfile(p, { kind: "action", p, type: "cultivate", success: true }), `🧘 ${TECHNIQUES[p.activeTechnique].name}: +${gain} tu vi, +${stones} linh thạch.\n🗺️ ${map.name}: ${fmt(mapCultivation(p, mapKey))}/${fmt(map.need)} tu vi map.${arrived ? `\n🌠 Đã tiến vào ${arrived.icon} ${arrived.name}; gõ boss để gặp Boss map mới.` : ""}\n📜 Nhiệm vụ tu luyện: ${Math.min(3, p.quests.cultivate)}/3`); }
+  if (cmd === "tuluyen") { const left = cooldown(p, "cultivate"); if (left) return api.sendMessage({ msg: `🕰️ Linh khí chưa ổn định, chờ ${waitText(left)}.` }, message.threadId, message.type); const rate = stats(p).cultivationRate, gain = Math.round((42 + p.realm * 18 + Math.floor(Math.random() * 36)) * rate), stones = 12 + Math.floor(Math.random() * 18), map = MAPS[p.activeMap] || MAPS.thachthon, mapKey = p.activeMap; addCultivation(p, gain); addMapCultivation(p, gain, mapKey); const arrived = advanceMapIfReady(p); p.stones += stones; p.energy = Math.min(MAX_ENERGY, p.energy + 6); p.actions.cultivate = Date.now(); touchQuest(p, "cultivate"); advanceDestinyQuest(p, "cultivate"); writeData(botId, data); return sendImage(api, message, await animatedOrProfile(p, { kind: "action", p, type: "cultivate", success: true }), `🧘 ${TECHNIQUES[p.activeTechnique].name}: +${gain} tu vi, +${stones} linh thạch.\n🗺️ ${map.name}: ${fmt(mapCultivation(p, mapKey))}/${fmt(map.need)} tu vi map.${arrived ? `\n🌠 Đã tiến vào ${arrived.icon} ${arrived.name}; gõ boss để gặp Boss map mới.` : ""}\n📜 Nhiệm vụ tu luyện: ${Math.min(3, p.quests.cultivate)}/3`); }
   if (cmd === "dotpha") {
     if (p.realm >= REALMS.length - 1) return api.sendMessage({ msg: "Bạn đã đứng trên đỉnh Tiên Đế." }, message.threadId, message.type);
     const need = nextNeed(p), stages = minorStages(p), requirement = missingBreakthroughRequirements(p);
@@ -1673,6 +1753,7 @@ export async function handleTuTienCommand(api, message) {
       const powerAfterBreakthrough = stats(p).power;
       p.energy = MAX_ENERGY;
       p.wins++;
+      advanceDestinyQuest(p, "breakthrough");
       p.lastBreakthrough = { before, after, at: Date.now(), tribulationName, powerBefore: powerBeforeBreakthrough, powerAfter: powerAfterBreakthrough };
       const master=p.master&&data.players[playerKey(p.master.id)];if(master){const teachingReward=Math.max(100,Math.round(need*.03));addCultivation(master,teachingReward);master.stones+=100+(p.realm||0)*30;master.teachingRewards=(master.teachingRewards||0)+1;}
     }
@@ -1714,7 +1795,7 @@ export async function handleTuTienCommand(api, message) {
     const cultivation = win ? Math.round((75 + floor * 32) * dungeon.reward * (isBoss ? 1.65 : 1)) : 0, stones = win ? Math.round((42 + floor * 18) * dungeon.reward * (isBoss ? 1.5 : 1)) : 0;
     p.energy -= cost; p.actions[cooldownKey] = Date.now();
     let drops = [];
-    if (win) { p.dungeons[key] = floor; p.wins++; p.kills++; p.stones += stones; addCultivation(p, cultivation); drops = grantDrops(p, dungeon.drops, isBoss ? 2.2 : 1); } else p.losses++;
+    if (win) { p.dungeons[key] = floor; p.wins++; p.kills++; p.stones += stones; addCultivation(p, cultivation); drops = grantDrops(p, dungeon.drops, isBoss ? 2.2 : 1); advanceDestinyQuest(p, "dungeon_win"); } else p.losses++;
     writeData(botId, data);
     return api.sendMessage({ msg: `${isBoss ? "👹 BOSS ẢI" : "🏯 VƯỢT ẢI"} · ${dungeon.name} ${floor}/${dungeon.floors}\n\n${win ? `🏆 Thắng! +${fmt(cultivation)} tu vi · +${fmt(stones)} linh thạch.\nTiến độ mới: ${floor}/${dungeon.floors}.${drops.length ? `\n🎁 ${drops.join(" · ")}` : ""}${floor === dungeon.floors ? "\n🌠 PHÁ ĐẢO! Bạn đã chinh phục bí cảnh này." : ""}` : `💥 Thất bại. Chiến lực ${fmt(myPower)}/${fmt(enemyPower)}; hãy nâng trang bị hoặc công pháp.`}` }, message.threadId, message.type);
   }
@@ -1724,7 +1805,7 @@ export async function handleTuTienCommand(api, message) {
     if (["chapnhan", "dongy", "ok", "accept"].includes(sub)) {
       const pvpInviteId = Object.keys(data.pvpInvites || {}).find(k => {
         const inv = data.pvpInvites[k];
-        return inv && inv.expiresAt >= Date.now() && inv.participantIds?.some(uid => normalizeUid(uid) === id) && normalizeUid(inv.initiatorId) !== id;
+        return inv && inv.expiresAt >= Date.now() && inv.participantIds?.some(uid => playerKey(uid) === id) && playerKey(inv.initiatorId) !== id;
       });
       if (!pvpInviteId) return api.sendMessage({ msg: "⚔️ Bạn không có lời mời PK nào đang chờ chấp nhận." }, message.threadId, message.type);
       const pvpInvite = data.pvpInvites[pvpInviteId];
@@ -1736,7 +1817,7 @@ export async function handleTuTienCommand(api, message) {
     if (["tuchoi", "huy", "cancel", "deny"].includes(sub)) {
       const pvpInviteId = Object.keys(data.pvpInvites || {}).find(k => {
         const inv = data.pvpInvites[k];
-        return inv && inv.expiresAt >= Date.now() && inv.participantIds?.some(uid => normalizeUid(uid) === id) && normalizeUid(inv.initiatorId) !== id;
+        return inv && inv.expiresAt >= Date.now() && inv.participantIds?.some(uid => playerKey(uid) === id) && playerKey(inv.initiatorId) !== id;
       });
       if (!pvpInviteId) return api.sendMessage({ msg: "⚔️ Bạn không có lời mời PK nào đang chờ từ chối." }, message.threadId, message.type);
       const pvpInvite = data.pvpInvites[pvpInviteId];
@@ -1746,7 +1827,7 @@ export async function handleTuTienCommand(api, message) {
     }
     // 3. Gửi lời mời PK mới (tag người muốn đấu)
     const mention = Array.isArray(message.data?.mentions) ? message.data.mentions[0] : null;
-    const targetId = normalizeUid(mention?.uid || mention?.userId || mention?.id || "");
+    const targetId = playerKey(mention?.uid || mention?.userId || mention?.id || "");
     if (!targetId) return api.sendMessage({ msg: "⚔️ Cú pháp: pk @người_chơi\nTag người bạn muốn khiêu chiến.\n❤️ Người được khiêu chiến thả TIM vào tin mời (hoặc gõ: pk chapnhan) để chấp nhận và bắt đầu trận đấu có GIF!" }, message.threadId, message.type);
     if (targetId === id) return api.sendMessage({ msg: "⚔️ Không thể tự PK chính mình." }, message.threadId, message.type);
     const opponent = data.players[playerKey(targetId)];
@@ -1793,7 +1874,7 @@ export async function handleTuTienCommand(api, message) {
     p.energy -= energyCost; p.actions[bossCdKey] = Date.now(); touchQuest(p, "boss");
     const drops = win ? grantBossDrops(p, boss, difficulty.drop) : [];
     const wasActiveMap = p.activeMap;
-    if (win) { addCultivation(p, cultivation); addMapCultivation(p, cultivation, requestedMap); p.stones += stones; p.kills++; p.bossKills++; addMapBossKill(p, requestedMap); p.wins++; } else p.losses++;
+    if (win) { addCultivation(p, cultivation); addMapCultivation(p, cultivation, requestedMap); p.stones += stones; p.kills++; p.bossKills++; addMapBossKill(p, requestedMap); p.wins++; advanceDestinyQuest(p, "boss_win"); } else p.losses++;
     const arrived = win && wasActiveMap === requestedMap ? advanceMapIfReady(p) : null;
     writeData(botId, data);
     const enemy = { name: boss.name, icon: boss.icon, level: boss.level + difficultyLevel - 1, title: `${map.name} · ${difficulty.name}` };
@@ -1801,7 +1882,7 @@ export async function handleTuTienCommand(api, message) {
     const loot = drops.length ? `\n🎁 Rơi đồ: ${drops.join(" · ")}` : win ? "\n🎁 Không rơi đồ hiếm lần này." : "";
     return sendImage(api, message, await animatedOrProfile(p, { kind: "battle", p, enemy, result }), `⚔️ ${map.icon} ${map.name} · Boss cấp ${difficultyLevel} [${difficulty.name}]\n${win ? `🏆 Hạ gục ${boss.name}: +${fmt(cultivation)} tu vi, +${fmt(stones)} linh thạch.\n🗺️ Tu vi ${map.name}: ${fmt(mapCultivation(p, requestedMap))}/${fmt(map.need)} · Boss map: ${mapBossKills(p, requestedMap)}.${arrived ? `\n🌠 Đã tiến vào ${arrived.icon} ${arrived.name}. Gõ boss để gặp Boss map mới.` : ""}` : `💥 Boss quá mạnh (${fmt(myPower)}/${fmt(enemyPower)} chiến lực), hãy hạ cấp hoặc tăng sức mạnh.`}${loot}`);
   }
-  if (cmd === "san") { const left = cooldown(p, "hunt"); if (left) return api.sendMessage({ msg: `⏳ Cần dưỡng thương thêm ${waitText(left)}.` }, message.threadId, message.type); const level = clamp(Number(args[1]) || Math.min(15, p.realm + 1), 1, 15), cost = 12 + Math.ceil(level / 3); if (p.energy < cost) return api.sendMessage({ msg: `Thể lực không đủ (cần ${cost}). Dùng Hoàn Hồn Đan hoặc chờ tu luyện.` }, message.threadId, message.type); const m = MONSTERS[level - 1], skill = selectedCombatSkill(p), myPower = Math.round(stats(p).power * skill.mult), enemyPower = Math.round((240 + level * 185 + p.realm * 105) * m[2]), win = myPower * (.8 + Math.random() * .28) >= enemyPower * (.86 + Math.random() * .24), cultivation = win ? Math.round(38 + level * 31) : 0, stones = win ? Math.round(20 + level * 19) : 0; p.energy -= cost; p.actions.hunt = Date.now(); touchQuest(p, "hunt"); let drops=[]; if (win) { addCultivation(p, cultivation); addMapCultivation(p, cultivation); p.stones += stones; p.kills++; p.wins++; const pool = MAPS[p.activeMap]?.drops || [["tulinhdan", .1]]; drops = grantDrops(p, pool, .45 + level * .055); } else p.losses++; writeData(botId, data); const enemy = { name: m[0], icon: m[1], level, title: `Yêu thú cấp ${level}/15` }; const result = { win, myPower, enemyPower, cultivation, stones, skillName: skill.name, log: win ? `${skill.name} phá tan yêu khí!` : `${enemy.name} áp chế, bạn buộc phải thoái lui.` }; return sendImage(api, message, await animatedOrProfile(p, { kind: "battle", p, enemy, result }), `${win ? `🏆 Hạ ${m[0]}: +${fmt(cultivation)} tu vi · +${fmt(stones)} linh thạch.` : `💥 Thất bại trước ${m[0]} (${fmt(myPower)}/${fmt(enemyPower)} chiến lực).`}${drops.length ? `\n🎁 ${drops.join(" · ")}` : ""}\n⚔️ ${skill.name} x${skill.mult.toFixed(2)} · tốn ${cost} thể lực\n📜 Nhiệm vụ săn: ${Math.min(2,p.quests.hunt)}/2`); }
+  if (cmd === "san") { const left = cooldown(p, "hunt"); if (left) return api.sendMessage({ msg: `⏳ Cần dưỡng thương thêm ${waitText(left)}.` }, message.threadId, message.type); const level = clamp(Number(args[1]) || Math.min(15, p.realm + 1), 1, 15), cost = 12 + Math.ceil(level / 3); if (p.energy < cost) return api.sendMessage({ msg: `Thể lực không đủ (cần ${cost}). Dùng Hoàn Hồn Đan hoặc chờ tu luyện.` }, message.threadId, message.type); const m = MONSTERS[level - 1], skill = selectedCombatSkill(p), myPower = Math.round(stats(p).power * skill.mult), enemyPower = Math.round((240 + level * 185 + p.realm * 105) * m[2]), win = myPower * (.8 + Math.random() * .28) >= enemyPower * (.86 + Math.random() * .24), cultivation = win ? Math.round(38 + level * 31) : 0, stones = win ? Math.round(20 + level * 19) : 0; p.energy -= cost; p.actions.hunt = Date.now(); touchQuest(p, "hunt"); let drops=[]; if (win) { addCultivation(p, cultivation); addMapCultivation(p, cultivation); p.stones += stones; p.kills++; p.wins++; const pool = MAPS[p.activeMap]?.drops || [["tulinhdan", .1]]; drops = grantDrops(p, pool, .45 + level * .055); advanceDestinyQuest(p, "hunt_win"); } else p.losses++; writeData(botId, data); const enemy = { name: m[0], icon: m[1], level, title: `Yêu thú cấp ${level}/15` }; const result = { win, myPower, enemyPower, cultivation, stones, skillName: skill.name, log: win ? `${skill.name} phá tan yêu khí!` : `${enemy.name} áp chế, bạn buộc phải thoái lui.` }; return sendImage(api, message, await animatedOrProfile(p, { kind: "battle", p, enemy, result }), `${win ? `🏆 Hạ ${m[0]}: +${fmt(cultivation)} tu vi · +${fmt(stones)} linh thạch.` : `💥 Thất bại trước ${m[0]} (${fmt(myPower)}/${fmt(enemyPower)} chiến lực).`}${drops.length ? `\n🎁 ${drops.join(" · ")}` : ""}\n⚔️ ${skill.name} x${skill.mult.toFixed(2)} · tốn ${cost} thể lực\n📜 Nhiệm vụ săn: ${Math.min(2,p.quests.hunt)}/2`); }
   if (["treo", "offline", "thutuvi"].includes(cmd)) {
     const action=(args[1]||"").toLowerCase(), modes=new Set(["tuluyen","dotpha","san","full"]), now=Date.now();
     if (["auto", "all"].includes(action)) { const level=clamp(Number(args[2])||1,1,15); p.autoTrain={enabled:true,mode:"full",monsterLevel:level}; p.lastIdleAt=now; writeData(botId,data); return api.sendMessage({msg:`✅ Đã bật treo AUTO toàn năng · săn yêu cấp ${level}, tự tu luyện và xử lý tiến trình.\nQuay lại gõ “treo” để nhận.`},message.threadId,message.type); }
@@ -1868,6 +1949,9 @@ export async function handleTuTienCommand(api, message) {
       "",
       "🗺️ ĐỔI MAP",
       mapText,
+      "",
+      `☯️ VẬN MỆNH RIÊNG: ${destinyTitle(p)}`,
+      p.destiny?.path ? `Xem chương truyện: ${prefix}tt vanmenh` : `Chọn tuyến Phản Diện hoặc Khí Vận Chi Tử: ${prefix}tt vanmenh`,
     ].join("\n");
     return api.sendMessage({ msg: result }, message.threadId, message.type);
   }

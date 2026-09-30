@@ -18,12 +18,19 @@ import { checkIsBotLeader } from "../../../commands/command.js";
 import { MessageSendType } from "../../../api-zalo/index.js";
 import { askGeminiDrawImage } from "./gemini-image.js";
 import fs from "node:fs/promises";
+import {
+  getAIProviderConfig,
+  isAIProviderConfigured,
+  requestConfiguredAI,
+  updateAIProviderFromCommand,
+} from "./ai-provider-config.js";
 
 const GEMINI_REQUEST_TIMEOUT = 12000;
 const buildGeminiClient = (apiKey) =>
   new GoogleGenAI({ apiKey, httpOptions: { timeout: GEMINI_REQUEST_TIMEOUT } });
 const createGeminiClient = () => buildGeminiClient(getNextApiKeyMedia("GEMINI"));
 const chatSessions = new Map();
+const customChatHistory = new Map();
 
 const TIME_TO_LIVE = 86400000;
 
@@ -88,9 +95,15 @@ function requestsImageEdit(text) {
 }
 
 const requestQueue = [];
-let isProcessing = false;
+const activeSessionKeys = new Set();
+let activeRequests = 0;
+const GEMINI_CONCURRENCY = Math.max(1, Number(process.env.NGH_GEMINI_CONCURRENCY) || 3);
 const DELAY_THINKING = 0;
-const DELAY_BETWEEN_REQUESTS = 500;
+const DELAY_BETWEEN_REQUESTS = Math.max(0, Number(process.env.NGH_GEMINI_REQUEST_GAP_MS) || 0);
+const GEMINI_IDENTITY_BUDGET_MS = Math.max(
+  0,
+  Number(process.env.NGH_GEMINI_IDENTITY_BUDGET_MS) || 100
+);
 const GEMINI_QUOTA_MESSAGE =
   "Đại ca tui hết tiền rồi ủng hộ để có tiền sài tiếp nha\n16025678 Vietinbank\nNguyễn Gia Hưng";
 
@@ -119,54 +132,57 @@ function isGeminiRetryableError(error) {
   );
 }
 
-async function processQueue() {
-  if (isProcessing || requestQueue.length === 0) return;
-
-  isProcessing = true;
-
-  while (requestQueue.length > 0) {
-    const { api, message, question, sessionKey, identityInstruction, resolve, reject } = requestQueue.shift();
-
-    if (DELAY_THINKING > 0) {
-      await sendMessageProcessingRequest(
-        api,
-        message,
-        {
-          caption: "Chờ suy nghĩ xíu...",
-        },
-        DELAY_THINKING
-      );
-      await new Promise((resolve) => setTimeout(resolve, DELAY_THINKING));
-    }
-
-    try {
-      let session = getChatSession(sessionKey, identityInstruction);
-      session.lastInteraction = Date.now();
-
-      let result;
-      try {
-        result = await session.chat.sendMessage({ message: question.content });
-      } catch (error) {
-        if (!isGeminiRetryableError(error)) throw error;
-
-        chatSessions.delete(sessionKey);
-        session = getChatSession(sessionKey, identityInstruction, session.apiKey);
-        session.lastInteraction = Date.now();
-        result = await session.chat.sendMessage({ message: question.content });
-      }
-      const response = result.text;
-
-      cleanupOldSessions();
-
-      resolve(response);
-    } catch (error) {
-      reject(error);
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, DELAY_BETWEEN_REQUESTS));
+async function processQueueItem(item) {
+  const { api, message, question, sessionKey, identityInstruction, resolve, reject } = item;
+  if (DELAY_THINKING > 0) {
+    await sendMessageProcessingRequest(
+      api,
+      message,
+      { caption: "Chờ suy nghĩ xíu..." },
+      DELAY_THINKING
+    );
+    await new Promise((onDelay) => setTimeout(onDelay, DELAY_THINKING));
   }
 
-  isProcessing = false;
+  try {
+    let session = getChatSession(sessionKey, identityInstruction);
+    session.lastInteraction = Date.now();
+
+    let result;
+    try {
+      result = await session.chat.sendMessage({ message: question.content });
+    } catch (error) {
+      if (!isGeminiRetryableError(error)) throw error;
+
+      chatSessions.delete(sessionKey);
+      session = getChatSession(sessionKey, identityInstruction, session.apiKey);
+      session.lastInteraction = Date.now();
+      result = await session.chat.sendMessage({ message: question.content });
+    }
+    cleanupOldSessions();
+    resolve(result.text);
+  } catch (error) {
+    reject(error);
+  }
+}
+
+function processQueue() {
+  while (activeRequests < GEMINI_CONCURRENCY) {
+    const nextIndex = requestQueue.findIndex((item) => !activeSessionKeys.has(item.sessionKey));
+    if (nextIndex < 0) return;
+
+    const [item] = requestQueue.splice(nextIndex, 1);
+    activeRequests++;
+    activeSessionKeys.add(item.sessionKey);
+    void processQueueItem(item).finally(async () => {
+      if (DELAY_BETWEEN_REQUESTS > 0) {
+        await new Promise((resolve) => setTimeout(resolve, DELAY_BETWEEN_REQUESTS));
+      }
+      activeRequests--;
+      activeSessionKeys.delete(item.sessionKey);
+      processQueue();
+    });
+  }
 }
 
 function getChatSession(sessionKey, identityInstruction, excludedApiKey = null) {
@@ -198,10 +214,77 @@ function cleanupOldSessions() {
 }
 
 export async function callGeminiAPI(api, message, question, sessionKey, identityInstruction) {
+  const botId = api.getBotId();
+  if (isAIProviderConfigured(botId, "gemini") && ["text", "image"].includes(question.type)) {
+    const config = getAIProviderConfig(botId, "gemini");
+    let content = question.content;
+    if (question.type === "image" && Array.isArray(question.content)) {
+      const text = question.content.find((part) => part?.text)?.text || "Hãy phân tích ảnh này.";
+      const image = question.content.find((part) => part?.inlineData)?.inlineData;
+      content = image
+        ? [
+            { type: "text", text },
+            { type: "image_url", image_url: { url: `data:${image.mimeType};base64,${image.data}` } },
+          ]
+        : text;
+    }
+
+    const history = customChatHistory.get(sessionKey) || [];
+    const userMessage = { role: "user", content };
+    const messages = [
+      {
+        role: "system",
+        content: `${config.instruction || systemInstruction}\n${identityInstruction}`,
+      },
+      ...history,
+      userMessage,
+    ];
+    const reply = await requestConfiguredAI({ botId, service: "gemini", messages });
+    customChatHistory.set(
+      sessionKey,
+      [...history, userMessage, { role: "assistant", content: reply }].slice(-20)
+    );
+    return reply;
+  }
+
   return new Promise((resolve, reject) => {
     requestQueue.push({ api, message, question, sessionKey, identityInstruction, resolve, reject });
     processQueue();
   });
+}
+
+function geminiProviderHelp(prefix, aliasCommand) {
+  const command = `${prefix}${aliasCommand} config`;
+  return [
+    "Cấu hình Gemini/OpenAI-compatible riêng cho bot:",
+    `${command} set apiKey <key>`,
+    `${command} set baseURL <url>`,
+    `${command} set model <tên model>`,
+    `${command} set instruction <system prompt>`,
+    `${command} show`,
+    `${command} clear`,
+    "Nên gửi lệnh chứa API key trong tin nhắn riêng với bot.",
+    "Google Gemini tương thích OpenAI: baseURL https://generativelanguage.googleapis.com/v1beta/openai",
+  ].join("\n");
+}
+
+async function resolveGeminiOwner(api, userId, senderName) {
+  if (isBotOwner(api.getBotId(), userId) || isMainBotSender(api, userId)) return true;
+  const lookup = inheritBotLeader(api, userId, senderName);
+  if (GEMINI_IDENTITY_BUDGET_MS === 0) {
+    void lookup;
+    return false;
+  }
+  let timer;
+  const result = await Promise.race([
+    lookup,
+    new Promise((resolve) => {
+      timer = setTimeout(() => resolve(false), GEMINI_IDENTITY_BUDGET_MS);
+      timer.unref?.();
+    }),
+  ]);
+  clearTimeout(timer);
+  return result === true || isBotOwner(api.getBotId(), userId);
 }
 
 export async function askGeminiCommand(api, message, aliasCommand) {
@@ -213,8 +296,7 @@ export async function askGeminiCommand(api, message, aliasCommand) {
   const isMainBot = api.apiManager.isMainBot;
   const userId = message.data.uidFrom;
   const senderName = message.data.dName;
-  await inheritBotLeader(api, userId, senderName);
-  const isOwner = isBotOwner(botId, userId) || isMainBotSender(api, userId);
+  const isOwner = await resolveGeminiOwner(api, userId, senderName);
   const senderLabel = isOwner
     ? OWNER_MENTION
     : `@${String(senderName || "Người dùng").replace(/^@+/, "")}`;
@@ -233,10 +315,36 @@ export async function askGeminiCommand(api, message, aliasCommand) {
   if (question) {
     if (question.toLowerCase() === "reset") {
       chatSessions.delete(sessionKey);
+      customChatHistory.delete(sessionKey);
       await sendMessageComplete(api, message, "🔄 Đã làm mới lịch sử cuộc trò chuyện của bạn!", false, TIME_TO_LIVE);
       return;
     }
     const argsQuestion = question.split(" ");
+    if (argsQuestion[0]?.toLowerCase() === "config") {
+      if (!isAdminLevelHighest) {
+        await sendMessageFailed(api, message, "Chỉ quản trị viên cấp cao mới được cấu hình API AI.", true, 300000);
+        return;
+      }
+      try {
+        const result = updateAIProviderFromCommand(botId, "gemini", argsQuestion.slice(1));
+        if (result.action === "help") {
+          await sendMessageComplete(api, message, geminiProviderHelp(prefix, aliasCommand), false, 300000);
+          return;
+        }
+        if (result.sensitive) {
+          try { await api.deleteMessage(message, false); } catch {}
+        }
+        if (result.action === "clear") {
+          for (const key of customChatHistory.keys()) {
+            if (key.startsWith(`${botId}:`)) customChatHistory.delete(key);
+          }
+        }
+        await sendMessageComplete(api, message, result.text, false, 300000);
+      } catch (error) {
+        await sendMessageFailed(api, message, error.message, true, 300000);
+      }
+      return;
+    }
     if (argsQuestion[0] === "manager") {
       const genAINew = createGeminiClient();
       const subCommand = argsQuestion[1];

@@ -61,7 +61,7 @@ export function spinRoulette(random = Math.random) {
   return { number: Math.floor(random() * 37) };
 }
 
-export function chooseRouletteResult(players = {}, { random = Math.random, houseBiasChance = 0.6 } = {}) {
+export function chooseRouletteResult(players = {}, { random = Math.random, houseBiasChance = 0.18 } = {}) {
   const natural = spinRoulette(random);
   const bets = Object.values(players || {});
   if (!bets.length || random() >= houseBiasChance) return natural;

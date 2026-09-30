@@ -1,4 +1,4 @@
-import { accrueSavingsAccount, depositInterestDate } from "./savings-interest.js";
+import { accrueSavingsAccount, calculateOneNightSavingsInterest, depositInterestDate } from "./savings-interest.js";
 import Big from "big.js";
 import nodeFetch from "node-fetch";
 import path from "path";
@@ -14,6 +14,7 @@ import {
   unbanPlayer,
   isPlayerBanned,
   ensurePlayerAccount,
+  preloadPlayerAliases,
   adjustPlayerBalanceSafely,
   claimPendingRefund,
   connection,
@@ -37,7 +38,7 @@ import {
 import { getUserInfoAcrossBots } from "../info-service/user-info.js";
 import { sendMessageFromSQL, sendMessageCompleteRequest, getNameServer } from "../../service-ngh/chat-zalo/chat-style/chat-style.js";
 import * as cv from "../../utils/canvas/index.js";
-import { apiManager, isAdmin, isBotLeader, isDeveloper, getBotLeaderAliases, inheritBotLeader, getApiManager, getManagerCommandConfig } from "../../index.js";
+import { apiManager, isAdmin, isBotLeader, isBotOwner, isDeveloper, getBotLeaderAliases, inheritBotLeader, getApiManager, getManagerCommandConfig } from "../../index.js";
 import { getGlobalPrefix } from "../service.js";
 import { formatBigNumber, formatCurrency, parseGameAmount, removeMention } from "../../utils/format-util.js";
 import { getGameTier, getGameTiers, getGameTierByName } from "../../utils/canvas/game-finance.js";
@@ -47,13 +48,58 @@ import { MessageType } from "../../api-zalo/index.js";
 import { createShortDonationCode } from "./donation-code.js";
 import { readGroupSettings } from "../../utils/io-json.js";
 import { claimMemberReward, getLuckyEnvelopeFund } from "./game-auto-rewards.js";
+import { enforceGameCaptcha } from "./game-captcha.js";
+import { hasGameDisplayName } from "../../database/player-sync.js";
+import { getEmptySavingsMessage, parseSavingsArguments } from "../../utils/game-wallet.js";
+import {
+  calculateGameLoanAccrual,
+  calculateGameLoanLimit,
+  collectGameLoan,
+  createGameLoan,
+  GAME_LOAN_HOURLY_RATE,
+} from "./game-loan.js";
+import { isBankTransferLimitExempt } from "./bank-transfer-limits.js";
+import { resetGameEconomy, resetPersistedGameState } from "./game-economy-reset.js";
 
 export { getGameBenefitResetSpec } from "./game-benefit-reset.js";
 
 
 const ANONYMOUS_GAME_AVATAR = "https://i.pinimg.com/originals/e9/e0/7d/e9e07de22e3ef161bf92d1bcf241e4d0.jpg";
 
+function normalizeGameProfileUid(id) {
+  return String(id || "").replace(/^private:[^:]+:/, "").replace(/_0$/, "");
+}
+
+async function loadCurrentGameProfile(api, player = {}) {
+  const profileApi = getApiManager(player.serverId)?.apiZalo || api;
+  let avatar = null;
+  let playerName = "";
+  const profileIds = new Set([
+    ...(player.profileIds || []),
+    player.idUser,
+    player.idUserZalo,
+  ].filter(Boolean));
+
+  for (const profileId of profileIds) {
+    const cleanId = normalizeGameProfileUid(profileId);
+    if (!/^\d+$/.test(cleanId)) continue;
+    try {
+      const userInfo = await getUserInfoAcrossBots(profileApi, cleanId, { currentBotOnly: true });
+      avatar ||= userInfo?.avatarFull || userInfo?.avatar || null;
+      const currentName = userInfo?.name || userInfo?.displayName || userInfo?.username;
+      if (!playerName && hasGameDisplayName(currentName)) playerName = String(currentName).trim();
+      if (avatar && playerName) break;
+    } catch {}
+  }
+
+  return {
+    avatar: avatar || player.avatarFull || player.avatar || null,
+    playerName: playerName || (hasGameDisplayName(player.playerName) ? String(player.playerName).trim() : "Người chơi"),
+  };
+}
+
 export async function checkBeforeJoinGame(api, message, groupSettings, checkLogin = true) {
+  await preloadPlayerAliases();
   const threadId = message.threadId;
   const senderId = message.data.uidFrom;
   const isAdminBot = isAdmin(api.getBotId(), senderId, threadId);
@@ -85,15 +131,17 @@ export async function checkBeforeJoinGame(api, message, groupSettings, checkLogi
     }
   }
 
-  if (await checkPlayerBanned(api, message, threadId, senderId)) {
-    return false;
-  }
-
-  // Mọi lệnh game đều tự tạo hồ sơ theo UID Zalo; người chơi không cần đăng ký/đăng nhập.
+  // Mọi lệnh game lấy username từ UID Zalo rồi dùng username làm khóa hồ sơ chung.
   if (checkLogin) {
     if (!(await checkPlayerLogin(api, message, threadId, senderId))) {
       return false;
     }
+    if (await checkPlayerBanned(api, message, threadId, message.data.uidFrom)) {
+      return false;
+    }
+    if (!(await enforceGameCaptcha(api, message))) return false;
+  } else if (await checkPlayerBanned(api, message, threadId, senderId)) {
+    return false;
   }
 
   return true;
@@ -103,9 +151,13 @@ export async function handleClaimDailyReward(api, message, groupSettings) {
   if (!(await checkBeforeJoinGame(api, message, groupSettings, true))) return;
 
   const senderId = message.data.uidFrom;
+  const originalSenderId = message.data.gameUid || senderId;
   const senderAccount = await ensurePlayerAccount(senderId, message.data.dName || senderId, api.getBotId(), api);
   const playerId = senderAccount?.playerId || senderId;
-  const result = await claimDailyReward(playerId);
+  const player = await getPlayerInfo(playerId);
+  const isOverlord = cv.isExclusiveOverlordProfile(player)
+    || await isGamePlayerBotLeader(api, playerId, [originalSenderId, senderId]);
+  const result = await claimDailyReward(playerId, isOverlord ? cv.OVERLORD_TIER : null);
   // Daily là thông báo cá nhân, không mention người gọi (tránh ping nhầm/thừa).
   const sent = await sendMessageFromSQL(api, message, result, false, 30000);
   if (!sent) {
@@ -122,9 +174,13 @@ async function handleWeeklyBenefit(api, message, groupSettings, claim) {
   if (!(await checkBeforeJoinGame(api, message, groupSettings, true))) return;
 
   const senderId = message.data.uidFrom;
+  const originalSenderId = message.data.gameUid || senderId;
   const senderAccount = await ensurePlayerAccount(senderId, message.data.dName || senderId, api.getBotId(), api);
   const playerId = senderAccount?.playerId || senderId;
-  const result = await claim(playerId);
+  const player = await getPlayerInfo(playerId);
+  const isOverlord = cv.isExclusiveOverlordProfile(player)
+    || await isGamePlayerBotLeader(api, playerId, [originalSenderId, senderId]);
+  const result = await claim(playerId, isOverlord ? cv.OVERLORD_TIER : null);
   const sent = await sendMessageFromSQL(api, message, result, false, 30000);
   if (!sent) {
     await api.sendMessage({ msg: `${getNameServer(api)}\n${result.message}`, quote: message, ttl: 30000 }, message.threadId, message.type);
@@ -174,9 +230,8 @@ export async function handleRescueReward(api, message, groupSettings) {
 
 
 function getSavingsArguments(api, message) {
-  const prefix = getGlobalPrefix(api.getBotId()).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const content = String(message.data.content?.title || message.data.content || "");
-  return content.replace(new RegExp(`^\\s*${prefix}\\s*nganhang\\b`, "iu"), "").trim().split(/\s+/u).filter(Boolean);
+  return parseSavingsArguments(content, getGlobalPrefix(api.getBotId()));
 }
 
 async function recordSavingsTransaction(data) {
@@ -194,11 +249,13 @@ export async function handleSavingsBankCommand(api, message, groupSettings) {
     await sendMessageFromSQL(api, message, { success: false, message: "Không thể lấy hồ sơ game của bạn." }, false, 30000);
     return;
   }
-  const tier = getGameTier(player.rankPoints || 0);
+  const isOverlord = cv.isExclusiveOverlordProfile(player)
+    || await isGamePlayerBotLeader(api, playerId, [message.data.gameUid, senderId]);
+  const tier = cv.getPlayerGameTier({ rankPoints: player.rankPoints || 0, specialTier: player.specialTier, isOverlord });
   const args = getSavingsArguments(api, message);
   const action = String(args[0] || "").toLowerCase();
   const diamondTier = getGameTiers().find((t) => t.key === "diamond") || getGameTier(100000);
-  if (action === "gui" && new Big(player.rankPoints || 0).lt(diamondTier.min)) {
+  if (action === "gui" && tier.key !== "overlord" && new Big(player.rankPoints || 0).lt(diamondTier.min)) {
     await sendMessageFromSQL(api, message, {
       success: false,
       message: `🏦 Gửi tiết kiệm chỉ mở từ hạng ${diamondTier.name} trở lên.\nHạng hiện tại của bạn: ${tier.name}.`,
@@ -207,6 +264,7 @@ export async function handleSavingsBankCommand(api, message, groupSettings) {
   }
   const now = new Date();
   const { account, interest, days } = await accrueSavingsAccount(connection, playerId, tier, now);
+  const oneNightInterest = calculateOneNightSavingsInterest(account.principal, tier);
   const accounts = connection.collection("game_savings_accounts");
 
   if (!action) {
@@ -216,6 +274,8 @@ export async function handleSavingsBankCommand(api, message, groupSettings) {
     const mentionName = String(message.data.dName || player.playerName || senderId).trim();
     const bankGuide = `@${mentionName}\n` +
       "🏦 Tài khoản Ngân Hàng của bạn\n" +
+      "🕛 Lãi được cộng lúc 00:00 mỗi ngày (giờ Việt Nam)\n" +
+      `💵 Lãi dự kiến sau 1 đêm: ${formatBigNumber(oneNightInterest)} VNĐ (${Math.round((tier.rate || 0) * 100)}%)\n` +
       `👉 Gửi tiết kiệm: ${prefix}game nganhang gui <số tiền>\n` +
       `👉 Rút tiết kiệm: ${prefix}game nganhang rut <số tiền | all>\n` +
       `👉 Lịch sử ngân hàng: ${prefix}game nganhang lichsu`;
@@ -226,7 +286,11 @@ export async function handleSavingsBankCommand(api, message, groupSettings) {
       savings: account.principal,
       rate: tier.rate || 0,
       rankPoints: Number(player.rankPoints || 0),
-      savingsUnlocked: new Big(player.rankPoints || 0).gte(diamondTier.min),
+      idUserZalo: player.idUserZalo,
+      specialTier: player.specialTier || null,
+      isOverlord: tier.key === "overlord",
+      savingsUnlocked: tier.key === "overlord" || new Big(player.rankPoints || 0).gte(diamondTier.min),
+      oneNightInterest: oneNightInterest.toString(),
       interest, days,
       transactions: history,
     });
@@ -245,7 +309,8 @@ export async function handleSavingsBankCommand(api, message, groupSettings) {
 
   if (action === "lichsu") {
     const history = await connection.collection("game_savings_transactions").find({ playerId }).sort({ createdAt: -1 }).limit(10).toArray();
-    const lines = history.length ? history.map((item, index) => `${index + 1}. ${item.type === "deposit" ? "Gửi" : item.type === "withdraw" ? "Rút" : "Lãi"}: ${formatBigNumber(item.amount)} VNĐ • ${new Date(item.createdAt).toLocaleString("vi-VN")}`).join("\n") : "Chưa có giao dịch tiết kiệm.";
+    const bankTypeLabel = (type) => ({ deposit: "Gửi", withdraw: "Rút", interest: "Lãi", loan_repayment: "Thu nợ vay" })[type] || "Biến động";
+    const lines = history.length ? history.map((item, index) => `${index + 1}. ${bankTypeLabel(item.type)}: ${formatBigNumber(item.amount)} VNĐ • ${new Date(item.createdAt).toLocaleString("vi-VN")}`).join("\n") : "Chưa có giao dịch tiết kiệm.";
     await sendMessageFromSQL(api, message, { success: true, message: `🏦 LỊCH SỬ NGÂN HÀNG\n${lines}` }, false, 300000);
     return;
   }
@@ -255,9 +320,14 @@ export async function handleSavingsBankCommand(api, message, groupSettings) {
     return;
   }
 
+  const source = action === "gui" ? player.balance : account.principal;
+  const emptyMessage = getEmptySavingsMessage(action, source);
+  if (emptyMessage) {
+    await sendMessageFromSQL(api, message, { success: false, message: emptyMessage }, false, 30000);
+    return;
+  }
   let amount;
   try {
-    const source = action === "gui" ? player.balance : account.principal;
     const parsed = parseGameAmount(args[1], source);
     amount = parsed === "allin" ? new Big(source) : new Big(parsed);
     if (amount.lte(0)) throw new Error();
@@ -289,7 +359,8 @@ export async function handleSavingsBankCommand(api, message, groupSettings) {
       throw error;
     }
     await recordSavingsTransaction({ playerId, type: "deposit", amount: amount.toString(), balanceAfter: savingsAfter.toString() });
-    await sendMessageFromSQL(api, message, { success: true, message: `🏦 Đã gửi ${formatBigNumber(amount)} VNĐ vào tiết kiệm.\nSổ tiết kiệm: ${formatBigNumber(savingsAfter)} VNĐ\nHạng ${tier.name}: lãi ${Math.round((tier.rate || 0) * 100)}%/ngày.` }, false, 30000);
+    const interestAfterDeposit = calculateOneNightSavingsInterest(savingsAfter, tier);
+    await sendMessageFromSQL(api, message, { success: true, message: `🏦 Đã gửi ${formatBigNumber(amount)} VNĐ vào tiết kiệm.\nSổ tiết kiệm: ${formatBigNumber(savingsAfter)} VNĐ\n💵 Lãi dự kiến sau 1 đêm: ${formatBigNumber(interestAfterDeposit)} VNĐ\nHạng ${tier.name}: lãi ${Math.round((tier.rate || 0) * 100)}%/ngày, cộng lúc 00:00 giờ Việt Nam.` }, false, 30000);
     return;
   }
 
@@ -314,7 +385,114 @@ export async function handleSavingsBankCommand(api, message, groupSettings) {
     return;
   }
   await recordSavingsTransaction({ playerId, type: "withdraw", amount: amount.toString(), balanceAfter: savingsAfter.toString() });
-  await sendMessageFromSQL(api, message, { success: true, message: `🏦 Đã rút ${formatBigNumber(amount)} VNĐ từ tiết kiệm.\nCòn lại: ${formatBigNumber(savingsAfter)} VNĐ.` }, false, 30000);
+  const interestAfterWithdraw = calculateOneNightSavingsInterest(savingsAfter, tier);
+  await sendMessageFromSQL(api, message, { success: true, message: `🏦 Đã rút ${formatBigNumber(amount)} VNĐ từ tiết kiệm.\nCòn lại: ${formatBigNumber(savingsAfter)} VNĐ.\n💵 Lãi dự kiến sau 1 đêm: ${formatBigNumber(interestAfterWithdraw)} VNĐ.` }, false, 30000);
+}
+
+export async function handleGameLoanCommand(api, message, groupSettings) {
+  if (!(await checkBeforeJoinGame(api, message, groupSettings, true))) return;
+
+  const playerId = String(message.data.uidFrom);
+  let player = await getPlayerInfo(playerId);
+  if (!player) {
+    await sendMessageFromSQL(api, message, { success: false, message: "Không thể lấy hồ sơ game của bạn." }, false, 30000);
+    return;
+  }
+
+  const content = removeMention(message).trim().split(/\s+/u);
+  const loanAction = String(content[1] || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const settleNow = ["tattoan", "tat-toan", "settle"].includes(loanAction);
+  if (content[1] && !settleNow) {
+    await sendMessageFromSQL(api, message, {
+      success: false,
+      message: `🏦 Dùng ${getGlobalPrefix(api.getBotId())}game vay để xem/vay hoặc ${getGlobalPrefix(api.getBotId())}game vay tattoan để trả ngay bằng số dư hiện có.`,
+    }, false, 30000);
+    return;
+  }
+
+  let settlement;
+  try {
+    settlement = await collectGameLoan(connection, NAME_TABLE_PLAYERS, playerId, new Date(), { force: settleNow });
+    player = await getPlayerInfo(playerId);
+  } catch (error) {
+    await sendMessageFromSQL(api, message, { success: false, message: error?.message || "Không thể kiểm tra khoản vay." }, false, 30000);
+    return;
+  }
+
+  const isOverlord = player.specialTier === "overlord"
+    && await isGamePlayerBotLeader(api, playerId, [message.data.gameUid]);
+  const tier = cv.getPlayerGameTier({ ...player, isOverlord });
+  const savings = await connection.collection("game_savings_accounts").findOne({ playerId });
+  const credit = calculateGameLoanLimit(player, savings?.principal || 0, tier.daily || 0);
+  if (settlement?.paid) {
+    await sendMessageFromSQL(api, message, {
+      success: true,
+      message: `✅ KHOẢN VAY ĐÃ TẤT TOÁN\n` +
+        `💸 Ngân hàng vừa tự thu: ${formatBigNumber(settlement.collected)} VNĐ\n` +
+        `💳 Trừ ví: ${formatBigNumber(settlement.walletPaid || 0)} VNĐ\n` +
+        `🏦 Trừ tiết kiệm: ${formatBigNumber(settlement.savingsPaid || 0)} VNĐ\n` +
+        `📉 Trả gốc: ${formatBigNumber(settlement.totalPrincipalPaid)} VNĐ\n` +
+        `⏱️ Trả lãi: ${formatBigNumber(settlement.totalInterestPaid)} VNĐ\n` +
+        `📌 Dư nợ còn lại: 0 VNĐ`,
+    }, false, 120000);
+    return;
+  }
+  if (settleNow && settlement?.active) {
+    await sendMessageFromSQL(api, message, {
+      success: false,
+      message: `🏦 Đã thu ngay ${formatBigNumber(settlement.collected || 0)} VNĐ từ ví/tiết kiệm.` +
+        `\n💳 Trừ ví: ${formatBigNumber(settlement.walletPaid || 0)} VNĐ` +
+        `\n🏦 Trừ tiết kiệm: ${formatBigNumber(settlement.savingsPaid || 0)} VNĐ` +
+        `\n📌 Còn nợ: ${formatBigNumber(settlement.debt || 0)} VNĐ` +
+        `\nCần có thêm tiền trong ví hoặc tiết kiệm rồi dùng lại lệnh tất toán.`,
+    }, false, 120000);
+    return;
+  }
+  if (settleNow && !settlement?.active) {
+    await sendMessageFromSQL(api, message, {
+      success: false,
+      message: "🏦 Bạn không có khoản vay đang hoạt động để tất toán.",
+    }, false, 30000);
+    return;
+  }
+  const activeLoan = await connection.collection("game_loans").findOne({ playerId, status: "active" });
+  if (activeLoan) {
+    const accruedLoan = calculateGameLoanAccrual(activeLoan);
+    const debt = accruedLoan.debt;
+    const totalPaid = new Big(activeLoan.totalPaid || 0);
+    const totalInterestCharged = new Big(activeLoan.totalInterestCharged || 0).plus(accruedLoan.addedInterest);
+    const collectedLine = new Big(settlement?.collected || 0).gt(0)
+      ? `\n💸 Vừa tự động thu: ${formatBigNumber(settlement.collected)} VNĐ (ví ${formatBigNumber(settlement.walletPaid || 0)} • ngân hàng ${formatBigNumber(settlement.savingsPaid || 0)}).`
+      : "";
+    await sendMessageFromSQL(api, message, {
+      success: true,
+      message: `🏦 KHOẢN VAY NGÂN HÀNG GAME\n` +
+        `💰 Tiền vay gốc: ${formatBigNumber(activeLoan.principal || 0)} VNĐ\n` +
+        `📉 Gốc còn lại: ${formatBigNumber(accruedLoan.principal)} VNĐ\n` +
+        `⏱️ Lãi còn nợ: ${formatBigNumber(accruedLoan.interest)} VNĐ\n` +
+        `📌 Dư nợ: ${formatBigNumber(debt)} VNĐ\n` +
+        `✅ Tổng đã trả: ${formatBigNumber(totalPaid)} VNĐ\n` +
+        `📈 Tổng lãi phát sinh: ${formatBigNumber(totalInterestCharged)} VNĐ\n` +
+        `⏱️ Lãi suất: ${GAME_LOAN_HOURLY_RATE.times(100).toString()}%/giờ (1 triệu = 100.000/giờ)\n` +
+        `🤖 Hệ thống tự trừ tiền trong ví và tiết kiệm để thu nợ; không cần lệnh trả.${collectedLine}`,
+    }, false, 120000);
+    return;
+  }
+  const result = await createGameLoan(connection, NAME_TABLE_PLAYERS, playerId, tier.daily || 0);
+  if (!result.success) {
+    const debtLine = result.debt ? `\n📌 Dư nợ hiện tại: ${formatBigNumber(result.debt)} VNĐ.` : "";
+    await sendMessageFromSQL(api, message, { success: false, message: `🏦 ${result.message}${debtLine}` }, false, 30000);
+    return;
+  }
+  await sendMessageFromSQL(api, message, {
+    success: true,
+    message: `🏦 GIẢI NGÂN THÀNH CÔNG\n` +
+      `💰 Đã vay: ${formatBigNumber(result.amount)} VNĐ\n` +
+      `💳 Số dư ví: ${formatBigNumber(result.balanceAfter)} VNĐ\n` +
+      `📊 Mức vay cố định bằng 90% Daily hạng ${tier.name}; số dư/lịch sử dùng để xét duyệt.\n` +
+      `⏱️ Lãi: 10%/giờ; bắt đầu tự thu sau 1 giờ.\n` +
+      `🤖 Có tiền trong ví hoặc tiết kiệm, Ngân hàng Game sẽ tự trừ vào dư nợ.`,
+  }, false, 120000);
 }
 
 export async function handleTopPlayers(api, message, groupSettings) {
@@ -327,49 +505,48 @@ export async function handleTopPlayers(api, message, groupSettings) {
   // thành viên bình thường; quyền quản trị không loại họ khỏi BXH game.
   const rankedPlayers = topPlayers.map((player, index) => ({ ...player, rank: index + 1 }));
   const topTen = rankedPlayers.slice(0, 10);
-  const normalizeUid = (id) => String(id || "").replace(/^private:[^:]+:/, "").replace(/_0$/, "");
-  const loadPlayerAvatar = async (player) => {
-    if (player.avatar && typeof player.avatar === "string" && player.avatar.startsWith("http")) {
-      return player.avatar;
+  const refreshMissingName = async (player) => {
+    if (hasGameDisplayName(player.playerName)) return player;
+    const profile = await loadCurrentGameProfile(api, player);
+    if (hasGameDisplayName(profile.playerName)) {
+      await connection.collection(NAME_TABLE_PLAYERS).updateOne(
+        { idUserZalo: player.idUser, playerName: player.playerName },
+        { $set: { playerName: profile.playerName } }
+      );
     }
+    return { ...player, playerName: profile.playerName };
+  };
+  const isLeaderPlayer = async (player) => {
     const profileApi = getApiManager(player.serverId)?.apiZalo || api;
-    for (const profileId of player.profileIds || [player.idUser]) {
-      const cleanId = normalizeUid(profileId);
-      if (!cleanId || !/^\d+$/.test(cleanId)) continue;
-      try {
-        const userInfo = await getUserInfoAcrossBots(profileApi, cleanId);
-        const avatar = userInfo?.avatarFull || userInfo?.avatar;
-        if (avatar) return avatar;
-      } catch {}
-    }
-    return player.avatar || null;
+    return isGamePlayerBotLeader(profileApi, player.idUser, player.profileIds || []);
   };
   const playersWithAvatar = await Promise.all(
     topTen.map(async (player) => {
       const privacy = await getGamePrivacy(player.idUser);
+      const isOverlord = await isLeaderPlayer(player);
       if (privacy.hideProfile) {
-        return { ...player, playerName: "Ẩn Danh", avatar: ANONYMOUS_GAME_AVATAR, hideTier: privacy.hideTier, rankPoints: privacy.hideTier ? 0 : player.rankPoints };
+        return { ...player, playerName: "Ẩn Danh", avatar: ANONYMOUS_GAME_AVATAR, hideTier: privacy.hideTier, isOverlord, rankPoints: privacy.hideTier ? 0 : player.rankPoints };
       }
-      const avatar = await loadPlayerAvatar(player);
-      return { ...player, avatar, hideTier: privacy.hideTier, rankPoints: privacy.hideTier ? 0 : player.rankPoints };
+      return { ...await refreshMissingName(player), hideTier: privacy.hideTier, isOverlord, rankPoints: privacy.hideTier ? 0 : player.rankPoints };
     })
   );
-  const viewerId = normalizeUid(message.data.uidFrom);
+  const viewerId = normalizeGameProfileUid(message.data.uidFrom);
   const viewer = rankedPlayers.find((player) =>
-    (player.profileIds || [player.idUser]).some((profileId) => normalizeUid(profileId) === viewerId)
+    (player.profileIds || [player.idUser]).some((profileId) => normalizeGameProfileUid(profileId) === viewerId)
   );
   let viewerWithAvatar = viewer || null;
   if (viewer) {
     const privacy = await getGamePrivacy(viewer.idUser);
+    const isOverlord = await isLeaderPlayer(viewer);
     viewerWithAvatar = privacy.hideProfile
-      ? { ...viewer, playerName: "Ẩn Danh", avatar: ANONYMOUS_GAME_AVATAR, hideTier: privacy.hideTier, rankPoints: privacy.hideTier ? 0 : viewer.rankPoints }
-      : { ...viewer, avatar: await loadPlayerAvatar(viewer), hideTier: privacy.hideTier, rankPoints: privacy.hideTier ? 0 : viewer.rankPoints };
+      ? { ...viewer, playerName: "Ẩn Danh", avatar: ANONYMOUS_GAME_AVATAR, hideTier: privacy.hideTier, isOverlord, rankPoints: privacy.hideTier ? 0 : viewer.rankPoints }
+      : { ...await refreshMissingName(viewer), hideTier: privacy.hideTier, isOverlord, rankPoints: privacy.hideTier ? 0 : viewer.rankPoints };
   }
 
   const imagePath = await cv.createGameRankImage(playersWithAvatar, "BẢNG XẾP HẠNG TÀI PHÚ", viewerWithAvatar);
   try {
     await api.sendMessage(
-      { msg: "", attachments: imagePath ? [imagePath] : [], ttl: 300000, isUseProphylactic: true },
+      { msg: "", attachments: imagePath ? [imagePath] : [], ttl: 300000, isUseProphylactic: true, noCache: true, uploadCloud: false },
       threadId,
       message.type
     );
@@ -405,32 +582,66 @@ export async function handleMyCard(api, message, groupSettings) {
   try {
     if (!(await checkBeforeJoinGame(api, message, groupSettings, true))) return;
 
-    const senderId = message.data.uidFrom;
+    const originalSenderId = message.data.gameUid || message.data.uidFrom;
     const threadId = message.threadId;
     const mention = message.data.mentions?.[0];
-    if (mention && !isAdmin(api.getBotId(), senderId)) {
+    const canInspectOtherPlayer = isAdmin(api.getBotId(), originalSenderId) ||
+      isBotLeader(api.getBotId(), originalSenderId) ||
+      await isUserBotLeader(api, originalSenderId, message.data.dName);
+    if (mention && !canInspectOtherPlayer) {
       await sendMessageFromSQL(api, message, { success: false, message: "Chỉ admin cấp cao bot mới xem được mycard của người khác." }, true, 30000);
       return;
     }
-    let targetId = mention?.uid || senderId;
+    let targetId = mention?.uid || originalSenderId;
     const targetName = mention
       ? String(message.data.content?.title || message.data.content || "")
           .substring(mention.pos, mention.pos + mention.len)
           .replace("@", "")
-      : (message.data.dName || senderId);
+      : (message.data.dName || originalSenderId);
     const targetAccount = await ensurePlayerAccount(targetId, targetName || targetId, api.getBotId(), api);
     if (targetAccount?.playerId) {
       targetId = targetAccount.playerId;
     }
-    const result = await getMyCard(api, targetId);
+    const result = await getMyCard(api, targetId, mention?.uid || originalSenderId);
     if (result.success && result.data) {
       const playerInfo = result.data;
+      const currentProfile = await loadCurrentGameProfile(api, {
+        ...playerInfo,
+        idUser: targetId,
+        profileIds: [mention?.uid || originalSenderId, message.data.gameUid, playerInfo.idUserZalo, playerInfo.idUser, targetId],
+      });
+      // Renderer ưu tiên avatarFull, nên đồng bộ cả hai trường để ảnh cũ không thắng ảnh mới.
+      playerInfo.avatar = currentProfile.avatar;
+      playerInfo.avatarFull = currentProfile.avatar;
+      if (currentProfile.avatar) {
+        await connection.collection(NAME_TABLE_PLAYERS).updateOne(
+          { idUserZalo: targetAccount?.playerId || targetId },
+          { $set: { avatar: currentProfile.avatar, avatarUpdatedAt: new Date() } }
+        );
+      }
+      playerInfo.isOverlord = await isGamePlayerBotLeader(
+        api,
+        targetAccount?.playerId || targetId,
+        [mention?.uid || originalSenderId, playerInfo.idUserZalo, playerInfo.idUser]
+      );
       // Tên hiển thị lấy từ người đang gọi lệnh để không bị ảnh hưởng bởi hồ sơ cũ nhiễm alias.
-      if (!mention) playerInfo.playerName = message.data.dName || playerInfo.playerName;
+      playerInfo.playerName = mention
+        ? currentProfile.playerName || targetName || playerInfo.playerName
+        : message.data.dName || currentProfile.playerName || playerInfo.playerName;
       playerInfo.title = "Thông Tin Người Chơi";
+      console.info("[mycard-resolve]", JSON.stringify({
+        botId: api.getBotId(),
+        originalSenderId,
+        resolvedSenderId: message.data.uidFrom,
+        playerId: targetAccount?.playerId || targetId,
+        balance: playerInfo.balance,
+        rankPoints: playerInfo.rankPoints,
+        totalGames: playerInfo.totalGames,
+        isOverlord: playerInfo.isOverlord,
+      }));
       let msg = `🎴 Thông tin người chơi 🎴\n\n`;
       msg += `👤 Tên: ${playerInfo.playerName}\n`;
-      msg += `💰 Số dư: ${formatCurrency(playerInfo.balance)} VNĐ\n`;
+      msg += `💰 Ví game: ${formatCurrency(playerInfo.balance)} VNĐ\n`;
       msg += `🏆 Tổng Thắng: ${formatCurrency(playerInfo.totalWinnings)} VNĐ\n`;
       msg += `💸 Tổng Thua: ${formatCurrency(playerInfo.totalLosses)} VNĐ\n`;
       msg += `💹 Lợi Nhuận Ròng: ${formatCurrency(playerInfo.netProfit)} VNĐ\n`;
@@ -452,7 +663,7 @@ export async function handleMyCard(api, message, groupSettings) {
       const quoteMsg = message.__originalQuoteMessage || message;
       if (imagePath) {
         try {
-          await api.sendMessage({ msg: "", attachments: [imagePath], quote: quoteMsg, ttl: 300000 }, threadId, message.type);
+          await api.sendMessage({ msg: "", attachments: [imagePath], quote: quoteMsg, ttl: 300000, noCache: true, uploadCloud: false }, threadId, message.type);
         } catch (sendErr) {
           console.error("[mycard] Gửi ảnh thất bại, fallback sang text:", sendErr?.message);
           await api.sendMessage({ msg, quote: quoteMsg, ttl: 300000 }, threadId, message.type).catch(() => {});
@@ -505,7 +716,12 @@ export async function handleTestMyCard(api, message, groupSettings) {
  */
 export async function isUserBotLeader(api, senderId, senderName = "") {
   if (!senderId) return false;
-  const normalizedSenderId = String(senderId);
+  // Tin nhắn game có thể đi qua server riêng dưới dạng private:<server>:<uid>
+  // hoặc UID Zalo Web có hậu tố _0. Chuẩn hóa trước khi đối chiếu để chính
+  // tài khoản bot mẹ luôn được nhận diện đúng là Bot Leader.
+  const normalizedSenderId = String(senderId)
+    .replace(/^private:[^:]+:/, "")
+    .replace(/_0$/, "");
   const currentBotId = api?.getBotId?.() ? String(api.getBotId()) : "";
 
   // 1. Chỉ tài khoản bot mẹ và bot Hâm Và Cute được tự dùng quyền quản lý tier.
@@ -562,6 +778,31 @@ export async function isUserBotLeader(api, senderId, senderName = "") {
 
   // Admin cấp cao của bot con / bot Hâm & Cute (local admin) KHÔNG được dùng => BỊ CHẶN HOÀN TOÀN!
   return false;
+}
+
+async function isGamePlayerBotLeader(api, playerId, fallbackIds = []) {
+  const ids = new Set([playerId, ...fallbackIds].filter(Boolean).map(String));
+  try {
+    const linked = await connection.collection("player_identity").find({
+      $or: [{ playerId: { $in: [...ids] } }, { aliasId: { $in: [...ids] } }],
+    }).toArray();
+    for (const item of linked) {
+      if (item.playerId) ids.add(String(item.playerId));
+      if (item.aliasId) ids.add(String(item.aliasId));
+    }
+  } catch {}
+  // Tier Overlord chỉ thuộc chủ Bot thật. Không dùng isBotLeader() ở đây vì
+  // hàm đó cố ý bao gồm admin được uỷ quyền của bot con; nếu dùng cho tier thì
+  // mọi admin cục bộ đều bị hiển thị nhầm thành Overlord.
+  const mainBotManager = Object.values(apiManager.apiManagerObject).find((manager) => manager.isMainBot);
+  const mainBotId = String(mainBotManager?.id || "626785955735131567");
+  const ownerIds = new Set([mainBotId, ...getBotLeaderAliases(mainBotId)].map(String));
+  for (const manager of Object.values(apiManager.apiManagerObject || {})) {
+    if (manager?.idBotMainWithBot) ownerIds.add(String(manager.idBotMainWithBot));
+  }
+  if (api?.apiManager?.idBotMainWithBot) ownerIds.add(String(api.apiManager.idBotMainWithBot));
+  const normalize = (id) => String(id || "").replace(/^private:[^:]+:/, "").replace(/_0$/, "");
+  return [...ids].some((id) => ownerIds.has(normalize(id)));
 }
 
 export async function handleGameTierCommand(api, message, groupSettings) {
@@ -647,12 +888,17 @@ export async function handleGameTierCommand(api, message, groupSettings) {
   }
 
   const player = await getPlayerInfo(targetId);
-  const userInfo = await getUserInfoAcrossBots(api, targetId);
+  const profileUid = mention?.uid || message.data.gameUid || senderId;
+  const userInfo = await getUserInfoAcrossBots(api, profileUid);
+  const isOverlord = await isGamePlayerBotLeader(api, targetId, [profileUid]);
   const imagePath = await cv.createVIPTierImage({
     playerName: player?.playerName || targetName,
     rankPoints: Number(player?.rankPoints || 0),
-    balance: Number(player?.balance || 0),
+    specialTier: player?.specialTier || null,
+    balance: String(player?.balance || 0),
+    vipExpireAt: player?.vipExpireAt || null,
     avatarUrl: userInfo?.avatar || null,
+    isOverlord,
   });
   try {
     await api.sendMessage({ msg: "", attachments: [imagePath], ttl: 300000, isUseProphylactic: true }, message.threadId, message.type);
@@ -781,23 +1027,13 @@ export async function handleResetAllGameDataCommand(api, message) {
   if (!canUseLeaderGameReset(api, message)) {
     return sendMessageFromSQL(api, message, { success: false, message: "Chỉ Bot Leader trên bot chính mới được reset toàn bộ game." }, true, 30000);
   }
-  await connection.collection(NAME_TABLE_PLAYERS).updateMany({}, { $set: {
-    balance: "10000", rankPoints: 0, totalWinnings: "0", totalLosses: "0", netProfit: "0",
-    totalGames: 0, totalWinGames: 0, winRate: 0, lastDailyReward: null,
-  } });
+  const reset = await resetGameEconomy(connection, NAME_TABLE_PLAYERS);
   const { DEFAULT_JACKPOT, gameState, saveGameDataNow } = await import("./game-manager.js");
-  for (const game of ["taixiu", "chanle", "baucua", "vietlott655", "xoso45s"]) {
-    if (gameState.data[game]) {
-      gameState.data[game].history = [];
-      gameState.data[game].jackpot = DEFAULT_JACKPOT;
-      gameState.data[game].jackpots = {};
-      if (gameState.data[game].players) gameState.data[game].players = {};
-    }
-  }
+  gameState.data = resetPersistedGameState(gameState.data, DEFAULT_JACKPOT);
   saveGameDataNow();
   const reply = await sendMessageFromSQL(api, message, {
     success: true,
-    message: "✅ Đã reset dữ liệu game toàn server, giữ hồ sơ người chơi.",
+    message: `✅ Đã reset toàn bộ tiền, lịch sử, Daily và hạn mức của ${reset.playersMatched} tài khoản; giữ nguyên tier và hồ sơ người chơi.`,
   }, true, 120000);
   // Reset toàn bộ game cũng phải thông báo tới mọi nhóm đang bật game.
   await notifyGameResetToActiveGroups(getGameBenefitResetSpec("all"), api, message);
@@ -834,6 +1070,14 @@ export async function handleResetJackpotCommand(api, message) {
 }
 
 export async function handleBuffCommand(api, message, groupSettings) {
+  if (api.apiManager?.isMainBot !== true) {
+    await sendMessageFromSQL(api, message, {
+      success: false,
+      message: "Lệnh buff chỉ được sử dụng trên mainbot.",
+    }, true, 30000);
+    return;
+  }
+
   const senderId = message.data.uidFrom;
   const privateServer = getCurrentPrivateGameServer() || getPrivateGameServerForApi(api);
   const isServerManager = privateServer?.ownerIds?.some((id) => String(id) === String(senderId)) || isPrivateGameServerManager(api, senderId);
@@ -957,8 +1201,13 @@ export async function handleBuffCommand(api, message, groupSettings) {
 
 export async function handleSetVNDCommand(api, message, groupSettings) {
   const senderId = message.data.uidFrom;
-  const privateServer = getPrivateGameServer(api.apiManager?.ownerId || api.getBotId());
-  if (privateServer ? !isPrivateGameServerManager(api, senderId) : !isAdmin(api.getBotId(), senderId)) {
+  // Ví game được dùng chung giữa các bot. Không cho chủ/admin bot con set tiền
+  // vào ví toàn cục; thao tác này chỉ được thực hiện bởi admin trên mainbot.
+  if (api.apiManager?.isMainBot !== true || !isAdmin(api.getBotId(), senderId)) {
+    await sendMessageFromSQL(api, message, {
+      success: false,
+      message: "Lệnh set tiền chỉ được dùng bởi quản trị viên trên mainbot.",
+    }, true, 30000);
     return;
   }
 
@@ -1181,15 +1430,25 @@ export async function handleBankCommand(api, message, groupSettings) {
   if (await isHaveLoginAccount(targetId)) {
     const senderPlayerInfo = await getPlayerInfo(senderId);
     const receiverPlayerInfo = await getPlayerInfo(targetId);
-    const senderTier = getGameTier(senderPlayerInfo?.rankPoints || 0);
-    const receiverTier = getGameTier(receiverPlayerInfo?.rankPoints || 0);
-    // Kim Long trở lên được miễn hạn mức giao dịch ở cả hai phía. Khi một
-    // bên là Kim Long (bank hoặc người nhận), không cần đọc hạn mức của
-    // đối phương hay hạn mức còn lại của chính mình.
+    const [senderIsLeader, receiverIsLeader] = await Promise.all([
+      isGamePlayerBotLeader(api, senderPlayerInfo?.idUserZalo || senderId, [message.data.gameUid, senderId]),
+      isGamePlayerBotLeader(api, receiverPlayerInfo?.idUserZalo || targetId, [targetZaloId]),
+    ]);
+    const senderIsOverlord = cv.isExclusiveOverlordProfile(senderPlayerInfo) || senderIsLeader;
+    const receiverIsOverlord = cv.isExclusiveOverlordProfile(receiverPlayerInfo) || receiverIsLeader;
+    const senderTier = cv.getPlayerGameTier({ ...senderPlayerInfo, isOverlord: senderIsOverlord });
+    const receiverTier = cv.getPlayerGameTier({ ...receiverPlayerInfo, isOverlord: receiverIsOverlord });
+    // Overlord gửi/nhận không giới hạn và bỏ qua hạn mức hạng của đối phương.
+    // Quyền miễn hạn mức từ Kim Long trở lên vẫn được giữ nguyên.
     const kimLongMin = Number(getGameTiers().find((tier) => tier.key === "gold_dragon")?.min || 150000);
-    const kimLongExemption = Number(senderPlayerInfo?.rankPoints || 0) >= kimLongMin ||
-      Number(receiverPlayerInfo?.rankPoints || 0) >= kimLongMin;
-    if (!kimLongExemption) {
+    const limitExemption = isBankTransferLimitExempt({
+      senderTierKey: senderTier.key,
+      receiverTierKey: receiverTier.key,
+      senderRankPoints: senderPlayerInfo?.rankPoints,
+      receiverRankPoints: receiverPlayerInfo?.rankPoints,
+      kimLongMin,
+    });
+    if (!limitExemption) {
       const [sentToday, receivedToday] = await Promise.all([
         getTodayTransferTotal(senderId, "senderId"),
         getTodayTransferTotal(targetId, "receiverId"),
@@ -1283,12 +1542,25 @@ export async function handleBankCommand(api, message, groupSettings) {
       createdAt,
     });
 
+    const senderIsCurrentBot = String(senderId) === String(api.getBotId());
     const [senderInfo, receiverInfo] = await Promise.all([
-      getUserInfoAcrossBots(api, senderId).catch(() => null),
+      senderIsCurrentBot
+        ? Promise.resolve(api.accountInfo || null)
+        : getUserInfoAcrossBots(api, senderId).catch(() => null),
       getUserInfoAcrossBots(api, targetZaloId).catch(() => null),
     ]);
-    transferData.sender.avatar = senderInfo?.avatarFull || senderInfo?.avatar || null;
-    transferData.receiver.avatar = receiverInfo?.avatarFull || receiverInfo?.avatar || null;
+    transferData.sender.avatar =
+      senderInfo?.avatarFull ||
+      senderInfo?.avatar ||
+      senderPlayerInfo?.avatarFull ||
+      senderPlayerInfo?.avatar ||
+      null;
+    transferData.receiver.avatar =
+      receiverInfo?.avatarFull ||
+      receiverInfo?.avatar ||
+      receiverPlayerInfo?.avatarFull ||
+      receiverPlayerInfo?.avatar ||
+      null;
 
     const result = {
       success: true,
@@ -1350,8 +1622,13 @@ export async function handleStatementCommand(api, message, groupSettings) {
     playerInfo.playerName = message.data.dName || playerInfo.playerName;
   }
 
-  const history = await getGamePlayerHistory(targetId, 10, playerInfo.username);
-  const transactions = history.map((record) => {
+  const [history, transfers, savingsHistory, loanHistory] = await Promise.all([
+    getGamePlayerHistory(targetId, 30, playerInfo.username),
+    getGameTransferHistory(targetId, 30),
+    connection.collection("game_savings_transactions").find({ playerId: String(targetId) }).sort({ createdAt: -1 }).limit(30).toArray(),
+    connection.collection("game_loan_transactions").find({ playerId: String(targetId) }).sort({ createdAt: -1 }).limit(30).toArray(),
+  ]);
+  const gameTransactions = history.map((record) => {
     const isWin = record.isWin === true;
     const isPush = record.isWin === null || String(record.netAmount) === "0";
     let gameTitle = record.gameName || "Trò chơi";
@@ -1366,8 +1643,45 @@ export async function handleStatementCommand(api, message, groupSettings) {
       createdAt: record.createdAt,
       referenceCode: record.referenceCode || `${(record.gameKey || "GM").toUpperCase()}-${record._id?.toString()?.slice(-6) || "N/A"}`,
       detail: record.detail || "",
+      badge: isPush ? "HÒA" : isWin ? "THẮNG" : "THUA",
     };
   });
+  const transferTransactions = transfers.map((record) => {
+    const incoming = String(record.receiverId) === String(targetId);
+    return {
+      direction: incoming ? "in" : "out",
+      counterpartyName: incoming ? `Nhận từ ${record.senderName}` : `Chuyển cho ${record.receiverName}`,
+      amount: String(record.amount || 0),
+      balanceAfter: incoming ? record.receiverBalanceAfter : record.senderBalanceAfter,
+      createdAt: record.createdAt,
+      referenceCode: record.referenceCode,
+      detail: "Chuyển tiền Game Banking",
+      badge: incoming ? "NHẬN" : "CHUYỂN",
+    };
+  });
+  const bankTransactions = savingsHistory.map((record) => ({
+    direction: record.type === "withdraw" || record.type === "interest" ? "in" : "out",
+    counterpartyName: record.type === "deposit" ? "Gửi vào ngân hàng" : record.type === "withdraw" ? "Rút từ ngân hàng" : record.type === "loan_repayment" ? "Ngân hàng trừ tiết kiệm thu nợ" : "Lãi tiết kiệm",
+    amount: String(record.amount || 0),
+    balanceAfter: record.balanceAfter,
+    createdAt: record.createdAt,
+    referenceCode: `NH-${record._id?.toString()?.slice(-8).toUpperCase() || "N/A"}`,
+    detail: "Ngân hàng Game",
+    badge: record.type === "deposit" ? "GỬI NH" : record.type === "withdraw" ? "RÚT NH" : record.type === "loan_repayment" ? "THU NỢ" : "LÃI NH",
+  })).filter((record) => record.badge !== "THU NỢ"); // Khoản này đã có bản ghi tổng (ví + NH) trong loanHistory.
+  const loanTransactions = loanHistory.map((record) => ({
+    direction: record.type === "disbursement" ? "in" : "out",
+    counterpartyName: record.type === "disbursement" ? "Ngân hàng Game giải ngân" : "Ngân hàng Game tự động thu nợ",
+    amount: String(record.amount || 0),
+    balanceAfter: record.balanceAfter,
+    createdAt: record.createdAt,
+    referenceCode: `VAY-${record._id?.toString()?.slice(-8).toUpperCase() || "N/A"}`,
+    detail: record.detail || "Khoản vay ngân hàng game",
+    badge: record.type === "disbursement" ? "VAY" : "THU NỢ",
+  }));
+  const transactions = [...gameTransactions, ...transferTransactions, ...bankTransactions, ...loanTransactions]
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    .slice(0, 10);
 
   const totalGames = Number(playerInfo.totalGames || 0);
   const totalWinGames = Number(playerInfo.totalWinGames || 0);
@@ -1377,10 +1691,15 @@ export async function handleStatementCommand(api, message, groupSettings) {
 
   let imagePath = null;
   try {
+    const isOverlord = playerInfo.specialTier === "overlord"
+      && await isGamePlayerBotLeader(api, targetId, [mention?.uid, senderId]);
     imagePath = await cv.createGameStatementImage({
       playerName: playerInfo.playerName || targetId,
+      idUserZalo: playerInfo.idUserZalo || targetId,
       balance: playerInfo.balance,
       rankPoints: Number(playerInfo.rankPoints || 0),
+      specialTier: playerInfo.specialTier || null,
+      isOverlord,
       totalGames,
       totalWinGames,
       totalLosses: Number(playerInfo.totalLosses || 0),
@@ -1404,7 +1723,7 @@ export async function handleStatementCommand(api, message, groupSettings) {
       await cv.clearImagePath(imagePath);
     }
   } else {
-    let msg = `🧾 SAO KÊ THẮNG THUA: ${playerInfo.playerName}\n`;
+    let msg = `🧾 SAO KÊ TÀI KHOẢN: ${playerInfo.playerName}\n`;
     msg += `💰 Số dư: ${formatCurrency(playerInfo.balance)} VNĐ\n`;
     msg += `🎮 Tổng ván: ${totalGames} | Thắng: ${totalWinGames} | Thua: ${totalLossGames}\n`;
     msg += `📊 Tỉ lệ thắng: ${winRate}%\n`;
@@ -1412,14 +1731,14 @@ export async function handleStatementCommand(api, message, groupSettings) {
     msg += `💸 Tổng thua: -${formatCurrency(playerInfo.totalLosses || 0)} VNĐ\n`;
     msg += `💹 Lợi nhuận ròng: ${netProfit >= 0 ? "+" : ""}${formatCurrency(netProfit)} VNĐ\n`;
     if (transactions.length > 0) {
-      msg += `\n📜 10 ván đấu gần nhất:\n`;
+      msg += `\n📜 10 biến động gần nhất:\n`;
       transactions.forEach((tx, idx) => {
         const sign = tx.direction === "in" ? "+" : tx.direction === "out" ? "-" : "±";
-        const tag = tx.direction === "in" ? "THẮNG" : tx.direction === "out" ? "THUA" : "HÒA";
+        const tag = tx.badge || (tx.direction === "in" ? "THẮNG" : tx.direction === "out" ? "THUA" : "HÒA");
         msg += `${idx + 1}. [${tag}] ${tx.counterpartyName}: ${sign}${formatCurrency(tx.amount)} VNĐ\n`;
       });
     } else {
-      msg += `\nChưa có lịch sử ván đấu được ghi nhận gần đây.`;
+      msg += `\nChưa có biến động tài khoản được ghi nhận gần đây.`;
     }
     await sendMessageFromSQL(api, message, { success: true, message: msg }, true, 300000);
   }
@@ -1553,6 +1872,7 @@ export async function checkPlayerBanned(api, message, threadId, senderId) {
 }
 
 export async function checkPlayerLogin(api, message, threadId, senderId) {
+  message.data.gameUid = message.data.gameUid || senderId;
   const senderName = message.data.dName || senderId;
   const result = await ensurePlayerAccount(senderId, senderName, api.getBotId(), api);
   if (!result.success) {
@@ -1564,14 +1884,13 @@ export async function checkPlayerLogin(api, message, threadId, senderId) {
     return false;
   }
   if (result.playerId && result.playerId !== senderId) {
-    message.data.gameUid = senderId;
     message.data.uidFrom = result.playerId;
   }
   return true;
 }
 
 // Đã bỏ hoàn toàn hệ thống đăng ký/đăng nhập/đăng xuất tài khoản game bằng username+password.
-// Tài khoản game được tự động tạo và liên kết theo UID Zalo ngay khi chơi lệnh game đầu tiên
+// Tài khoản game được tự động tạo theo username lấy từ UID ở lệnh game đầu tiên
 // (xem hàm ensurePlayerAccount trong database/player.js và checkPlayerLogin ở trên).
 
 // Hàm xử lý lệnh nạp tiền
@@ -1901,9 +2220,18 @@ export async function handleDonateCommand(api, message, groupSettings) {
 
 /** Cộng donate thủ công sau khi Bot Leader đã đối soát giao dịch bên ngoài. */
 async function handleManualDonateAdd(api, message, rawAmount) {
+  if (api.apiManager?.isMainBot !== true) {
+    await sendMessageFromSQL(api, message, {
+      success: false,
+      message: "Lệnh donate add chỉ được sử dụng trên mainbot.",
+    }, true, 30000);
+    return;
+  }
+
   const botId = api.getBotId();
   const managerCommand = getManagerCommandConfig(botId);
   if (
+    String(botId) === "356656685950305571" ||
     managerCommand.notAllowedCommand?.includes("donateadd") ||
     managerCommand.notAllowedCommand?.includes("donate-add") ||
     managerCommand.notAllowedCommand?.includes("donate_add") ||
@@ -1918,11 +2246,17 @@ async function handleManualDonateAdd(api, message, rawAmount) {
 
   const prefix = getGlobalPrefix(botId);
   const senderId = message.data.uidFrom;
-  const isHighAdmin = (await isUserBotLeader(api, senderId, message.data?.dName)) || isAdmin(api.getBotId(), senderId) || isBotLeader(api.getBotId(), senderId);
-  if (!isHighAdmin) {
+  const normalizedSenderId = String(senderId || "").replace(/^private:[^:]+:/, "").replace(/_0$/, "");
+  const mainBotManager = Object.values(apiManager.apiManagerObject).find((manager) => manager.isMainBot);
+  const mainBotId = String(mainBotManager?.id || "");
+  const isLeader = await isUserBotLeader(api, senderId, message.data?.dName);
+  const isOwner = normalizedSenderId === mainBotId ||
+    isBotOwner(mainBotId, normalizedSenderId) ||
+    isBotOwner(botId, normalizedSenderId);
+  if (!isLeader || !isOwner) {
     await sendMessageFromSQL(api, message, {
       success: false,
-      message: "Chỉ quản trị viên cấp cao mới có quyền cộng donate thủ công.",
+      message: "Chỉ Bot Leader mới có quyền cộng donate thủ công.",
     }, true, 30000);
     return;
   }

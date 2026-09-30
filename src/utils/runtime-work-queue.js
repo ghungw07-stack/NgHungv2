@@ -4,11 +4,11 @@ import { freemem, totalmem } from "node:os";
 const readPositiveInt = (name, fallback) =>
   Math.max(1, Number.parseInt(process.env[name] || fallback, 10) || fallback);
 
-const maxConcurrency = readPositiveInt("NGH_GLOBAL_MESSAGE_CONCURRENCY", 24);
-const minConcurrency = Math.min(maxConcurrency, readPositiveInt("NGH_GLOBAL_MESSAGE_MIN_CONCURRENCY", 6));
+const maxConcurrency = readPositiveInt("NGH_GLOBAL_MESSAGE_CONCURRENCY", 8);
+const minConcurrency = Math.min(maxConcurrency, readPositiveInt("NGH_GLOBAL_MESSAGE_MIN_CONCURRENCY", 2));
 const baselineConcurrency = Math.min(
   maxConcurrency,
-  Math.max(minConcurrency, readPositiveInt("NGH_GLOBAL_MESSAGE_BASE_CONCURRENCY", 12))
+  Math.max(minConcurrency, readPositiveInt("NGH_GLOBAL_MESSAGE_BASE_CONCURRENCY", 6))
 );
 const maxBacklog = readPositiveInt("NGH_GLOBAL_MESSAGE_BACKLOG", 10000);
 // Ordinary chat/auto-service work is disposable under a flood. Keep most of
@@ -20,12 +20,9 @@ const maxNormalBacklog = Math.min(
 const maxPendingPerKey = readPositiveInt("NGH_MESSAGE_BACKLOG_PER_THREAD", 250);
 const taskTimeoutMs = readPositiveInt("NGH_MESSAGE_TASK_TIMEOUT_MS", 120000);
 const interactiveReserve = readPositiveInt("NGH_INTERACTIVE_MESSAGE_RESERVE", 2);
-// This process normally keeps a sizeable native working set (canvas, sharp,
-// ffmpeg and socket buffers). 1.2 GiB was below the observed idle/baseline RSS,
-// so the queue stayed at emergency concurrency even while the host had plenty
-// of free RAM. Global memory pressure is handled separately by freemem(), and
-// deployments with tighter limits can still override this value.
-const rssPressureBytes = readPositiveInt("NGH_QUEUE_RSS_PRESSURE_BYTES", 2 * 1024 * 1024 * 1024);
+// Canvas, sharp, ffmpeg and socket buffers sit outside V8's heap. Use this as
+// the process-side threshold when the host is also approaching memory pressure.
+const rssPressureBytes = readPositiveInt("NGH_QUEUE_RSS_PRESSURE_BYTES", 500 * 1024 * 1024);
 const queues = new Map();
 const priorityReadyKeys = [];
 const normalReadyKeys = [];
@@ -64,11 +61,11 @@ export function calculateAdaptiveConcurrency({
   maximum = maxConcurrency,
 }) {
   const idle = pendingCount === 0 && activeCount === 0;
-  const hostMemoryPressure = freeMemoryRatio < 0.1;
-  // Native canvas/sharp/buffer allocations make RSS large. An RSS crossing by
-  // itself is not pressure while the host still has plenty of available RAM.
-  const combinedMemoryPressure = rss >= rssLimit && freeMemoryRatio < 0.2;
-  if (hostMemoryPressure || combinedMemoryPressure) {
+  // Native canvas/sharp buffers make RSS noticeably larger than the V8 heap.
+  // Treat that working set as pressure only when the host is also running low;
+  // otherwise a healthy 500-700 MiB process would permanently pin this media
+  // bot to emergency concurrency even while several GiB remain available.
+  if (isRuntimeMemoryPressure({ rss, rssLimit, freeMemoryRatio })) {
     return Math.max(minimum, Math.floor(current / 2));
   }
   // An idle queue cannot be causing the observed event-loop spike. Reducing
@@ -91,6 +88,10 @@ export function calculateAdaptiveConcurrency({
     return Math.min(target, current + step);
   }
   return current;
+}
+
+export function isRuntimeMemoryPressure({ rss, rssLimit, freeMemoryRatio }) {
+  return freeMemoryRatio < 0.1 || (rss >= rssLimit && freeMemoryRatio < 0.2);
 }
 
 function runWithTimeout(task) {
@@ -315,7 +316,11 @@ export function getRuntimeQueueStats() {
     rssBytes,
     rssPressureBytes,
     systemFreeMemoryRatio,
-    memoryPressure: systemFreeMemoryRatio < 0.1 || (rssBytes >= rssPressureBytes && systemFreeMemoryRatio < 0.2),
+    memoryPressure: isRuntimeMemoryPressure({
+      rss: rssBytes,
+      rssLimit: rssPressureBytes,
+      freeMemoryRatio: systemFreeMemoryRatio,
+    }),
     dropped,
     droppedNormal,
     timedOut,

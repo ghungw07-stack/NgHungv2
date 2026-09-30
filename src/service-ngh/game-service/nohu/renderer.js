@@ -10,6 +10,7 @@ const HEIGHT = 304;
 const MAX_ROWS = 5;
 const SPIN_FRAMES = 20;
 const REEL_SYMBOLS = ["🍒", "🍋", "🔔", "⭐", "7️⃣", "💎", "🪙"];
+const FONT_FALLBACK = '"DejaVu Sans", "Noto Color Emoji", Symbola, sans-serif';
 
 function money(value) {
   return new Intl.NumberFormat("vi-VN").format(value);
@@ -33,7 +34,7 @@ function fillRounded(ctx, x, y, width, height, radius, color) {
 }
 
 function text(ctx, value, x, y, size, color, align = "left", weight = "bold") {
-  ctx.font = `${weight} ${size}px Arial`;
+  ctx.font = `${weight} ${size}px ${FONT_FALLBACK}`;
   ctx.fillStyle = color;
   ctx.textAlign = align;
   ctx.textBaseline = "middle";

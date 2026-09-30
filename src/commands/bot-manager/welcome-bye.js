@@ -10,6 +10,14 @@ let welcomePMConfigCache = null;
 let welcomePMConfigLastModified = 0;
 const WELCOME_PM_CONFIG_CACHE_TTL = 60000; 
 const DEFAULT_PR_CARD_CONTENT = "Danh Thiếp Liên Hệ";
+let autoReplyPMConfigCache = null;
+let autoReplyPMConfigCheckedAt = 0;
+let autoReplyPMConfigMtime = -1;
+const configuredAutoReplyCacheMs = Number(process.env.NGH_AUTO_REPLY_PM_CONFIG_CACHE_MS);
+const AUTO_REPLY_PM_CONFIG_CACHE_TTL = Math.max(
+  1000,
+  Number.isFinite(configuredAutoReplyCacheMs) ? configuredAutoReplyCacheMs : 60000
+);
 
 export async function getPrCard(botId) {
   try {
@@ -509,27 +517,41 @@ export async function handleSendUserMemberCommand(api, message, aliasCommand, gr
 export function getAutoReplyPMConfig() {
   try {
     const configPath = path.join(process.cwd(), "assets", "json-data", "autoreplypm-config.json");
+    const now = Date.now();
+    if (autoReplyPMConfigCache && now - autoReplyPMConfigCheckedAt < AUTO_REPLY_PM_CONFIG_CACHE_TTL) {
+      return autoReplyPMConfigCache;
+    }
+    autoReplyPMConfigCheckedAt = now;
     if (fs.existsSync(configPath)) {
-      const configData = fs.readFileSync(configPath, "utf8");
-      return JSON.parse(configData);
+      const mtime = fs.statSync(configPath).mtimeMs;
+      if (!autoReplyPMConfigCache || mtime !== autoReplyPMConfigMtime) {
+        const configData = fs.readFileSync(configPath, "utf8");
+        autoReplyPMConfigCache = JSON.parse(configData);
+        autoReplyPMConfigMtime = mtime;
+      }
+      return autoReplyPMConfigCache;
     }
   } catch (error) {
     console.error("Lỗi khi đọc autoreplypm config:", error);
   }
 
-  return {
+  autoReplyPMConfigCache ||= {
     defaultMessage: "Xin chào! Tôi là bot tự động. Bạn cần giúp gì?",
     defaultCardContent: "Bot Auto Reply",
     customMessages: {},
     customCards: {},
     enabled: {}
   };
+  return autoReplyPMConfigCache;
 }
 
 function saveAutoReplyPMConfig(config) {
   try {
     const configPath = path.join(process.cwd(), "assets", "json-data", "autoreplypm-config.json");
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2), "utf8");
+    autoReplyPMConfigCache = config;
+    autoReplyPMConfigCheckedAt = Date.now();
+    autoReplyPMConfigMtime = fs.statSync(configPath).mtimeMs;
     return true;
   } catch (error) {
     console.error("Lỗi khi ghi autoreplypm config:", error);

@@ -99,36 +99,6 @@ function drawMotif(ctx, motif, color, secondary) {
     }
   }
 
-  // Satin folds: soft filled ribbons with fine illuminated edges.
-  const ribbon = ctx.createLinearGradient(220, 0, 1040, 80);
-  ribbon.addColorStop(0, `${color}00`);
-  ribbon.addColorStop(0.45, `${color}10`);
-  ribbon.addColorStop(0.8, `${secondary}32`);
-  ribbon.addColorStop(1, `${color}0a`);
-  for (let index = 0; index < 3; index++) {
-    const offset = index * 13;
-    ctx.beginPath();
-    ctx.moveTo(260, -28 + offset);
-    ctx.bezierCurveTo(540, 90 + offset, 690, -76 + offset, 1040, 36 + offset);
-    ctx.lineTo(1040, 49 + offset);
-    ctx.bezierCurveTo(700, -58 + offset, 530, 112 + offset, 260, -28 + offset);
-    ctx.closePath();
-    ctx.fillStyle = ribbon;
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(260, -28 + offset);
-    ctx.bezierCurveTo(540, 90 + offset, 690, -76 + offset, 1040, 36 + offset);
-    ctx.strokeStyle = `${secondary}${index === 1 ? "30" : "18"}`;
-    ctx.stroke();
-  }
-  for (let index = 0; index < (motif === "waves" ? 7 : 3); index++) {
-    ctx.beginPath();
-    ctx.moveTo(-25, 103 - index * 6);
-    ctx.bezierCurveTo(155, 22 - index * 8, 310, 146 - index * 4, 635, 107 - index * 2);
-    ctx.strokeStyle = `${secondary}${index === 0 ? "38" : "16"}`;
-    ctx.stroke();
-  }
-
   // Fixed positions avoid visual noise changing on each render.
   const count = motif === "orbits" || motif === "crown" ? 24 : 12;
   for (let index = 0; index < count; index++) {

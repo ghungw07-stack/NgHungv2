@@ -5,7 +5,7 @@ import { getPlayerBalance, getUsernameByIdZalo, updatePlayerBalanceByUsername, s
 import { connection } from "../../../database/state.js";
 import { getApiManager } from "../../../index.js";
 import { getBettingBotSentReactionTarget, startBettingReactionCountdown } from "./betting-reaction-countdown.js";
-import { formatCurrency, parseGameAmount } from "../../../utils/format-util.js";
+import { formatCurrency, parseGameBetAmount as parseGameAmount } from "../../../utils/format-util.js";
 import { sendMessageFromSQL, sendMessageFromSQLImage } from "../../chat-zalo/chat-style/chat-style.js";
 import { getGlobalPrefix } from "../../service.js";
 import { checkBeforeJoinGame } from "../index.js";

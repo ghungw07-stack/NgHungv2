@@ -9,7 +9,7 @@ const sharpConcurrency = Math.max(
   1,
   Math.min(cpuCount, Number(process.env.NGH_SHARP_CONCURRENCY) || 2)
 );
-const sharpCacheMemoryMb = Math.max(16, Number(process.env.NGH_SHARP_CACHE_MEMORY_MB) || 64);
+const sharpCacheMemoryMb = Math.max(8, Number(process.env.NGH_SHARP_CACHE_MEMORY_MB) || 32);
 
 sharp.concurrency(sharpConcurrency);
 sharp.cache({

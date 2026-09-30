@@ -146,6 +146,7 @@ export async function helpCommand(api, message, isAdminBox, requestedPage) {
       {
         msg: `📚 ${botName} có ${totalCommands} lệnh.\n\n${fallback || "Chưa có lệnh khả dụng."}\n\nDùng ${prefix}command để xem và tìm lệnh.`,
         ttl: MENU_PAGE_TTL,
+        useDefaultTtl: false,
       },
       threadId,
       message.type
@@ -176,6 +177,7 @@ async function sendMenuPage(api, message, { botName, commandsForMenu, page, tota
       attachments: imagePath ? [imagePath] : [],
       mentions: [{ pos: 2, uid: senderId, len: senderName.length }],
       ttl: MENU_PAGE_TTL,
+      useDefaultTtl: false,
       isUseProphylactic: true,
     },
     threadId,
@@ -214,6 +216,7 @@ export async function checkMenuPageReply(api, message) {
       style,
       mentions: [{ uid: String(message.data?.uidFrom), pos: 0, len: mentionName.length }],
       ttl: 30000,
+      useDefaultTtl: false,
     }, message.threadId, message.type);
     return true;
   }
@@ -472,6 +475,16 @@ export async function gameInfoCommand(api, message, groupSettings) {
         description: "Sổ tiết kiệm theo hạng: gửi, rút và xem lịch sử",
         icon: "🏦",
       },
+      forex: {
+        command: `${prefix}game forex`,
+        description: "Trade Forex ký quỹ: BUY/SELL, đòn bẩy và biểu đồ nến",
+        icon: "💹",
+      },
+      vay: {
+        command: `${prefix}game vay`,
+        description: "Vay cố định 90% Daily; lãi 10%/giờ và tự động thu nợ từ ví",
+        icon: "💳",
+      },
       giveaway: {
         command: `${prefix}game giveaway`,
         description: "Tham gia Giveaway đang mở trong nhóm",
@@ -494,7 +507,7 @@ export async function gameInfoCommand(api, message, groupSettings) {
       },
       donate: {
         command: `${prefix}game donate`,
-        description: `Lấy mã QR donate; Admin: ${prefix}game donate add 100k @user | ${prefix}game donate xoa @user`,
+        description: `Lấy mã QR donate; Leader: ${prefix}game donate add 100k @user | Admin: ${prefix}game donate xoa @user`,
         icon: "🎖️",
       },
       xoatier: {
@@ -546,6 +559,11 @@ export async function gameInfoCommand(api, message, groupSettings) {
         command: `${prefix}thap <tiền> [de/vua/kho]`,
         description: "Tháp Tiền — leo 8 tầng; chọn ô an toàn hoặc rút thưởng",
         icon: "🏰",
+      },
+      highlow: {
+        command: `${prefix}hl <tiền>`,
+        description: "High–Low — đoán lá kế tiếp cao/thấp, thắng nối chuỗi rồi stop",
+        icon: "🎴",
       },
       maybay: {
         command: `${prefix}maybay <tiền> [mốc tự rút]`,
@@ -599,6 +617,7 @@ export async function gameInfoCommand(api, message, groupSettings) {
       duangua: { command: `${prefix}duangua`, description: "Đua ngựa nhiều người", icon: "🏇" },
       duaxe: { command: `${prefix}duaxe`, description: "Đua xe cược tiền, 5% quỹ lì xì", icon: "🏎️" },
       vietlott655: { command: `${prefix}game vietlott655`, description: "Dự đoán Vietlott 6/55", icon: "🎟️" },
+      veso: { command: `${prefix}veso`, description: "Vé số 60s: vé 10 tỷ, đặc biệt 500 tỷ", icon: "🎟️" },
       bank: {
         command: `${prefix}game bank [số tiền] [@người nhận]`,
         description: "Chuyển tiền cho người khác",
@@ -606,7 +625,7 @@ export async function gameInfoCommand(api, message, groupSettings) {
       },
       saoke: {
         command: `${prefix}game saoke [@user]`,
-        description: "Xem lịch sử thắng thua game",
+        description: "Xem ván chơi, chuyển/nhận tiền, ngân hàng và thu nợ",
         icon: "🧾",
       },
     },

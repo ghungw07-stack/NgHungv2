@@ -21,6 +21,74 @@ const waitingActionGroupMap = new Map();
 const waitingActionJoinGroup = 30000;
 const timeOutWaitingActionGroup = 60000;
 
+function normalizeActionId(value) {
+  return String(value ?? "").replace(/_0$/, "").trim();
+}
+
+function normalizeActionName(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/gi, "d")
+    .replace(/@/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLocaleLowerCase("vi-VN");
+}
+
+function joinRequestKey(botId, threadId, messageId) {
+  return `${normalizeActionId(botId)}:${normalizeActionId(threadId)}:${normalizeActionId(messageId)}`;
+}
+
+function reactionMessageIds(reaction) {
+  const raw = reaction?.data?.content?.rMsg;
+  const items = Array.isArray(raw) ? raw : raw && typeof raw === "object" ? [raw] : [];
+  return [...new Set(items.flatMap((item) => [
+    item?.gMsgID,
+    item?.cMsgID,
+    item?.globalMsgId,
+    item?.cliMsgId,
+    item?.gmi,
+    item?.cmi,
+  ]).map(normalizeActionId).filter(Boolean))];
+}
+
+async function sendJoinResult(api, data) {
+  const message = data.message;
+  try {
+    const joinResult = await api.joinGroup(data.linkJoin);
+    console.error(`[join-group:${api.getBotId()}] Kết quả join=${JSON.stringify(joinResult)}`);
+    for (const [id, pending] of requestJoinGroupMap) {
+      if (pending === data) requestJoinGroupMap.delete(id);
+    }
+    await sendMessageFromSQL(
+      api,
+      message,
+      { success: true, message: `Đã tham gia vào nhóm thành công!` },
+      true,
+      180000
+    );
+    return true;
+  } catch (error) {
+    const errorMessage = String(error?.message || error || "");
+    let caption = `Không thể tham gia nhóm: ${errorMessage}`;
+    if (errorMessage.includes("Waiting for approve")) {
+      caption = `Đã gửi yêu cầu tham gia nhóm này và đang chờ chủ nhóm phê duyệt!`;
+    } else if (errorMessage.includes("đã là thành viên")) {
+      caption = `Đã là thành viên của nhóm này!`;
+    } else if (errorMessage.includes("chặn tham gia nhóm")) {
+      caption = `Đã bị chặn tham gia nhóm này!`;
+    } else {
+      console.error(`[join-group:${api.getBotId()}] ${errorMessage}`);
+    }
+    for (const [id, pending] of requestJoinGroupMap) {
+      if (pending === data) requestJoinGroupMap.delete(id);
+    }
+    await sendMessageWarningRequest(api, message, { caption }, 180000);
+    return true;
+  }
+}
+
 schedule.scheduleJob("*/5 * * * * *", () => {
   const currentTime = Date.now();
   for (const [msgId, data] of requestJoinGroupMap.entries()) {
@@ -105,33 +173,51 @@ export async function handleJoinGroup(api, message) {
     waitingActionJoinGroup
   );
 
-  const msgId = msgResponse.message.msgId.toString();
+  const responseMessage = msgResponse?.message || msgResponse?.attachment?.[0] || {};
+  const responseIds = [responseMessage.msgId, responseMessage.cliMsgId]
+    .map((value) => String(value ?? ""))
+    .filter(Boolean);
+  if (responseIds.length === 0) throw new Error("Không lấy được ID tin xác nhận join");
 
-  requestJoinGroupMap.set(msgId, {
+  const pendingJoin = {
     botId: String(api.getBotId()),
     message,
     timestamp: Date.now(),
     groupInfo,
     linkJoin,
-  });
+  };
+  for (const id of new Set(responseIds)) {
+    requestJoinGroupMap.set(joinRequestKey(pendingJoin.botId, message.threadId, id), pendingJoin);
+  }
 }
 
 export async function handleReactionConfirmJoinGroup(api, reaction) {
-  const msgId = reaction.data?.content?.rMsg?.[0]?.gMsgID?.toString() || "";
-  if (!msgId) return false;
-  const data = requestJoinGroupMap.get(msgId);
+  const botId = normalizeActionId(api.getBotId());
+  const threadId = normalizeActionId(reaction.threadId || reaction.data?.idTo || reaction.data?.grid);
+  const messageIds = reactionMessageIds(reaction);
+  const matchedKey = messageIds
+    .map((id) => joinRequestKey(botId, threadId, id))
+    .find((key) => requestJoinGroupMap.has(key));
+  if (!matchedKey) return false;
+  const data = requestJoinGroupMap.get(matchedKey);
   if (!data) return false;
-  const senderId = reaction.data.uidFrom;
-  if (senderId !== data.message.data.uidFrom) return false;
-  if (data.botId !== String(api.getBotId()) || String(reaction.threadId) !== String(data.message.threadId)
+  const senderId = normalizeActionId(reaction.data?.uidFrom || reaction.senderId);
+  const requesterId = normalizeActionId(data.message.data.uidFrom);
+  const senderName = normalizeActionName(reaction.data?.dName || reaction.data?.fromD || reaction.fromDisplay);
+  const requesterName = normalizeActionName(data.message.data?.dName);
+  if (senderId !== requesterId && (!senderName || senderName !== requesterName)) return false;
+  if (data.botId !== botId || threadId !== normalizeActionId(data.message.threadId)
     || Date.now() - data.timestamp > waitingActionJoinGroup
-    || !isAdmin(api.getBotId(), senderId)) return false;
+    || !isAdmin(api.getBotId(), requesterId)) return false;
 
-  const rType = reaction.data.content.rType;
+  const rType = Number(reaction.data.content.rType);
   if (rType !== 3 && rType !== 5) return false;
 
   const message = data.message;
-  requestJoinGroupMap.delete(msgId);
+  console.error(
+    `[join-group:${api.getBotId()}] Đã khớp reaction thread=${threadId} ` +
+    `target=${messageIds.join(",")} requester=${requesterId}`
+  );
   // const msgUndo = {
   //   data: {
   //     quote: {
@@ -144,51 +230,7 @@ export async function handleReactionConfirmJoinGroup(api, reaction) {
   // };
   // await api.undoMessage(msgUndo);
 
-  try {
-    await api.joinGroup(data.linkJoin);
-    await sendMessageFromSQL(
-      api,
-      message,
-      {
-        success: true,
-        message: `Đã tham gia vào nhóm thành công!`,
-      },
-      true,
-      180000
-    );
-  } catch (error) {
-    if (error.message.includes("Waiting for approve")) {
-      await sendMessageWarningRequest(
-        api,
-        message,
-        {
-          caption: `Đã gửi yêu cầu tham gia nhóm này và đang chờ chủ nhóm phê duyệt!`,
-        },
-        180000
-      );
-    }
-    if (error.message.includes("đã là thành viên")) {
-      await sendMessageWarningRequest(
-        api,
-        message,
-        {
-          caption: `Đã là thành viên của nhóm này!`,
-        },
-        180000
-      );
-    }
-    if (error.message.includes("chặn tham gia nhóm")) {
-      await sendMessageWarningRequest(
-        api,
-        message,
-        {
-          caption: `Đã bị chặn tham gia nhóm này!`,
-        },
-        180000
-      );
-    }
-  }
-  return true;
+  return sendJoinResult(api, data);
 }
 
 export async function handleLeaveGroup(api, message, groupSettings) {

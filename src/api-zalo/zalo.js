@@ -17,7 +17,7 @@ import { removeMemberFactory } from "./apis/removeMember.js";
 import { sendStickerFactory } from "./apis/sendSticker.js";
 import { undoMessageFactory } from "./apis/undoMessage.js";
 import { uploadAttachmentFactory } from "./apis/uploadAttachment.js";
-import { sendMessageFactory } from "./apis/sendMessage.js";
+import { resolveMessageTtl, sendMessageFactory } from "./apis/sendMessage.js";
 import { deleteMessageFactory } from "./apis/deleteMessage.js";
 import { getFriendProfileFactory } from "./apis/getFriendProfile.js";
 import { sendVideoFactory } from "./apis/sendVideo.js";
@@ -107,6 +107,7 @@ import { joinGroupInviteBoxFactory } from "./apis/joinGroupInviteBox.js";
 import { removeGroupInviteBoxFactory } from "./apis/removeGroupInviteBox.js";
 import { getFriendBlockListFactory } from "./apis/getFriendBlockList.js";
 import { disableGroupLinkFactory } from "./apis/disableGroupLink.js";
+import { upgradeBusinessBasicFactory } from "./apis/upgradeBusinessBasic.js";
 
 export let ANTI_DELETE_MESSAGE = false;
 export let ANTI_DELETE_VOICE = false;
@@ -152,7 +153,7 @@ class Zalo {
 }
 
 Zalo.API_TYPE = 30;
-Zalo.API_VERSION = 667;
+Zalo.API_VERSION = 685;
 
 class API {
   constructor(appContext, loginInfo) {
@@ -180,11 +181,15 @@ class API {
     this.changeGroupName = changeGroupNameFactory(this, appContext);
     this.getUserInfo = getFriendProfileFactory(this, appContext);
     this.addReaction = sendReactionMessageFactory(this, appContext);
-    this.sendSticker = sendStickerFactory(this, appContext);
+    const withDefaultTtl = (ttl) => resolveMessageTtl(appContext.timeMessage, ttl);
+    const sendSticker = sendStickerFactory(this, appContext);
+    this.sendSticker = (sticker, threadId, type, ttl = 0) =>
+      sendSticker({ ...sticker, antiDelete: false }, threadId, type, withDefaultTtl(ttl));
     this.undoMessage = undoMessageFactory(this, appContext);
     this.sendMessage = sendMessageFactory(this, appContext);
     this.deleteMessage = deleteMessageFactory(this, appContext);
-    this.sendVideo = sendVideoFactory(this, appContext);
+    const sendVideo = sendVideoFactory(this, appContext);
+    this.sendVideo = (options) => sendVideo({ ...options, ttl: withDefaultTtl(options?.ttl), antiDelete: false });
     this.getAllFriends = getFriendsListFactory(this, appContext);
     this.getAllGroups = getGroupListFactory(this, appContext);
     this.changeGroupSetting = changeGroupSettingFactory(this, appContext);
@@ -192,30 +197,48 @@ class API {
     this.addGroupAdmins = addGroupAdminsFactory(this, appContext);
     this.removeGroupAdmins = removeGroupAdminsFactory(this, appContext);
     this.getQRLink = getQRProfileUserFactory(this, appContext);
-    this.sendBusinessCard = sendBusinessCardFactory(this, appContext);
+    const sendBusinessCard = sendBusinessCardFactory(this, appContext);
+    this.sendBusinessCard = (message, userId, phone, type, threadId, ttl = 0) =>
+      sendBusinessCard(message, userId, phone, type, threadId, withDefaultTtl(ttl));
     this.sendFriendRequest = sendFriendRequestFactory(this, appContext);
     this.getGroupPendingMembers = getPendingMemberFactory(this, appContext);
     this.handleGroupPendingMembers = handleGroupPendingMembersFactory(this, appContext);
     this.changeGroupOwner = changeGroupOwnerFactory(this, appContext);
     this.leaveGroup = leaveGroupFactory(this, appContext);
-    this.sendCustomSticker = sendCustomStickerFactory(this, appContext);
+    const sendCustomSticker = sendCustomStickerFactory(this, appContext);
+    this.sendCustomSticker = (message, staticImgUrl, animationImgUrl, width, height, ttl = 0) =>
+      sendCustomSticker(message, staticImgUrl, animationImgUrl, width, height, withDefaultTtl(ttl), false);
     this.changeGroupLink = changeGroupLinkFactory(this, appContext);
     this.sendTodo = sendToDoFactory(this, appContext);
     this.getRecentMessages = getRecentMessageFactory(this, appContext);
     this.parseLink = parseLinkFactory(this, appContext);
-    this.sendLink = sendLinkFactory(this, appContext);
-    this.sendCustomLink = sendCustomLinkFactory(this, appContext);
-    this.sendVoice = sendVoiceFactory(this, appContext);
+    const sendLink = sendLinkFactory(this, appContext);
+    this.sendLink = (content, link, threadId, type, ttl = 0, useDefaultTtl = true) =>
+      sendLink(content, link, threadId, type, useDefaultTtl ? withDefaultTtl(ttl) : ttl);
+    const sendCustomLink = sendCustomLinkFactory(this, appContext);
+    this.sendCustomLink = (options, threadId, type, ttl = 0) =>
+      sendCustomLink(options, threadId, type, withDefaultTtl(ttl));
+    const sendVoice = sendVoiceFactory(this, appContext);
+    this.sendVoice = (message, voiceUrl, ttl = 0) =>
+      sendVoice({ ...message, antiDelete: false }, voiceUrl, withDefaultTtl(ttl));
     this.getGroupInfoByLink = getGroupInfoByLinkFactory(this, appContext);
     this.joinGroup = joinGroupByLinkFactory(this, appContext);
     this.cancelGroupJoin = cancelGroupJoinFactory(this, appContext);
     this.sendBankCard = sendBankCardFactory(this, appContext);
-    this.sendGif = sendGifFactory(this, appContext);
+    const sendGif = sendGifFactory(this, appContext);
+    this.sendGif = (gifUrl, message, caption = "", ttl = 0, metaData = null) =>
+      sendGif(gifUrl, message, caption, withDefaultTtl(ttl), metaData);
     this.getInfoMembers = getMemberInGroupFactory(this, appContext);
     this.checkImage = checkImageFactory();
-    this.sendImage = sendImageFactory(this, appContext);
-    this.sendFile = sendFileFactory(this, appContext);
-    this.sendMessageForward = sendMessageForwardFactory(this, appContext);
+    const sendImage = sendImageFactory(this, appContext);
+    this.sendImage = (image, message, caption = "", ttl = 0, groupLayout) =>
+      sendImage(image, message, caption, withDefaultTtl(ttl), groupLayout);
+    const sendFile = sendFileFactory(this, appContext);
+    this.sendFile = (message, fileUrl, ttl = 0, ...fileMeta) =>
+      sendFile(message, fileUrl, withDefaultTtl(ttl), ...fileMeta);
+    const sendMessageForward = sendMessageForwardFactory(this, appContext);
+    this.sendMessageForward = (message, threadId, type, ttl = 0) =>
+      sendMessageForward({ ...message, antiDelete: false }, threadId, type, withDefaultTtl(ttl));
     this.getGroupBlockList = getBlockedMembersFactory(this, appContext);
     this.unblockUsers = unblockMemberFactory(this, appContext);
     this.getLinkGroupByID = getLinkGroupFromIDFactory(this, appContext);
@@ -266,6 +289,7 @@ class API {
     this.removeGroupInviteBox = removeGroupInviteBoxFactory(this, appContext);
     this.getFriendBlockList = getFriendBlockListFactory(this, appContext);
     this.disableGroupLink = disableGroupLinkFactory(this, appContext);
+    this.upgradeBusinessBasic = upgradeBusinessBasicFactory(this, appContext);
   }
 }
 

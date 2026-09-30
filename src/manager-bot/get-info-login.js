@@ -70,7 +70,8 @@ export async function request(ctx, url, options, raw = false) {
   const response = await ctx.options.polyfill(url, _options);
   const cookieHeaders = typeof response.headers?.getSetCookie === "function"
     ? response.headers.getSetCookie()
-    : (response.headers?.get("set-cookie") ? [response.headers.get("set-cookie")] : []);
+    : (response.headers?.raw?.()["set-cookie"] ||
+      (response.headers?.get("set-cookie") ? [response.headers.get("set-cookie")] : []));
   if (cookieHeaders.length > 0 && !raw) {
     for (const cookie of cookieHeaders) {
       const parsed = toughCookie.Cookie.parse(cookie);

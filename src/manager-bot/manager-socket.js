@@ -26,6 +26,7 @@ class ManagerBotSocket {
 
     for (const [id, apiMng] of Object.entries(apiManager.apiManagerObject)) {
       const botData = this.botChildrenStore.findBotWithId(id);
+      if (!apiMng.isMainBot && (!botData || this.botChildrenStore.isRemoved(botData.ownerId, botData))) continue;
       if (infoListBotActive && botData && botData.ownerId && infoListBotActive[botData.ownerId])
         apiMng.ownerData = infoListBotActive[botData.ownerId];
       bots.push(this.returnDataBotInfo(apiMng, botData));
@@ -66,7 +67,8 @@ class ManagerBotSocket {
   getABotInfo(idBot) {
     const apiMngBot = apiManager.apiManagerObject[idBot];
     if (!apiMngBot) return null;
-    const botData = this.botChildrenStore.findBotWithId(idBot) || {};
+    const botData = this.botChildrenStore.findBotWithId(idBot);
+    if (!apiMngBot.isMainBot && (!botData || this.botChildrenStore.isRemoved(botData.ownerId, botData))) return null;
     return this.returnDataBotInfo(apiMngBot, botData);
   }
 
@@ -229,9 +231,9 @@ class ManagerBotSocket {
       const nameBot = `${dataBotRemove.createdBy || ownerId} ${
         dataBotRemove.nameBot ? `- [${dataBotRemove.nameBot}]` : ""
       }`;
+      await this.botChildrenStore.delete(ownerId);
+      this.botChildrenStore.saveIfDirty();
       await purgeRemovedBotData(ownerId, dataBotRemove);
-      this.botChildrenStore.delete(ownerId);
-      this.botChildrenStore.markDirty();
       return { success: true, message: `Đã xóa bot ${nameBot} thành công!` };
     } catch (error) {
       return { success: false, message: "Có lỗi xảy ra khi xóa bot: " + error.message };

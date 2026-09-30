@@ -14,6 +14,16 @@ Zalo ChatBot là bot đa chức năng được phát triển bằng JavaScript b
 
 ## Hướng dẫn sử dụng
 
+### Game vé số 60 giây
+
+- `!veso mua` hoặc `!veso mua 5`: mua vé 6 chữ số ngẫu nhiên, 10 tỷ tiền ảo/vé.
+- `!veso chon 000021`: mua số tự chọn; có thể nhập nhiều số cách nhau bằng dấu phẩy.
+- `!veso ve`, `!veso phien`, `!veso lichsu`: xem vé, đếm ngược và kết quả. Thay `!` bằng tiền tố của bot.
+- Vé đầu tiên mở kỳ 60 giây chung cho các bot; tối đa 100 vé/người/kỳ. Mua thêm không gia hạn kỳ.
+- Giải đặc biệt khớp 6 số: 500 tỷ. Giải nhất–tư khớp 5 số: 100/50/30/20 tỷ; giải năm–sáu khớp 4 số: 10/5 tỷ; giải bảy khớp 3 số: 2 tỷ; giải tám khớp 2 số: 1 tỷ.
+- Mỗi vé nhận giải cao nhất khớp số đuôi, trả đủ vào ví. Vé và các giải đều ngẫu nhiên; vé trùng số được tính riêng.
+- Phiên đang chờ lưu trong `assets/json-data/ve-so.json` (hoặc thư mục `NGH_DATA_ROOT`). Bot tiếp tục xử lý sau restart; biên nhận trong ví ngăn trừ/trả tiền lặp.
+
 ### Yêu cầu hệ thống
 
 - Node.js phiên bản 24.

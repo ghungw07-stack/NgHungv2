@@ -1,4 +1,4 @@
-import { createCanvas, loadImage } from "canvas";
+import { createCanvas, loadImage, registerFont } from "canvas";
 import fs from "fs";
 import path from "path";
 import { FONT_MAIN, FONT_MENU, FONT_MENU_SORA, randomIDTemp } from "../format-util.js";
@@ -222,133 +222,193 @@ function saveMenuCanvas(canvas) {
   });
 }
 
-/** Game help dạng dashboard: chia nhóm rõ ràng, ưu tiên khả năng đọc trên điện thoại. */
+// Font riêng cho sổ tay game, dùng các weight tĩnh để Cairo hiển thị nhất quán.
+const GAME_HELP_FONT = '"GameHelpManrope", BeVietnamPro, sans-serif';
+let gameHelpFontRegistered = false;
+function registerGameHelpFont() {
+  if (gameHelpFontRegistered) return;
+  for (const [file, weight] of [["Manrope-Regular.ttf", "400"], ["Manrope-SemiBold.ttf", "600"], ["Manrope-Bold.ttf", "700"]]) {
+    registerFont(new URL(`../../../assets/fonts/${file}`, import.meta.url).pathname, { family: "GameHelpManrope", weight });
+  }
+  gameHelpFontRegistered = true;
+}
+
+/** Sổ tay game: thẻ trắng, font lớn và màu riêng cho từng nhóm lệnh. */
 async function createGameHelpMenuCanvas(helpContent, isAdminBox) {
+  registerGameHelpFont();
   const memberCommands = Object.entries(helpContent.allMembers || {}).map(([key, item]) => ({ key, ...item }));
   const adminCommands = isAdminBox
     ? Object.entries(helpContent.admin || {}).map(([key, item]) => ({ key, ...item }))
     : [];
-  const profiles = new Set(["daily", "giveaway", "mycard", "rank", "tier", "donenat", "donate"]);
-  const banking = new Set(["bank", "saoke"]);
+  const profiles = new Set([
+    "daily", "trocap", "cuutro", "hoantra", "hoivien", "lixi", "quy", "giveaway",
+    "mycard", "rank", "tier", "donenat", "donate", "xoatier",
+  ]);
+  const banking = new Set(["nganhang", "bank", "saoke"]);
   const adventure = new Set([
-    "doanso", "noitu", "doantu", "vuatiengviet", "duoihinhbatchu", "ailatrieuphu",
-    "cauca", "caro", "covua", "cotuong", "nuoithu", "tutien", "zaclwarrior", "masoi",
+    "nongtrai", "doanso", "noitu", "doantu", "vuatiengviet", "duoihinhbatchu",
+    "ailatrieuphu", "cauca", "caro", "covua", "cotuong", "nuoithu", "tutien",
+    "zaclwarrior", "masoi", "duangua", "duaxe",
   ]);
   const groups = [
-    { title: "HỒ SƠ & PHẦN THƯỞNG", accent: "#5DE1FF", icon: "01", items: memberCommands.filter((item) => profiles.has(item.key)) },
-    { title: "CASINO & GIẢI TRÍ", accent: "#A98BFF", icon: "02", items: memberCommands.filter((item) => !profiles.has(item.key) && !banking.has(item.key) && !adventure.has(item.key)) },
-    { title: "MINI GAME & NHẬP VAI", accent: "#52E6A7", icon: "03", items: memberCommands.filter((item) => adventure.has(item.key)) },
-    { title: "NGÂN HÀNG GAME", accent: "#FFC857", icon: "04", items: memberCommands.filter((item) => banking.has(item.key)) },
+    { title: "HỒ SƠ & PHẦN THƯỞNG", note: "Tài khoản, cấp bậc và quyền lợi", accent: "#087F8C", code: "01", items: memberCommands.filter((item) => profiles.has(item.key)) },
+    { title: "CASINO & GIẢI TRÍ", note: "Đặt cược và thử vận may", accent: "#C35B37", code: "02", items: memberCommands.filter((item) => !profiles.has(item.key) && !banking.has(item.key) && !adventure.has(item.key)) },
+    { title: "MINI GAME & NHẬP VAI", note: "Thi đấu, giải đố và phiêu lưu", accent: "#6654BC", code: "03", items: memberCommands.filter((item) => adventure.has(item.key)) },
+    { title: "NGÂN HÀNG GAME", note: "Tiết kiệm, chuyển tiền và sao kê", accent: "#287B56", code: "04", items: memberCommands.filter((item) => banking.has(item.key)) },
   ].filter((group) => group.items.length);
-  if (adminCommands.length) groups.push({ title: "DÀNH CHO QUẢN TRỊ VIÊN", accent: "#FF8A65", icon: "AD", items: adminCommands });
+  if (adminCommands.length) {
+    groups.push({ title: "QUẢN TRỊ VIÊN", note: "Công cụ quản lý người chơi", accent: "#B34C7A", code: "AD", items: adminCommands });
+  }
 
-  const width = 1800;
-  const columns = 3;
-  const outer = 58;
+  const width = 1400;
+  const columns = 2;
+  const outer = 54;
   const gapX = 22;
   const gapY = 18;
-  const headerHeight = 244;
-  const groupHeaderHeight = 70;
-  const cardHeight = 146;
-  const groupGap = 30;
-  const footerHeight = 106;
-  const contentHeight = groups.reduce((sum, group) =>
-    sum + groupHeaderHeight + Math.ceil(group.items.length / columns) * (cardHeight + gapY) + groupGap, 0);
-  const height = headerHeight + contentHeight + footerHeight;
+  const headerHeight = 260;
+  const groupHeaderHeight = 92;
+  const groupGap = 34;
+  const footerHeight = 118;
+  const cardWidth = (width - outer * 2 - gapX) / columns;
+  const textWidth = cardWidth - 116;
+  const measureCanvas = createCanvas(1, 1);
+  const measureCtx = measureCanvas.getContext("2d");
+
+  const getCardLayout = (command) => {
+    measureCtx.font = `700 26px ${GAME_HELP_FONT}`;
+    const commandLines = wrapTextLines(measureCtx, command.command || command.name || command.key, textWidth, 20);
+    measureCtx.font = `400 22px ${GAME_HELP_FONT}`;
+    const descriptionLines = wrapTextLines(measureCtx, command.description || "", textWidth, 20);
+    return {
+      commandLines,
+      descriptionLines,
+      height: Math.max(154, 31 + commandLines.length * 35 + 10 + descriptionLines.length * 30 + 25),
+    };
+  };
+
+  groups.forEach((group) => {
+    group.layouts = group.items.map(getCardLayout);
+    group.rowHeights = [];
+    for (let index = 0; index < group.items.length; index += columns) {
+      group.rowHeights.push(Math.max(...group.layouts.slice(index, index + columns).map((layout) => layout.height)));
+    }
+    group.height = groupHeaderHeight
+      + group.rowHeights.reduce((sum, rowHeight) => sum + rowHeight, 0)
+      + Math.max(0, group.rowHeights.length - 1) * gapY
+      + groupGap;
+  });
+
+  const height = headerHeight + groups.reduce((sum, group) => sum + group.height, 0) + footerHeight;
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext("2d");
 
-  const base = ctx.createLinearGradient(0, 0, width, height);
-  base.addColorStop(0, "#081426");
-  base.addColorStop(0.5, "#0B1930");
-  base.addColorStop(1, "#07101F");
-  ctx.fillStyle = base;
+  ctx.fillStyle = "#EEF4F8";
   ctx.fillRect(0, 0, width, height);
-  try {
-    const background = await loadMenuBackgroundImage();
-    ctx.save();
-    ctx.globalAlpha = 0.16;
-    drawImageCover(ctx, background, 0, 0, width, height);
-    ctx.restore();
-    ctx.fillStyle = "rgba(4, 12, 25, .72)";
-    ctx.fillRect(0, 0, width, height);
-  } catch (_) {}
-
-  const glow = ctx.createRadialGradient(width * 0.5, 0, 20, width * 0.5, 0, width * 0.62);
-  glow.addColorStop(0, "rgba(65, 190, 255, .20)");
-  glow.addColorStop(1, "rgba(65, 190, 255, 0)");
-  ctx.fillStyle = glow;
-  ctx.fillRect(0, 0, width, 620);
-
-  drawRoundedBox(ctx, 24, 24, width - 48, height - 48, 34, null, "rgba(115, 201, 255, .28)", 2);
-
-  ctx.textAlign = "center";
+  const header = ctx.createLinearGradient(0, 0, width, 250);
+  header.addColorStop(0, "#123A50");
+  header.addColorStop(1, "#126C76");
+  drawRoundedBox(ctx, 22, 22, width - 44, 208, 30, header);
+  ctx.textAlign = "left";
+  ctx.fillStyle = "#8FE0D9";
+  ctx.font = `700 18px ${GAME_HELP_FONT}`;
+  ctx.fillText("CẨM NANG TRÒ CHƠI", outer, 65);
   ctx.fillStyle = "#FFFFFF";
-  ctx.font = `800 68px ${FONT_MENU_SORA || FONT_MENU}`;
-  ctx.fillText("GAME CENTER", width / 2, 96);
-  ctx.fillStyle = "#8EDCFF";
-  ctx.font = `700 25px ${FONT_MENU}`;
-  ctx.fillText("SỔ TAY LỆNH • CHỌN GAME VÀ BẮT ĐẦU NGAY", width / 2, 140);
-  ctx.fillStyle = "#9FB2C8";
-  ctx.font = `500 21px ${FONT_MENU}`;
-  ctx.fillText(`${memberCommands.length} lệnh người chơi${adminCommands.length ? `  •  ${adminCommands.length} lệnh quản trị` : ""}`, width / 2, 180);
-  drawRoundedBox(ctx, width / 2 - 92, 199, 184, 8, 4, "#55CFFF");
+  ctx.font = `700 62px ${GAME_HELP_FONT}`;
+  ctx.fillText("Game help", outer - 2, 133);
+  ctx.fillStyle = "#D1EAED";
+  ctx.font = `400 23px ${GAME_HELP_FONT}`;
+  ctx.fillText("Chọn lệnh bên dưới và bắt đầu trải nghiệm", outer, 181);
 
-  const cardWidth = (width - outer * 2 - gapX * (columns - 1)) / columns;
+  const statsWidth = 350;
+  const statsX = width - outer - statsWidth;
+  drawRoundedBox(ctx, statsX, 62, statsWidth, 112, 24, "#FFFFFF", null, 2);
+  ctx.fillStyle = "#087F8C";
+  ctx.font = `700 38px ${GAME_HELP_FONT}`;
+  ctx.fillText(String(memberCommands.length).padStart(2, "0"), statsX + 28, 118);
+  ctx.fillStyle = "#16364A";
+  ctx.font = `700 17px ${GAME_HELP_FONT}`;
+  ctx.fillText("LỆNH NGƯỜI CHƠI", statsX + 100, 104);
+  ctx.fillStyle = "#536B7B";
+  ctx.font = `400 18px ${GAME_HELP_FONT}`;
+  ctx.fillText(adminCommands.length ? `Kèm ${adminCommands.length} lệnh quản trị` : "Sẵn sàng để chơi", statsX + 100, 134);
+
   let y = headerHeight;
   let commandNumber = 1;
   for (const group of groups) {
-    drawRoundedBox(ctx, outer, y + 8, 48, 48, 14, `${group.accent}20`, `${group.accent}90`, 2);
+    drawRoundedBox(ctx, outer, y + 4, 60, 60, 18, `${group.accent}16`, null);
     ctx.textAlign = "center";
     ctx.fillStyle = group.accent;
-    ctx.font = `800 17px ${FONT_MENU}`;
-    ctx.fillText(group.icon, outer + 24, y + 39);
+    ctx.font = `700 19px ${GAME_HELP_FONT}`;
+    ctx.fillText(group.code, outer + 30, y + 43);
+
     ctx.textAlign = "left";
-    ctx.fillStyle = "#F3F8FF";
-    ctx.font = `800 25px ${FONT_MENU}`;
-    ctx.fillText(group.title, outer + 66, y + 39);
-    ctx.fillStyle = "#70849B";
-    ctx.font = `600 18px ${FONT_MENU}`;
-    ctx.fillText(`${group.items.length} LỆNH`, width - outer - 76, y + 39);
-    ctx.fillStyle = `${group.accent}70`;
-    ctx.fillRect(outer, y + 66, width - outer * 2, 2);
+    ctx.fillStyle = "#19364A";
+    ctx.font = `700 25px ${GAME_HELP_FONT}`;
+    ctx.fillText(group.title, outer + 82, y + 31);
+    ctx.fillStyle = "#536B7B";
+    ctx.font = `400 20px ${GAME_HELP_FONT}`;
+    ctx.fillText(group.note, outer + 82, y + 57);
+    ctx.textAlign = "right";
+    ctx.fillStyle = group.accent;
+    ctx.font = `700 17px ${GAME_HELP_FONT}`;
+    ctx.fillText(`${String(group.items.length).padStart(2, "0")} LỆNH`, width - outer, y + 40);
     y += groupHeaderHeight;
 
-    group.items.forEach((command, index) => {
-      const col = index % columns;
-      const row = Math.floor(index / columns);
-      const x = outer + col * (cardWidth + gapX);
-      const cardY = y + row * (cardHeight + gapY);
-      drawRoundedBox(ctx, x, cardY, cardWidth, cardHeight, 20, "rgba(16, 32, 55, .94)", "rgba(139, 171, 205, .22)", 1.5);
-      ctx.fillStyle = group.accent;
-      drawRoundedBox(ctx, x, cardY, 6, cardHeight, 3, group.accent);
+    let rowY = y;
+    for (let index = 0; index < group.items.length; index += columns) {
+      const rowHeight = group.rowHeights[Math.floor(index / columns)];
+      for (let col = 0; col < columns && index + col < group.items.length; col++) {
+        const itemIndex = index + col;
+        const command = group.items[itemIndex];
+        const layout = group.layouts[itemIndex];
+        const x = outer + col * (cardWidth + gapX);
 
-      drawRoundedBox(ctx, x + 22, cardY + 22, 48, 32, 10, `${group.accent}1F`);
-      ctx.textAlign = "center";
-      ctx.fillStyle = group.accent;
-      ctx.font = `800 16px ${FONT_MENU}`;
-      ctx.fillText(String(commandNumber).padStart(2, "0"), x + 46, cardY + 44);
+        ctx.save();
+        ctx.shadowColor = "rgba(37, 66, 88, .06)";
+        ctx.shadowBlur = 10;
+        ctx.shadowOffsetY = 4;
+        drawRoundedBox(ctx, x, rowY, cardWidth, rowHeight, 22, "#FFFFFF", "#DCE6EE", 1.5);
+        ctx.restore();
+        drawRoundedBox(ctx, x + 20, rowY + 25, 58, 48, 14, `${group.accent}12`);
+        ctx.textAlign = "center";
+        ctx.fillStyle = group.accent;
+        ctx.font = `700 20px ${GAME_HELP_FONT}`;
+        ctx.fillText(String(commandNumber).padStart(2, "0"), x + 49, rowY + 57);
 
-      ctx.textAlign = "left";
-      ctx.fillStyle = "#FFFFFF";
-      ctx.font = `700 22px ${FONT_MENU}`;
-      ctx.fillText(truncateText(ctx, command.command || command.name || command.key, cardWidth - 112), x + 84, cardY + 45);
-      ctx.fillStyle = "#AFC0D3";
-      ctx.font = `500 18px ${FONT_MENU}`;
-      wrapTextLines(ctx, command.description || "", cardWidth - 52, 2)
-        .forEach((line, lineIndex) => ctx.fillText(line, x + 24, cardY + 87 + lineIndex * 25));
-      commandNumber++;
-    });
-    y += Math.ceil(group.items.length / columns) * (cardHeight + gapY) + groupGap;
+        const textX = x + 96;
+        let textY = rowY + 42;
+        ctx.textAlign = "left";
+        ctx.fillStyle = "#16364A";
+        ctx.font = `700 26px ${GAME_HELP_FONT}`;
+        layout.commandLines.forEach((line) => {
+          ctx.fillText(line, textX, textY);
+          textY += 35;
+        });
+        textY += 7;
+        ctx.fillStyle = "#536879";
+        ctx.font = `400 22px ${GAME_HELP_FONT}`;
+        layout.descriptionLines.forEach((line) => {
+          ctx.fillText(line, textX, textY);
+          textY += 30;
+        });
+        commandNumber++;
+      }
+      rowY += rowHeight + gapY;
+    }
+    y = rowY - gapY + groupGap;
   }
 
-  ctx.textAlign = "center";
-  ctx.fillStyle = "#E7F2FF";
-  ctx.font = `700 21px ${FONT_MENU}`;
-  ctx.fillText("Gõ đúng cú pháp hiển thị trên thẻ để chơi", width / 2, height - 62);
-  ctx.fillStyle = "#8195AC";
-  ctx.font = `500 17px ${FONT_MENU}`;
-  ctx.fillText("Tiền và vật phẩm trong game chỉ mang tính giải trí • Không quy đổi thành tiền thật", width / 2, height - 34);
+  ctx.textAlign = "left";
+  ctx.fillStyle = "#087F8C";
+  ctx.font = `700 22px ${GAME_HELP_FONT}`;
+  ctx.fillText("MẸO", outer, height - 65);
+  ctx.fillStyle = "#344E60";
+  ctx.font = `600 22px ${GAME_HELP_FONT}`;
+  ctx.fillText("Gõ đúng cú pháp in đậm trên mỗi thẻ để chơi.", outer + 62, height - 65);
+  ctx.textAlign = "left";
+  ctx.fillStyle = "#536879";
+  ctx.font = `400 18px ${GAME_HELP_FONT}`;
+  ctx.fillText("Vật phẩm game chỉ mang tính giải trí • Không quy đổi thành tiền thật", outer, height - 30);
   return saveHelpCanvas(canvas, "game_help");
 }
 
@@ -360,132 +420,6 @@ export async function createGameHelpImage(helpContent, isAdminBox) {
     footer: "Dùng đúng tiền tố của bot trước mỗi lệnh",
   }, "help");
   return createGameHelpMenuCanvas(helpContent, isAdminBox);
-  const memberCommands = Object.entries(helpContent.allMembers || {}).map(([key, value]) => ({ key, ...value }));
-  const adminCommands = isAdminBox
-    ? Object.entries(helpContent.admin || {}).map(([key, value]) => ({ key, ...value }))
-    : [];
-  const categoryOf = (key) => {
-    if (["daily", "giveaway", "mycard", "rank", "tier", "donenat", "donate"].includes(key)) return "HỒ SƠ & XẾP HẠNG";
-    if (["bank", "saoke"].includes(key)) return "NGÂN HÀNG GAME";
-    if (["doanso", "noitu", "doantu", "vuatiengviet", "duoihinhbatchu", "ailatrieuphu", "cauca", "caro", "covua", "cotuong", "nuoithu", "tutien", "zaclwarrior"].includes(key)) return "MINI GAME & NHẬP VAI";
-    return "TRÒ CHƠI GIẢI TRÍ";
-  };
-
-  const sections = [];
-  for (const title of ["HỒ SƠ & XẾP HẠNG", "TRÒ CHƠI GIẢI TRÍ", "MINI GAME & NHẬP VAI", "NGÂN HÀNG GAME"]) {
-    const commands = memberCommands.filter((item) => categoryOf(item.key) === title);
-    if (commands.length) sections.push({ title, commands, admin: false });
-  }
-  if (adminCommands.length) sections.push({ title: "QUẢN TRỊ VIÊN", commands: adminCommands, admin: true });
-
-  const width = 1400;
-  const margin = 54;
-  const headerH = 205;
-  const sectionHeaderH = 58;
-  const cardH = 126;
-  const gap = 20;
-  const sectionGap = 28;
-  const footerH = 96;
-  const contentHeight = sections.reduce(
-    (sum, section) => sum + sectionHeaderH + Math.ceil(section.commands.length / 2) * (cardH + gap) + sectionGap,
-    0
-  );
-  const height = headerH + contentHeight + footerH;
-  const canvas = createCanvas(width, height);
-  const ctx = canvas.getContext("2d");
-
-  const bg = ctx.createRadialGradient(width / 2, 220, 40, width / 2, height / 2, width);
-  bg.addColorStop(0, "#173b62");
-  bg.addColorStop(0.48, "#0b203b");
-  bg.addColorStop(1, "#040b18");
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, width, height);
-
-  ctx.save();
-  ctx.globalAlpha = 0.055;
-  ctx.strokeStyle = "#9bd4ff";
-  for (let x = -height; x < width + height; x += 46) {
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x + height, height);
-    ctx.stroke();
-  }
-  ctx.restore();
-
-  drawRoundedBox(ctx, 18, 18, width - 36, height - 36, 32, null, "#4b84b9", 6);
-  drawRoundedBox(ctx, 25, 25, width - 50, height - 50, 27, null, "#d6b45c", 2);
-
-  ctx.textAlign = "center";
-  ctx.fillStyle = "#f6cf67";
-  ctx.font = `bold 50px ${FONT_MAIN}`;
-  ctx.fillText("GAME CENTER", width / 2, 78);
-  ctx.fillStyle = "#e8f4ff";
-  ctx.font = `bold 27px ${FONT_MAIN}`;
-  ctx.fillText("DANH SÁCH LỆNH & HƯỚNG DẪN NHANH", width / 2, 122);
-  ctx.fillStyle = "#8eb2d0";
-  ctx.font = `20px ${FONT_MAIN}`;
-  ctx.fillText(`${memberCommands.length} tính năng dành cho người chơi${adminCommands.length ? `  ·  ${adminCommands.length} lệnh quản trị` : ""}`, width / 2, 158);
-  ctx.fillStyle = "#d6b45c";
-  ctx.fillRect(width / 2 - 190, 180, 380, 2);
-  ctx.beginPath();
-  ctx.arc(width / 2, 181, 6, 0, Math.PI * 2);
-  ctx.fill();
-
-  const colGap = 24;
-  const cardW = (width - margin * 2 - colGap) / 2;
-  let y = headerH;
-  let globalIndex = 1;
-
-  for (const section of sections) {
-    const accent = section.admin ? "#efb85b" : section.title === "TRÒ CHƠI GIẢI TRÍ" ? "#57d4a2" : "#67b8ff";
-    ctx.textAlign = "left";
-    ctx.fillStyle = accent;
-    ctx.font = `bold 24px ${FONT_MAIN}`;
-    ctx.fillText(section.title, margin + 16, y + 35);
-    ctx.fillStyle = `${accent}55`;
-    ctx.fillRect(margin, y + 50, width - margin * 2, 2);
-    y += sectionHeaderH;
-
-    for (let i = 0; i < section.commands.length; i++) {
-      const command = section.commands[i];
-      const col = i % 2;
-      const row = Math.floor(i / 2);
-      const x = margin + col * (cardW + colGap);
-      const cardY = y + row * (cardH + gap);
-
-      ctx.save();
-      ctx.shadowColor = "rgba(0,0,0,.42)";
-      ctx.shadowBlur = 14;
-      ctx.shadowOffsetY = 6;
-      drawRoundedBox(ctx, x, cardY, cardW, cardH, 18, "rgba(11,31,54,.9)", `${accent}88`, 2);
-      ctx.restore();
-
-      ctx.fillStyle = accent;
-      drawRoundedBox(ctx, x + 18, cardY + 20, 58, 58, 15, `${accent}22`, `${accent}99`, 2);
-      ctx.textAlign = "center";
-      ctx.font = `bold 23px ${FONT_MAIN}`;
-      ctx.fillText(String(globalIndex).padStart(2, "0"), x + 47, cardY + 58);
-
-      const textX = x + 94;
-      ctx.textAlign = "left";
-      ctx.fillStyle = "#f8fbff";
-      ctx.font = `bold 22px ${FONT_MAIN}`;
-      ctx.fillText(truncateText(ctx, command.command, cardW - 120), textX, cardY + 39);
-      ctx.fillStyle = "#a9c0d5";
-      ctx.font = `18px ${FONT_MAIN}`;
-      const lines = wrapTextLines(ctx, command.description, cardW - 122, 2);
-      lines.forEach((line, lineIndex) => ctx.fillText(line, textX, cardY + 72 + lineIndex * 25));
-      globalIndex++;
-    }
-    y += Math.ceil(section.commands.length / 2) * (cardH + gap) + sectionGap;
-  }
-
-  ctx.textAlign = "center";
-  ctx.fillStyle = "#8faac1";
-  ctx.font = `19px ${FONT_MAIN}`;
-  ctx.fillText("Tiền và vật phẩm trong game chỉ mang tính giải trí, không quy đổi thành tiền thật.", width / 2, height - 47);
-
-  return saveHelpCanvas(canvas, "game_help");
 }
 
 async function createMenuGridImageLegacy({ botName, commands, page, totalPages, totalCommands }) {

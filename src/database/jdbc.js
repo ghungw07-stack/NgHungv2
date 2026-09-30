@@ -1,22 +1,26 @@
 import { connection, NAME_TABLE_PLAYERS } from './state.js';
 import Big from 'big.js';
 import { getCurrentPrivateGameServer, getPrivateGameBotIds } from '../service-ngh/game-service/private-game-server.js';
+import { calculateGameNetProfit, isHiddenLeaderboardPlayer } from './player-sync.js';
 
 export async function getTopPlayers(_botId) {
   try {
     // Database game dùng chung cho tất cả bot, nên BXH cũng phải dùng chung.
     // Các UID khác bot đã được quy về cùng playerId qua player_identity.
     const [rows] = await connection.execute(
-      `SELECT idUserZalo, playerName, serverId, avatar, balance, rankPoints, totalGames, totalWinGames, totalWinnings, totalLosses, netProfit, winRate FROM ${NAME_TABLE_PLAYERS}`
+      `SELECT idUserZalo, playerName, serverId, avatar, balance, rankPoints, specialTier, totalGames, totalWinGames, totalWinnings, totalLosses, netProfit, winRate, mergedInto FROM ${NAME_TABLE_PLAYERS}`
     );
     const privateServer = getCurrentPrivateGameServer();
     // Server riêng của bot vẫn lưu serverId runtime trên hồ sơ người chơi;
     // các bản ghi cũ chưa có prefix private nên lọc thêm theo bot đang gọi.
     const privateBotIds = getPrivateGameBotIds();
+    // Hồ sơ chủ bot/Overlord được giữ riêng tư và không tham gia bất kỳ vị trí
+    // nào trên BXH, kể cả khi số dư đứng đầu.
+    const activeRows = rows.filter((player) => !player.mergedInto && !isHiddenLeaderboardPlayer(player));
     const playerRows = privateServer?.serverId
-      ? rows.filter((player) => String(player.serverId) === String(_botId)
+      ? activeRows.filter((player) => String(player.serverId) === String(_botId)
         || String(player.idUserZalo).startsWith(`private:${privateServer.serverId}:`))
-      : rows.filter((player) =>
+      : activeRows.filter((player) =>
           !privateBotIds.includes(String(player.serverId)) &&
           !String(player.idUserZalo).startsWith("private:")
         );
@@ -58,11 +62,12 @@ export async function getTopPlayers(_botId) {
         walletBalance: wallet,
         savings: savings,
         rankPoints: Number(player.rankPoints || 0),
+        specialTier: player.specialTier || null,
         totalGames: Number(player.totalGames || 0),
         totalWinGames: Number(player.totalWinGames || 0),
         totalWinnings: totalWinnings.toString(),
         totalLosses: totalLosses.toString(),
-        netProfit: totalWinnings.plus(totalLosses).toString(),
+        netProfit: calculateGameNetProfit(totalWinnings, totalLosses),
         winRate: Number(player.winRate || 0)
         };
       })
@@ -80,6 +85,7 @@ export async function getTopPlayers(_botId) {
         walletBalance: player.walletBalance.toString(),
         savings: player.savings.toString(),
         rankPoints: player.rankPoints,
+        specialTier: player.specialTier,
         totalGames: player.totalGames,
         totalWinGames: player.totalWinGames,
         totalWinnings: player.totalWinnings,

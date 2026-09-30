@@ -37,7 +37,7 @@ export function settleKenoBet(door, result) {
   };
 }
 
-export function chooseKenoResult(players = {}, { random = Math.random, houseBiasChance = 0.6, samples = 60 } = {}) {
+export function chooseKenoResult(players = {}, { random = Math.random, houseBiasChance = 0.18, samples = 60 } = {}) {
   const natural = drawKenoNumbers(random);
   const bets = Object.values(players || {});
   if (!bets.length || random() >= houseBiasChance) return natural;

@@ -8,7 +8,20 @@ import { getGlobalPrefix } from "../service.js";
 const groupInfoCache = new Map();
 const groupInfoRequests = new Map();
 const CACHE_DURATION = Math.max(10000, Number(process.env.NGH_GROUP_CACHE_TTL_MS) || 180000);
-const MAX_GROUP_CACHE_SIZE = Math.max(1000, Number(process.env.NGH_GROUP_CACHE_SIZE) || 5000);
+// A group object can contain hundreds or thousands of member records. Keeping
+// 1000 full groups retained a large heap on multi-bot deployments.
+const MAX_GROUP_CACHE_SIZE = Math.max(50, Number(process.env.NGH_GROUP_CACHE_SIZE) || 200);
+
+function cacheGroupInfo(cacheKey, data, timestamp = Date.now()) {
+  // Refresh insertion order so frequently used groups survive the bounded
+  // cache. getAllGroupInfo also goes through this helper; previously that
+  // bulk path could silently grow the Map past MAX_GROUP_CACHE_SIZE.
+  groupInfoCache.delete(cacheKey);
+  groupInfoCache.set(cacheKey, { data, timestamp });
+  while (groupInfoCache.size > MAX_GROUP_CACHE_SIZE) {
+    groupInfoCache.delete(groupInfoCache.keys().next().value);
+  }
+}
 
 export async function groupInfoCommand(api, message, aliasCommand, groupSettings) {
   const content = removeMention(message);
@@ -294,10 +307,7 @@ export async function getGroupInfoData(api, threadId, { forceRefresh = false } =
       const groupInfo = await api.getGroupInfo(threadId);
       const processedInfo = getAllInfoGroup(groupInfo, threadId);
       if (!historySettingGroup[threadId]) historySettingGroup[threadId] = processedInfo.setting;
-      groupInfoCache.set(cacheKey, { data: processedInfo, timestamp: Date.now() });
-      while (groupInfoCache.size > MAX_GROUP_CACHE_SIZE) {
-        groupInfoCache.delete(groupInfoCache.keys().next().value);
-      }
+      cacheGroupInfo(cacheKey, processedInfo);
       return processedInfo;
     } catch (error) {
       if (!forceRefresh && cachedData) return cachedData.data;
@@ -454,7 +464,7 @@ export async function getDataAllGroup(api) {
     const groups = groupIds
       .map((threadId) => {
         const info = getAllInfoGroup(combinedResponse, threadId);
-        if (info) groupInfoCache.set(`${api.getBotId()}:${threadId}`, { data: info, timestamp: now });
+        if (info) cacheGroupInfo(`${api.getBotId()}:${threadId}`, info, now);
         return info;
       })
       .filter(Boolean);

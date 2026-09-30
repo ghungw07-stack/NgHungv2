@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="referrer" content="no-referrer" />
+    <title>Cuộc trò chuyện - Zalo Bot</title>
+    <link rel="stylesheet" href="/styles/base/main.css" />
+    <link rel="stylesheet" href="/styles/base/theme.css" />
+    <link rel="stylesheet" href="/styles/base/body.css" />
+    <link rel="stylesheet" href="/styles/base/header.css" />
+    <link rel="stylesheet" href="/styles/pages/conversations.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" />
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/scripts/core/config.js"></script>
+  </head>
+  <body class="chat-page">
+    <button class="menu-toggle" id="menuToggle" aria-label="Mở menu">
+      <span class="bar"></span><span class="bar"></span><span class="bar"></span>
+    </button>
+    <nav class="side-menu" id="sideMenu"></nav>
+
+    <main class="chat-app" id="chatApp">
+      <header class="chat-topbar">
+        <div>
+          <h1>Cuộc trò chuyện</h1>
+          <p>Xem toàn bộ bạn bè, nhóm và lịch sử tin nhắn</p>
+        </div>
+        <div class="bot-picker">
+          <label for="botSelector">Bot</label>
+          <select id="botSelector">
+            <option value="">-- Chọn bot --</option>
+          </select>
+          <button id="refreshButton" type="button" title="Làm mới"><i class="fas fa-sync-alt"></i></button>
+        </div>
+      </header>
+
+      <section class="chat-layout">
+        <aside class="conversation-pane">
+          <div class="conversation-search">
+            <i class="fas fa-search"></i>
+            <input id="conversationSearch" type="search" placeholder="Tìm cuộc trò chuyện" />
+          </div>
+          <div class="conversation-filter" role="tablist">
+            <button class="active" data-filter="all" type="button">Tất cả</button>
+            <button data-filter="direct" type="button">Cá nhân</button>
+            <button data-filter="group" type="button">Nhóm</button>
+          </div>
+          <div id="conversationStatus" class="pane-status">Chọn bot để xem tin nhắn</div>
+          <div id="conversationList" class="conversation-list"></div>
+        </aside>
+
+        <section class="message-pane">
+          <div id="emptyChat" class="empty-chat">
+            <i class="far fa-comments"></i>
+            <h2>Chọn một cuộc trò chuyện</h2>
+            <p>Tin nhắn mới sẽ tự động xuất hiện tại đây.</p>
+          </div>
+
+          <div id="activeChat" class="active-chat" hidden>
+            <header class="message-header">
+              <button id="backButton" class="back-button" type="button" aria-label="Quay lại">
+                <i class="fas fa-chevron-left"></i>
+              </button>
+              <div id="headerAvatar" class="chat-avatar"></div>
+              <div class="message-heading">
+                <h2 id="conversationTitle"></h2>
+                <p id="conversationMeta"></p>
+              </div>
+              <button id="reloadMessagesButton" class="icon-button" type="button" title="Tải lại">
+                <i class="fas fa-sync-alt"></i>
+              </button>
+            </header>
+
+            <div class="older-wrap"><button id="loadOlderButton" type="button" hidden>Tải tin nhắn cũ hơn</button></div>
+            <div id="messageList" class="message-list" aria-live="polite"></div>
+
+            <form id="composer" class="composer">
+              <textarea id="messageInput" rows="1" maxlength="5000" placeholder="Nhập tin nhắn... (Enter để gửi, Shift+Enter xuống dòng)"></textarea>
+              <button id="sendButton" type="submit" aria-label="Gửi tin nhắn">
+                <i class="fas fa-paper-plane"></i>
+              </button>
+            </form>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <div id="chatToast" class="chat-toast" role="status"></div>
+
+    <script src="/scripts/core/menuHandler.js"></script>
+    <script src="/scripts/core/common.js"></script>
+    <script src="/scripts/core/theme.js"></script>
+    <script src="/scripts/components/sideMenu.js"></script>
+    <script src="/scripts/pages/conversations.js"></script>
+  </body>
+</html>

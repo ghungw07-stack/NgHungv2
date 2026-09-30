@@ -1,7 +1,7 @@
 import Big from "big.js";
 import fs from "node:fs/promises";
 import { connection, getPlayerBalance, getUsernameByIdZalo, updatePlayerBalanceByUsername, recordGameHistory } from "../../../database/index.js";
-import { formatCurrency, parseGameAmount } from "../../../utils/format-util.js";
+import { formatCurrency, parseGameBetAmount as parseGameAmount } from "../../../utils/format-util.js";
 import { getNameServer, sendMessageFromSQL } from "../../chat-zalo/chat-style/chat-style.js";
 import { getGlobalPrefix } from "../../service.js";
 import { checkBeforeJoinGame } from "../index.js";
@@ -17,7 +17,8 @@ const keyFor = (api) => getGameJackpotKey(api);
 async function spin(api, message, username, amount) {
   const key = keyFor(api), slots = rollNoHuSlots();
   const jackpot = connection.collection("game_slot_jackpots");
-  const state = await jackpot.findOneAndUpdate({ _id: key }, { $setOnInsert: { amount: DEFAULT_JACKPOT, amountNumber: Number(DEFAULT_JACKPOT) }, $inc: { amountNumber: Number(amount.times(0.02)) } }, { upsert: true, returnDocument: "after" });
+  // $inc tự tạo amountNumber từ 0 khi chưa có hũ; không đặt cùng trường trong $setOnInsert.
+  const state = await jackpot.findOneAndUpdate({ _id: key }, { $setOnInsert: { amount: DEFAULT_JACKPOT }, $inc: { amountNumber: Number(amount.times(0.02)) } }, { upsert: true, returnDocument: "after" });
   const pot = new Big(state?.amountNumber != null ? state.amountNumber : (state?.amount || DEFAULT_JACKPOT));
   let gross = new Big(0), label = "Không trúng";
   if (slots.every((s) => s.key === GOLD)) { gross = amount.gte("5000000000") ? pot : amount.times(10); label = "💥 NỔ HŨ"; if (amount.gte("5000000000")) await jackpot.updateOne({ _id: key }, { $set: { amount: DEFAULT_JACKPOT, amountNumber: Number(DEFAULT_JACKPOT) } }); }

@@ -8,7 +8,7 @@ import { getPlayerBalance, getUsernameByIdZalo, updatePlayerBalanceByUsername, s
 import { connection } from "../../../database/state.js";
 import { getApiManager } from "../../../index.js";
 import { getBettingBotSentReactionTarget, startBettingReactionCountdown } from "../shared/betting-reaction-countdown.js";
-import { formatCurrency, parseGameAmount } from "../../../utils/format-util.js";
+import { formatCurrency, parseGameBetAmount as parseGameAmount } from "../../../utils/format-util.js";
 import { sendMessageFromSQL, sendMessageFromSQLImage } from "../../chat-zalo/chat-style/chat-style.js";
 import { getGlobalPrefix } from "../../service.js";
 import { checkBeforeJoinGame } from "../index.js";
@@ -18,7 +18,7 @@ import { chooseSicBoDice, getSicBoOutcome, normalizeSicBoDoor, resolveSicBoBet }
 const GAME_DURATION = 30_000;
 const WARNING_TIME = 10_000;
 const MAX_HISTORY = 60;
-const HOUSE_BIAS_CHANCE = 0.6;
+const HOUSE_BIAS_CHANCE = 0.18;
 const GLOBAL_GAME_KEY = "__global__";
 const activeGames = { [GLOBAL_GAME_KEY]: null };
 const recentResults = new Map();

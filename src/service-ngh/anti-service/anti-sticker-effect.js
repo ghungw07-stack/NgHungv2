@@ -38,6 +38,7 @@ export async function handleAntiSendStickerEffectCommand(api, message, aliasComm
       const cateId = attachData.catId || null;
       const type = attachData.type || null;
       if (idSticker && cateId && type) {
+        await dataSticker.init();
         if (status === "add") {
           if (isMainBot) {
             const dataStickerStore = dataSticker.getById(idSticker);
@@ -90,6 +91,8 @@ export async function antiStickerEffect(api, message, groupInfo, senderIsAdmin, 
     message.data.msgType !== "chat.sticker"
   )
     return false;
+
+  await dataSticker.init();
 
   return await handleStickerMessage(
     api,

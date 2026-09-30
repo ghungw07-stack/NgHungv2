@@ -24,6 +24,10 @@ export function shouldCacheIncomingMessage(messageType, groupMessageType, groupL
   return messageType !== groupMessageType || groupLoggingEnabled;
 }
 
+export function isGroupMessageLogEnabled(value = process.env.NGH_GROUP_MESSAGE_LOG) {
+  return String(value ?? "1").trim() !== "0";
+}
+
 export function isGiveawayJoinText(content, message = null) {
   let raw = "";
   if (typeof content === "string" && content.trim()) {

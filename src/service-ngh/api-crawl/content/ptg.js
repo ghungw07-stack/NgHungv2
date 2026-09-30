@@ -11,6 +11,15 @@ import { nameServer } from '../../../database/index.js';
 import { MessageStyle, MessageType } from '../../../api-zalo/index.js';
 import { downloadFile } from '../../../utils/util.js';
 import { DATA_ROOT, tempDir } from '../../../utils/io-json.js';
+import {
+  buildPTGFollowNotification,
+  buildPTGFollowMentionPrefix,
+  chunkPTGFollowMatchesByFollowers,
+  getPTGFollowRecipientKey,
+  getPTGFollowAvailabilityState,
+  isPTGFollowItemAvailable,
+  matchesPTGFollow,
+} from './ptg-follow-match.js';
 
 // --- REGISTER FONTS FOR VIETNAMESE ACCENTED CHARACTERS ---
 const fontPathBeVN = join(process.cwd(), 'assets', 'fonts', 'BeVietnamPro-Bold.ttf');
@@ -25,7 +34,7 @@ if (existsSync(fontPathNoto)) {
 
 const FONT_FAMILY = 'BeVietnamPro, NotoSansB, "Segoe UI", Arial, sans-serif';
 
-const WS_URL = process.env.NGH_PTG_WS_URL || 'wss://dqt-tempfile.online/ptgfarm/ws?key=guest_ptg_8386';
+const WS_URL = process.env.NGH_PTG_WS_URL || 'wss://dqt.cscvdl.com/ptgfarm/ws?key=guest_ptg_8386';
 // The profile provider is kept separate from the shop WebSocket.  The latter
 // only publishes shop snapshots and cannot answer player lookups.
 const PROFILE_API_URL = process.env.NGH_PTG_PROFILE_API_URL?.trim();
@@ -38,8 +47,11 @@ const STYLE_COLORS = { green: '15a85f', red: 'db342e', yellow: 'f7b503' };
 async function SendMessageStyle(api, message, text, options = {}) {
   const senderName = message.data?.dName || 'Người dùng';
   const shouldTag = options.tagSender && message.type === MessageType.GroupMessage;
+  const mentionPrefix = message.type === MessageType.GroupMessage
+    ? options.mentionPrefix
+    : null;
   const serverLabel = options.hasNameServer ? getNameServer(api) : '';
-  const prefixText = [shouldTag ? senderName : '', serverLabel].filter(Boolean).join('\n');
+  const prefixText = [mentionPrefix?.text || (shouldTag ? senderName : ''), serverLabel].filter(Boolean).join('\n');
   const msg = [prefixText, text].filter(Boolean).join('\n');
   const color = STYLE_COLORS[options.color] || options.color || null;
   const payload = {
@@ -49,7 +61,9 @@ async function SendMessageStyle(api, message, text, options = {}) {
     ...(options.reply ? { quote: message } : {}),
     ...(msg ? { style: MessageStyle(0, msg.length, color, options.size || '18', options.isBold === true) } : {}),
   };
-  if (shouldTag) {
+  if (mentionPrefix?.mentions?.length) {
+    payload.mentions = mentionPrefix.mentions;
+  } else if (shouldTag) {
     payload.mentions = [{ pos: 0, len: senderName.length, uid: message.data?.gameUid || message.data?.uidFrom }];
   }
   return api.sendMessage(payload, message.threadId, message.type);
@@ -934,16 +948,23 @@ class PTGService extends EventEmitter {
     this.apis = new Map();
     this.reconnectAttempts = 0;
     this.reconnectTimer = null;
+    this.followCheckPromise = null;
     this.closed = false;
     this.groupSettings = readGroupSettings();
     this.connect();
-    this.followTimer = setInterval(() => this.checkFollows(), 30_000);
+    this.followTimer = setInterval(() => {
+      this.checkFollows().catch((error) => console.error('[PTG] Failed to check follows:', error.message));
+    }, 30_000);
     this.followTimer.unref?.();
   }
 
   connect() {
     if (this.closed || this.ws?.readyState === WebSocket.CONNECTING || this.ws?.readyState === WebSocket.OPEN) return;
-    this.ws = new WebSocket(WS_URL);
+    this.ws = new WebSocket(WS_URL, {
+      followRedirects: true,
+      maxRedirects: 3,
+      handshakeTimeout: 15_000,
+    });
     this.ws.on('open', () => {
       this.reconnectAttempts = 0;
       console.log('[PTG] WebSocket connected');
@@ -962,6 +983,9 @@ class PTGService extends EventEmitter {
 
   registerApi(api) {
     this.apis.set(String(api.getBotId()), api);
+    if (this.cache.categories.length) {
+      this.checkFollows().catch((error) => console.error('[PTG] Failed to check follows:', error.message));
+    }
   }
 
   getGroupSetting(botId, threadId) {
@@ -1008,6 +1032,7 @@ class PTGService extends EventEmitter {
           this.cache.categories = f.data.categories;
           this.cache.lastUpdate = Date.now();
           this.emit('update', this.cache);
+          this.checkFollows().catch((error) => console.error('[PTG] Failed to check follows:', error.message));
           if (previousCategories.length) this.notifyGroupsOnUpdate(previousCategories).catch((error) => {
             console.error('[PTG] Failed to notify groups:', error.message);
           });
@@ -1054,24 +1079,24 @@ class PTGService extends EventEmitter {
 
   followItem(api, message, itemName) {
     const items = splitItemNames(itemName);
-    if (!items.length) return 'Vui lòng nhập tên vật phẩm cần theo dõi.';
+    if (!items.length) return 'Vui lòng nhập tên vật phẩm hoặc thời tiết cần theo dõi.';
     for (const item of items) {
       const normalizedName = normalizeItemName(item);
       const entry = {
         key: `${api.getBotId()}:${message.type}:${message.threadId}:${message.data.uidFrom}:${normalizedName}`,
         botId: String(api.getBotId()), threadId: String(message.threadId), type: message.type,
         userId: String(message.data.uidFrom), userName: message.data?.dName || 'Người dùng',
-        itemName: normalizedName, createdAt: Date.now(),
+        itemName: normalizedName, createdAt: Date.now(), inStock: false,
       };
       this.followMap.set(entry.key, entry);
     }
     this.persistFollows();
-    return `Đã đăng ký theo dõi: ${items.map((item) => `"${item}"`).join(', ')}.`;
+    return `Đã đăng ký theo dõi lâu dài: ${items.map((item) => `"${item}"`).join(', ')}.`;
   }
 
   removeUserFollows(api, message, itemNames) {
     const requested = splitItemNames(itemNames).map(normalizeItemName);
-    if (!requested.length) return 'Vui lòng nhập vật phẩm cần bỏ theo dõi.';
+    if (!requested.length) return 'Vui lòng nhập mục cần bỏ theo dõi.';
     let removed = 0;
     for (const entry of this.getUserFollows(api, message)) {
       if (requested.some((name) => entry.itemName.includes(name) || name.includes(entry.itemName))) {
@@ -1080,14 +1105,14 @@ class PTGService extends EventEmitter {
       }
     }
     if (removed) this.persistFollows();
-    return removed ? `Đã bỏ ${removed} theo dõi.` : 'Không tìm thấy vật phẩm theo dõi phù hợp.';
+    return removed ? `Đã bỏ ${removed} theo dõi.` : 'Không tìm thấy mục theo dõi phù hợp.';
   }
 
   clearUserFollows(api, message) {
     const follows = this.getUserFollows(api, message);
     for (const entry of follows) this.followMap.delete(entry.key);
     if (follows.length) this.persistFollows();
-    return follows.length ? `Đã xoá ${follows.length} theo dõi của bạn.` : 'Bạn chưa theo dõi vật phẩm nào.';
+    return follows.length ? `Đã xoá ${follows.length} theo dõi của bạn.` : 'Bạn chưa theo dõi mục nào.';
   }
 
   async notifyGroupsOnUpdate(previousCategories) {
@@ -1114,22 +1139,98 @@ class PTGService extends EventEmitter {
   }
 
   checkFollows() {
+    if (this.followCheckPromise) return this.followCheckPromise;
+    this.followCheckPromise = this.runFollowChecks().finally(() => {
+      this.followCheckPromise = null;
+    });
+    return this.followCheckPromise;
+  }
+
+  async sendFollowNotification(matches) {
+    const entry = matches[0]?.entry;
+    if (!entry) return false;
+    const api = this.apis.get(entry.botId);
+    if (!api) return false;
+
+    const fakeMessage = {
+      threadId: entry.threadId,
+      type: entry.type,
+      data: { uidFrom: entry.userId, dName: entry.userName || 'Người dùng' },
+    };
+    const setting = this.getGroupSetting(entry.botId, entry.threadId);
+    const shouldTag = setting.followTags && entry.type === MessageType.GroupMessage;
+    await SendMessageStyle(api, fakeMessage, buildPTGFollowNotification(matches), {
+      color: 'green', size: '10', isBold: true,
+      reply: false,
+      mentionPrefix: shouldTag ? buildPTGFollowMentionPrefix(matches) : null,
+      hasNameServer: true,
+    });
+    return true;
+  }
+
+  async runFollowChecks() {
     let changed = false;
+    const notifications = new Map();
+
     for (const [key, entry] of this.followMap.entries()) {
       // Keep persisted subscriptions until the owning bot has registered in
       // this process; otherwise a restart could consume a notification before
       // there is an API instance capable of delivering it.
       if (!this.apis.has(entry.botId)) continue;
-      for (const catKey of ['seeds', 'tools', 'furniture']) {
+      let foundMatch = null;
+      for (const catKey of ['seeds', 'tools', 'furniture', 'weather']) {
         const cat = this.getCategory(catKey);
-        const found = cat.items?.find(
-          (it) => (it.vi || it.name).toLowerCase().includes(entry.itemName) && it.stock > 0
+        const item = cat.items?.find(
+          (it) => matchesPTGFollow(it, entry.itemName)
+            && isPTGFollowItemAvailable(it, catKey)
         );
-        if (found) {
-          this.emit('notify', entry, `Mặt hàng "${found.vi || found.name}" hiện đã có trong cửa hàng!`);
-          this.followMap.delete(key);
-          changed = true;
+        if (item) {
+          foundMatch = { item, categoryKey: catKey };
           break;
+        }
+      }
+
+      const availability = getPTGFollowAvailabilityState(entry.inStock, foundMatch);
+      if (!availability.inStock) {
+        // Arm the subscription again only after the item has left the shop.
+        // This prevents the 30-second checker from repeatedly tagging while
+        // keeping the follow active for the next restock.
+        if (entry.inStock !== false) {
+          entry.inStock = false;
+          changed = true;
+        }
+        continue;
+      }
+
+      if (!availability.shouldNotify) continue;
+
+      // Gom toàn bộ người/vật phẩm cùng một nơi nhận vào một tin nhắn. Mỗi
+      // người chỉ xuất hiện một lần trong danh sách mention.
+      const recipientKey = getPTGFollowRecipientKey(entry);
+      const group = notifications.get(recipientKey) || [];
+      group.push({ key, entry, ...foundMatch });
+      notifications.set(recipientKey, group);
+    }
+
+    for (const [recipientKey, matches] of notifications.entries()) {
+      const isGroup = matches[0]?.entry?.type === MessageType.GroupMessage;
+      const batches = isGroup ? chunkPTGFollowMatchesByFollowers(matches) : [matches];
+      for (const [batchIndex, batch] of batches.entries()) {
+        try {
+          const sent = await this.sendFollowNotification(batch);
+          if (!sent) continue;
+
+          const notifiedAt = Date.now();
+          for (const match of batch) {
+            match.entry.inStock = true;
+            match.entry.lastNotifiedAt = notifiedAt;
+          }
+          changed = true;
+        } catch (error) {
+          console.error(
+            `[PTG] Failed to notify follow group ${recipientKey} batch ${batchIndex + 1}/${batches.length}:`,
+            error.message
+          );
         }
       }
     }
@@ -1276,7 +1377,7 @@ export async function handlePTGCommand(api, message, alias, parts, permissions =
         const action = (commandParts[1] || '').toLowerCase();
         if (action === 'list') {
           const follows = ptgService.getUserFollows(api, message);
-          const text = follows.length ? `🔔 Bạn đang theo dõi:\n${follows.map((entry, index) => `${index + 1}. ${entry.itemName}`).join('\n')}` : 'Bạn chưa theo dõi vật phẩm nào.';
+          const text = follows.length ? `🔔 Bạn đang theo dõi:\n${follows.map((entry, index) => `${index + 1}. ${entry.itemName}`).join('\n')}` : 'Bạn chưa theo dõi mục nào.';
           return SendMessageStyle(api, message, text, styleOpts);
         }
         if (action === 'clear') return SendMessageStyle(api, message, ptgService.clearUserFollows(api, message), styleOpts);
@@ -1336,7 +1437,7 @@ export async function handlePTGCommand(api, message, alias, parts, permissions =
         `• ${prefix}${alias} <mã người chơi|tên> - Tra cứu hồ sơ\n` +
         `• ${prefix}${alias} timban <tên> - Tìm người chơi\n` +
         `• ${prefix}${alias} hatgiong · dungcu · noithat - Xem shop\n` +
-        `• ${prefix}${alias} follow <tên 1, tên 2> - Theo dõi hàng về\n` +
+        `• ${prefix}${alias} follow <tên 1, tên 2> - Theo dõi hàng/thời tiết\n` +
         `• ${prefix}${alias} follow list | remove <tên> | clear\n` +
         `• ${prefix}${alias} follow on|off - Bật/tắt tag theo dõi (admin)\n` +
         `• ${prefix}${alias} notify on|off - Bật/tắt báo nhóm (admin)\n` +
@@ -1348,21 +1449,3 @@ export async function handlePTGCommand(api, message, alias, parts, permissions =
     }
   }
 }
-
-ptgService.on('notify', async (entry, text) => {
-  const api = ptgService.apis.get(entry.botId);
-  if (!api) return;
-  try {
-    const fakeMessage = {
-      threadId: entry.threadId, type: entry.type,
-      data: { uidFrom: entry.userId, dName: entry.userName || 'Người dùng' },
-    };
-    const setting = ptgService.getGroupSetting(entry.botId, entry.threadId);
-    await SendMessageStyle(api, fakeMessage, text, {
-      color: 'green', size: '10', isBold: true,
-      reply: false, tagSender: setting.followTags && entry.type === MessageType.GroupMessage, hasNameServer: true,
-    });
-  } catch (e) {
-    console.error('Lỗi gửi notify:', e);
-  }
-});

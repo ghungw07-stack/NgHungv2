@@ -9,7 +9,7 @@ import {
 } from "../../../database/player.js";
 import { isAdmin } from "../../../index.js";
 import { createHorseRaceGif, createHorseRaceLobbyImage } from "../../../utils/canvas/horse-race.js";
-import { formatCurrency, parseGameAmount, removeMention } from "../../../utils/format-util.js";
+import { formatCurrency, parseGameBetAmount as parseGameAmount, removeMention } from "../../../utils/format-util.js";
 import { deleteFile } from "../../../utils/util.js";
 import { getGlobalPrefix } from "../../service.js";
 import { getUserInfoAcrossBots } from "../../info-service/user-info.js";
@@ -188,7 +188,7 @@ async function addPlayer(api, room, uid, fallbackName) {
   room.players.push(placeholder);
   try {
     if (await isPlayerBanned(playerId)) throw new Error("PLAYER_BANNED");
-    await ensurePlayerAccount(playerId, fallbackName || playerId, room.botId);
+    await ensurePlayerAccount(playerId, fallbackName || playerId, room.botId, api);
     const balance = await getPlayerBalance(playerId);
     if (!balance.success || new Big(balance.balance).lt(room.betAmount)) throw new Error("NOT_ENOUGH_BALANCE");
 
@@ -245,7 +245,7 @@ async function createRoom(api, message, betText) {
     await reply(api, message, "❌ Tài khoản game của bạn đã bị khóa.");
     return;
   }
-  await ensurePlayerAccount(senderId, senderName, botId);
+  await ensurePlayerAccount(senderId, senderName, botId, api);
   const balance = await getPlayerBalance(senderId);
   if (!balance.success) {
     await reply(api, message, `❌ ${balance.message}`);

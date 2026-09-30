@@ -8,17 +8,22 @@ import {
   sendMessageWarningRequest,
 } from "../../chat-zalo/chat-style/chat-style.js";
 import { downloadAndConvertAudio, downloadMixcloudWithYtDlp, ensureVoiceUrlExtension } from "../../chat-zalo/chat-special/send-voice/process-audio.js";
-import { searchYouTube, getYoutubeVideoInfo } from "../youtube/youtube-service.js";
 import { removeMention } from "../../../utils/format-util.js";
 import { sendVoiceMusic } from "../../chat-zalo/chat-special/send-voice/send-voice.js";
 import { parseQuickSelection, setSelectionsMapData } from "../index.js";
 import { getCachedMedia, setCacheData } from "../../../utils/link-platform-cache.js";
-import { checkUrlStatus, deleteFile } from "../../../utils/util.js";
+import { deleteFile } from "../../../utils/util.js";
 import { createSearchResultImage } from "../../../utils/canvas/search-canvas.js";
 import { getApiKeys, setApiKeysMedia } from "../../../utils/api-key-manager.js";
 import { asyncTaskManager } from "../../../utils/async-task.js";
 import { createCircleWebp } from "../../chat-zalo/chat-special/send-sticker/create-webp.js";
-import { withZaloRequestPriority } from "../../../api-zalo/utils.js";
+import {
+  buildSoundCloudDownloadRelayUrl,
+  parseSoundCloudRelayJson,
+  resolveSoundCloudArtwork,
+  resolveSoundCloudCanvasArtwork,
+  resolveSoundCloudArtworkCandidates,
+} from "./soundcloud-relay.js";
 
 let clientId;
 
@@ -30,6 +35,11 @@ const userAgents = [
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
 ];
 const TIME_TO_SELECT = 60000;
+const SOUNDCLOUD_RELAY = "https://r.jina.ai/http://";
+const soundCloudSearchCache = new LRUCache({ max: 200, ttl: 60 * 60_000 });
+const soundCloudSearchesInFlight = new Map();
+const soundCloudTrackJobs = new Map();
+let soundCloudDirectBlockedUntil = 0;
 
 const acceptLanguages = ["en-US,en;q=0.9", "fr-FR,fr;q=0.9", "es-ES,es;q=0.9", "de-DE,de;q=0.9", "zh-CN,zh;q=0.9"];
 
@@ -47,21 +57,66 @@ const getHeaders = () => {
   };
 };
 
+function getSoundCloudRelayUrl(url) {
+  const parsed = new URL(url);
+  return `${SOUNDCLOUD_RELAY}${parsed.host}${parsed.pathname}${parsed.search}`;
+}
+
+async function getSoundCloudJson(url, config = {}) {
+  const requestUrl = new URL(url);
+  for (const [key, value] of Object.entries(config.params || {})) {
+    if (value !== undefined && value !== null && value !== "") requestUrl.searchParams.set(key, String(value));
+  }
+  const requestRelay = async (signal) => {
+    const response = await axios.get(getSoundCloudRelayUrl(requestUrl), {
+      headers: { Accept: "text/plain, application/json;q=0.9, */*;q=0.8" },
+      timeout: 45_000,
+      signal,
+    });
+    return parseSoundCloudRelayJson(response.data);
+  };
+
+  if (Date.now() < soundCloudDirectBlockedUntil) return requestRelay();
+
+  // Race the normal API against a slightly delayed relay. A reachable direct
+  // endpoint normally wins without paying relay latency; a blocked endpoint
+  // no longer adds its full timeout before the fallback starts.
+  const directController = new AbortController();
+  const relayController = new AbortController();
+  const directRequest = axios.get(url, {
+    ...config,
+    timeout: Math.min(Number(config.timeout) || 5_000, 5_000),
+    signal: directController.signal,
+  }).then((response) => response.data).catch((error) => {
+    if (!axios.isCancel(error)) {
+      soundCloudDirectBlockedUntil = Date.now() + 10 * 60_000;
+      console.warn(`[SoundCloud] Kết nối trực tiếp lỗi, tạm ưu tiên Web relay: ${error?.code || error?.message || error}`);
+    }
+    throw error;
+  });
+  const relayRequest = new Promise((resolve) => setTimeout(resolve, 180))
+    .then(() => requestRelay(relayController.signal));
+
+  try {
+    return await Promise.any([directRequest, relayRequest]);
+  } finally {
+    directController.abort();
+    relayController.abort();
+  }
+}
+
 const getClientId = async () => {
   const apiKeysManager = getApiKeys();
   try {
     const config = apiKeysManager["SOUNDCLOUD"];
-    const lastUpdate = new Date(config.lastUpdate);
     const now = new Date();
-
-    const daysDiff = (now - lastUpdate) / (1000 * 60 * 60 * 24);
-
-    if (daysDiff < 3 && config.clientId) {
+    if (config?.clientId) {
       return config.clientId;
     }
 
     const response = await axios.get("https://soundcloud.com/", {
       headers: getHeaders(),
+      timeout: 8_000,
     });
 
     const dom = new JSDOM(response.data);
@@ -75,6 +130,7 @@ const getClientId = async () => {
 
     const scriptResponse = await axios.get(urls[urls.length - 1], {
       headers: getHeaders(),
+      timeout: 8_000,
     });
 
     const clientId = scriptResponse.data.split(',client_id:"')[1].split('"')[0];
@@ -100,33 +156,49 @@ const getClientId = async () => {
 
 async function getMusicInfo(question, limit) {
   limit = limit || 10;
+  const cacheKey = `${String(question || "").trim().toLocaleLowerCase("vi")}:${limit}`;
+  const cached = soundCloudSearchCache.get(cacheKey);
+  if (cached) return cached;
+  if (soundCloudSearchesInFlight.has(cacheKey)) return soundCloudSearchesInFlight.get(cacheKey);
+
+  const request = (async () => {
+    try {
+      const result = await getSoundCloudJson("https://api-v2.soundcloud.com/search/tracks", {
+        params: {
+          q: question,
+          variant_ids: "",
+          facet: "genre",
+          client_id: clientId,
+          limit: limit,
+          offset: 0,
+          linked_partitioning: 1,
+          app_locale: "en",
+        },
+      });
+      if (result?.collection?.length) soundCloudSearchCache.set(cacheKey, result);
+      return result;
+    } catch (error) {
+      console.error("Error fetching SoundCloud music info:", error?.message || error);
+      return null;
+    }
+  })();
+  soundCloudSearchesInFlight.set(cacheKey, request);
   try {
-    const response = await axios.get("https://api-v2.soundcloud.com/search/tracks", {
-      params: {
-        q: question,
-        variant_ids: "",
-        facet: "genre",
-        client_id: clientId,
-        limit: limit,
-        offset: 0,
-        linked_partitioning: 1,
-        app_locale: "en",
-      },
-    });
-    return response.data;
-  } catch (error) {
-    console.error("Error fetching music info:", error);
-    return null;
+    return await request;
+  } finally {
+    soundCloudSearchesInFlight.delete(cacheKey);
   }
 }
 
-async function getMusicStreamUrl(link, preferProgressive = false) {
+async function getMusicStreamUrl(trackOrLink, preferProgressive = false) {
   try {
     const headers = getHeaders();
-    const apiUrl = `https://api-v2.soundcloud.com/resolve?url=${link}&client_id=${clientId}`;
-
-    const response = await axios.get(apiUrl, { headers });
-    const data = response.data;
+    const data = trackOrLink && typeof trackOrLink === "object" && trackOrLink.media
+      ? trackOrLink
+      : await getSoundCloudJson("https://api-v2.soundcloud.com/resolve", {
+          headers,
+          params: { url: String(trackOrLink || ""), client_id: clientId },
+        });
 
     const transcodings = data?.media?.transcodings || [];
     const progressive = transcodings.find((item) => item.format?.protocol === "progressive");
@@ -139,17 +211,16 @@ async function getMusicStreamUrl(link, preferProgressive = false) {
     const candidates = preferProgressive ? [progressive, hls] : [hls, progressive];
     for (const transcoding of candidates.filter(Boolean)) {
       try {
-        const streamResponse = await axios.get(transcoding.url, {
+        const streamData = await getSoundCloudJson(transcoding.url, {
           params: {
             client_id: clientId,
             ...(data.track_authorization && { track_authorization: data.track_authorization }),
           },
           headers,
-          timeout: 15_000,
         });
-        if (streamResponse.data?.url) {
+        if (streamData?.url) {
           return {
-            url: streamResponse.data.url,
+            url: streamData.url,
             progressiveUrl: progressive || transcoding,
             protocol: transcoding.format?.protocol,
           };
@@ -173,10 +244,11 @@ const musicSelectionsMap = new LRUCache({
 });
 
 export function handleMusicCommand(api, message, aliasCommand) {
-  return withZaloRequestPriority(() => handleMusicCommandPriority(api, message, aliasCommand));
+  return handleMusicCommandPriority(api, message, aliasCommand);
 }
 
 async function handleMusicCommandPriority(api, message, aliasCommand) {
+  const commandStartedAt = performance.now();
   let imagePath = null;
   try {
     if (!clientId) clientId = await getClientId();
@@ -196,23 +268,18 @@ async function handleMusicCommandPriority(api, message, aliasCommand) {
     }
 
     const musicInfo = await getMusicInfo(question, parseInt(numberMusic));
-    if (!musicInfo || !musicInfo.collection || musicInfo.collection.length === 0) {
+    const searchFinishedAt = performance.now();
+    if (!musicInfo) {
+      await sendMessageWarningRequest(api, message, {
+        caption: `SoundCloud đang tạm nghẽn, không thể tìm bài: ${question}. Vui lòng thử lại sau.`,
+      }, 30000);
+      return;
+    }
+    if (!musicInfo.collection || musicInfo.collection.length === 0) {
       const object = {
         caption: `Không tìm thấy bài hát nào với từ khóa: ${question}`,
       };
       await sendMessageWarningRequest(api, message, object, 30000);
-      return;
-    }
-
-    let musicListTxt = "Đây là danh sách bài hát trên SoundCloud mà tôi tìm thấy:\n";
-    musicListTxt += "Hãy trả lời tin nhắn này với số index của bài hát bạn muốn tìm!";
-    musicInfo.collection = musicInfo.collection.filter((track) => track.artwork_url);
-
-    if (musicInfo.collection.length === 0) {
-      const object = {
-        caption: `Không tìm thấy bài hát nào với từ khóa: ${question}`,
-      };
-      await sendMessageWarningRequest(api, message, object, TIME_TO_SELECT);
       return;
     }
 
@@ -224,7 +291,9 @@ async function handleMusicCommandPriority(api, message, aliasCommand) {
         }, 30000);
         return;
       }
-      await api.addReaction("CLOCK", message);
+      // Feedback is cosmetic; do not put its network round-trip in front of
+      // stream resolution and audio conversion.
+      void api.addReaction("CLOCK", message).catch(() => {});
       return await handleSendTrackSoundCloud(api, message, track);
     }
 
@@ -244,32 +313,46 @@ async function handleMusicCommandPriority(api, message, aliasCommand) {
     const songs = musicInfo.collection.map((track) => ({
       title: track.title,
       artistsNames: track.user?.username || "Unknown Artist",
-      thumbnailM: track.artwork_url?.replace("-large", "-t500x500") || null,
+      thumbnailM: resolveSoundCloudCanvasArtwork(track),
       listen: track.playback_count,
       like: track.likes_count,
       comment: track.comment_count,
     }));
 
     imagePath = await createSearchResultImage(songs, api.getBotId());
-
-    const object = {
-      caption: musicListTxt,
-      imagePath: imagePath,
-    };
-    const musicListMessage = await sendMessageCompleteRequest(api, message, object, 30000);
-
-    const quotedMsgId = musicListMessage?.message?.msgId || musicListMessage?.attachment[0]?.msgId;
-    musicSelectionsMap.set(quotedMsgId.toString(), {
+    const imageListMessage = await sendMessageCompleteRequest(api, message, {
+      caption: "Trả lời tin nhắn này bằng số bài hát bạn muốn nghe.",
+      imagePath,
+    }, 30000);
+    const selectionData = {
       userRequest: senderId,
       collection: musicInfo.collection,
       timestamp: Date.now(),
-    });
+    };
+    const rememberSelectionMessage = (result) => {
+      const ids = [
+        result?.message?.msgId,
+        result?.message?.cliMsgId,
+        ...(Array.isArray(result?.attachment) ? result.attachment.flatMap((item) => [item?.msgId, item?.cliMsgId]) : []),
+      ].filter(Boolean).map(String);
+      for (const id of new Set(ids)) musicSelectionsMap.set(id, selectionData);
+      return ids[0] || null;
+    };
+    const quotedMsgId = rememberSelectionMessage(imageListMessage);
+    if (!quotedMsgId) throw new Error("Không nhận được message ID của danh sách SoundCloud");
+
     setSelectionsMapData(senderId, {
-      quotedMsgId: quotedMsgId.toString(),
+      quotedMsgId,
       collection: musicInfo.collection,
       timestamp: Date.now(),
       platform: PLATFORM,
     });
+
+    console.log(
+      `[SoundCloud:search-timing] query=${JSON.stringify(question)} ` +
+      `search=${Math.round(searchFinishedAt - commandStartedAt)}ms ` +
+      `total=${Math.round(performance.now() - commandStartedAt)}ms`
+    );
   } catch (error) {
     console.error("Error handling music command:", error);
     await sendMessageFromSQL(
@@ -288,7 +371,7 @@ async function handleMusicCommandPriority(api, message, aliasCommand) {
 }
 
 export function handleMusicReply(api, message, isAdminLevelHighest) {
-  return withZaloRequestPriority(() => handleMusicReplyPriority(api, message, isAdminLevelHighest));
+  return handleMusicReplyPriority(api, message, isAdminLevelHighest);
 }
 
 async function handleMusicReplyPriority(api, message, isAdminLevelHighest) {
@@ -297,9 +380,13 @@ async function handleMusicReplyPriority(api, message, isAdminLevelHighest) {
   let track;
 
   try {
-    if (!message.data.quote || !message.data.quote.globalMsgId) return false;
+    if (!message.data.quote) return false;
 
-    const quotedMsgId = message.data.quote.globalMsgId.toString();
+    const quotedMsgId = [message.data.quote.globalMsgId, message.data.quote.cliMsgId]
+      .filter(Boolean)
+      .map(String)
+      .find((id) => musicSelectionsMap.has(id));
+    if (!quotedMsgId) return false;
     if (!musicSelectionsMap.has(quotedMsgId)) return false;
 
     const musicData = musicSelectionsMap.get(quotedMsgId);
@@ -342,8 +429,10 @@ async function handleMusicReplyPriority(api, message, isAdminLevelHighest) {
         uidFrom: idBot,
       },
     };
-    await api.deleteMessage(msgDel, false);
-    await api.addReaction("CLOCK", message);
+    void Promise.allSettled([
+      api.deleteMessage(msgDel, false),
+      api.addReaction("CLOCK", message),
+    ]);
     // await api.undoMessage(message);
     musicSelectionsMap.delete(quotedMsgId);
 
@@ -359,12 +448,21 @@ async function handleMusicReplyPriority(api, message, isAdminLevelHighest) {
 }
 
 export function handleSendTrackSoundCloud(api, message, track) {
-  return withZaloRequestPriority(() => handleSendTrackSoundCloudPriority(api, message, track));
+  return handleSendTrackSoundCloudPriority(api, message, track);
 }
 
 async function handleSendTrackSoundCloudPriority(api, message, track) {
   const startedAt = performance.now();
-  const streamData = await getMusicStreamUrl(track.permalink_url, Number(track.duration || 0) >= 60 * 60 * 1000);
+  const relayDownloadUrl = buildSoundCloudDownloadRelayUrl(track);
+  const progressive = track?.media?.transcodings?.find((item) => item.format?.protocol === "progressive");
+  const fallbackTranscoding = progressive || track?.media?.transcodings?.[0];
+  const streamData = relayDownloadUrl
+    ? {
+        url: relayDownloadUrl,
+        progressiveUrl: fallbackTranscoding || { quality: "sq" },
+        protocol: "relay",
+      }
+    : await getMusicStreamUrl(track, true);
   if (!streamData) {
     const object = {
       caption: `Xin lỗi, không thể lấy được bài hát này về. Vui lòng thử lại bài khác.`,
@@ -381,15 +479,12 @@ async function handleSendTrackSoundCloudPriority(api, message, track) {
   let progressiveUrl;
   let servedFromCache = false;
 
-  const object = {
-    caption: `Chờ lấy nhạc một chút, xong sẽ gọi cho hay.` + `\n\n⏳ ${track.title}`,
-  };
-
-  const thumbnailUrl = track.artwork_url?.replace("-large", "-t500x500");
+  const thumbnailUrl = resolveSoundCloudArtwork(track);
+  const thumbnailCandidates = resolveSoundCloudArtworkCandidates(track);
   // asyncTaskManager.runAsync(thumbnailUrl, () => createCircleWebp(api, message, thumbnailUrl, track.id));
   // Cache trước bản AAC v1 có thể chứa MP3 được gắn làm voice: gửi thành công
   // nhưng người nhận không nghe được. Không tái sử dụng các entry cũ đó.
-  if (cachedMusic?.voiceCodec === "aac-v1") {
+  if (cachedMusic?.voiceCodec === "aac-v2") {
     // Repair cloud URLs written by the old uploader before reusing the cache.
     voiceUrl = ensureVoiceUrlExtension(cachedMusic.fileUrl);
     progressiveUrl = cachedMusic.progressiveUrl;
@@ -401,42 +496,46 @@ async function handleSendTrackSoundCloudPriority(api, message, track) {
         progressiveUrl?.quality || "sq"
       );
     }
-    // Link Zalo CDN có thể hết hạn khi cache vẫn còn mới. Khi đó bỏ qua cache
-    // và upload lại từ stream SoundCloud thay vì để sendVoiceMusic báo lỗi.
-    if (!(await checkUrlStatus(voiceUrl))) {
-      console.warn(`[SoundCloud] Link cache đã hết hạn, upload lại track ${track.id}`);
-      voiceUrl = null;
-    }
     servedFromCache = Boolean(voiceUrl);
   }
 
   if (!voiceUrl) {
-    await sendMessageCompleteRequest(api, message, object, 10000);
     progressiveUrl = streamData.progressiveUrl;
-
-    voiceUrl = await downloadAndConvertAudio(streamData.url, api, message, true);
+    const jobKey = `${track.id}:${progressiveUrl?.quality || "sq"}`;
+    let trackJob = soundCloudTrackJobs.get(jobKey);
+    const ownsJob = !trackJob;
+    if (!trackJob) {
+      trackJob = (async () => {
+        // Normalize once and share the result when several users request the
+        // same song concurrently; duplicate ffmpeg and Zalo uploads are costly.
+        const uploadedUrl = await downloadAndConvertAudio(streamData.url, api, message, true);
+        if (!uploadedUrl) throw new Error(`SoundCloud upload không trả về link voice cho track ${track.id}`);
+        setCacheData(
+          PLATFORM,
+          track.id,
+          {
+            title: track.title,
+            artist: track.user?.username || "Unknown Artist",
+            fileUrl: uploadedUrl,
+            progressiveUrl: streamData.progressiveUrl,
+            voiceCodec: "aac-v2",
+          },
+          progressiveUrl?.quality || "sq"
+        );
+        return uploadedUrl;
+      })();
+      soundCloudTrackJobs.set(jobKey, trackJob);
+    }
+    try {
+      voiceUrl = await trackJob;
+    } finally {
+      if (ownsJob && soundCloudTrackJobs.get(jobKey) === trackJob) soundCloudTrackJobs.delete(jobKey);
+    }
     console.log(
       `[SoundCloud:timing] track=${track.id} protocol=${streamData.protocol} ` +
       `resolve=${((resolvedAt - startedAt) / 1000).toFixed(2)}s ` +
-      `download-convert-upload=${((performance.now() - resolvedAt) / 1000).toFixed(2)}s cache=miss`
-    );
-
-    // URL cloud của Zalo có đường dẫn voice tổng hợp nên kiểm tra HEAD/GET từ
-    // ngoài có thể trả false dù api.sendVoice vẫn dùng được. Chỉ kiểm tra việc
-    // upload có thật sự trả URL; chính Zalo sẽ xác nhận URL lúc gửi.
-    if (!voiceUrl) throw new Error(`SoundCloud upload không trả về link voice cho track ${track.id}`);
-    
-    setCacheData(
-      PLATFORM,
-      track.id,
-      {
-        title: track.title,
-        artist: track.user?.username || "Unknown Artist",
-        fileUrl: voiceUrl,
-        progressiveUrl: streamData.progressiveUrl,
-        voiceCodec: "aac-v1",
-      },
-      progressiveUrl.quality
+      `download-convert-upload=${((performance.now() - resolvedAt) / 1000).toFixed(2)}s ` +
+      `cache=${ownsJob ? "miss" : "shared"}`
     );
   }
 
@@ -465,9 +564,10 @@ async function handleSendTrackSoundCloudPriority(api, message, track) {
     source: "SoundCloud",
     caption: caption,
     imageUrl: thumbnailUrl,
+    imageUrls: thumbnailCandidates,
     voiceUrl: voiceUrl,
     stats: stats,
-    quality: progressiveUrl.quality,
+    quality: progressiveUrl?.quality || "sq",
     directStream: true,
   };
   await sendVoiceMusic(api, message, objectMusic);

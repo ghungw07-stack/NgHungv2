@@ -24,7 +24,7 @@ for (const [alias, cell] of [
 
 export function resolvePenaltyCell(value) { return aliases.get(normalize(value)) || null; }
 
-export const PENALTY_WIN_RATE = 0.2;
+export const PENALTY_WIN_RATE = 0.25;
 
 export function shootPenalty(cell, random = Math.random) {
   if (!cell?.multiplier) throw new Error("Ô sút không hợp lệ.");

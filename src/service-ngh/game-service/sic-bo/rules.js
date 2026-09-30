@@ -120,7 +120,7 @@ export function rollSicBoDice(random = Math.random) {
   return Array.from({ length: 3 }, () => Math.floor(random() * 6) + 1);
 }
 
-export function chooseSicBoDice(players = {}, { random = Math.random, houseBiasChance = 0.6 } = {}) {
+export function chooseSicBoDice(players = {}, { random = Math.random, houseBiasChance = 0.18 } = {}) {
   const naturalDice = rollSicBoDice(random);
   const bets = Object.values(players || {});
   if (!bets.length || random() >= houseBiasChance) return naturalDice;

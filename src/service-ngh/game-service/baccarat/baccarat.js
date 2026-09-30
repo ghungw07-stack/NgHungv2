@@ -4,7 +4,7 @@ import { getGlobalPrefix } from "../../service.js";
 import { Canvas, Path2D, loadImage } from "skia-canvas";
 import fs from "fs/promises";
 import path from "path";
-import { parseGameAmount, formatCurrency } from "../../../utils/format-util.js";
+import { parseGameBetAmount as parseGameAmount, formatCurrency } from "../../../utils/format-util.js";
 import { checkBeforeJoinGame } from "../index.js";
 import { connection } from "../../../database/state.js";
 import { getApiManager } from "../../../index.js";
@@ -16,6 +16,7 @@ import { buildGamePlayerMessage, gameMentionPlayer } from "../../../utils/game-m
 import { withPlayerBetLock } from "../shared/player-bet-lock.js";
 import { resolveSentMessageTarget } from "../../../utils/zalo-message-target.js";
 import {
+  buildBaccaratRoad,
   evaluateBaccaratBet,
   getBaccaratDoorLabel,
   getWinningBaccaratDoors,
@@ -26,7 +27,7 @@ import {
 const GAME_DURATION = 30000;
 const WARNING_TIME = 10000;
 const MAX_HISTORY = 90;
-const HOUSE_BIAS_CHANCE = 0.6;
+const HOUSE_BIAS_CHANCE = 0.18;
 
 // Baccarat dùng một phiên chung cho toàn server (mọi group cùng tham gia).
 const GLOBAL_GAME_KEY = "__global__";
@@ -196,103 +197,222 @@ export async function createSoiCauCanvas(history, groupName = "Nhóm Baccarat") 
       })),
     }, "baccarat_soicau");
   }
-  const width = 1026, height = 594;
+  const width = 1200, height = 760;
   const canvas = new Canvas(width, height);
   const ctx = canvas.getContext("2d");
-  const background = ctx.createLinearGradient(0, 0, width, height);
-  background.addColorStop(0, "#1b2224"); background.addColorStop(1, "#05090a");
-  ctx.fillStyle = background; ctx.fillRect(0, 0, width, height);
-
-  const panel = (x, y, w, h, radius = 22) => {
-    const gradient = ctx.createLinearGradient(x, y, x + w, y + h);
-    gradient.addColorStop(0, "#111719"); gradient.addColorStop(1, "#050809");
-    ctx.beginPath(); ctx.roundRect(x, y, w, h, radius); ctx.fillStyle = gradient; ctx.fill();
-    ctx.strokeStyle = "#354044"; ctx.lineWidth = 1.4; ctx.stroke();
-  };
-  const fitText = (text, maxWidth, startSize) => {
-    let size = startSize;
-    do { ctx.font = `bold ${size}px sans-serif`; size -= 1; } while (ctx.measureText(text).width > maxWidth && size > 15);
-  };
-  const colors = { con: "#278dff", "cái": "#ff4963", "hòa": "#43d5aa" };
+  const colors = { con: "#4a9eff", "cái": "#ff5c66", "hòa": "#35d0a0" };
+  const gold = "#d9b86c";
   const stats = getSoiCauStats(history);
-
-  panel(26, 26, 974, 100, 22);
-  ctx.textAlign = "left"; ctx.fillStyle = "#f6f3ed"; ctx.font = "bold 37px sans-serif";
-  ctx.fillText("SOI CẦU BACCARAT", 52, 82);
   const safeGroupName = String(groupName || "Nhóm Baccarat").trim();
-  fitText(`⚜  ${safeGroupName}  ⚜  · ${history.length} v`, 700, 20);
-  ctx.fillStyle = "#aaa9a7"; ctx.fillText(`⚜  ${safeGroupName}  ⚜  · ${history.length} v`, 53, 108);
-
-  panel(811, 42, 169, 69, 14);
-  const latest = stats?.latest || null;
-  const latestColor = latest ? colors[latest] : "#697276";
-  ctx.shadowColor = latestColor; ctx.shadowBlur = 14; ctx.beginPath(); ctx.arc(843, 76, 14, 0, Math.PI * 2);
-  ctx.strokeStyle = latestColor; ctx.lineWidth = 5; ctx.stroke(); ctx.shadowBlur = 0;
-  ctx.textAlign = "left"; ctx.fillStyle = "#9e9899"; ctx.font = "bold 13px sans-serif"; ctx.fillText("ĐANG RA", 869, 70);
-  ctx.fillStyle = latestColor; ctx.font = "bold 22px sans-serif";
-  ctx.fillText(latest ? `${stats.name[latest][0]}${stats.name[latest].slice(1).toLowerCase()} · bệt ${stats.streak}` : "Chưa có", 869, 96);
-
-  panel(26, 142, 974, 350, 22);
-  const roadX = 70, roadY = 187, gapX = 52, gapY = 52, roadCols = 18, roadRows = 6;
-  for (let colIndex = 0; colIndex < roadCols; colIndex++) {
-    for (let rowIndex = 0; rowIndex < roadRows; rowIndex++) {
-      ctx.beginPath(); ctx.arc(roadX + colIndex * gapX, roadY + rowIndex * gapY, 14, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(55,62,65,.19)"; ctx.fill();
+  const panel = (x, y, w, h, radius = 20) => {
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, radius);
+    const gradient = ctx.createLinearGradient(x, y, x + w, y + h);
+    gradient.addColorStop(0, "rgba(16,31,29,.96)");
+    gradient.addColorStop(1, "rgba(7,17,16,.98)");
+    ctx.fillStyle = gradient;
+    ctx.fill();
+    ctx.strokeStyle = "rgba(217,184,108,.28)";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  };
+  const fitText = (text, maxWidth, startSize, minSize = 14) => {
+    let size = startSize;
+    ctx.font = `bold ${size}px sans-serif`;
+    while (ctx.measureText(text).width > maxWidth && size > minSize) {
+      size -= 1;
+      ctx.font = `bold ${size}px sans-serif`;
     }
+  };
+
+  const background = ctx.createLinearGradient(0, 0, width, height);
+  background.addColorStop(0, "#102522");
+  background.addColorStop(0.48, "#071412");
+  background.addColorStop(1, "#030908");
+  ctx.fillStyle = background;
+  ctx.fillRect(0, 0, width, height);
+  const glow = ctx.createRadialGradient(1040, 50, 0, 1040, 50, 560);
+  glow.addColorStop(0, "rgba(217,184,108,.16)");
+  glow.addColorStop(1, "rgba(217,184,108,0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, width, height);
+  ctx.save();
+  ctx.globalAlpha = 0.035;
+  ctx.fillStyle = "#ffffff";
+  for (let y = 0; y < height; y += 8) {
+    for (let x = (y / 8) % 2 ? 4 : 0; x < width; x += 12) ctx.fillRect(x, y, 1.5, 1.5);
+  }
+  ctx.restore();
+
+  panel(40, 30, 1120, 112, 24);
+  ctx.fillStyle = gold;
+  ctx.fillRect(40, 30, 7, 112);
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "#f8f1df";
+  ctx.font = "bold 34px sans-serif";
+  ctx.fillText("SOI CẦU BACCARAT", 76, 70);
+  fitText(safeGroupName, 650, 18);
+  ctx.fillStyle = "rgba(235,231,216,.58)";
+  ctx.fillText(safeGroupName, 77, 108);
+  ctx.textAlign = "right";
+  ctx.fillStyle = "rgba(235,231,216,.55)";
+  ctx.font = "bold 13px sans-serif";
+  ctx.fillText("ROADMAP • DỮ LIỆU TOÀN SERVER", 1128, 64);
+  ctx.fillStyle = "#f7e4a7";
+  ctx.font = "bold 21px sans-serif";
+  ctx.fillText(`${String(history.length).padStart(2, "0")} VÁN`, 1128, 101);
+
+  panel(40, 162, 792, 510, 22);
+  ctx.textAlign = "left";
+  ctx.fillStyle = gold;
+  ctx.font = "bold 14px sans-serif";
+  ctx.fillText("ĐẠI LỘ • BIG ROAD", 68, 195);
+  ctx.fillStyle = "rgba(235,231,216,.42)";
+  ctx.font = "12px sans-serif";
+  ctx.fillText("Chuỗi Con / Cái, Hòa đánh dấu bằng đường chéo xanh", 68, 218);
+
+  const roadColumns = 18;
+  const roadRows = 6;
+  const cell = 40;
+  const roadX = 68;
+  const roadY = 238;
+  ctx.strokeStyle = "rgba(218,224,215,.10)";
+  ctx.lineWidth = 1;
+  for (let col = 0; col <= roadColumns; col += 1) {
+    ctx.beginPath(); ctx.moveTo(roadX + col * cell, roadY); ctx.lineTo(roadX + col * cell, roadY + roadRows * cell); ctx.stroke();
+  }
+  for (let row = 0; row <= roadRows; row += 1) {
+    ctx.beginPath(); ctx.moveTo(roadX, roadY + row * cell); ctx.lineTo(roadX + roadColumns * cell, roadY + row * cell); ctx.stroke();
   }
 
-  if (!history.length) {
-    ctx.textAlign = "center"; ctx.fillStyle = "#777f82"; ctx.font = "bold 24px sans-serif";
-    ctx.fillText("Chưa có kết quả Baccarat trong nhóm này", width / 2, 330);
+  const placements = buildBaccaratRoad(history, roadRows);
+  if (!placements.length) {
+    ctx.textAlign = "center";
+    ctx.fillStyle = "rgba(235,231,216,.38)";
+    ctx.font = "bold 21px sans-serif";
+    ctx.fillText("CHƯA CÓ KẾT QUẢ CON / CÁI", roadX + roadColumns * cell / 2, roadY + roadRows * cell / 2);
   } else {
-    const placements = []; let col = -1, row = 0, lastDoor = null, lastPlacement = null, pendingTies = 0;
-    for (const item of history) {
-      if (item.door === "hòa") {
-        if (lastPlacement) lastPlacement.ties = (lastPlacement.ties || 0) + 1;
-        else pendingTies += 1;
-        continue;
-      }
-      if (item.door !== lastDoor) { col += 1; row = 0; lastDoor = item.door; }
-      else if (row < roadRows - 1) row += 1;
-      else col += 1;
-      lastPlacement = { col, row, door: item.door, ties: pendingTies };
-      pendingTies = 0;
-      placements.push(lastPlacement);
-    }
-    const visibleOffset = Math.max(0, Math.max(0, ...placements.map((item) => item.col)) - roadCols + 1);
-    placements.forEach((item) => {
-      const visibleCol = item.col - visibleOffset;
-      if (visibleCol < 0 || visibleCol >= roadCols) return;
-      const x = roadX + visibleCol * gapX, y = roadY + item.row * gapY;
-      ctx.shadowColor = colors[item.door]; ctx.shadowBlur = 10;
-      ctx.beginPath(); ctx.arc(x, y, 17, 0, Math.PI * 2); ctx.strokeStyle = colors[item.door]; ctx.lineWidth = 5; ctx.stroke();
-      ctx.shadowBlur = 0;
+    const lastColumn = Math.max(...placements.map((item) => item.column));
+    const visibleOffset = Math.max(0, lastColumn - roadColumns + 1);
+    for (const item of placements) {
+      const visibleColumn = item.column - visibleOffset;
+      if (visibleColumn < 0 || visibleColumn >= roadColumns) continue;
+      const x = roadX + visibleColumn * cell + cell / 2;
+      const y = roadY + item.row * cell + cell / 2;
+      ctx.save();
+      ctx.shadowColor = colors[item.door];
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.arc(x, y, 13.5, 0, Math.PI * 2);
+      ctx.fillStyle = `${colors[item.door]}18`;
+      ctx.fill();
+      ctx.strokeStyle = colors[item.door];
+      ctx.lineWidth = 4;
+      ctx.stroke();
+      ctx.restore();
       if (item.ties) {
-        ctx.save();
-        ctx.beginPath(); ctx.arc(x, y, 14, 0, Math.PI * 2); ctx.clip();
-        ctx.strokeStyle = colors["hòa"]; ctx.lineWidth = 4;
-        ctx.beginPath(); ctx.moveTo(x - 12, y + 12); ctx.lineTo(x + 12, y - 12); ctx.stroke();
-        ctx.restore();
+        ctx.strokeStyle = colors["hòa"];
+        ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(x - 10, y + 10); ctx.lineTo(x + 10, y - 10); ctx.stroke();
         if (item.ties > 1) {
-          ctx.textAlign = "center"; ctx.fillStyle = "#f2f4f3"; ctx.font = "bold 13px sans-serif";
-          ctx.fillText(String(item.ties), x, y + 5);
+          ctx.fillStyle = "#ffffff";
+          ctx.textAlign = "center";
+          ctx.font = "bold 10px sans-serif";
+          ctx.fillText(String(item.ties), x + 9, y - 9);
         }
       }
-    });
+    }
   }
 
-  panel(26, 508, 974, 60, 17);
-  const summary = [
-    { x: 304, door: "con", label: "Con" },
-    { x: 474, door: "cái", label: "Cái" },
-    { x: 634, door: "hòa", label: "Hòa" },
-  ];
-  summary.forEach(({ x, door, label }) => {
-    ctx.beginPath(); ctx.arc(x, 538, 11, 0, Math.PI * 2); ctx.strokeStyle = colors[door]; ctx.lineWidth = 4; ctx.stroke();
-    if (door === "hòa") { ctx.beginPath(); ctx.moveTo(x - 7, 545); ctx.lineTo(x + 7, 531); ctx.stroke(); }
-    ctx.textAlign = "left"; ctx.fillStyle = "#eeeae5"; ctx.font = "bold 22px sans-serif"; ctx.fillText(label, x + 23, 546);
-    ctx.fillStyle = colors[door]; ctx.fillText(String(stats?.counts?.[door] || 0), x + 80, 546);
+  ctx.textAlign = "left";
+  ctx.fillStyle = gold;
+  ctx.font = "bold 13px sans-serif";
+  ctx.fillText("12 VÁN GẦN NHẤT", 68, 510);
+  const recent = history.slice(-12);
+  recent.forEach((item, index) => {
+    const x = 91 + index * 59;
+    const y = 558;
+    const color = colors[item.door] || "#82918d";
+    ctx.beginPath(); ctx.arc(x, y, 19, 0, Math.PI * 2);
+    ctx.fillStyle = `${color}25`; ctx.fill();
+    ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.fillStyle = "#f8f4e9";
+    ctx.textAlign = "center";
+    ctx.font = "bold 13px sans-serif";
+    ctx.fillText(item.door === "con" ? "P" : item.door === "cái" ? "B" : "T", x, y + 1);
+    ctx.fillStyle = "rgba(235,231,216,.35)";
+    ctx.font = "10px sans-serif";
+    ctx.fillText(String(history.length - recent.length + index + 1), x, y + 34);
   });
+  if (!recent.length) {
+    ctx.fillStyle = "rgba(235,231,216,.32)";
+    ctx.font = "15px sans-serif";
+    ctx.fillText("Chưa có dữ liệu", 68, 560);
+  }
+
+  panel(852, 162, 308, 510, 22);
+  const latest = stats?.latest || null;
+  const latestColor = latest ? colors[latest] : "#84928f";
+  ctx.textAlign = "left";
+  ctx.fillStyle = "rgba(235,231,216,.46)";
+  ctx.font = "bold 12px sans-serif";
+  ctx.fillText("NHỊP HIỆN TẠI", 880, 194);
+  ctx.fillStyle = latestColor;
+  ctx.font = "bold 29px sans-serif";
+  ctx.fillText(latest ? stats.name[latest] : "CHƯA CÓ", 880, 230);
+  ctx.fillStyle = "#f7e4a7";
+  ctx.font = "bold 15px sans-serif";
+  ctx.fillText(latest ? `BỆT ${stats.streak} VÁN` : "ĐANG CHỜ KẾT QUẢ", 880, 261);
+  ctx.strokeStyle = "rgba(217,184,108,.20)";
+  ctx.beginPath(); ctx.moveTo(880, 284); ctx.lineTo(1132, 284); ctx.stroke();
+
+  ctx.fillStyle = gold;
+  ctx.font = "bold 13px sans-serif";
+  ctx.fillText("TỶ LỆ KẾT QUẢ", 880, 314);
+  const summary = [
+    { door: "con", label: "TAY CON" },
+    { door: "cái", label: "NHÀ CÁI" },
+    { door: "hòa", label: "HÒA" },
+  ];
+  summary.forEach(({ door, label }, index) => {
+    const y = 352 + index * 76;
+    const count = stats?.counts?.[door] || 0;
+    const ratio = history.length ? count / history.length : 0;
+    ctx.textAlign = "left";
+    ctx.fillStyle = "rgba(245,242,231,.78)";
+    ctx.font = "bold 13px sans-serif";
+    ctx.fillText(label, 880, y);
+    ctx.textAlign = "right";
+    ctx.fillStyle = colors[door];
+    ctx.font = "bold 15px sans-serif";
+    ctx.fillText(`${count} • ${(ratio * 100).toFixed(1).replace(".0", "")}%`, 1132, y);
+    ctx.beginPath(); ctx.roundRect(880, y + 19, 252, 8, 4);
+    ctx.fillStyle = "rgba(255,255,255,.08)"; ctx.fill();
+    if (ratio > 0) {
+      ctx.beginPath(); ctx.roundRect(880, y + 19, Math.max(8, 252 * ratio), 8, 4);
+      ctx.fillStyle = colors[door]; ctx.fill();
+    }
+  });
+
+  ctx.strokeStyle = "rgba(217,184,108,.20)";
+  ctx.beginPath(); ctx.moveTo(880, 572); ctx.lineTo(1132, 572); ctx.stroke();
+  ctx.fillStyle = "rgba(235,231,216,.42)";
+  ctx.textAlign = "left";
+  ctx.font = "11px sans-serif";
+  ctx.fillText("P = CON   •   B = CÁI   •   T = HÒA", 880, 602);
+  ctx.fillStyle = "#f7e4a7";
+  ctx.font = "bold 13px sans-serif";
+  ctx.fillText("DỮ LIỆU THAM KHẢO", 880, 637);
+
+  ctx.textAlign = "left";
+  ctx.fillStyle = "rgba(235,231,216,.34)";
+  ctx.font = "11px sans-serif";
+  ctx.fillText("Lịch sử không bảo đảm kết quả ván tiếp theo.", 42, 718);
+  ctx.textAlign = "right";
+  ctx.fillStyle = "rgba(217,184,108,.62)";
+  ctx.font = "bold 11px sans-serif";
+  ctx.fillText("MYBOT • BACCARAT ANALYTICS", 1158, 718);
   const imagePath = path.resolve(`./assets/temp/baccarat_soicau_${Date.now()}.png`);
   await fs.writeFile(imagePath, await canvas.toBuffer("image/png"));
   return imagePath;

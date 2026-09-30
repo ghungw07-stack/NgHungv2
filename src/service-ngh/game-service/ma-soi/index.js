@@ -37,6 +37,10 @@ const MA_SOI_ACTIONS = new Set([
   "vai",
   "help",
   "huongdan",
+  "setting",
+  "caidat",
+  "config",
+  "cfg",
   "v",
   "vote",
 ]);
@@ -129,6 +133,8 @@ export async function handleMaSoiCommand(api, message, groupSettings) {
   if (!action) return;
   if (!MA_SOI_ACTIONS.has(action)) return;
 
+  await refreshMissingPlayerNames(api, getRoom(threadId));
+
   await reactMaSoiCommand(api, message);
 
   switch (action) {
@@ -157,6 +163,12 @@ export async function handleMaSoiCommand(api, message, groupSettings) {
     case "help":
     case "huongdan":
       await send(api, message, buildGuide(prefix), 180000);
+      break;
+    case "setting":
+    case "caidat":
+    case "config":
+    case "cfg":
+      await configureRoom(api, message, args);
       break;
     case "v":
     case "vote":
@@ -356,8 +368,9 @@ async function joinRoom(api, message) {
   const data = ensureState();
   const threadId = message.threadId;
   const senderId = message.data.uidFrom;
-  const senderName = message.data.dName || senderId;
-  const senderAvatar = await getPlayerAvatar(api, senderId);
+  const identity = await getPlayerIdentity(api, senderId, message.data.dName);
+  const senderName = identity.name;
+  const senderAvatar = identity.avatar;
   let room = data.rooms[threadId];
 
   if (!room) {
@@ -582,6 +595,55 @@ async function cancelRoom(api, message) {
   await send(api, message, "Đã hủy phòng Ma Sói.");
 }
 
+async function configureRoom(api, message, args = []) {
+  const room = getRoom(message.threadId);
+  const senderId = message.data.uidFrom;
+  if (!room) {
+    await send(api, message, "Chưa có phòng Ma Sói để chỉnh cấu hình.");
+    return;
+  }
+  if (normalizeUserId(room.ownerId) !== normalizeUserId(senderId) && !isMaSoiAdmin(api, senderId, message.threadId)) {
+    await send(api, message, "Chỉ chủ phòng hoặc admin mới được chỉnh cấu hình ván.");
+    return;
+  }
+
+  room.options ||= { lockNightChat: true, muteDead: true };
+  const setting = String(args[0] || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z]/g, "");
+  const rawValue = String(args[1] || "").toLowerCase();
+  const enabled = ["on", "bat", "bật", "1", "yes", "co", "có"].includes(rawValue);
+  const disabled = ["off", "tat", "tắt", "0", "no", "khong", "không"].includes(rawValue);
+
+  if (!setting) {
+    await send(api, message, formatRoomOptions(room));
+    return;
+  }
+  if (!enabled && !disabled) {
+    await send(api, message, "Giá trị không hợp lệ. Hãy dùng on hoặc off.");
+    return;
+  }
+
+  if (["khoachat", "lockchat", "lock"].includes(setting)) {
+    room.options.lockNightChat = enabled;
+    if (!enabled) await clearMaSoiChatLock(api, room);
+    else if (room.phase === "night") await applyMaSoiChatLock(api, room, "night");
+  } else if (["mutenguoichet", "mutedead", "mute", "dead"].includes(setting)) {
+    room.options.muteDead = enabled;
+    if (enabled) applyMaSoiDeadMutes(room);
+    else clearMaSoiDeadMutes(room);
+  } else {
+    await send(api, message, "Tùy chọn không hợp lệ. Dùng: lock hoặc dead.");
+    return;
+  }
+
+  saveGameData();
+  await send(api, message, `✅ Đã cập nhật cấu hình.\n${formatRoomOptions(room)}`);
+}
+
+function formatRoomOptions(room) {
+  room.options ||= { lockNightChat: true, muteDead: true };
+  return `⚙️ CẤU HÌNH VÁN MA SÓI\n• Khóa chat ban đêm: ${room.options.lockNightChat ? "BẬT" : "TẮT"}\n• Mute người chết: ${room.options.muteDead ? "BẬT" : "TẮT"}`;
+}
+
 async function resendRole(api, message) {
   const room = getRoom(message.threadId);
   const senderId = message.data.uidFrom;
@@ -653,6 +715,7 @@ function createRoom(threadId, ownerId, ownerName, ownerAvatar = "") {
     cloneCopied: {},
     cult: { members: [], lastRecruitNight: 0 },
     maSoiChatLock: { active: false, didLock: false, previousLockSendMsg: null },
+    options: { lockNightChat: true, muteDead: true },
     lastGuardTarget: null,
     pendingHunter: null,
     nextForcedWolves: [],
@@ -672,29 +735,54 @@ function createPlayer(id, name, avatar = "") {
   return { id, name, avatar: normalizeAvatarUrl(avatar), role: null, alive: true, deathReason: null };
 }
 
-async function getPlayerAvatar(api, userId) {
+async function getPlayerIdentity(api, userId, fallbackName = "") {
   const fromProfile = (profile) =>
     normalizeAvatarUrl(profile?.avatar || profile?.avatar_25 || profile?.avatarUrl || profile?.photo || "");
+  const fallback = String(fallbackName || "").trim();
 
   try {
     const response = await api.getUserInfo(userId);
     const profile =
       response?.unchanged_profiles?.[userId] ||
       response?.changed_profiles?.[userId] ||
-      response?.profiles?.[userId];
+      response?.profiles?.[userId] ||
+      Object.values(response?.unchanged_profiles || {}).find((item) => normalizeUserId(item?.userId || item?.uid || item?.id) === normalizeUserId(userId)) ||
+      Object.values(response?.changed_profiles || {}).find((item) => normalizeUserId(item?.userId || item?.uid || item?.id) === normalizeUserId(userId)) ||
+      Object.values(response?.profiles || {}).find((item) => normalizeUserId(item?.userId || item?.uid || item?.id) === normalizeUserId(userId));
+    const name = String(profile?.displayName || profile?.zaloName || profile?.name || profile?.dName || "").trim();
     const avatar = fromProfile(profile);
-    if (avatar) return avatar;
+    if (name || avatar) return { name: name || fallback || `Người chơi`, avatar };
   } catch (error) {
-    console.error("MaSoi getUserInfo avatar error:", error.message || error);
+    console.error("MaSoi getUserInfo profile error:", error.message || error);
   }
 
   try {
     const response = await api.getUserAvatar(userId);
-    return normalizeAvatarUrl(response?.avatar || response?.url || response?.data?.avatar || response?.data?.url || "");
+    return {
+      name: fallback && !looksLikeUid(fallback, userId) ? fallback : "Người chơi",
+      avatar: normalizeAvatarUrl(response?.avatar || response?.url || response?.data?.avatar || response?.data?.url || ""),
+    };
   } catch (error) {
     console.error("MaSoi getUserAvatar error:", error.message || error);
-    return "";
+    return { name: fallback && !looksLikeUid(fallback, userId) ? fallback : "Người chơi", avatar: "" };
   }
+}
+
+function looksLikeUid(name, userId = "") {
+  const value = String(name || "").trim();
+  return !value || normalizeUserId(value) === normalizeUserId(userId) || /^\d{8,}(?:_0)?$/.test(value);
+}
+
+async function refreshMissingPlayerNames(api, room) {
+  if (!room?.players) return;
+  const players = Object.values(room.players).filter((player) => looksLikeUid(player?.name, player?.id));
+  if (!players.length) return;
+  await Promise.all(players.map(async (player) => {
+    const identity = await getPlayerIdentity(api, player.id, player.name);
+    player.name = identity.name;
+    if (!player.avatar && identity.avatar) player.avatar = identity.avatar;
+  }));
+  saveGameData();
 }
 
 function normalizeAvatarUrl(url) {
@@ -1850,6 +1938,7 @@ async function undoMaSoiPublicImageMessage(api, message) {
 }
 
 function applyMaSoiDeadMutes(room) {
+  if (room.options?.muteDead === false) return;
   const deadPlayers = Object.values(room.players || {}).filter((player) => !player.alive);
   if (!deadPlayers.length) return;
 
@@ -1888,7 +1977,7 @@ function clearMaSoiDeadMutes(room) {
 }
 
 async function applyMaSoiChatLock(api, room, phase) {
-  if (phase === "night") {
+  if (phase === "night" && room.options?.lockNightChat !== false) {
     await lockMaSoiChat(api, room);
   } else {
     await clearMaSoiChatLock(api, room);
@@ -2078,6 +2167,9 @@ function buildHelp(prefix) {
     `${prefix}masoi start - bắt đầu\n` +
     `${prefix}masoi cancel - hủy phòng\n` +
     `${prefix}masoi vai - bot DM lại vai\n` +
+    `${prefix}masoi cfg - xem cấu hình ván\n` +
+    `${prefix}masoi cfg lock on|off - bật/tắt khóa chat ban đêm\n` +
+    `${prefix}masoi cfg dead on|off - bật/tắt mute người chết\n` +
     `${prefix}masoi huongdan - hướng dẫn cách chơi và vai trò\n` +
     `${prefix}masoi v <số> - vote treo cổ\n` +
     `${prefix}masoi v skip - bỏ phiếu trắng\n\n` +
@@ -2096,9 +2188,9 @@ function buildGuide(prefix) {
     `- Chủ phòng bắt đầu: ${prefix}masoi start\n` +
     `- Xem danh sách: ${prefix}masoi list\n` +
     `- Xem lại vai: ${prefix}masoi vai\n` +
-    "- Ban đêm: bot khóa chat nhóm, người có chức năng nhắn riêng bot theo hướng dẫn.\n" +
+    "- Ban đêm: bot có thể khóa chat nhóm tùy cấu hình; người có chức năng nhắn riêng bot theo hướng dẫn.\n" +
     `- Ban ngày: thảo luận và vote bằng ${prefix}masoi v <số>, hoặc ${prefix}masoi v skip.\n` +
-    "- Người chết giữ trạng thái mute và không được tham gia tiếp.\n\n" +
+    "- Người chết bị xóa tin nhắn nếu tùy chọn mute người chết đang bật.\n\n" +
     "Điều kiện thắng:\n" +
     "- Phe dân làng thắng khi loại hết Sói và Trưởng giáo phái.\n" +
     "- Phe Sói thắng khi số Sói lớn hơn hoặc bằng số dân còn sống.\n" +
@@ -2158,6 +2250,10 @@ function normalizeRoomAfterRestart(room) {
   room.votes ||= {};
   room.pendingHunter = room.pendingHunter || null;
   room.maSoiChatLock ||= { active: false, didLock: false, previousLockSendMsg: null };
+  room.options = {
+    lockNightChat: room.options?.lockNightChat !== false,
+    muteDead: room.options?.muteDead !== false,
+  };
 }
 
 async function ensureMaSoiRuntimeRestored(api) {
@@ -2351,9 +2447,22 @@ export async function handleWerewolfGroupVote(api, message) {
   return true;
 }
 
-export async function handleWerewolfGroupRestriction(api, message) {
+export async function handleWerewolfGroupRestriction(api, message, _isPrivileged = false) {
   const room = getRoom(message?.threadId);
-  return Boolean(room?.maSoiChatLock?.active && room.phase === "night");
+  if (!room) return false;
+
+  const player = findPlayerByUserId(room, message?.data?.uidFrom);
+  if (room.options?.muteDead !== false && player && !player.alive) {
+    try {
+      const deleted = await api.deleteMessage(message, false);
+      if (deleted) markMessageCacheUndo(message?.data?.cliMsgId);
+    } catch (error) {
+      console.error("MaSoi delete dead-player message failed:", error?.message || error);
+    }
+    return true;
+  }
+
+  return Boolean(room.options?.lockNightChat !== false && room.maSoiChatLock?.active && room.phase === "night");
 }
 
 export async function handleWerewolfReaction(api, reaction) {

@@ -1,5 +1,6 @@
 import { ZaloApiError, MessageType, ANTI_DELETE_VIDEO } from "../index.js";
 import { apiFactory, getVideoMetadata } from "../utils.js";
+import { logMediaTiming } from "../../utils/media-timing.js";
 
 export const sendVideoFactory = apiFactory()((api, appContext, utils) => {
   const directMessageServiceURL = utils.makeURL(`${api.zpwServiceMap.file[0]}/api/message/forward`, {
@@ -58,41 +59,31 @@ export const sendVideoFactory = apiFactory()((api, appContext, utils) => {
     metaData = null,
     antiDelete = ANTI_DELETE_VIDEO,
   }) {
+    const startedAt = performance.now();
     let width = 1280;
     let height = 720;
-    let thumbnailUrl = null;
+    let thumbnailUrl = thumbnail || null;
     let fileSize = 0;
-    try {
-      if (metaData) {
-        duration = metaData.duration || duration;
-        width = metaData.width || width;
-        height = metaData.height || height;
-        fileSize = metaData.totalSize || fileSize;
-      } else {
-        const {
-          duration: videoDuration,
-          width: videoWidth,
-          height: videoHeight,
-          totalSize: videoFileSize,
-        } = await getVideoMetadata(videoUrl);
-        duration = videoDuration || duration;
-        width = videoWidth || width;
-        height = videoHeight || height;
-        fileSize = videoFileSize || fileSize;
-      }
-    } catch (error) {
-      // throw new ZaloApiError(`Unable to get video content: ${error.message}`);
+    const prepareStartedAt = performance.now();
+    // ffprobe and thumbnail extraction both read the same video source. Start
+    // them together so Web sends pay the slower operation, not their sum.
+    const [metadataResult, thumbnailResult] = await Promise.allSettled([
+      metaData ? Promise.resolve(metaData) : getVideoMetadata(videoUrl),
+      thumbnail ? Promise.resolve({ url: thumbnail }) : api.uploadThumbnailVideo(videoUrl),
+    ]);
+    if (metadataResult.status === "fulfilled" && metadataResult.value) {
+      const prepared = metadataResult.value;
+      duration = prepared.duration || duration;
+      width = prepared.width || width;
+      height = prepared.height || height;
+      fileSize = prepared.totalSize || fileSize;
     }
-    try {
-      if (thumbnail) {
-        thumbnailUrl = thumbnail;
-      } else {
-        const thumbnail = await api.uploadThumbnailVideo(videoUrl);
-        thumbnailUrl = thumbnail ? thumbnail.url : null;
-      }
-    } catch (error) {
+    if (thumbnailResult.status === "fulfilled" && thumbnailResult.value?.url) {
+      thumbnailUrl = thumbnailResult.value.url;
+    } else if (!thumbnailUrl) {
       thumbnailUrl = videoUrl.replace(/\.[^/.]+$/, ".jpg") || null;
     }
+    const prepareMs = Math.round(performance.now() - prepareStartedAt);
 
     const clientId = antiDelete ? Date.now() * 10 + Math.floor(Math.random() * (1 - 9 + 1)) + 1 : Date.now();
     const payload = {
@@ -146,13 +137,25 @@ export const sendVideoFactory = apiFactory()((api, appContext, utils) => {
     const encryptedParams = utils.encodeAES(JSON.stringify(payload.params));
     if (!encryptedParams) throw new ZaloApiError("Failed to encrypt message");
 
-    const response = await utils.request(url, {
-      method: "POST",
-      body: new URLSearchParams({
-        params: encryptedParams,
-      }),
-    });
-
-    return await utils.resolve(response);
+    let ok = false;
+    try {
+      const response = await utils.request(url, {
+        method: "POST",
+        body: new URLSearchParams({
+          params: encryptedParams,
+        }),
+      });
+      const result = await utils.resolve(response);
+      ok = true;
+      return result;
+    } finally {
+      logMediaTiming("video-send", startedAt, {
+        bot: appContext.uid,
+        ok,
+        prepareMs,
+        metadataProvided: Boolean(metaData),
+        thumbnailProvided: Boolean(thumbnail),
+      });
+    }
   };
 });

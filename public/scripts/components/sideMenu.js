@@ -8,6 +8,7 @@ document.addEventListener("DOMContentLoaded", function () {
   const isBotCommands = pathname === "bot-commands.html";
   const isBotDashboard = pathname === "bot-dashboard.html";
   const isSendPrivateMessage = pathname === "send-private-message.html";
+  const isConversations = pathname === "conversations.html";
 
   const botCommandsPath = (window.CONFIG && window.CONFIG.BOT_COMMANDS_PATH) || "/bot-commands.html";
 
@@ -18,6 +19,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   items.push({ href: "/admin-panel.html", icon: "fas fa-home", label: " Trang Chủ", active: isAdminPanel });
   items.push({ href: botCommandsPath, icon: "fas fa-terminal", label: " Commands List", active: isBotCommands });
+  items.push({ href: "/conversations.html", icon: "fas fa-comments", label: " Cuộc trò chuyện", active: isConversations });
   items.push({ href: "/send-private-message.html", icon: "fas fa-envelope", label: " Gửi tin nhắn riêng", active: isSendPrivateMessage });
 
   const interfaceSubmenu = `

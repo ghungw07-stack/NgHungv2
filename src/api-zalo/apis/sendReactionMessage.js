@@ -1,6 +1,6 @@
 import { ZaloApiError, MessageType } from "../index.js";
 import { apiFactory } from "../utils.js";
-import { ReactionMap } from "../models/Reaction.js";
+import { encodeCustomReactionText, ReactionMap } from "../models/Reaction.js";
 
 export const sendReactionMessageFactory = apiFactory()((api, appContext, utils) => {
   const directMessageServiceURL = utils.makeURL(`${api.zpwServiceMap.reaction[0]}/api/message/reaction`);
@@ -28,7 +28,7 @@ export const sendReactionMessageFactory = apiFactory()((api, appContext, utils) 
       typeof icon.text === "string" &&
       icon.text.trim();
     const reaction = isCustomReaction
-      ? { rType: icon.rType, text: icon.text.trim() }
+      ? { rType: icon.rType, text: encodeCustomReactionText(icon.text) }
       : ReactionMap[icon] || ReactionMap.NONE;
     const { rType, text } = reaction;
     const rMsg = messageArray.map((msg) => ({

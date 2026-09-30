@@ -8,8 +8,8 @@ const SYMBOLS = [
 ];
 
 export const GOLD = "🪙";
-export const NOHU_WIN_RATE = 0.2;
-const JACKPOT_RATE = 0.001;
+export const NOHU_WIN_RATE = 0.23;
+const JACKPOT_RATE = 0.0002;
 
 const pick = (random = Math.random) => {
   let roll = random() * 100;
@@ -20,7 +20,7 @@ const pick = (random = Math.random) => {
   return SYMBOLS[0];
 };
 
-/** Tạo một lượt quay: thắng (có tiền trả về) chính xác 20%, gồm cả nổ hũ. */
+/** Tạo một lượt quay: thắng (có tiền trả về) 23%, gồm cả jackpot 0,02%. */
 export function rollNoHuSlots(random = Math.random) {
   if (random() < JACKPOT_RATE) return Array.from({ length: 3 }, () => ({ key: GOLD, label: "Hũ Vàng" }));
   const normalWinRate = (NOHU_WIN_RATE - JACKPOT_RATE) / (1 - JACKPOT_RATE);

@@ -1,6 +1,28 @@
 import { ZaloApiError, MessageType } from "../index.js";
 import { apiFactory } from "../utils.js";
 import { getImageInfo } from "../../utils/util.js";
+import { LRUCache } from "lru-cache";
+import { logMediaTiming } from "../../utils/media-timing.js";
+
+const imageInfoCache = new LRUCache({ max: 1000, ttl: 30 * 60_000 });
+const imageInfoInFlight = new Map();
+
+export async function resolveWebImageInfo(imageUrl, loader = getImageInfo) {
+  const key = String(imageUrl || "");
+  const cached = imageInfoCache.get(key);
+  if (cached) return { ...cached };
+  if (imageInfoInFlight.has(key)) return { ...(await imageInfoInFlight.get(key)) };
+
+  const request = Promise.resolve().then(() => loader(key));
+  imageInfoInFlight.set(key, request);
+  try {
+    const result = await request;
+    if (result?.width && result?.height) imageInfoCache.set(key, { ...result });
+    return result;
+  } finally {
+    if (imageInfoInFlight.get(key) === request) imageInfoInFlight.delete(key);
+  }
+}
 
 export const sendImageFactory = apiFactory()((api, appContext, utils) => {
   const directMessageServiceURL = utils.makeURL(`${api.zpwServiceMap.file[0]}/api/message/photo_original/send`, {
@@ -32,6 +54,7 @@ export const sendImageFactory = apiFactory()((api, appContext, utils) => {
       idInGroup: undefined,
     }
   ) {
+    const startedAt = performance.now();
     if (!image) throw new ZaloApiError("Missing image");
     if (!message) throw new ZaloApiError("Missing message object");
 
@@ -43,7 +66,7 @@ export const sendImageFactory = apiFactory()((api, appContext, utils) => {
       imageUrl = image.url || image.normalUrl;
     }
     if (!image.width || !image.height) {
-      dataImage = await getImageInfo(imageUrl);
+      dataImage = await resolveWebImageInfo(imageUrl);
     } else {
       dataImage = image;
     }
@@ -62,7 +85,7 @@ export const sendImageFactory = apiFactory()((api, appContext, utils) => {
       ...groupLayout,
       rawUrl: imageUrl,
       thumbUrl: dataImage.thumbUrl || imageUrl,
-      hdUrl: dataImage.hdUrl || imageUrl,
+      hdUrl: imageUrl,
       toid: threadType === MessageType.DirectMessage ? String(threadId) : undefined,
       grid: threadType === MessageType.GroupMessage ? String(threadId) : undefined,
       oriUrl: threadType === MessageType.GroupMessage ? imageUrl : undefined,
@@ -72,7 +95,7 @@ export const sendImageFactory = apiFactory()((api, appContext, utils) => {
       jcp: JSON.stringify({
         sendSource: 1,
         convertible: "jxl",
-        is_original: 1,
+        is_original: 0,
       }),
       ttl: ttl,
       imei: appContext.imei,
@@ -88,13 +111,23 @@ export const sendImageFactory = apiFactory()((api, appContext, utils) => {
 
     const encryptedParams = utils.encodeAES(JSON.stringify(params));
     if (!encryptedParams) throw new ZaloApiError("Failed to encrypt message");
-    const response = await utils.request(url, {
-      method: "POST",
-      body: new URLSearchParams({
-        params: encryptedParams,
-      }),
-    });
-
-    return await utils.resolve(response);
+    let ok = false;
+    try {
+      const response = await utils.request(url, {
+        method: "POST",
+        body: new URLSearchParams({
+          params: encryptedParams,
+        }),
+      });
+      const result = await utils.resolve(response);
+      ok = true;
+      return result;
+    } finally {
+      logMediaTiming("image-send", startedAt, {
+        bot: appContext.uid,
+        ok,
+        metadataProvided: Boolean(image?.width && image?.height),
+      });
+    }
   };
 });

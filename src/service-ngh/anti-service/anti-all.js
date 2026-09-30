@@ -16,6 +16,7 @@ export async function handleAntiAll(api, message, groupSettings) {
     "antiFile",
     "antiSpam",
     "removeLinks",
+    "antiTagAll",
     "antiNude",  
     "blockForward",
     "antiNude",

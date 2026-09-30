@@ -37,7 +37,7 @@ class CallbacksMap extends Map {
     return super.clear();
   }
 }
-export const createContext = (credentials, options, apiType = 30, apiVersion = 665) => ({
+export const createContext = (credentials, options, apiType = 30, apiVersion = 685) => ({
   uploadCallbacks: new CallbacksMap(),
   // Upload completion events can arrive before uploadAttachment has finished
   // processing the last chunk. Keep those events briefly instead of dropping

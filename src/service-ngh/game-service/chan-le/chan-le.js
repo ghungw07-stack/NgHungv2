@@ -4,7 +4,7 @@ import Big from "big.js";
 import { updatePlayerBalance, getPlayerBalance, addGameRankPoints } from "../../../database/player.js";
 import { nameServer } from "../../../database/index.js";
 import { checkBeforeJoinGame } from "../index.js";
-import { formatCurrency, parseGameAmount } from "../../../utils/format-util.js";
+import { formatCurrency, parseGameBetAmount as parseGameAmount } from "../../../utils/format-util.js";
 import { getGlobalPrefix } from "../../service.js";
 import { createChanLeResultImage } from "./cv-chan-le.js";
 import { clearImagePath } from "../../../utils/canvas/index.js";
@@ -75,7 +75,8 @@ const MAX_HISTORY = 20; // Giữ tối đa 20 kết quả gần nhất
 const WINNING_MULTIPLIER = 1.9; // Tỷ lệ tiền thắng cược
 const MIN_JACKPOT_PERCENT = 0.0001; // 0.01% của hũ
 const MAX_JACKPOT_MULTIPLIER = 1000; // Giới hạn 1000% tiền cược (x10 thành x1000)
-const PLAYER_LOSS_RATE = 0.8;
+const PLAYER_LOSS_RATE = 0.57;
+const JACKPOT_ROLL_CHANCE = 0.002;
 const TTL_IMAGE = 10800000;
 
 function getRandomJackpotContribution() {
@@ -155,18 +156,26 @@ export async function handleChanLe(api, message, groupSettings) {
   }
 
   const expectedKey = Math.random() < PLAYER_LOSS_RATE ? (playerChoice.key === "chan" ? "le" : "chan") : playerChoice.key;
-  const dice1 = rollDice(), dice2 = rollDice();
-  let dice3 = rollDice();
-  const rolledKey = (dice1 + dice2 + dice3) % 2 === 0 ? "chan" : "le";
-  if (rolledKey !== expectedKey) dice3 = dice3 === DICE_FACES ? dice3 - 1 : dice3 + 1;
+  let dice1, dice2, dice3;
+  if (Math.random() < JACKPOT_ROLL_CHANCE) {
+    dice1 = rollDice();
+    dice2 = dice1;
+    dice3 = dice1;
+  } else {
+    do {
+      dice1 = rollDice();
+      dice2 = rollDice();
+      dice3 = rollDice();
+    } while ((dice1 === dice2 && dice2 === dice3) || ((dice1 + dice2 + dice3) % 2 === 0 ? "chan" : "le") !== expectedKey);
+  }
   const total = dice1 + dice2 + dice3;
   const result = total % 2 === 0 ? CHOICES.CHAN : CHOICES.LE;
   const isWin = result.key === playerChoice.key;
   const jackpotKey = getGameJackpotKey(api);
 
-  // Ba mặt xúc xắc giống nhau là jackpot (1-1-1 đến 6-6-6), tỉ lệ nổ hũ 20%.
+  // Ba mặt xúc xắc giống nhau là jackpot (1-1-1 đến 6-6-6).
   const isTriple = dice1 === dice2 && dice2 === dice3;
-  let isJackpot = isTriple && isWin && Math.random() < 0.20;
+  let isJackpot = isTriple && isWin;
   let isMissedJackpot = false;
 
   let winnings;
